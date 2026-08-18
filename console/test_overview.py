@@ -157,8 +157,8 @@ check("tactics labeled as derived, not verdicts", h.includes("derived tags — n
 console.log("\n5. latest alerts table:");
 check("all columns present", ["Time", "Severity", "Attacker Status",
       "Primary MITRE Tactics", "Alert", "Source", "Action"].every((c) => h.includes(c)));
-check("severity badge colored + labeled",
-      /badge" style="background:#991b1b">CRITICAL/.test(h));
+check("severity badge colored + labeled (theme token, not a literal)",
+      /badge" style="--sev:var\(--sev-critical\)">CRITICAL/.test(h));
 check("attacker status rendered as given", h.includes("Damaging / Stealing"));
 check("attacker status explained as display grouping",
       h.includes("display aid, not a verdict"));
@@ -199,6 +199,61 @@ const mh = run(null);                       // no injected data, fetch fails -> 
 check("renders from the built-in mock", mh.length > 4000);
 check("sample-data banner shown", mh.includes("Sample data"));
 
+console.log("\n9. theme toggle — light default, saved choice wins, OS fallback:");
+/* runTheme exposes the <html> element's attributes so the applied theme is
+   observable, and lets a case inject localStorage / matchMedia. */
+function runTheme(opts) {
+  let html = "";
+  const stub = { set innerHTML(v) { html = v; }, get innerHTML() { return html; },
+                 value: "", click: () => {}, classList: { add: () => {}, remove: () => {} },
+                 scrollTo: () => {} };
+  const attrs = {};
+  const ctx = {
+    document: { getElementById: () => stub, addEventListener: () => {},
+                activeElement: { tagName: "BODY" },
+                documentElement: { setAttribute: (k, v) => { attrs[k] = v; },
+                                   removeAttribute: (k) => { delete attrs[k]; } } },
+    window: { OVERVIEW_DATA: DATA }, navigator: {},
+    fetch: () => Promise.reject(new Error("no backend")),
+    console,
+  };
+  if (opts && opts.localStorage) ctx.localStorage = opts.localStorage;
+  if (opts && opts.matchMedia) ctx.matchMedia = opts.matchMedia;
+  vm.createContext(ctx);
+  vm.runInContext(js, ctx);
+  return { html, attrs, ctx };
+}
+{
+  const plain = runTheme();
+  check("toggle control renders in the top bar", plain.html.includes('data-act="theme"'));
+  check("light is the default: no dark attribute before any interaction",
+        plain.attrs["data-theme"] === undefined,
+        JSON.stringify(plain.attrs));
+  check("toggle offers dark mode while light", plain.html.includes("Dark mode"));
+
+  const stored = { getItem: (k) => (k === "socOverviewTheme" ? "dark" : null),
+                   setItem: () => {} };
+  const saved = runTheme({ localStorage: stored });
+  check("saved 'dark' choice is honored on load",
+        saved.attrs["data-theme"] === "dark");
+  check("toggle offers light mode while dark", saved.html.includes("Light mode"));
+
+  const osDark = runTheme({ matchMedia: (q) =>
+    ({ matches: q.includes("prefers-color-scheme: dark") }) });
+  check("no saved choice: prefers-color-scheme dark is honored",
+        osDark.attrs["data-theme"] === "dark");
+
+  const osDarkButSavedLight = runTheme({
+    localStorage: { getItem: () => "light", setItem: () => {} },
+    matchMedia: () => ({ matches: true }),
+  });
+  check("saved choice beats the OS preference",
+        osDarkButSavedLight.attrs["data-theme"] === undefined);
+
+  check("choice is persisted (localStorage write path present)",
+        js.includes('localStorage.setItem(THEME_KEY'));
+}
+
 console.log(`\n${fails ? "FAILED — " + fails + " check(s)" : "PASSED — all checks green"}`);
 process.exit(fails ? 1 : 0);
 """
@@ -226,8 +281,18 @@ def check_static_html():
     print("\nstatic checks — light theme, self-contained:")
     check("light background token", "--bg:#f4f5f8" in src)
     check("white cards", "--card:#ffffff" in src)
-    check("validated severity palette",
+    check("validated LIGHT severity palette",
           all(c in src for c in ("#991b1b", "#ea580c", "#caa204", "#166534")))
+    check("dark theme block defines its own tokens",
+          'html[data-theme="dark"]' in src and "--bg:#161826" in src
+          and "--card:#232532" in src)
+    check("validated DARK severity palette",
+          all(c in src for c in ("#b25353", "#cd8036", "#827208", "#3f9f83")))
+    check("theme persistence + OS fallback paths present",
+          "localStorage.getItem(THEME_KEY" in src
+          and "prefers-color-scheme: dark" in src)
+    check("SVG colors use style, never var() in presentation attributes",
+          'fill="var(' not in src and 'stroke="var(' not in src)
     check("no external scripts/styles/fonts (offline by construction)",
           "http://" not in src and "https://" not in src
           and "<link" not in src and 'src="' not in src.split("<script>")[0])

@@ -30,10 +30,52 @@
   --sev-medium:#caa204;
   --sev-low:#166534;
 
+  --accent-strong:#4338ca;
+  --dash:#c7cbdb;
+  --badge-ink:#1a2033;
+  --warn-bg:#fdf6e3;
+  --warn-bd:#ecd9a0;
+  --warn-ink:#7a5d0e;
+  --err-bg:#fdecec;
+  --err-ink:#8f1d1d;
+
   --radius:12px;
   --shadow:0 1px 2px rgba(26,32,51,.06),0 4px 14px rgba(26,32,51,.06);
   --font:"Inter",system-ui,-apple-system,sans-serif;
   --mono:ui-monospace,Menlo,Monaco,"Cascadia Code",monospace;
+}
+
+/* Dark variant: same tokens, re-stepped for the dark surface. The severity
+   quartet was re-validated with the dataviz script against #232532 — band,
+   chroma, CVD and contrast PASS; the HIGH↔MEDIUM normal-vision gap lands at
+   13.7 of the 15 target, which is as far apart as warm status hues can get
+   inside this surface's legal lightness band — so, as everywhere else on the
+   page, the severity NAME and COUNT always accompany the color. */
+html[data-theme="dark"]{
+  --bg:#161826;
+  --card:#232532;
+  --ink:#e9e9ed;
+  --ink-2:#b2b6ca;
+  --ink-3:#8a90a2;
+  --line:rgba(233,233,237,.14);
+  --accent:#968ae0;
+  --accent-soft:rgba(121,108,191,.22);
+
+  --sev-critical:#b25353;
+  --sev-high:#cd8036;
+  --sev-medium:#827208;
+  --sev-low:#3f9f83;
+
+  --accent-strong:#b5abfc;
+  --dash:#4a4e5e;
+  --badge-ink:#e9e9ed;
+  --warn-bg:rgba(122,106,60,.16);
+  --warn-bd:#7a6a3c;
+  --warn-ink:#d8b45e;
+  --err-bg:rgba(226,128,127,.14);
+  --err-ink:#e2807f;
+
+  --shadow:0 0 0 1px rgba(233,233,237,.08);
 }
 *,*::before,*::after{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);
@@ -69,7 +111,7 @@ a{color:var(--accent);text-decoration:none}
 .ingest{padding:4px 6px;display:flex;flex-direction:column;gap:8px}
 .ingest-k{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
   padding:0 4px}
-.dropzone{border:1.5px dashed #c7cbdb;border-radius:10px;padding:16px 10px;text-align:center;
+.dropzone{border:1.5px dashed var(--dash);border-radius:10px;padding:16px 10px;text-align:center;
   color:var(--ink-2);font-size:12px;background:var(--bg);cursor:pointer}
 .dropzone.hot{border-color:var(--accent);background:var(--accent-soft)}
 .dropzone b{display:block;color:var(--ink);font-size:12.5px;margin-bottom:2px}
@@ -77,9 +119,9 @@ a{color:var(--accent);text-decoration:none}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
   padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);
   color:var(--ink);font-size:13px}
-.btn:hover{border-color:#c7cbdb;background:var(--bg)}
+.btn:hover{border-color:var(--dash);background:var(--bg)}
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn-primary:hover{background:#4338ca}
+.btn-primary:hover{background:var(--accent-strong)}
 .files{display:flex;flex-direction:column;gap:4px}
 .file{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);
   padding:4px 6px;border-radius:6px;background:var(--bg)}
@@ -96,7 +138,7 @@ a{color:var(--accent);text-decoration:none}
 select.btn{padding-right:8px}
 
 .banner{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;
-  background:#fdf6e3;border:1px solid #ecd9a0;color:#7a5d0e;font-size:12.5px}
+  background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn-ink);font-size:12.5px}
 
 .grid{display:flex;gap:18px;align-items:flex-start}
 .col-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:18px}
@@ -152,7 +194,7 @@ select.btn{padding-right:8px}
 .ai-msg{padding:8px 11px;border-radius:10px;max-width:95%;white-space:pre-wrap}
 .ai-msg.q{background:var(--accent-soft);align-self:flex-end}
 .ai-msg.a{background:var(--bg)}
-.ai-msg.err{background:#fdecec;color:#8f1d1d}
+.ai-msg.err{background:var(--err-bg);color:var(--err-ink)}
 .ai-in{display:flex;gap:8px}
 .ai-in input{flex:1;min-width:0;padding:8px 11px;border-radius:8px;border:1px solid var(--line);
   font:inherit;font-size:13px;background:var(--card);color:var(--ink)}
@@ -165,8 +207,17 @@ select.btn{padding-right:8px}
 .tbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 .tbl tr:last-child td{border-bottom:0}
 .tbl .t{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+/* The severity pill takes its hue from --sev (set inline per row); the ink
+   token flips with the theme so the severity WORD stays readable on both. */
+/* Severity pill: a tint of the severity hue plus a solid ring, with theme ink
+   for the text. A solid severity fill can't carry one readable ink across all
+   four hues in either theme (white fails on amber, dark fails on red), and the
+   severity WORD inside the pill is the primary signal — it must always pass. */
 .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;
-  font-size:10.5px;font-weight:600;color:#fff}
+  font-size:10.5px;font-weight:600;color:var(--badge-ink);
+  background:color-mix(in srgb,var(--sev) 20%,transparent);
+  box-shadow:inset 0 0 0 1px var(--sev)}
+html[data-theme="dark"] .badge{background:color-mix(in srgb,var(--sev) 28%,transparent)}
 .phase{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--bg);
   border:1px solid var(--line);font-size:11px;color:var(--ink-2);white-space:nowrap}
 .tac{display:inline-block;padding:1px 7px;border-radius:5px;background:var(--accent-soft);
@@ -195,8 +246,46 @@ select.btn{padding-right:8px}
    AI analyst only explains — it never changes a verdict.
    ========================================================================== */
 
-const SEV = { CRITICAL: "#991b1b", HIGH: "#ea580c", MEDIUM: "#caa204", LOW: "#166534" };
+/* Colors are referenced through the theme tokens, never as literals, so the
+   light and dark palettes both apply without re-rendering. Note: CSS var()
+   only works in style properties, not SVG presentation ATTRIBUTES — every SVG
+   color below is set via style="", or it would render black. */
+const SEV = { CRITICAL: "var(--sev-critical)", HIGH: "var(--sev-high)",
+              MEDIUM: "var(--sev-medium)", LOW: "var(--sev-low)" };
 const SEV_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+
+/* — theme: light default; saved choice wins, then the OS preference — */
+const THEME_KEY = "socOverviewTheme";
+let THEME = "light";
+
+function applyTheme(t) {
+  const root = typeof document !== "undefined" && document.documentElement;
+  if (!root || !root.setAttribute) return;
+  if (t === "dark") root.setAttribute("data-theme", "dark");
+  else root.removeAttribute("data-theme");
+}
+
+function initTheme() {
+  let t = null;
+  try {
+    if (typeof localStorage !== "undefined") t = localStorage.getItem(THEME_KEY);
+  } catch { /* storage blocked (file://, private mode) — fall through */ }
+  if (t !== "dark" && t !== "light") {
+    t = (typeof matchMedia === "function"
+         && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+  }
+  THEME = t;
+  applyTheme(t);
+}
+
+function toggleTheme() {
+  THEME = THEME === "dark" ? "light" : "dark";
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(THEME_KEY, THEME);
+  } catch { /* not persistable here; the in-page toggle still works */ }
+  applyTheme(THEME);
+  render();                                    // the toggle's own label flips
+}
 
 /* Mock matching Toby's /api/overview contract EXACTLY, used only when no
    backend answers — and then the page says so with a visible banner. */
@@ -363,7 +452,7 @@ function donutPanel() {
   const segs = rows.filter((x) => x.count > 0).map((x) => {
     const frac = x.count / total;
     const seg = `<circle r="${R}" cx="60" cy="60" fill="none"
-      stroke="${SEV[x.bucket]}" stroke-width="14"
+      style="stroke:${SEV[x.bucket]}" stroke-width="14"
       stroke-dasharray="${(frac * C - 2).toFixed(1)} ${(C - frac * C + 2).toFixed(1)}"
       stroke-dashoffset="${(-off * C).toFixed(1)}"
       transform="rotate(-90 60 60)"><title>${esc(x.bucket)} — ${x.count} (${x.pct}%)</title></circle>`;
@@ -381,8 +470,9 @@ function donutPanel() {
            aria-label="alerts by severity">
         ${segs}
         <text x="60" y="57" text-anchor="middle" font-size="22" font-weight="650"
-              fill="#1a2033">${total}</text>
-        <text x="60" y="74" text-anchor="middle" font-size="9" fill="#8a90a2">TOTAL</text>
+              style="fill:var(--ink)">${total}</text>
+        <text x="60" y="74" text-anchor="middle" font-size="9"
+              style="fill:var(--ink-3)">TOTAL</text>
       </svg>
       <div class="legend">${legend}</div>
     </div>
@@ -409,7 +499,7 @@ function overTimePanel() {
       const label = `${esc(String(b.t).slice(11, 16))} — ${esc(k)}: ${v}`;
       const rect = `<rect x="${(i * bw + 3).toFixed(1)}" y="${y.toFixed(1)}"
         width="${(bw - 6).toFixed(1)}" height="${Math.max(1.5, h - 2).toFixed(1)}" rx="1.5"
-        fill="${COLOR[k]}"><title>${label}</title></rect>`;
+        style="fill:${COLOR[k]}"><title>${label}</title></rect>`;
       return rect;
     }).join("");
   }).join("");
@@ -439,7 +529,7 @@ function tacticsPanel() {
       <svg class="chart-tactic" viewBox="0 0 100 14" preserveAspectRatio="none" role="img"
            aria-label="${esc(r.tactic)}: ${r.count}">
         <rect x="0" y="3" width="${Math.max(1.5, (r.count / max) * 100).toFixed(1)}"
-              height="8" rx="2" fill="var(--accent)"></rect>
+              height="8" rx="2" style="fill:var(--accent)"></rect>
       </svg>
       <b>${r.count}</b>
     </div>`).join("");
@@ -488,7 +578,7 @@ function alertsTable() {
   const body = rows.length ? rows.map((a) => `
     <tr>
       <td class="t">${esc(a.time)}</td>
-      <td><span class="badge" style="background:${SEV[a.severity] || "#8a90a2"}">${esc(a.severity)}</span></td>
+      <td><span class="badge" style="--sev:${SEV[a.severity] || "var(--ink-3)"}">${esc(a.severity)}</span></td>
       <td><span class="phase" title="Derived kill-chain grouping of this alert's MITRE tactics — a display aid, not a verdict">${esc(a.attackerStatus || "—")}</span></td>
       <td>${(a.tactics || []).map((t) => `<span class="tac">${esc(t)}</span>`).join("") || "—"}</td>
       <td>${esc(a.name)}</td>
@@ -523,6 +613,9 @@ function render() {
           <option selected>${esc(DATA.timeWindowLabel || "Last 24 Hours")}</option>
           <option>Last 7 Days</option>
         </select>
+        <button class="btn" data-act="theme"
+                title="Switch between light and dark mode (saved for next visit)">${
+          THEME === "dark" ? "☀ Light mode" : "☾ Dark mode"}</button>
         <button class="btn" data-act="refresh">Refresh</button>
         <button class="btn" disabled title="Filtering is not built yet">Filters
           <span class="soon-tag">coming soon</span></button>
@@ -614,6 +707,7 @@ document.addEventListener("click", (e) => {
       return render();
     }
     case "refresh": return refresh();
+    case "theme": return toggleTheme();
     default: return;
   }
 });
@@ -666,6 +760,7 @@ function boot(isRefresh) {
   if (!DATA) { DATA = MOCK; usingMock = true; render(); }
 }
 
+initTheme();
 boot();
 </script>
 </body>
