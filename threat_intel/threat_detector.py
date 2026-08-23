@@ -143,7 +143,10 @@ def severity_for(threat_ioc, techniques):
         return "high"
     if techniques:
         return "high"
-    return "medium"
+    # No malicious-activity label and no ATT&CK technique: the indicator data
+    # gives no basis for anything above the floor. "low" is the honest value —
+    # the match itself is the only evidence.
+    return "low"
 
 
 # ---------------------------------------------------------------------------

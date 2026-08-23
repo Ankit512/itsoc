@@ -92,6 +92,24 @@ def main():
     finally:
         tmp.unlink(missing_ok=True)
 
+    print("\nseverity honesty (severity_for — derived from indicator data alone):")
+    tech = [{"technique_id": "T1110", "name": "Brute Force", "tactics": ["credential-access"], "url": ""}]
+    check("malicious-activity + technique -> critical",
+          severity_for({"labels": ["malicious-activity"]}, tech) == "critical",
+          f"got {severity_for({'labels': ['malicious-activity']}, tech)!r}")
+    check("malicious-activity alone -> high",
+          severity_for({"labels": ["malicious-activity"]}, []) == "high",
+          f"got {severity_for({'labels': ['malicious-activity']}, [])!r}")
+    check("technique alone -> high",
+          severity_for({"labels": []}, tech) == "high",
+          f"got {severity_for({'labels': []}, tech)!r}")
+    check("no label, no technique -> low (medium would be severity with no basis)",
+          severity_for({"labels": ["benign"]}, []) == "low",
+          f"got {severity_for({'labels': ['benign']}, [])!r}")
+    check("no labels key at all -> low",
+          severity_for({}, []) == "low",
+          f"got {severity_for({}, [])!r}")
+
     print("\nrule -> ATT&CK table (rule_mitre_map.py — what the console's tags come from):")
     import re
     from rule_mitre_map import RULE_TECHNIQUES, techniques_for_rule
