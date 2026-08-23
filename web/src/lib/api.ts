@@ -168,6 +168,33 @@ export interface Incident {
   timeUncertain: boolean;
 }
 
+/** Layered RCA (GET /api/incidents/<id>/rca — soc.derive_rca). Deterministic
+ *  facts are always present; the runbook citation and the LLM hypothesis each
+ *  degrade to an honest absence (matched:false / text:null with a note). The
+ *  hypothesis is advisory prose, guarded server-side — it never carries or
+ *  affects a severity. */
+export interface RcaTimelineEntry {
+  t: string; label: string; line: number | null;
+  findingId: string | null; rule: string | null;
+}
+
+export interface Rca {
+  incidentId: string;
+  facts: {
+    incidentId: string; entity: string; entityKind: string;
+    findingIds: string[]; membersLoaded: number; rules: string[];
+    firstSeen: string | null; lastSeen: string | null;
+    timeline: RcaTimelineEntry[]; note: string | null;
+  };
+  runbook:
+    | { matched: true; file: string; title: string; passage: string;
+        score: number; coverage: number }
+    | { matched: false; note: string };
+  hypothesis: {
+    text: string | null; label: string; note: string | null; reasons?: string[];
+  };
+}
+
 export interface Asset {
   id: string; name: string; kind: "host" | "ip";
   events: number; findings: number; atRisk: boolean;
@@ -550,6 +577,7 @@ export const api = {
     getJson<{ incidents: Incident[] }>(
       `/api/incidents${state ? `?state=${state}` : ""}`),
   incident: (id: string) => getJson<OrError<Incident>>(`/api/incidents/${id}`),
+  incidentRca: (id: string) => getJson<OrError<Rca>>(`/api/incidents/${id}/rca`),
 
   /** Analyst lifecycle transition (POST /api/incidents/<id>/state). Returns the
    *  updated incident; 400 (bad state) / 404 (unknown id) reject honestly. */

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { api, INCIDENT_STATES, type Incident, type IncidentState } from "@/lib/api";
+import { api, INCIDENT_STATES, type Incident, type IncidentState, type Rca } from "@/lib/api";
 import { SeverityBadge, Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,109 @@ function StateBadge({ state }: { state: IncidentState }) {
 }
 
 const th = "px-2 py-2 text-left text-[10.5px] uppercase tracking-wide text-muted-foreground";
+
+/** Layered RCA (soc.derive_rca), rendered BELOW and apart from the rule-owned
+ *  verdict: a dashed advisory container so it can never read as part of the
+ *  verdict. Facts are deterministic; runbook + hypothesis each render their
+ *  honest absence note when the server withheld or couldn't produce them. */
+function RcaPanel({ incidentId }: { incidentId: string }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["rca", incidentId],
+    queryFn: () => api.incidentRca(incidentId),
+  });
+
+  if (isLoading) {
+    return <p className="text-[11.5px] text-muted-foreground">Loading root-cause analysis…</p>;
+  }
+  // Off-shape data is treated the same as an error: an honest absence,
+  // never a crash and never an invented panel.
+  if (isError || !data || "error" in data || !("facts" in data)) {
+    return (
+      <p className="text-[11.5px] text-muted-foreground">
+        Root-cause analysis unavailable for this incident.
+      </p>
+    );
+  }
+  const rca = data as Rca;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border p-3">
+        <div className="mb-1 text-[9.5px] uppercase tracking-wide text-muted-foreground">
+          Cluster facts · deterministic
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {rca.facts.rules.length ? rca.facts.rules.map((r) => (
+            <span key={r} className="rounded border px-1.5 py-0.5 font-mono text-[10.5px]">{r}</span>
+          )) : (
+            <span className="text-[11.5px] text-muted-foreground">
+              Member findings are not in the loaded run.
+            </span>
+          )}
+        </div>
+        <div className="mt-2 text-[11.5px]">
+          <span className="text-muted-foreground">Span: </span>
+          <span className="font-mono text-[11px]">
+            {rca.facts.firstSeen ?? "n/a"} → {rca.facts.lastSeen ?? "n/a"}
+          </span>
+        </div>
+        {rca.facts.timeline.length > 0 && (
+          <ol className="mt-2 space-y-0.5">
+            {rca.facts.timeline.map((e, i) => (
+              <li key={i} className="text-[11.5px]">
+                <span className="font-mono text-[11px] text-muted-foreground">{e.t || "—"}</span>
+                {" "}{e.label}
+                {e.rule && <span className="ml-1 font-mono text-[10px] text-muted-foreground">[{e.rule}]</span>}
+              </li>
+            ))}
+          </ol>
+        )}
+        {rca.facts.note && (
+          <p className="mt-1.5 text-[11px] text-muted-foreground">{rca.facts.note}</p>
+        )}
+      </div>
+
+      <div className="rounded-md border p-3">
+        <div className="mb-1 text-[9.5px] uppercase tracking-wide text-muted-foreground">
+          Runbook citation · retrieved, never forced
+        </div>
+        {rca.runbook.matched ? (
+          <div>
+            <div className="text-[12px] font-medium">{rca.runbook.title}</div>
+            <div className="font-mono text-[10.5px] text-muted-foreground">
+              {rca.runbook.file} · score {rca.runbook.score} · rule coverage{" "}
+              {Math.round(rca.runbook.coverage * 100)}%
+            </div>
+            <blockquote className="mt-1.5 whitespace-pre-wrap border-l-2 pl-2 text-[11.5px]">
+              {rca.runbook.passage}
+            </blockquote>
+          </div>
+        ) : (
+          <p className="text-[11.5px] text-muted-foreground">{rca.runbook.note}</p>
+        )}
+      </div>
+
+      <div className="rounded-md border p-3">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="text-[9.5px] uppercase tracking-wide text-muted-foreground">
+            Root-cause hypothesis
+          </span>
+          <Badge className="border-border text-[9.5px] text-muted-foreground">
+            {rca.hypothesis.label}
+          </Badge>
+        </div>
+        {rca.hypothesis.text ? (
+          <p className="text-[12px]">{rca.hypothesis.text}</p>
+        ) : (
+          <div className="text-[11.5px] text-muted-foreground">
+            <p>{rca.hypothesis.note}</p>
+            {rca.hypothesis.reasons?.map((r, i) => <p key={i} className="mt-0.5">— {r}</p>)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function IncidentDetail({ inc }: { inc: Incident }) {
   const qc = useQueryClient();
@@ -138,6 +241,15 @@ function IncidentDetail({ inc }: { inc: Incident }) {
               </a>
             ))}
           </div>
+        </div>
+
+        {/* Advisory territory starts here — dashed frame + explicit banner so
+            nothing below can be mistaken for the rule-owned verdict above. */}
+        <div className="rounded-md border border-dashed p-3" data-testid="rca-panel">
+          <div className="mb-2 text-[9.5px] uppercase tracking-wide text-muted-foreground">
+            Root-cause analysis · advisory — severity above is rule-owned and unaffected
+          </div>
+          <RcaPanel incidentId={inc.id} />
         </div>
       </CardContent>
     </Card>
