@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import App from "@/App";
 import { renderApp, mockFetch } from "./helpers";
-import type { Incident } from "@/lib/api";
+import type { Incident, Rca } from "@/lib/api";
 
 function incident(over: Partial<Incident> = {}): Incident {
   return {
@@ -53,5 +53,44 @@ describe("Incidents page", () => {
     expect(await screen.findByText(/Lifecycle · analyst-owned/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "acknowledged" }));
     expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the layered RCA: advisory-separated, cited runbook, withheld hypothesis", async () => {
+    const rca: Rca = {
+      incidentId: "inc-abc123",
+      facts: {
+        incidentId: "inc-abc123", entity: "203.0.113.44", entityKind: "ip",
+        findingIds: ["detector-0", "detector-1"], membersLoaded: 2,
+        rules: ["auth_bruteforce", "auth_bruteforce_success"],
+        firstSeen: "2026-08-13T02:16:44+00:00", lastSeen: "2026-08-13T02:18:00+00:00",
+        timeline: [{ t: "02:16:44", label: "First failed login", line: 5, findingId: "detector-0", rule: "auth_bruteforce" }],
+        note: null,
+      },
+      runbook: { matched: true, file: "ssh-brute-force.md", title: "SSH brute-force / credential attack response", passage: "Block the source IP at the firewall.", score: 21.05, coverage: 1 },
+      hypothesis: { text: null, label: "advisory · hypothesis · not a verdict", note: "withheld — failed the explanation consistency guard", reasons: ["names IP 198.51.100.7, which is not in this finding's entities or evidence"] },
+    };
+    // More specific route first: mockFetch matches by substring in insertion order.
+    mockFetch({ "/api/incidents/inc-abc123/rca": rca, "/api/incidents": { incidents: [incident()] } });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    // The advisory frame is present and clearly labeled apart from the verdict.
+    expect(await screen.findByTestId("rca-panel")).toBeInTheDocument();
+    expect(screen.getByText(/severity above is rule-owned and unaffected/)).toBeInTheDocument();
+    // Deterministic facts render (findBy: the inner query resolves async).
+    expect(await screen.findByText("auth_bruteforce_success")).toBeInTheDocument();
+    expect(screen.getByText(/First failed login/)).toBeInTheDocument();
+    // The citation is the real runbook, with its bar made visible.
+    expect(screen.getByText(/SSH brute-force \/ credential attack response/)).toBeInTheDocument();
+    expect(screen.getByText(/Block the source IP at the firewall/)).toBeInTheDocument();
+    // A guard-withheld hypothesis shows the honest note + reason, never prose.
+    expect(screen.getByText(/withheld — failed the explanation consistency guard/)).toBeInTheDocument();
+    expect(screen.getByText(/names IP 198\.51\.100\.7/)).toBeInTheDocument();
+  });
+
+  it("shows an honest absence when RCA cannot be served (404)", async () => {
+    // No RCA route mocked → helpers 404 the fetch, the panel must not invent one.
+    mockFetch({ "/api/incidents": { incidents: [incident()] } });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+    expect(await screen.findByText(/Root-cause analysis unavailable/)).toBeInTheDocument();
   });
 });

@@ -3564,6 +3564,160 @@ def check_explanation_guard():
     return 0 if all(results) else 1
 
 
+def check_advisory_rca():
+    """Layered incident RCA (soc.derive_rca): deterministic facts always, a
+    runbook citation only over the explicit BM25 bar, and an LLM hypothesis
+    that is injected, labeled advisory, guarded, and honestly absent otherwise.
+    Severity is never touched by any layer."""
+    sys.path.insert(0, str(HERE.parent))
+    sys.path.insert(0, str(HERE))
+    import http.server
+    import threading
+    import urllib.error
+    import urllib.request
+    import adapter
+    import serve
+    import soc
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}"
+              + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nadvisory RCA — layered facts / citation / guarded hypothesis:")
+
+    real = (serve.RUNS_DIR, serve.STATE_FILE, serve.STATE, soc.SOC_DIR,
+            serve.llm_reachable)
+    try:
+        with tempfile.TemporaryDirectory(prefix="rca-test-") as tmp:
+            tmp = Path(tmp)
+            serve.RUNS_DIR, serve.STATE_FILE = tmp / ".runs", tmp / "state.json"
+            soc.SOC_DIR = tmp / ".soc"
+            # The REAL committed store, copied in: the test proves the seed
+            # runbooks themselves are citable, not a synthetic stand-in.
+            shutil.copytree(HERE / ".soc" / "runbooks", soc.SOC_DIR / "runbooks")
+
+            log = tmp / "attack.log"
+            log.write_text("\n".join(
+                f"2026-08-13T02:16:{44 + i}Z ERROR host-1 "
+                f"auth failed for user 'admin' from 203.0.113.44"
+                for i in range(6)) + "\n")
+
+            def finding(rule, sev, stamp, line, entities):
+                who = (" for user 'admin' from 203.0.113.44"
+                       if rule.startswith("auth_") else "")
+                return {"source": "detector", "severity": sev, "rule_id": rule,
+                        "summary": f"{rule}{who}", "evidence": "",
+                        "entities": entities,
+                        "timeline": [{"t": stamp[11:19], "label": f"event {rule}",
+                                      "line": line, "ts": stamp}]}
+
+            state = adapter.adapt({
+                "source_file": str(log), "generated_at": "2026-08-18T12:00:00+00:00",
+                "lines_parsed": 6, "lines_unparsed": 0,
+                "findings": [
+                    finding("auth_bruteforce_success", "critical",
+                            "2026-08-13T02:16:52+00:00", 6, {"ip": "203.0.113.44"}),
+                    finding("auth_bruteforce", "high",
+                            "2026-08-13T02:17:00+00:00", 2, {"ip": "203.0.113.44"}),
+                    finding("error_rate_spike", "medium",
+                            "2026-08-13T03:30:00+00:00", 1, {}),
+                ]})
+            state["idle"] = False
+            serve.STATE = state
+            incs = soc.sync_incidents(state)
+            auth = next(i for i in incs.values() if i["findingCount"] == 2)
+            spike = next(i for i in incs.values()
+                         if i["findingIds"] == ["detector-2"])
+
+            # --- deterministic layer + model-off honesty --------------------
+            rca = soc.derive_rca(auth["id"], state)          # no hypothesis_fn
+            facts = rca["facts"]
+            check("facts: members, rules, span, ordered timeline",
+                  facts["findingIds"] == auth["findingIds"]
+                  and facts["rules"] == ["auth_bruteforce", "auth_bruteforce_success"]
+                  and facts["firstSeen"] == "2026-08-13T02:16:52+00:00"
+                  and [e["t"] for e in facts["timeline"]]
+                  == sorted(e["t"] for e in facts["timeline"]), str(facts)[:300])
+            check("model off -> hypothesis honestly absent, facts intact",
+                  rca["hypothesis"]["text"] is None
+                  and "unavailable" in rca["hypothesis"]["note"]
+                  and facts["timeline"], str(rca["hypothesis"]))
+            check("RCA carries no severity field anywhere (never a verdict)",
+                  "severity" not in json.dumps(rca))
+            sev_before = soc.get_incident(auth["id"])["severity"]
+
+            # --- runbook layer ----------------------------------------------
+            check("auth incident cites the ssh runbook (over the bar)",
+                  rca["runbook"]["matched"]
+                  and rca["runbook"]["file"] == "ssh-brute-force.md"
+                  and rca["runbook"]["passage"], str(rca["runbook"])[:200])
+            rca2 = soc.derive_rca(spike["id"], state)
+                                                   # no runbook covers this rule
+            check("uncovered rule -> honest no-match, never a forced citation",
+                  not rca2["runbook"]["matched"]
+                  and "no runbook match" in rca2["runbook"]["note"],
+                  str(rca2["runbook"]))
+            rb = soc.SOC_DIR / "runbooks"
+            rb.rename(tmp / "runbooks-parked")     # store empty, incidents kept
+            rca3 = soc.derive_rca(auth["id"], state)
+            (tmp / "runbooks-parked").rename(rb)
+            check("empty runbook store -> honest 'store is empty' no-match",
+                  not rca3["runbook"]["matched"]
+                  and "empty" in rca3["runbook"]["note"], str(rca3["runbook"]))
+
+            # --- guarded hypothesis layer -----------------------------------
+            rca4 = soc.derive_rca(auth["id"], state, hypothesis_fn=lambda p: (
+                "Host db-99 at 198.51.100.7 ran out of credentials and "
+                "caused this brute-force."))
+            check("hypothesis naming an out-of-cluster host/IP is withheld",
+                  rca4["hypothesis"]["text"] is None
+                  and "withheld" in rca4["hypothesis"]["note"]
+                  and any("198.51.100.7" in r for r in rca4["hypothesis"]["reasons"]),
+                  str(rca4["hypothesis"]))
+            rca5 = soc.derive_rca(auth["id"], state, hypothesis_fn=lambda p: (
+                "Repeated failed password attempts from 203.0.113.44 against "
+                "'admin' ended in a successful login; treat the credential as "
+                "guessed and block the source."))
+            check("grounded hypothesis passes, labeled advisory",
+                  rca5["hypothesis"]["text"] is not None
+                  and rca5["hypothesis"]["label"]
+                  == soc.RCA_HYPOTHESIS_LABEL, str(rca5["hypothesis"]))
+            check("no RCA layer changed the incident's severity",
+                  soc.get_incident(auth["id"])["severity"] == sev_before)
+
+            # --- route (routing only; logic proven above). llm_reachable is
+            # stubbed False so the route degrades to model-off honestly even
+            # on a machine where a local model happens to be running. --------
+            serve.llm_reachable = lambda *a, **k: False
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0),
+                                                  serve.ConsoleHandler)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                with urllib.request.urlopen(
+                        f"http://127.0.0.1:{port}/api/incidents/{auth['id']}/rca") as r:
+                    body = json.loads(r.read())
+                check("GET /api/incidents/<id>/rca serves the layered RCA",
+                      body.get("incidentId") == auth["id"]
+                      and body.get("runbook", {}).get("matched") is True)
+                try:
+                    urllib.request.urlopen(
+                        f"http://127.0.0.1:{port}/api/incidents/inc-none/rca")
+                    check("unknown incident -> 404", False)
+                except urllib.error.HTTPError as e:
+                    check("unknown incident -> 404", e.code == 404)
+            finally:
+                srv.shutdown()
+    finally:
+        (serve.RUNS_DIR, serve.STATE_FILE, serve.STATE, soc.SOC_DIR,
+         serve.llm_reachable) = real
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -3619,16 +3773,17 @@ def main():
     validate_ = check_validate_real()
     formats_ = check_formats_universal()
     explguard_ = check_explanation_guard()
+    rca_ = check_advisory_rca()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_ or explguard_):
+            or formats_ or explguard_ or rca_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "+ explanation-guard checks green")
+          "+ explanation-guard + advisory-rca checks green")
     return 0
 
 

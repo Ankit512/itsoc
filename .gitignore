@@ -14,9 +14,12 @@ demo_threat_report.*
 # adapter output when written next to the console (serve.py keeps it in memory)
 console/console_state.json
 
-# saved run history for the console (local results, machine-specific)
+# saved run history for the console (local results, machine-specific).
+# .soc is ignored per-child so the versioned runbook store stays committed:
+# runbooks are curated reference docs, not machine-local run artifacts.
 console/.runs/
-console/.soc/
+console/.soc/*
+!console/.soc/runbooks/
 
 # graphify (local tooling: knowledge graph, project skill, hooks)
 graphify-out/
