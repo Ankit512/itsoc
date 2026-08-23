@@ -64,6 +64,7 @@ import discovery  # noqa: E402  # nmap discovery + vuln scan -> store (socf-disc
 import ti_oem  # noqa: E402  # TI enrichment (OTX/AbuseIPDB) + OEM polling (socf-ti-oem)
 import evtx_ingest  # noqa: E402  # Windows .evtx ingest -> store (socf-evtx-history)
 sys.path.insert(0, str(ROOT))
+import explanation_guard  # noqa: E402
 import log_analyzer as la  # noqa: E402
 import normalize  # noqa: E402  # envelope parser — streamed lines use the SAME one
 import rule_context  # noqa: E402
@@ -1117,6 +1118,21 @@ def explain_finding(finding, state, compute=None):
     return text or "The model returned no explanation for this finding.", sent
 
 
+def guarded_explanation(finding, text):
+    """Run one explanation through the deterministic consistency guard.
+
+    Returns (text_to_show, unverified, reasons). On a mismatch the model's
+    prose is withheld — never rewritten — and the caller shows the honest
+    UNVERIFIED_NOTE instead; the finding's rule verdict, evidence, predicate
+    and timeline are untouched either way. Split out of _explain() so the
+    test suite can exercise the withholding path without a model.
+    """
+    verdict = explanation_guard.verify_explanation(finding, text)
+    if verdict["ok"]:
+        return text, False, []
+    return explanation_guard.UNVERIFIED_NOTE, True, verdict["reasons"]
+
+
 # ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
@@ -1840,6 +1856,15 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
 
         if not text:
             text = "The model returned no explanation for this finding."
+        else:
+            # Consistency guard: prose about the wrong host/fault is withheld,
+            # not shown — the deterministic verdict below it stays intact.
+            text, unverified, reasons = guarded_explanation(finding, text)
+            if unverified:
+                finding["explanationUnverified"] = True
+                finding["explanationGuardReasons"] = reasons
+                print(f"  explanation withheld for {fid}: {'; '.join(reasons)}",
+                      flush=True)
         finding["explanation"] = text
         finding["explanationOnDemand"] = True
         if sent:
