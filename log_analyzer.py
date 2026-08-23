@@ -50,6 +50,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import normalize  # noqa: E402
 import formats_universal  # noqa: E402  broadened multi-format ingestion (native-first)
+import explanation_guard  # noqa: E402
 import rule_context  # noqa: E402
 import rules_syslog  # noqa: E402
 from anomaly_detector import detect, to_llm_context  # noqa: E402
@@ -880,9 +881,21 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
     # Detector findings are authoritative and added ONCE, not per chunk.
     detector_findings = detector_to_findings(anomalies)
     # detector_to_findings preserves anomaly order, so position maps 1:1.
+    # Every explanation passes the consistency guard before it is attached —
+    # prose naming the wrong host or a different fault is withheld, never
+    # shown, and the finding keeps its full deterministic verdict either way.
     for pos, f in enumerate(detector_findings):
         if pos in explanations:
-            f["recommended_action"] = explanations[pos]
+            verdict = explanation_guard.verify_explanation(
+                anomalies[pos], explanations[pos])
+            if verdict["ok"]:
+                f["recommended_action"] = explanations[pos]
+            else:
+                f["recommended_action"] = explanation_guard.UNVERIFIED_NOTE
+                f["explanation_unverified"] = True
+                f["explanation_guard_reasons"] = verdict["reasons"]
+                print(f"  explanation withheld ({f.get('rule_id')}): "
+                      + "; ".join(verdict["reasons"]))
 
     # --- Optional ablation: what would the model alone have said? ---------------
     # Strictly additive. Runs a SECOND, unprimed pass over the same chunks and

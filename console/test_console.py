@@ -3470,6 +3470,100 @@ def check_validate_real():
     return 0 if all(results) else 1
 
 
+def check_explanation_guard():
+    """The explanation↔rule consistency guard: wrong prose is withheld, never shown.
+
+    Rules own the verdict; the model only explains. These checks pin the gate
+    between the two: prose naming a host/IP outside the finding is refused,
+    prose asserting a different fault than the rule that fired is refused, a
+    count the finding never measured is refused — and a refused explanation is
+    replaced by the honest UNVERIFIED_NOTE while every deterministic field
+    (severity, predicate, timeline, evidence) stays exactly as the rules wrote it.
+    """
+    sys.path.insert(0, str(HERE.parent))
+    sys.path.insert(0, str(HERE))
+    import explanation_guard as eg
+    import serve
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}"
+              + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nexplanation guard — prose must match the finding it claims to explain:")
+
+    # Analyzer-shape anomaly, as run() passes it to the guard.
+    anomaly = {
+        "severity": "critical", "type": "auth_bruteforce_success",
+        "summary": "7x auth failed for 'admin' from 203.0.113.44, then SUCCESS",
+        "evidence": "auth failed for user 'admin' from 203.0.113.44 (lines 5-11)",
+        "rationale": "Failures then a success from the same source.",
+        "entities": {"ip": "203.0.113.44", "user": "admin", "failures": 7},
+        "predicate": "failures_from(ip) >= 5\n-> severity = critical",
+        "timeline": [{"t": "02:16:44", "label": "First failed login for 'admin' "
+                                                "from 203.0.113.44", "line": 5}],
+    }
+
+    good = ("Repeated failed password attempts for 'admin' from 203.0.113.44 "
+            "followed by a successful login suggest the account is compromised. "
+            "Rotate the credential and review activity from that source.")
+    v = eg.verify_explanation(anomaly, good)
+    check("consistent explanation passes", v["ok"], "; ".join(v["reasons"]))
+
+    wrong_host = ("Repeated failed password attempts for 'admin' from "
+                  "198.51.100.77 suggest a brute-force attack on host db-02.")
+    v = eg.verify_explanation(anomaly, wrong_host)
+    check("wrong-host prose is caught", not v["ok"])
+    check("  …and the reason names the foreign IP",
+          any("198.51.100.77" in r for r in v["reasons"]), str(v["reasons"]))
+    check("  …and the foreign hostname too",
+          any("db-02" in r for r in v["reasons"]), str(v["reasons"]))
+
+    wrong_type = ("The disk on this host reached full capacity and storage "
+                  "must be freed before the volume fills completely.")
+    v = eg.verify_explanation(anomaly, wrong_type)
+    check("wrong-fault-type prose is flagged", not v["ok"])
+    check("  …naming both rules in the reason",
+          any("disk_pressure" in r and "auth_bruteforce_success" in r
+              for r in v["reasons"]), str(v["reasons"]))
+
+    bad_count = ("The source made 42 attempts against 'admin' from "
+                 "203.0.113.44 before succeeding with a password.")
+    v = eg.verify_explanation(anomaly, bad_count)
+    check("fabricated count is caught", not v["ok"]
+          and any("42" in r for r in v["reasons"]), str(v["reasons"]))
+
+    # Console-shape finding through serve's seam: the withheld path must keep
+    # every deterministic field and show the honest note, never invented prose.
+    finding = {
+        "id": "d0", "sev": "CRITICAL", "ruleSev": "CRITICAL",
+        "type": "auth_bruteforce_success", "host": "server-01",
+        "title": "Brute-force then SUCCESSFUL login for 'admin' from 203.0.113.44",
+        "ruleWhy": "Failures then a success from the same source.",
+        "predicate": "failures_from(ip) >= 5\n-> severity = critical",
+        "chips": [{"text": "203.0.113.44"}],
+        "timeline": [{"t": "02:16:44", "label": "First failed login", "line": 5}],
+        "llmWhy": "Saw 198.51.100.77 somewhere.",  # model prose must NOT ground entities
+    }
+    before = json.loads(json.dumps(finding))
+    text, unverified, reasons = serve.guarded_explanation(finding, wrong_host)
+    check("console path withholds mismatched prose", unverified and reasons)
+    check("withheld text is the honest note, not a rewrite",
+          text == eg.UNVERIFIED_NOTE, text)
+    check("deterministic fields untouched by the guard", finding == before)
+    check("severity/predicate/timeline still render",
+          before["sev"] == "CRITICAL" and before["predicate"]
+          and before["timeline"], "guard must never strip the rule verdict")
+
+    text, unverified, _ = serve.guarded_explanation(finding, good)
+    check("console path passes consistent prose through verbatim",
+          not unverified and text == good)
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -3524,16 +3618,17 @@ def main():
     evtx_ = check_evtx()
     validate_ = check_validate_real()
     formats_ = check_formats_universal()
+    explguard_ = check_explanation_guard()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_):
+            or formats_ or explguard_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "checks green")
+          "+ explanation-guard checks green")
     return 0
 
 
