@@ -1234,7 +1234,8 @@ def check_remote_compute():
 
     captured = []
 
-    def fake_chat(base_url, api_key, model, system, user, timeout=300):
+    def fake_chat(base_url, api_key, model, system, user, timeout=300,
+                  response_schema=None):
         captured.append({"base_url": base_url, "api_key": api_key,
                          "model": model, "user": user})
         return json.dumps({"findings": [], "explanations": [
@@ -3845,6 +3846,198 @@ def check_storage_atomic():
     return 0 if all(results) else 1
 
 
+def check_structured_output():
+    """Schema-constrained decoding: the schema is actually sent, a reply the
+    schema permits always satisfies validate_response (so constrained decoding
+    can't produce a reply the validator rejects), a rejecting endpoint triggers
+    the RECORDED fallback (never a silent downgrade), and the loud
+    analyzer_error backstop is intact behind it. No network — urllib.request
+    .urlopen is stubbed at the HTTP layer so the real payloads are inspected.
+    """
+    import io
+    import urllib.error
+    import urllib.request
+
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    import log_analyzer as la
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nstructured output — schema-constrained decoding and honest fallback:")
+
+    VALID_REPLY = json.dumps({
+        "explanations": [{"rule_id": "auth_bruteforce", "explanation": "advisory prose"}],
+        "findings": [{"severity": "low", "category": "security",
+                      "summary": "odd login pattern outside pre-flagged anomalies",
+                      "evidence": "line 3", "recommended_action": "check the source host",
+                      "confidence": "low", "rule_id": None, "source": "llm"}],
+        "chunk_summary": "auth activity",
+    })
+    # The historical drift shape json_object accepted and .get("findings") read
+    # as a false all-clear. The schema forbids it; the validator still catches it.
+    DRIFTED_REPLY = json.dumps({"log": [{"entry": "auth failed"}]})
+
+    def chat_body(content):
+        return json.dumps({"choices": [{"message": {"content": content}}]}).encode()
+
+    class FakeResp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    captured = []
+
+    def accepting(content=VALID_REPLY):
+        def fake(req, timeout=None):
+            captured.append(json.loads(req.data.decode()))
+            return FakeResp(chat_body(content))
+        return fake
+
+    def schema_rejecting(content=VALID_REPLY):
+        def fake(req, timeout=None):
+            payload = json.loads(req.data.decode())
+            captured.append(payload)
+            if payload.get("response_format", {}).get("type") == "json_schema":
+                raise urllib.error.HTTPError(
+                    req.full_url, 400, "Bad Request", {},
+                    io.BytesIO(b'{"error":"response_format json_schema not supported"}'))
+            return FakeResp(chat_body(content))
+        return fake
+
+    def reset():
+        captured.clear()
+        la.LLM_STRUCTURED_OUTPUT = True
+        la._STRUCTURED_FALLBACK["reason"] = None
+
+    real_urlopen = urllib.request.urlopen
+    real_flag = la.LLM_STRUCTURED_OUTPUT
+    real_reason = la._STRUCTURED_FALLBACK["reason"]
+    try:
+        # --- the schema constant is derived from validate_response, not invented
+        finding_item = la.RESPONSE_SCHEMA["properties"]["findings"]["items"]
+        check("schema requires exactly what validate_response checks: findings",
+              la.RESPONSE_SCHEMA["required"] == ["findings"])
+        check("finding items require exactly summary, no invented fields",
+              finding_item["required"] == ["summary"])
+        for label, obj in [
+            ("empty findings list", {"findings": []}),
+            ("minimal finding", {"findings": [{"summary": "s"}]}),
+            ("full prompt shape", json.loads(VALID_REPLY)),
+        ]:
+            check(f"schema-permitted reply passes validate_response: {label}",
+                  la.validate_response(obj))
+        check("drifted shape still fails validate_response (safety net intact)",
+              not la.validate_response(json.loads(DRIFTED_REPLY)))
+
+        # --- the schema is actually sent, temperature 0 preserved
+        reset()
+        urllib.request.urlopen = accepting()
+        reply = la.chat_completion("http://fake/v1", "k", "m", "sys", "user",
+                                   response_schema=la.RESPONSE_SCHEMA)
+        rf = captured[0].get("response_format", {})
+        check("payload asks for json_schema decoding", rf.get("type") == "json_schema",
+              json.dumps(rf)[:120])
+        check("payload carries THE schema constant",
+              rf.get("json_schema", {}).get("schema") == la.RESPONSE_SCHEMA)
+        check("temperature stays 0", captured[0].get("temperature") == la.LLM_TEMPERATURE)
+        check("reply text returned unchanged", reply == VALID_REPLY)
+        check("status reports on", la.structured_output_status() == "on",
+              la.structured_output_status())
+
+        # --- a schema-valid reply flows through analyze_chunk (previously-drifting
+        #     responses can no longer be emitted under constrained decoding)
+        reset()
+        urllib.request.urlopen = accepting()
+        result = la.analyze_chunk("http://fake/v1", "k", "m", ["line\n"], 0, "ctx")
+        check("schema-valid reply accepted first try (no retry, no analyzer_error)",
+              len(captured) == 1
+              and result["findings"][0]["summary"].startswith("odd login pattern")
+              and result["chunk_index"] == 0)
+
+        # --- rejection: honest recorded fallback, never silent
+        reset()
+        urllib.request.urlopen = schema_rejecting()
+        reply = la.chat_completion("http://fake/v1", "k", "m", "sys", "user",
+                                   response_schema=la.RESPONSE_SCHEMA)
+        check("rejected schema falls back to json_object and still answers",
+              reply == VALID_REPLY
+              and captured[0]["response_format"]["type"] == "json_schema"
+              and captured[1]["response_format"]["type"] == "json_object")
+        check("fallback is RECORDED for run metadata",
+              la.structured_output_status() == "fallback:endpoint rejected json_schema (HTTP 400)",
+              la.structured_output_status())
+        la.chat_completion("http://fake/v1", "k", "m", "sys", "user",
+                           response_schema=la.RESPONSE_SCHEMA)
+        check("after fallback, later calls skip the doomed schema request",
+              len(captured) == 3
+              and captured[2]["response_format"]["type"] == "json_object")
+
+        # --- the analyzer_error backstop is intact behind the fallback path
+        reset()
+        urllib.request.urlopen = schema_rejecting(content=DRIFTED_REPLY)
+        result = la.analyze_chunk("http://fake/v1", "k", "m", ["line\n"], 0, "ctx")
+        f = result["findings"][0]
+        check("off-schema reply on the fallback path still fails LOUDLY",
+              f["category"] == "analyzer_error" and f["severity"] == "HIGH"
+              and f["source"] == "analyzer")
+
+        # --- flag off: today's prompt+validate path, honestly labelled
+        reset()
+        la.LLM_STRUCTURED_OUTPUT = False
+        urllib.request.urlopen = accepting()
+        la.chat_completion("http://fake/v1", "k", "m", "sys", "user",
+                           response_schema=la.RESPONSE_SCHEMA)
+        check("LLM_STRUCTURED_OUTPUT=0 sends plain json_object",
+              captured[0]["response_format"]["type"] == "json_object")
+        check("status reports off", la.structured_output_status() == "off")
+
+        # --- stream path: schema wired in when asked, absent when not (prose)
+        reset()
+        sse = b'data: {"choices":[{"delta":{"content":"hi"}}]}\n\ndata: [DONE]\n'
+        urllib.request.urlopen = lambda req, timeout=None: (
+            captured.append(json.loads(req.data.decode())), FakeResp(sse))[1]
+        chunks = list(la.chat_completion_stream("http://fake/v1", "k", "m", "sys", "user",
+                                                response_schema=la.RESPONSE_SCHEMA))
+        check("stream with schema asks for json_schema decoding",
+              captured[0].get("response_format", {}).get("type") == "json_schema"
+              and captured[0].get("stream") is True and chunks == ["hi"])
+        captured.clear()
+        list(la.chat_completion_stream("http://fake/v1", "k", "m", "sys", "user"))
+        check("prose stream (no schema) sends no response_format, as before",
+              "response_format" not in captured[0])
+
+        # --- run metadata carries the decoding state (rules-only: no model calls)
+        reset()
+        urllib.request.urlopen = real_urlopen
+        with tempfile.TemporaryDirectory(prefix="structout-test-") as tmp:
+            log_path = Path(tmp) / "auth.log"
+            log_path.write_text("\n".join(
+                f"2026-08-13T02:16:4{i}Z ERROR server-01 auth failed for user "
+                f"'admin' from 203.0.113.44" for i in range(6)) + "\n")
+            prefix = str(Path(tmp) / "report")
+            la.run(str(log_path), prefix, 25, "m", "http://fake/v1", "k", rules_only=True)
+            report = json.loads(Path(prefix + ".json").read_text())
+            check("report.json records structured_output",
+                  report.get("structured_output") == "on",
+                  str(report.get("structured_output")))
+        la._STRUCTURED_FALLBACK["reason"] = "endpoint rejected json_schema (HTTP 400)"
+        check("metadata value is the honest fallback string when downgraded",
+              la.structured_output_status().startswith("fallback:endpoint rejected"))
+    finally:
+        urllib.request.urlopen = real_urlopen
+        la.LLM_STRUCTURED_OUTPUT = real_flag
+        la._STRUCTURED_FALLBACK["reason"] = real_reason
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -3902,16 +4095,17 @@ def main():
     explguard_ = check_explanation_guard()
     rca_ = check_advisory_rca()
     storage_ = check_storage_atomic()
+    structout_ = check_structured_output()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_ or explguard_ or rca_ or storage_):
+            or formats_ or explguard_ or rca_ or storage_ or structout_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "+ explanation-guard + advisory-rca + storage-atomic checks green")
+          "+ explanation-guard + advisory-rca + storage-atomic + structured-output checks green")
     return 0
 
 

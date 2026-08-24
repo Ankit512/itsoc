@@ -69,6 +69,33 @@ except ValueError:
 
 RULESET_VERSION = "v1"
 
+# Schema-constrained decoding: ask the endpoint to constrain generation to the
+# reply schema (OpenAI-compatible response_format type "json_schema"), so only
+# schema-valid tokens can be emitted. Default ON; set LLM_STRUCTURED_OUTPUT=0 to
+# use the prompt+validate path only. Endpoints that reject the schema fall back
+# to that path automatically — loudly, and recorded in run metadata.
+LLM_STRUCTURED_OUTPUT = os.getenv("LLM_STRUCTURED_OUTPUT", "1").lower() not in ("0", "false", "off")
+
+# Set once, on the first schema-bearing request an endpoint rejects. Sticky for
+# the rest of the process so every later call goes straight to the fallback path
+# instead of paying a doomed request per chunk. Never cleared silently — the
+# reason lands in run metadata via structured_output_status().
+_STRUCTURED_FALLBACK = {"reason": None}
+
+
+def structured_output_status():
+    """The honest, machine-readable state of schema-constrained decoding.
+
+    "on" | "off" | "fallback:<reason>" — written into run metadata so a report
+    always says which decoding path produced it. An unsupported schema is never
+    silently ignored: rejection flips this to "fallback:..." for the whole run.
+    """
+    if not LLM_STRUCTURED_OUTPUT:
+        return "off"
+    if _STRUCTURED_FALLBACK["reason"]:
+        return f"fallback:{_STRUCTURED_FALLBACK['reason']}"
+    return "on"
+
 # Gap-fill = asking the model about chunks NO rule fired on, to catch sub-threshold
 # things like "disk at 78%". It is the only reason to send a chunk containing no
 # finding, and on a large log it is also the entire cost: 2,000 lines is 80 chunks,
@@ -214,6 +241,48 @@ Respond ONLY with valid JSON (no markdown fences, no preamble), matching this sc
 }
 """
 
+# The reply schema, defined ONCE, for schema-constrained decoding. `required`
+# is derived from exactly what validate_response() checks — a "findings" array
+# whose items each carry a non-empty string "summary" — and nothing more, so the
+# constraint can never demand fields the validator doesn't. The optional
+# properties mirror the shape SYSTEM_PROMPT already asks for; extra keys stay
+# allowed so a chatty-but-valid reply is not rejected. validate_response()
+# remains the safety net behind this: every reply is still validated.
+RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "explanations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "rule_id": {"type": ["string", "null"]},
+                    "explanation": {"type": "string"},
+                },
+            },
+        },
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "severity": {"type": "string"},
+                    "category": {"type": "string"},
+                    "summary": {"type": "string", "minLength": 1},
+                    "evidence": {"type": "string"},
+                    "recommended_action": {"type": "string"},
+                    "confidence": {"type": "string"},
+                    "rule_id": {"type": ["string", "null"]},
+                    "source": {"type": "string"},
+                },
+                "required": ["summary"],
+            },
+        },
+        "chunk_summary": {"type": "string"},
+    },
+    "required": ["findings"],
+}
+
 RETRY_NUDGE = (
     "\n\nYour previous reply was not valid JSON. Reply with the JSON object only — "
     "no prose, no markdown fences."
@@ -276,59 +345,108 @@ def build_user_prompt(log_text, ctx, suffix=""):
     return f"{ctx}\n\nAnalyze this log chunk:\n\n{log_text}{suffix}"
 
 
-def chat_completion(base_url, api_key, model, system, user, timeout=300):
-    """POST one prompt to an OpenAI-compatible /chat/completions and return the reply text."""
-    payload = json.dumps({
+def _use_schema(response_schema):
+    """Should THIS call constrain decoding? Only when a caller passed a schema,
+    the flag is on, and the endpoint hasn't already rejected one this run."""
+    return (response_schema is not None and LLM_STRUCTURED_OUTPUT
+            and not _STRUCTURED_FALLBACK["reason"])
+
+
+def _schema_response_format(response_schema):
+    return {"type": "json_schema",
+            "json_schema": {"name": "log_analysis_reply", "schema": response_schema}}
+
+
+def _record_schema_fallback(error):
+    """An endpoint rejecting the schema is a fact about the run — record it for
+    metadata and say so on the console. Never a silent downgrade."""
+    reason = f"endpoint rejected json_schema (HTTP {error.code})"
+    _STRUCTURED_FALLBACK["reason"] = reason
+    print(f"  structured output unavailable: {reason}; "
+          "falling back to prompt+validate (recorded in run metadata)")
+
+
+def _chat_request(base_url, api_key, model, system, user, response_format, stream=False):
+    body = {
         "model": model,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
         "temperature": LLM_TEMPERATURE,
-        "response_format": {"type": "json_object"},
-    }).encode()
-
-    req = urllib.request.Request(
+    }
+    if response_format is not None:
+        body["response_format"] = response_format
+    if stream:
+        body["stream"] = True
+    return urllib.request.Request(
         f"{base_url}/chat/completions",
-        data=payload,
+        data=json.dumps(body).encode(),
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
         },
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        body = json.loads(resp.read())
+
+
+def chat_completion(base_url, api_key, model, system, user, timeout=300,
+                    response_schema=None):
+    """POST one prompt to an OpenAI-compatible /chat/completions and return the reply text.
+
+    With `response_schema`, decoding is schema-constrained (response_format type
+    "json_schema" — Ollama honors this on its /v1 endpoint) so only schema-valid
+    tokens can be emitted. If the endpoint rejects the schema-bearing request,
+    the call retries once as plain json_object and the downgrade is recorded via
+    _record_schema_fallback — the caller still validates every reply, so the
+    prompt+validate path stays the safety net either way.
+    """
+    use_schema = _use_schema(response_schema)
+    response_format = (_schema_response_format(response_schema) if use_schema
+                       else {"type": "json_object"})
+    req = _chat_request(base_url, api_key, model, system, user, response_format)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        if not use_schema:
+            raise
+        # Retry WITHOUT the schema before concluding anything: if this also
+        # fails, the endpoint is broken (not schema-averse) and the original
+        # error surfaces through the existing api_error path.
+        retry = _chat_request(base_url, api_key, model, system, user,
+                              {"type": "json_object"})
+        with urllib.request.urlopen(retry, timeout=timeout) as resp:
+            body = json.loads(resp.read())
+        _record_schema_fallback(e)
     return body["choices"][0]["message"]["content"]
 
 
-def chat_completion_stream(base_url, api_key, model, system, user, timeout=300):
+def chat_completion_stream(base_url, api_key, model, system, user, timeout=300,
+                           response_schema=None):
     """Yield reply-text chunks from an OpenAI-compatible /chat/completions with
     stream:true (Ollama supports this on its /v1 endpoint).
 
     Prose, not JSON: streaming a `{"answer": ...}` wrapper would leak braces
-    into the reader token-by-token, so the caller passes a prose system prompt.
+    into the reader token-by-token, so the caller passes a prose system prompt
+    and no response_schema. A caller that DOES pass one gets the same
+    schema-constrained decoding (and recorded fallback) as chat_completion.
     Each SSE `data:` line carries a delta; `[DONE]` ends the stream. The reply
     is still the model's real output — this only changes WHEN it arrives, never
     what it says, and it never touches severities or verdicts."""
-    payload = json.dumps({
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "temperature": LLM_TEMPERATURE,
-        "stream": True,
-    }).encode()
-
-    req = urllib.request.Request(
-        f"{base_url}/chat/completions",
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    use_schema = _use_schema(response_schema)
+    response_format = _schema_response_format(response_schema) if use_schema else None
+    req = _chat_request(base_url, api_key, model, system, user, response_format,
+                        stream=True)
+    try:
+        resp = urllib.request.urlopen(req, timeout=timeout)
+    except urllib.error.HTTPError as e:
+        if not use_schema:
+            raise
+        retry = _chat_request(base_url, api_key, model, system, user, None,
+                              stream=True)
+        resp = urllib.request.urlopen(retry, timeout=timeout)
+        _record_schema_fallback(e)
+    with resp:
         for raw in resp:
             line = raw.decode("utf-8", "replace").strip()
             if not line or not line.startswith("data:"):
@@ -396,7 +514,8 @@ def analyze_chunk(base_url, api_key, model, chunk_lines, chunk_index, ctx):
     for attempt in (1, 2):
         try:
             raw_text = strip_fences(
-                chat_completion(base_url, api_key, model, SYSTEM_PROMPT, user_prompt)
+                chat_completion(base_url, api_key, model, SYSTEM_PROMPT, user_prompt,
+                                response_schema=RESPONSE_SCHEMA)
             )
         except Exception as e:
             return {
@@ -780,6 +899,7 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
             "partial": True, "generated_at": datetime.now(timezone.utc).isoformat(),
             "source_file": str(path), "model": model, "endpoint": base_url,
             "temperature": LLM_TEMPERATURE, "ruleset": RULESET_VERSION,
+            "structured_output": structured_output_status(),
             "lines_parsed": stats["parsed"], "lines_unparsed": stats["unparsed"],
             "input_sha256": file_sha256(path),
             "detector_sha256": file_sha256(Path(__file__).resolve().parent / "anomaly_detector.py"),
@@ -951,6 +1071,7 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
         "endpoint": base_url,
         "temperature": LLM_TEMPERATURE,
         "ruleset": RULESET_VERSION,
+        "structured_output": structured_output_status(),
         "format": stats["format"],
         "forced_unrecognized": bool(stats.get("forced_unrecognized")),
         "lines_parsed": stats["parsed"],
