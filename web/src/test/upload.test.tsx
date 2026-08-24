@@ -20,7 +20,7 @@ describe("header upload -> /api/analyze -> /api/progress", () => {
       },
     });
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
@@ -37,7 +37,7 @@ describe("header upload -> /api/analyze -> /api/progress", () => {
       "/api/progress": { status: "error", error: "analysis failed: unreadable input" },
     });
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
@@ -60,7 +60,7 @@ describe("header upload -> /api/analyze -> /api/progress", () => {
       "/api/progress": () => steps[Math.min(n++, steps.length - 1)],
     });
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
@@ -81,7 +81,7 @@ describe("header upload -> /api/analyze -> /api/progress", () => {
       "/api/analyze": { __status: 415, error: "This doesn't look like a text log file." },
     });
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);

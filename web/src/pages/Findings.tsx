@@ -6,13 +6,18 @@ import {
   getSortedRowModel, useReactTable, type Row,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { api, type Finding } from "@/lib/api";
+import { api, type ConsoleState, type Finding } from "@/lib/api";
 import { useLogStream, type LogStream } from "@/lib/useLogStream";
 import { sevVar, SEV_ORDER } from "@/lib/severity";
 import { SeverityBadge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { UnrecognizedBanner } from "@/components/UnrecognizedBanner";
+import { Incidents } from "@/pages/Incidents";
+import { Assets } from "@/pages/Assets";
+import { ThreatIntel } from "@/pages/ThreatIntel";
+import { Reports } from "@/pages/Reports";
+import { Cases } from "@/pages/Cases";
 import { cn } from "@/lib/utils";
 
 const col = createColumnHelper<Finding>();
@@ -211,12 +216,104 @@ function FindingDetail({ f }: { f: Finding }) {
   );
 }
 
-export function Alerts() {
+/** The Review facets (spec §3/§4): incidents, observed entities, threat-intel
+ *  context, reports/exports and cases are facets INSIDE the Findings review —
+ *  not top-level nav. Each facet reuses the existing subsystem component. */
+const FACETS = [
+  { key: "findings", label: "Findings" },
+  { key: "incidents", label: "Incidents" },
+  { key: "entities", label: "Assets & Users" },
+  { key: "threat-intel", label: "Threat Intel" },
+  { key: "reports", label: "Reports" },
+  { key: "cases", label: "Cases" },
+] as const;
+type FacetKey = (typeof FACETS)[number]["key"];
+
+/** THE scope banner (spec §4): one line pinning this page to the currently
+ *  loaded run — the fix for numbers from other runs/sources bleeding together. */
+function ScopeBanner({ state }: { state?: ConsoleState }) {
+  if (!state || state.idle) {
+    return (
+      <div data-testid="scope-banner"
+           className="rounded-md border border-dashed px-3 py-2 text-[12px] text-muted-foreground">
+        No run loaded — nothing is under review yet. Analyze a log to start.
+      </div>
+    );
+  }
+  return (
+    <div data-testid="scope-banner"
+         className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-[12px]"
+         style={{
+           borderColor: "hsl(var(--primary))",
+           background: "color-mix(in srgb, hsl(var(--primary)) 7%, transparent)",
+         }}>
+      <b>You are reviewing THIS run</b>
+      {state.sourceLabel && (
+        <span title={state.sourceLabel} className="font-mono text-[12px]">
+          {state.sourceLabel.split("/").pop()}
+        </span>
+      )}
+      {state.runParsed && <span className="tabular-nums">{state.runParsed}</span>}
+      <span className="tabular-nums">{state.findings.length} finding(s)</span>
+      <span className="text-muted-foreground">
+        Every facet below is scoped to this run — other runs and sources are not mixed in.
+      </span>
+    </div>
+  );
+}
+
+export function Findings() {
   const { data, isLoading } = useQuery({
     queryKey: ["console-state"],
     queryFn: api.consoleState,
     refetchInterval: 5000,
   });
+  const [params, setParams] = useSearchParams();
+
+  const rawFacet = params.get("facet");
+  const facet: FacetKey =
+    FACETS.some((f) => f.key === rawFacet) ? (rawFacet as FacetKey) : "findings";
+  const selectFacet = (key: FacetKey) =>
+    setParams((p) => {
+      const next = new URLSearchParams(p);
+      if (key === "findings") next.delete("facet");
+      else next.set("facet", key);
+      next.delete("sel"); // a selection belongs to the facet it was made in
+      return next;
+    });
+
+  const runId = data && !data.idle ? data.runId : undefined;
+
+  return (
+    <div className="space-y-4">
+      <ScopeBanner state={data} />
+      <nav aria-label="Review facets" className="flex flex-wrap gap-1 border-b pb-px">
+        {FACETS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => selectFacet(f.key)}
+            aria-current={facet === f.key ? "page" : undefined}
+            className={cn(
+              "rounded-t-md px-3 py-1.5 text-[12.5px] text-muted-foreground hover:bg-muted/60",
+              facet === f.key &&
+                "-mb-px border border-b-0 bg-card font-semibold text-foreground",
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </nav>
+      {facet === "findings" && <FindingsFacet data={data} isLoading={isLoading} />}
+      {facet === "incidents" && <Incidents scopeRunId={runId} />}
+      {facet === "entities" && <Assets />}
+      {facet === "threat-intel" && <ThreatIntel />}
+      {facet === "reports" && <Reports />}
+      {facet === "cases" && <Cases />}
+    </div>
+  );
+}
+
+function FindingsFacet({ data, isLoading }: { data?: ConsoleState; isLoading: boolean }) {
   const [params, setParams] = useSearchParams();
   const [filter, setFilter] = useState("");
   const [sevFilter, setSevFilter] = useState("");
@@ -277,12 +374,18 @@ export function Alerts() {
   const renderRow = (row: Row<Finding>) => (
     <tr
       key={row.id}
-      onClick={() => setParams({ sel: row.original.id })}
+      onClick={() =>
+        setParams((p) => {
+          const next = new URLSearchParams(p);
+          next.set("sel", row.original.id);
+          return next;
+        })
+      }
       className={cn(
         "cursor-pointer border-b last:border-0 hover:bg-muted/60 align-top",
         selected?.id === row.original.id && "bg-accent/60",
       )}
-      data-testid="alert-row"
+      data-testid="finding-row"
     >
       {row.getVisibleCells().map((cell) => (
         <td key={cell.id} className="px-2 py-2 text-[12.5px]">
@@ -321,7 +424,7 @@ export function Alerts() {
       </div>
 
       <Card>
-        <div ref={scrollRef} className="max-h-[52vh] overflow-auto" data-testid="alerts-scroll">
+        <div ref={scrollRef} className="max-h-[52vh] overflow-auto" data-testid="findings-scroll">
           <table className="w-full">
             <thead className="sticky top-0 bg-card">
               {table.getHeaderGroups().map((hg) => (

@@ -2,9 +2,17 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, vi } from "vitest";
 import App from "@/App";
+import { Enrichment } from "@/pages/Enrichment";
+import { useUi } from "@/store/ui";
 import { renderApp, mockFetch } from "./helpers";
 
 afterEach(() => vi.restoreAllMocks());
+
+// Phase 0: Enrichment is CUT from the nav/routes (zero-egress principle) and
+// OEM Engine is fenced behind the experimental flag. The fenced code is NOT
+// deleted, so these tests still cover it: Enrichment renders the component
+// directly, OEM enables the flag. Route-level honesty (the cut/off notices)
+// is covered in shell.test.tsx.
 
 const NO_KEYS = { otx: false, abuseipdb: false };
 const BOTH_KEYS = { otx: true, abuseipdb: true };
@@ -17,7 +25,7 @@ describe("Enrichment — TI panel (masked keys, honest states)", () => {
       "/api/ti/keys": NO_KEYS,
       "/api/store/iocs": EMPTY_IOCS,
     });
-    renderApp(<App />, { route: "/enrichment" });
+    renderApp(<Enrichment />);
 
     expect(await screen.findAllByText(/no key configured/i)).not.toHaveLength(0);
     expect(screen.getByText(/No provider key is configured yet/i)).toBeInTheDocument();
@@ -46,7 +54,7 @@ describe("Enrichment — TI panel (masked keys, honest states)", () => {
       if (url.includes("/api/runs")) return reply({ runs: [], current: null });
       return Promise.resolve({ ok: false, status: 404, json: async () => ({}) } as Response);
     }));
-    renderApp(<App />, { route: "/enrichment" });
+    renderApp(<Enrichment />);
 
     await userEvent.type(await screen.findByLabelText(/IP address to enrich/i), "203.0.113.9");
     await userEvent.click(screen.getByRole("button", { name: /^enrich$/i }));
@@ -62,6 +70,9 @@ describe("Enrichment — TI panel (masked keys, honest states)", () => {
 });
 
 describe("OEM Engine — connectors (masked creds, real poll outcome)", () => {
+  beforeEach(() => useUi.setState({ experimental: true }));
+  afterEach(() => useUi.setState({ experimental: false }));
+
   it("shows the honest empty state and the add-connector form", async () => {
     mockFetch({ "/api/oem/connectors": NO_CONNECTORS });
     renderApp(<App />, { route: "/oem" });

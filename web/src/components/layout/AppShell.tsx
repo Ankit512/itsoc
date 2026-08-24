@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
-  Antenna, Bell, Cable, Database, FileText, Filter, Folder, House, Link as LinkIcon, LogOut, Monitor,
-  Radar, RefreshCw, Search, Settings, Shield, ShieldAlert, ShieldCheck, TriangleAlert, Upload,
+  Antenna, Bell, Cable, Database, Filter, House, Link as LinkIcon,
+  RefreshCw, Settings, ShieldCheck, Upload,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -12,79 +12,72 @@ import { RunDropdown } from "@/components/RunDropdown";
 import { IngestNotifier } from "@/components/IngestNotifier";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useJobs } from "@/store/jobs";
+import { useUi } from "@/store/ui";
 import { isBlobPageUrl, rawFileUrl } from "@/lib/rawUrl";
 import { cn } from "@/lib/utils";
 
 /** The uniform v6 shell: every route renders inside this exact frame, so the
  *  sidebar, header, and page container are identical across the app. */
 
+/** Phase 0 nav (ITSOC_V2_SPEC.md §3): exactly four default items. Incidents /
+ *  Assets / Threat Intel / Reports / Cases live as facets INSIDE the Findings
+ *  review; Discovery / Vulnerabilities / Enrichment / Logout are cut. */
 export const NAV = [
   { to: "/", label: "Overview", icon: House, ready: true },
-  { to: "/alerts", label: "Alerts", icon: Bell, ready: true },
-  { to: "/incidents", label: "Incidents", icon: TriangleAlert, ready: true },
-  { to: "/threat-intel", label: "Threat Intel", icon: Shield, ready: true },
-  { to: "/assets", label: "Assets", icon: Monitor, ready: true },
-  // socf-discovery: nmap network discovery + vulnerability scanning.
-  { to: "/discovery", label: "Discovery", icon: Radar, ready: true },
-  { to: "/vulnerabilities", label: "Vulnerabilities", icon: ShieldAlert, ready: true },
-  // socf-ti-oem: TI enrichment (OTX/AbuseIPDB) + OEM/API polling.
-  { to: "/enrichment", label: "Enrichment", icon: Search, ready: true },
-  { to: "/oem", label: "OEM Engine", icon: Cable, ready: true },
-  // socf-evtx-history: EVTX ingest + persistent history/retention.
-  { to: "/history", label: "History", icon: Database, ready: true },
-  { to: "/reports", label: "Reports", icon: FileText, ready: true },
-  { to: "/cases", label: "Cases", icon: Folder, ready: true },
-  // socf-syslog: live syslog collector control panel.
-  { to: "/collectors", label: "Collectors", icon: Antenna, ready: true },
+  { to: "/findings", label: "Findings", icon: Bell, ready: true },
+  // socf-syslog: read-only live syslog receiver — the sanctioned live ingest.
+  { to: "/collectors", label: "Sources", icon: Antenna, ready: true },
   { to: "/settings", label: "Settings", icon: Settings, ready: true },
 ] as const;
 
+/** Fenced Command-Center pages: rendered only when the off-by-default
+ *  experimental flag (Settings) is on. Kept in the repo — never deleted. */
+export const EXPERIMENTAL_NAV = [
+  { to: "/oem", label: "OEM Engine", icon: Cable },
+  { to: "/history", label: "History", icon: Database },
+] as const;
+
 const TITLES: Record<string, string> = {
-  "/": "SOC Dashboard", "/alerts": "Alerts", "/incidents": "Incidents",
-  "/threat-intel": "Threat Intel", "/assets": "Assets",
-  "/discovery": "Discovery", "/vulnerabilities": "Vulnerabilities",
-  "/enrichment": "Enrichment", "/oem": "OEM Engine", "/history": "History",
-  "/reports": "Reports",
-  "/cases": "Cases", "/collectors": "Collectors", "/settings": "Settings",
+  "/": "SOC Dashboard", "/findings": "Findings",
+  "/collectors": "Sources", "/settings": "Settings",
+  "/oem": "OEM Engine", "/history": "History",
 };
 
+const navLink = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    "flex items-center gap-[11px] rounded-md px-[11px] py-[9px] text-[13.5px] text-muted-foreground hover:bg-background",
+    isActive && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
+  );
+
 function Sidebar() {
+  const experimental = useUi((s) => s.experimental);
   return (
     <aside className="flex w-[172px] flex-none flex-col border-r bg-card px-3 py-[18px]">
       <div className="px-2.5 pb-[22px]">
         <ShieldCheck className="h-[34px] w-[34px] text-primary" strokeWidth={1.8} role="img" aria-label="itsoc" />
       </div>
       <nav aria-label="Main" className="flex flex-col gap-[3px]">
-        {NAV.map(({ to, label, icon: Icon, ready }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            title={ready ? undefined : "Not built yet — the page says so honestly"}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-[11px] rounded-md px-[11px] py-[9px] text-[13.5px] text-muted-foreground hover:bg-background",
-                isActive && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
-              )
-            }
-          >
+        {NAV.map(({ to, label, icon: Icon }) => (
+          <NavLink key={to} to={to} end={to === "/"} className={navLink}>
             <Icon className="h-[17px] w-[17px] flex-none" strokeWidth={1.8} aria-hidden />
             {label}
           </NavLink>
         ))}
-        <NavLink
-          to="/logout"
-          title="Local single-user tool — no server session; clears local UI state"
-          className={({ isActive }) =>
-            cn(
-              "mt-8 flex items-center gap-[11px] rounded-md px-[11px] py-[9px] text-left text-[13.5px] text-muted-foreground hover:bg-background",
-              isActive && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
-            )
-          }
-        >
-          <LogOut className="h-[17px] w-[17px] flex-none" strokeWidth={1.8} aria-hidden />
-          Logout
-        </NavLink>
+        {experimental && (
+          <>
+            <div className="mt-8 px-[11px] pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                 data-testid="experimental-section">
+              Experimental
+            </div>
+            {EXPERIMENTAL_NAV.map(({ to, label, icon: Icon }) => (
+              <NavLink key={to} to={to} className={navLink}
+                       title="Fenced Command-Center page — shown because the experimental flag is on">
+                <Icon className="h-[17px] w-[17px] flex-none" strokeWidth={1.8} aria-hidden />
+                {label}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
     </aside>
   );
@@ -95,7 +88,7 @@ function Sidebar() {
  *  runs the analysis as a BACKGROUND job and drives the persistent
  *  IngestNotifier — so the upload survives navigating away from the Overview. */
 const ACCEPTED_TITLE =
-  "Accepted: LOG, TXT, CSV, TSV, JSON, XML, HTML, RAW — anything that reads as plain text. Analyzed locally by the rules engine; results open in Alerts. Windows EVTX (.evtx) is ingested into the persistent store and appears on the History page.";
+  "Accepted: LOG, TXT, CSV, TSV, JSON, XML, HTML, RAW — anything that reads as plain text. Analyzed locally by the rules engine; results open in Findings. Windows EVTX (.evtx) is ingested into the persistent store and appears on the History page (experimental).";
 
 /** Two-mode ingest dialog: a local file OR a pasted public URL. Both feed the
  *  same background job store + IngestNotifier — the source is the only
@@ -245,7 +238,7 @@ function Header() {
           <RefreshCw className="h-4 w-4" strokeWidth={1.8} aria-hidden />
           Refresh
         </button>
-        <button disabled title="Filtering is not built yet — alert filters live on the Alerts page"
+        <button disabled title="Filtering is not built yet — finding filters live on the Findings page"
                 className={cn(chip, "cursor-not-allowed opacity-50")}>
           <Filter className="h-4 w-4" strokeWidth={1.8} aria-hidden />
           Filters
@@ -258,7 +251,7 @@ function Header() {
 
 /** The run-facts line under the Overview header — every segment is read from
  *  the adapter state or the overview payload; absent facts are omitted, never
- *  filled in. Overview-only: Alerts carries its own run banner. */
+ *  filled in. Overview-only: Findings carries its own scope banner. */
 function RunFacts() {
   const { data: state } = useQuery({ queryKey: ["consoleState"], queryFn: api.consoleState });
   const { data: ov } = useQuery({ queryKey: ["overview"], queryFn: api.overview });

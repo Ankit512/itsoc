@@ -1,9 +1,16 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, vi } from "vitest";
-import App from "@/App";
+import { Discovery } from "@/pages/Discovery";
+import { Vulnerabilities } from "@/pages/Vulnerabilities";
 import type { DiscoveryStatus } from "@/lib/api";
 import { renderApp, mockFetch } from "./helpers";
+
+// Phase 0: Discovery and Vulnerabilities are CUT from the nav/routes (active
+// scanning breaks the read-only principle) and POST /api/discovery/scan is 403
+// unless ITSOC_EXPERIMENTAL=1 server-side. The code is fenced, not deleted —
+// these tests render the components directly to keep covering it. Route-level
+// honesty (the removal notice) is covered in shell.test.tsx.
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -19,7 +26,7 @@ const EMPTY_VULNS = { items: [], total: 0, limit: 200, offset: 0 };
 describe("Discovery — nmap scan control panel", () => {
   it("shows the honest idle state, guardrail copy, and scan controls", async () => {
     mockFetch({ "/api/discovery/status": IDLE, "/api/store/assets": EMPTY_ASSETS });
-    renderApp(<App />, { route: "/discovery" });
+    renderApp(<Discovery />);
 
     expect(await screen.findByRole("button", { name: /discover live nodes/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /service \+ vulnerability scan/i })).toBeInTheDocument();
@@ -31,7 +38,7 @@ describe("Discovery — nmap scan control panel", () => {
 
   it("refuses to enable scanning and warns honestly when nmap is not installed", async () => {
     mockFetch({ "/api/discovery/status": NO_NMAP, "/api/store/assets": EMPTY_ASSETS });
-    renderApp(<App />, { route: "/discovery" });
+    renderApp(<Discovery />);
 
     expect(await screen.findByText(/nmap is not installed/i)).toBeInTheDocument();
     // Even with a target typed, the buttons stay disabled — nothing is faked.
@@ -55,7 +62,7 @@ describe("Discovery — nmap scan control panel", () => {
       if (url.includes("/api/runs")) return reply({ runs: [], current: null });
       return Promise.resolve({ ok: false, status: 404, json: async () => ({}) } as Response);
     }));
-    renderApp(<App />, { route: "/discovery" });
+    renderApp(<Discovery />);
 
     await userEvent.type(await screen.findByLabelText(/target host or cidr/i), "10.0.0.0/24");
     await userEvent.click(screen.getByRole("button", { name: /service \+ vulnerability scan/i }));
@@ -76,7 +83,7 @@ describe("Discovery — nmap scan control panel", () => {
       if (url.includes("/api/runs")) return reply({ runs: [], current: null });
       return reply({}, false, 404);
     }));
-    renderApp(<App />, { route: "/discovery" });
+    renderApp(<Discovery />);
 
     await userEvent.type(await screen.findByLabelText(/target host or cidr/i), "8.8.8.8");
     await userEvent.click(screen.getByRole("button", { name: /discover live nodes/i }));
@@ -96,7 +103,7 @@ describe("Discovery — nmap scan control panel", () => {
         total: 1, limit: 100, offset: 0,
       },
     });
-    renderApp(<App />, { route: "/discovery" });
+    renderApp(<Discovery />);
 
     const ipCell = await screen.findByText("192.168.1.10");
     const row = ipCell.closest("tr")!;
@@ -108,7 +115,7 @@ describe("Discovery — nmap scan control panel", () => {
 describe("Vulnerabilities — store-backed table", () => {
   it("shows an honest empty state when nothing is stored", async () => {
     mockFetch({ "/api/store/vulns": EMPTY_VULNS });
-    renderApp(<App />, { route: "/vulnerabilities" });
+    renderApp(<Vulnerabilities />);
     expect(await screen.findByText(/No vulnerabilities recorded yet/i)).toBeInTheDocument();
   });
 
@@ -128,7 +135,7 @@ describe("Vulnerabilities — store-backed table", () => {
         total: 2, limit: 200, offset: 0,
       },
     });
-    renderApp(<App />, { route: "/vulnerabilities" });
+    renderApp(<Vulnerabilities />);
 
     const cveCell = await screen.findByText("CVE-2021-23017");
     const row = cveCell.closest("tr")!;

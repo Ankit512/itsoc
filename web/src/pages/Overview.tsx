@@ -56,8 +56,8 @@ function OpsFooter() {
   const { data: m } = useQuery<Metrics>({ queryKey: ["metrics"], queryFn: api.metrics });
 
   const entries: { label: string; value: string; icon?: LucideIcon; title?: string }[] = m ? [
-    { label: "Open Incidents", value: String(m.openIncidents), icon: Shield,
-      title: "Incidents not yet resolved, from the incident subsystem" },
+    { label: "Open Incidents · all runs", value: String(m.openIncidents), icon: Shield,
+      title: "Incidents not yet resolved, from the incident subsystem — persisted across ALL runs, not just the one under review" },
     { label: "MTTD", value: fmtDuration(m.mttdSeconds),
       title: m.mttdSeconds == null
         ? "Mean time to detect needs acknowledged incidents — no lifecycle basis yet"
@@ -66,11 +66,11 @@ function OpsFooter() {
       title: m.mttrSeconds == null
         ? "Mean time to resolve needs resolved incidents — no lifecycle basis yet"
         : `Mean of created→resolved over ${m.mttrBasis} incident(s)` },
-    { label: "Assets at Risk", value: m.assetsAtRisk == null ? "—" : String(m.assetsAtRisk),
+    { label: "Assets at Risk · this run", value: m.assetsAtRisk == null ? "—" : String(m.assetsAtRisk),
       icon: Monitor, title: "Hosts in the current run with a HIGH or CRITICAL finding" },
-    { label: "Users at Risk", value: m.usersAtRisk == null ? "—" : String(m.usersAtRisk),
+    { label: "Users at Risk · this run", value: m.usersAtRisk == null ? "—" : String(m.usersAtRisk),
       icon: Users, title: "Accounts targeted by findings in the current run" },
-    { label: "Data Sources", value: String(m.dataSources), icon: Database,
+    { label: "Data Sources · all runs", value: String(m.dataSources), icon: Database,
       title: "Distinct analyzed sources across the run history" },
   ] : [];
 
@@ -94,6 +94,8 @@ function OpsFooter() {
             Incident counts and MTTD/MTTR come from the incident subsystem's real
             lifecycle stamps (n/a until incidents are acknowledged or resolved);
             asset and user risk are derived from the current run's findings.
+            Each label states its scope — "this run" vs "all runs" — so numbers
+            from different scopes never read as one.
           </p>
         </>
       ) : (
@@ -140,7 +142,7 @@ export function Overview() {
       <Card className="border-dashed">
         <CardContent className="p-6 text-[12.5px] text-muted-foreground">
           {(data as { error: string } | undefined)?.error ?? "No run yet"} — upload a
-          log above or open <Link className="text-primary underline" to="/alerts">Alerts</Link>.
+          log above or open <Link className="text-primary underline" to="/findings">Findings</Link>.
           No sample data is shown in its place.
         </CardContent>
       </Card>
@@ -156,12 +158,12 @@ export function Overview() {
       {unparsed && (
         <p className="text-[12px] text-muted-foreground" style={{ color: "var(--sev-medium)" }}>
           The counts below are all zero because <b>nothing was parsed</b>, not
-          because nothing was found. Open <Link className="underline" to="/alerts">Alerts</Link>{" "}
+          because nothing was found. Open <Link className="underline" to="/findings">Findings</Link>{" "}
           for the run details.
         </p>
       )}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(148px,1fr))] gap-[9px]">
-        <KpiCard label="Total Alerts" count={k.total} delta={k.deltas.total} icon={Bell} />
+        <KpiCard label="Total Findings" count={k.total} delta={k.deltas.total} icon={Bell} />
         <KpiCard label="Critical" count={k.critical} delta={k.deltas.critical} icon={OctagonAlert} color={sevVar("CRITICAL")} />
         <KpiCard label="High" count={k.high} delta={k.deltas.high} icon={CircleAlert} color={sevVar("HIGH")} />
         <KpiCard label="Medium" count={k.medium} delta={k.deltas.medium} icon={CircleArrowDown} color={sevVar("MEDIUM")} />
@@ -170,11 +172,11 @@ export function Overview() {
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] items-stretch gap-4">
         <div className="min-w-0 rounded-lg bg-card px-[18px] py-4 shadow-card">
-          <h3 className="mb-3.5 text-[15px] font-semibold">Alerts by Severity</h3>
+          <h3 className="mb-3.5 text-[15px] font-semibold">Findings by Severity</h3>
           <SeverityDonut data={overview.severityDonut} />
         </div>
         <div className="min-w-0 rounded-lg bg-card px-[18px] py-4 shadow-card">
-          <h3 className="mb-3.5 text-[15px] font-semibold">Alerts Over Time</h3>
+          <h3 className="mb-3.5 text-[15px] font-semibold">Findings Over Time</h3>
           <AlertsOverTime data={overview.alertsOverTime} />
         </div>
         <div className="min-w-0 rounded-lg bg-card px-[18px] py-4 shadow-card">
@@ -186,9 +188,9 @@ export function Overview() {
 
       <div className="min-w-0 rounded-lg bg-card px-[18px] py-4 shadow-card">
         <h3 className="mb-3 text-[15px] font-semibold">
-          Latest Alerts{" "}
+          Latest Findings{" "}
           <span className="text-[11.5px] font-normal text-muted-foreground">
-            {overview.latestAlerts.length} most recent of {k.total} · drill into Alerts for evidence
+            {overview.latestAlerts.length} most recent of {k.total} · drill into Findings for evidence
           </span>
         </h3>
         <div className="overflow-x-auto">
@@ -199,7 +201,7 @@ export function Overview() {
                 <th className={th}>Severity</th>
                 <th className={th}>Attacker Status</th>
                 <th className={th}>Primary MITRE Tactics</th>
-                <th className={`${th} min-w-[320px]`}>Alert Name / Description</th>
+                <th className={`${th} min-w-[320px]`}>Finding Name / Description</th>
                 <th className={th}>Source</th>
                 <th className={th}>Action</th>
               </tr>
@@ -207,7 +209,7 @@ export function Overview() {
             <tbody>
               {overview.latestAlerts.length === 0 && (
                 <tr><td colSpan={7} className="px-2.5 py-4 text-muted-foreground">
-                  No alerts in this window.</td></tr>
+                  No findings in this window.</td></tr>
               )}
               {overview.latestAlerts.map((a) => (
                 <tr key={a.id} data-testid="latest-alert-row">
@@ -241,12 +243,12 @@ export function Overview() {
                   </td>
                   <td className={td}>
                     <span className="inline-flex items-center gap-3 text-muted-foreground">
-                      <Link to={`/alerts?sel=${encodeURIComponent(a.id)}`}
-                            title="View this finding's evidence in Alerts" aria-label="View finding"
+                      <Link to={`/findings?sel=${encodeURIComponent(a.id)}`}
+                            title="View this finding's evidence in Findings" aria-label="View finding"
                             className="inline-flex hover:text-accent-foreground">
                         <Eye className="h-4 w-4" strokeWidth={1.8} aria-hidden />
                       </Link>
-                      <a href={`/alerts?sel=${encodeURIComponent(a.id)}`} target="_blank" rel="noreferrer"
+                      <a href={`/findings?sel=${encodeURIComponent(a.id)}`} target="_blank" rel="noreferrer"
                          title="Open this finding in a new tab" aria-label="Open finding"
                          className="inline-flex hover:text-accent-foreground">
                         <ExternalLink className="h-4 w-4" strokeWidth={1.8} aria-hidden />

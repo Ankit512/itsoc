@@ -17,7 +17,7 @@ describe("Overview page (v6)", () => {
   it("renders KPIs, charts, tactics and latest alerts from /api/overview", async () => {
     renderApp(<App />);
 
-    expect(await screen.findByText("Total Alerts")).toBeInTheDocument();
+    expect(await screen.findByText("Total Findings")).toBeInTheDocument();
     // "31" appears in the KPI card AND the donut center — both are correct.
     expect(screen.getAllByText("31").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("22").length).toBeGreaterThanOrEqual(1);
@@ -33,9 +33,9 @@ describe("Overview page (v6)", () => {
 
     expect(screen.getByText(/Brute-force then SUCCESSFUL/)).toBeInTheDocument();
     expect(screen.getByText("Breaking In")).toBeInTheDocument();
-    // The action column deep-links into the Alerts page.
+    // The action column deep-links into the Findings page.
     expect(screen.getByRole("link", { name: "View finding" }))
-      .toHaveAttribute("href", "/alerts?sel=detector-0");
+      .toHaveAttribute("href", "/findings?sel=detector-0");
   });
 
   it("shows the run-facts line from the real adapter state", async () => {
@@ -50,7 +50,7 @@ describe("Overview page (v6)", () => {
 
   it("shows a real delta ONLY where a prior period exists", async () => {
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
     expect(screen.getAllByText(/vs previous/).length).toBe(1);
     expect(screen.getByText(/12% vs previous/)).toBeInTheDocument();
     // The four KPIs without a prior period say so instead of showing nothing.
@@ -59,18 +59,20 @@ describe("Overview page (v6)", () => {
 
   it("wires the ops footer to /api/metrics with honest n/a states", async () => {
     renderApp(<App />);
-    await screen.findByText("Open Incidents");
-    expect(screen.getByText("Open Incidents").nextElementSibling).toHaveTextContent("2");
+    // Every ops metric states its scope — "this run" vs "all runs" (the
+    // Phase 0 fix for numbers from different scopes reading as one).
+    await screen.findByText("Open Incidents · all runs");
+    expect(screen.getByText("Open Incidents · all runs").nextElementSibling).toHaveTextContent("2");
     // No acknowledge/resolve lifecycle in the fixture -> n/a, never a number.
     expect(screen.getAllByText("n/a").length).toBe(2);
-    expect(screen.getByText("Assets at Risk").nextElementSibling).toHaveTextContent("3");
-    expect(screen.getByText("Data Sources").nextElementSibling).toHaveTextContent("4");
+    expect(screen.getByText("Assets at Risk · this run").nextElementSibling).toHaveTextContent("3");
+    expect(screen.getByText("Data Sources · all runs").nextElementSibling).toHaveTextContent("4");
     expect(screen.getByText(/derived, never invented/)).toBeInTheDocument();
   });
 
   it("keeps the AI analyst advisory-only, behind the floating button", async () => {
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
     // Closed on first paint so the panel never covers the dashboard.
     expect(screen.queryByText(/never changed here/)).not.toBeInTheDocument();
 

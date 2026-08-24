@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 interface Msg { who: "q" | "a" | "err"; text: string }
 
 const EXAMPLES = [
-  "Show me top 5 critical alerts",
+  "Show me top 5 critical findings",
   "What are the recent attack patterns?",
   "Summarize today's threats",
 ];

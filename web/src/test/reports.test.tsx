@@ -31,17 +31,22 @@ describe("Reports page", () => {
     renderApp(<App />, { route: "/reports" });
 
     // Wait for the run state to resolve — the controls become real links then.
-    await screen.findByTestId("download-csv");
-    await within(screen.getByTestId("download-panel")).findByRole("link", { name: /CSV/ });
+    await screen.findByTestId("download-html");
+    await within(screen.getByTestId("download-panel")).findByRole("link", { name: /HTML/ });
     const panel = screen.getByTestId("download-panel");
-    // One control per format, each a real download link with the right href.
+    // Phase 0 (spec §3): exports are trimmed to HTML + JSON only.
+    expect(EXPORT_FORMATS.map((f) => f.format)).toEqual(["html", "json"]);
+    for (const gone of ["csv", "xml", "md"]) {
+      expect(within(panel).queryByTestId(`download-${gone}`)).not.toBeInTheDocument();
+    }
+    // One control per offered format, each a real download link.
     for (const { format } of EXPORT_FORMATS) {
       const control = within(panel).getByTestId(`download-${format}`);
       expect(control.tagName).toBe("A");
       expect(control).toHaveAttribute("href", `/api/export?format=${format}`);
       expect(control).toHaveAttribute("download");
     }
-    expect(within(panel).getAllByRole("link").length).toBe(EXPORT_FORMATS.length);
+    expect(within(panel).getAllByRole("link").length).toBe(2);
   });
 
   it("disables the download controls honestly when no run is loaded", async () => {

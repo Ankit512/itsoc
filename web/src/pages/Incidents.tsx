@@ -234,9 +234,9 @@ function IncidentDetail({ inc }: { inc: Incident }) {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {inc.findingIds.map((fid) => (
-              <a key={fid} href={`/alerts?sel=${encodeURIComponent(fid)}`}
+              <a key={fid} href={`/findings?sel=${encodeURIComponent(fid)}`}
                 className="rounded border px-1.5 py-0.5 font-mono text-[10.5px] hover:bg-muted"
-                title="Open this finding in Alerts">
+                title="Open this finding in Findings">
                 {fid}
               </a>
             ))}
@@ -256,7 +256,11 @@ function IncidentDetail({ inc }: { inc: Incident }) {
   );
 }
 
-export function Incidents() {
+/** Incident review. `scopeRunId` (set when rendered as a Findings facet with a
+ *  run loaded) scopes the list to THAT run — the fix for the old bleed where
+ *  incidents persisted from every past run sat next to the current run's
+ *  findings. Nothing is silently dropped: the out-of-scope count is stated. */
+export function Incidents({ scopeRunId }: { scopeRunId?: string } = {}) {
   const [params, setParams] = useSearchParams();
   const [stateFilter, setStateFilter] = useState<IncidentState | "">("");
   const { data, isLoading, isError, error } = useQuery({
@@ -265,7 +269,9 @@ export function Incidents() {
     refetchInterval: 5000,
   });
 
-  const incidents = data?.incidents ?? [];
+  const all = data?.incidents ?? [];
+  const incidents = scopeRunId ? all.filter((i) => i.runId === scopeRunId) : all;
+  const outOfScope = all.length - incidents.length;
   const selId = params.get("sel");
   const selected = incidents.find((i) => i.id === selId) ?? null;
 
@@ -298,6 +304,14 @@ export function Incidents() {
         </span>
       </div>
 
+      {outOfScope > 0 && (
+        <p className="text-[11.5px] text-muted-foreground" data-testid="incident-scope-note">
+          {outOfScope} incident(s) from other runs are outside this run's review
+          scope and not shown — they remain in the incident store, nothing was
+          deleted.
+        </p>
+      )}
+
       {incidents.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-6 text-[12.5px] text-muted-foreground">
@@ -325,7 +339,13 @@ export function Incidents() {
                   <tr
                     key={inc.id}
                     data-testid="incident-row"
-                    onClick={() => setParams({ sel: inc.id })}
+                    onClick={() =>
+                      setParams((p) => {
+                        const next = new URLSearchParams(p);
+                        next.set("sel", inc.id);
+                        return next;
+                      })
+                    }
                     className={cn(
                       "cursor-pointer border-b last:border-0 align-top hover:bg-muted/60",
                       selected?.id === inc.id && "bg-accent/60",

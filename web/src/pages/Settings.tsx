@@ -163,6 +163,38 @@ function AnalystModel() {
   );
 }
 
+/** The off-by-default experimental flag (spec §3/§8): shows the fenced
+ *  Command-Center pages (OEM Engine, History) in the nav. It never re-enables
+ *  the cut pages — Discovery, Vulnerabilities, Enrichment and Logout are
+ *  removed outright because they broke the read-only / zero-egress principles. */
+function ExperimentalSetting() {
+  const experimental = useUi((s) => s.experimental);
+  const setExperimental = useUi((s) => s.setExperimental);
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-[15px]">Experimental features</CardTitle></CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        <label className="flex items-center gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            checked={experimental}
+            onChange={(e) => setExperimental(e.target.checked)}
+            aria-label="Show experimental Command-Center pages"
+          />
+          <span className="font-medium">Show experimental Command-Center pages</span>
+        </label>
+        <p className="text-[11.5px] text-muted-foreground">
+          Off by default. When on, the fenced pages — <b>OEM Engine</b> and{" "}
+          <b>History</b> — appear under an "Experimental" section in the nav.
+          The removed pages (Discovery, Vulnerabilities, Enrichment, Logout)
+          stay removed either way: active scanning and third-party egress are
+          against this tool's read-only, zero-egress principles.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ThemeSetting() {
   const theme = useUi((s) => s.theme);
   const toggleTheme = useUi((s) => s.toggleTheme);
@@ -197,6 +229,7 @@ export function Settings() {
       <ComputeSettings />
       <RedactionInfo compute={compute} />
       <AnalystModel />
+      <ExperimentalSetting />
       <ThemeSetting />
     </div>
   );
