@@ -3734,6 +3734,205 @@ def check_advisory_rca():
     return 0 if all(results) else 1
 
 
+def check_multiformat_rules():
+    """Multi-format ingestion feeding the app/vendor-level sibling rules
+    (rules_app.py) — the spec-aligned port from the parallel dev tree.
+
+    Checks, per format fixture (jsonl/xml/html/windows-text/csv/json): the
+    universal parser produces detector-contract records and detect() runs on
+    them; Windows 4625/4624 canonicalization lets the FROZEN detector own the
+    brute-force verdict; the Windows/infra/threat/IOC/ZooKeeper/generic sibling
+    rules fire deterministically with rule-table severities; IOC extraction
+    requires security context (an IP alone is never an indicator); evidence is
+    verbatim source text; sibling types never collide with detector-owned
+    types; and the frozen detector sha is unchanged.
+    """
+    import hashlib
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    import formats_universal as fu
+    import rules_app
+    import rule_context
+    from anomaly_detector import detect
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nMulti-format ingestion + app/vendor sibling rules (rules_app.py):")
+
+    with tempfile.TemporaryDirectory(prefix="multiformat-test-") as tmp:
+        tmp = Path(tmp)
+
+        # --- jsonl / xml / html: parse to detector-contract records ---------
+        jl = tmp / "events.jsonl"
+        jl.write_text('{"timestamp": "2026-08-18T10:00:00", "level": "ERROR", "message": "db timeout"}\n'
+                      '{"timestamp": "2026-08-18T10:00:01", "level": "INFO", "message": "ok"}\n')
+        recs, st = fu.load_log_file(jl)
+        check("jsonl parses to detector-contract records",
+              st["format"] == "jsonl" and st["parsed"] == 2
+              and all(k in recs[0] for k in ("n", "ts", "level", "host", "msg", "raw")),
+              str(st))
+        detect(recs)
+
+        xml = tmp / "events.xml"
+        xml.write_text('<Events><Event><Message>disk warning</Message>'
+                       '<Level>WARN</Level></Event></Events>')
+        recs, st = fu.load_log_file(xml)
+        check("xml parses and detect() accepts the records",
+              st["format"] == "xml" and st["parsed"] >= 1 and detect(recs) is not None,
+              str(st))
+
+        html = tmp / "export.html"
+        html.write_text("<html><body><table><tr><td>2026-08-18 10:00:00 service "
+                        "sshd stopped</td></tr></table></body></html>")
+        recs, st = fu.load_log_file(html)
+        check("html parses and detect() accepts the records",
+              st["format"] == "html" and st["parsed"] >= 1 and detect(recs) is not None,
+              str(st))
+
+        # --- Windows text export: frozen detector owns the auth verdict -----
+        lines = []
+        for i in range(6):
+            lines.append(f"08/18/2026 07:1{i}:10.000 PM\nLogName=Security\nEventCode=4625\n"
+                         "ComputerName=DC01\nTargetUserName=admin\nIpAddress=203.0.113.99\n"
+                         "Message=An account failed to log on.\n")
+        lines.append("08/18/2026 07:16:20.000 PM\nLogName=Security\nEventCode=4624\n"
+                     "ComputerName=DC01\nTargetUserName=admin\nIpAddress=203.0.113.99\n"
+                     "Message=An account was successfully logged on.\n")
+        lines.append("08/18/2026 07:17:00.000 PM\nLogName=Security\nEventCode=1102\n"
+                     "ComputerName=DC01\nSubjectUserName=admin\n"
+                     "Message=The audit log was cleared.\n")
+        win = tmp / "security_export.log"
+        win.write_text("\n".join(lines))
+        recs, st = fu.load_log_file(win)
+        check("windows text export parses with real timestamps",
+              st["format"] == "windows_event_text" and st["parsed"] == 8
+              and recs[0]["ts"] is not None, str(st))
+        app = rules_app.detect_app_extra(recs)
+        canon, counts = rules_app.canonicalize_windows_auth(recs)
+        check("4625/4624 canonicalize into the detector's auth vocabulary",
+              counts == {"auth_fail": 6, "auth_ok": 1}, str(counts))
+        det_types = {a["type"] for a in detect(canon)}
+        check("FROZEN detector owns the Windows brute-force verdict",
+              "auth_bruteforce_success" in det_types, str(det_types))
+        aud = [a for a in app if a["type"] == "windows_audit_log_cleared"]
+        check("windows_audit_log_cleared fires critical from EventCode 1102",
+              len(aud) == 1 and aud[0]["severity"] == "critical")
+        check("sibling evidence is the verbatim raw event text",
+              aud and aud[0]["evidence"].startswith("08/18/2026 07:17:00.000 PM"))
+        check("app rules on original text never re-trigger on canonical vocabulary",
+              not any(a["type"] == "generic_auth_failure" for a in app))
+        check("sibling rule types never collide with detector-owned types",
+              not ({a["type"] for a in app}
+                   & {"auth_bruteforce", "auth_bruteforce_success",
+                      "suspicious_outbound", "disk_pressure",
+                      "error_rate_spike", "critical_service_event"}))
+        enriched = rule_context.enrich(app, recs)
+        check("windows finding gets predicate + timeline from rule_context",
+              aud[0].get("predicate", "").startswith("EventCode in {1102")
+              and len(aud[0].get("timeline") or []) == 1)
+
+        # --- CSV SIEM export -> Windows service-install rule ----------------
+        csvf = tmp / "siem.csv"
+        csvf.write_text("TimeGenerated,EventCode,ComputerName,ServiceName,Message\n"
+                        "2026-08-18 11:00:00,7045,SRV02,updaterd,A service was installed\n")
+        recs, st = fu.load_log_file(csvf)
+        svc = [a for a in rules_app.detect_app_extra(recs)
+               if a["type"] == "windows_service_installed"]
+        check("csv export: EventCode 7045 -> windows_service_installed (high)",
+              st["format"] == "csv" and len(svc) == 1 and svc[0]["severity"] == "high",
+              str(st))
+
+        # --- JSON export -> infra rule with vendor-reported severity --------
+        jf = tmp / "fw.json"
+        jf.write_text(json.dumps({"events": [
+            {"timestamp": "2026-08-18T12:00:00", "severity": "ERROR",
+             "vendor": "fortinet", "message": "firewall policy rule deleted by admin"},
+        ]}))
+        recs, st = fu.load_log_file(jf)
+        infra = [a for a in rules_app.detect_app_extra(recs)
+                 if a["type"].startswith("infra_")]
+        check("json export: vendor ERROR severity -> infra_firewall_high",
+              len(infra) == 1 and infra[0]["type"] == "infra_firewall_high",
+              str([a["type"] for a in infra]))
+
+        # --- default INFO level must NOT become an infra alert (honesty) ----
+        quiet = tmp / "quiet.jsonl"
+        quiet.write_text('{"timestamp": "2026-08-18T12:01:00", "message": "heartbeat ok"}\n')
+        recs, _ = fu.load_log_file(quiet)
+        check("a record with only the default INFO level raises no infra alert",
+              not any(a["type"].startswith("infra_")
+                      for a in rules_app.detect_app_extra(recs)))
+
+        # --- threat + IOC rules (IOC needs security context) ----------------
+        th = tmp / "edr.jsonl"
+        th.write_text('{"timestamp": "2026-08-18T13:00:00", "host": "pc-7", '
+                      '"message": "EDR alert: ransomware behavior blocked, contact 198.51.100.7"}\n')
+        recs, _ = fu.load_log_file(th)
+        app = rules_app.detect_app_extra(recs)
+        check("threat_ransomware fires critical from the threat vocabulary",
+              any(a["type"] == "threat_ransomware" and a["severity"] == "critical"
+                  for a in app))
+        check("ioc_observed extracts the IP only in security context",
+              any(a["type"] == "ioc_observed" and
+                  "198.51.100.7" in a["entities"].get("ioc_ips", []) for a in app))
+        plain = tmp / "plain.jsonl"
+        plain.write_text('{"timestamp": "2026-08-18T13:01:00", '
+                         '"message": "session opened from 198.51.100.7"}\n')
+        recs, _ = fu.load_log_file(plain)
+        check("an IP with no security context is NOT an IOC finding",
+              not any(a["type"] == "ioc_observed"
+                      for a in rules_app.detect_app_extra(recs)))
+
+        # --- ZooKeeper application rules + correlation + own timeline -------
+        zk = tmp / "zookeeper.log"
+        zk.write_text("\n".join(
+            [f"2026-08-13 02:0{i}:00 WARN [QuorumCnxManager] Connection broken for id 1 my id = 2"
+             for i in range(6)]
+            + ["2026-08-13 02:07:00 WARN [SendWorker.1] Interrupting SendWorker",
+               "2026-08-13 02:07:01 WARN [SendWorker.1] Send worker leaving thread"]))
+        recs, st = fu.load_log_file(zk, mode="force")
+        zapp = rules_app.detect_app_extra(recs)
+        ztypes = {a["type"] for a in zapp}
+        check("zookeeper lifecycle rules fire on a zk-marked log",
+              {"zookeeper_connection_broken", "zookeeper_sendworker_exit"} <= ztypes,
+              str(ztypes))
+        qi = [a for a in zapp if a["type"] == "zookeeper_quorum_instability"]
+        check("zk correlation alert combines break + worker churn (medium)",
+              len(qi) == 1 and qi[0]["severity"] == "medium")
+        cb = [a for a in zapp if a["type"] == "zookeeper_connection_broken"][0]
+        rule_context.enrich(zapp, recs)
+        check("zk occurrence timeline survives rule_context.enrich",
+              len(cb.get("timeline") or []) >= 6)
+        no_marker = rules_app._zookeeper_extra_anomalies(
+            [{"n": 1, "ts": None, "level": "INFO", "host": None,
+              "msg": "plain app line, nothing zookeeperish", "raw": "plain"}])
+        check("zk ruleset self-gates off non-zookeeper input", no_marker == [])
+
+        # --- generic rules: occurrence-aware severity promotion -------------
+        app_log = tmp / "app.log"
+        app_log.write_text("\n".join(
+            [f"2026-08-18 14:00:{i:02d} worker[9]: java.lang.OutOfMemoryError: heap"
+             for i in range(12)]))
+        recs, _ = fu.load_log_file(app_log, mode="force")
+        oom = [a for a in rules_app.detect_app_extra(recs)
+               if a["type"] == "generic_out_of_memory"]
+        check("generic OOM rule collapses 12 lines into one finding with count",
+              len(oom) == 1 and oom[0]["occurrences"] == 12)
+        check("generic severity is rule-derived (critical stays critical)",
+              oom and oom[0]["severity"] == "critical")
+
+        # --- frozen detector untouched --------------------------------------
+        sha = hashlib.sha256((ROOT / "anomaly_detector.py").read_bytes()).hexdigest()
+        check("anomaly_detector.py sha unchanged",
+              sha == "43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05", sha)
+
+    return 0 if all(results) else 1
+
+
 def check_storage_atomic():
     """Atomic + locked flat-file writes (console/fsafe.py).
 
@@ -4111,16 +4310,18 @@ def main():
     rca_ = check_advisory_rca()
     storage_ = check_storage_atomic()
     structout_ = check_structured_output()
+    multifmt_ = check_multiformat_rules()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_ or explguard_ or rca_ or storage_ or structout_):
+            or formats_ or explguard_ or rca_ or storage_ or structout_ or multifmt_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "+ explanation-guard + advisory-rca + storage-atomic + structured-output checks green")
+          "+ explanation-guard + advisory-rca + storage-atomic + structured-output "
+          "+ multiformat-rules checks green")
     return 0
 
 
