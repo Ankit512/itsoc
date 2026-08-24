@@ -5,6 +5,16 @@ import { create } from "zustand";
 
 export type Theme = "light" | "dark";
 const THEME_KEY = "itsoc-theme";
+const EXPERIMENTAL_KEY = "itsoc-experimental";
+
+/** Off by default — the fenced Command-Center pages (OEM Engine, History) stay
+ *  out of the nav until the user opts in from Settings. */
+function readInitialExperimental(): boolean {
+  try {
+    return localStorage.getItem(EXPERIMENTAL_KEY) === "1";
+  } catch { /* storage unavailable */ }
+  return false;
+}
 
 function readInitialTheme(): Theme {
   try {
@@ -25,6 +35,11 @@ interface UiState {
   sidebarOpen: boolean;
   timeWindow: string;
   search: string;
+  /** Shows the fenced Command-Center pages (OEM Engine, History). Off by
+   *  default; never re-enables the cut pages (Discovery/Vulnerabilities/
+   *  Enrichment/Logout), which are removed outright. */
+  experimental: boolean;
+  setExperimental: (on: boolean) => void;
   toggleTheme: () => void;
   setSidebarOpen: (open: boolean) => void;
   setTimeWindow: (w: string) => void;
@@ -39,6 +54,14 @@ export const useUi = create<UiState>((set, get) => ({
   sidebarOpen: true,
   timeWindow: "Current run",
   search: "",
+  experimental: readInitialExperimental(),
+  setExperimental: (experimental) => {
+    try {
+      if (experimental) localStorage.setItem(EXPERIMENTAL_KEY, "1");
+      else localStorage.removeItem(EXPERIMENTAL_KEY);
+    } catch { /* not persistable */ }
+    set({ experimental });
+  },
   toggleTheme: () => {
     const theme: Theme = get().theme === "dark" ? "light" : "dark";
     try { localStorage.setItem(THEME_KEY, theme); } catch { /* not persistable */ }

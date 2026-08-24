@@ -76,6 +76,22 @@ from tactic_phase_map import phase_for_tactics  # noqa: E402
 CONSOLE_HTML = HERE / "anomaly_console.html"
 OVERVIEW_HTML = HERE / "overview.html"
 
+# Phase 0 refocus (ITSOC_V2_SPEC.md §2/§3): the cut pages' active actions are
+# disabled by default — an nmap scan breaks principle 4 (read-only) and
+# third-party TI enrichment breaks principle 5 (zero egress). The code stays
+# (fenced, not deleted); enabling is an explicit operator opt-in, never a
+# default. Read per-request so tests and operators can flip it without a
+# server restart.
+EXPERIMENTAL_OFF_MSG = (
+    "this action is disabled by default: active scanning / third-party egress "
+    "breaks the read-only and zero-egress principles (ITSOC_V2_SPEC.md §2). "
+    "Set ITSOC_EXPERIMENTAL=1 to enable it deliberately."
+)
+
+
+def experimental_actions_enabled():
+    return os.environ.get("ITSOC_EXPERIMENTAL", "").strip().lower() in ("1", "true", "on")
+
 # The built React SOC app (web/dist). Committed to the repo so a fresh
 # `git pull && python3 console/serve.py` serves the app with NO Node required.
 # Missing dist is handled honestly (a build hint), never a crash — see _serve_web.
@@ -1501,6 +1517,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
     # results land in the store; read them back via /api/store/{assets,vulns}.
     # -----------------------------------------------------------------------
     def _discovery_scan(self):
+        if not experimental_actions_enabled():
+            return self._json({"error": EXPERIMENTAL_OFF_MSG}, 403)
         length = int(self.headers.get("Content-Length") or 0)
         try:
             payload = json.loads(self.rfile.read(length) or b"{}")
@@ -1537,6 +1555,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         return payload
 
     def _ti_enrich(self):
+        if not experimental_actions_enabled():
+            return self._json({"error": EXPERIMENTAL_OFF_MSG}, 403)
         payload = self._read_json_body()
         if payload is None:
             return

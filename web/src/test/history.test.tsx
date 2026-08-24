@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, vi } from "vitest";
 import App from "@/App";
+import { useUi } from "@/store/ui";
 import { renderApp, mockFetch } from "./helpers";
 
 afterEach(() => vi.restoreAllMocks());
@@ -24,6 +25,11 @@ const EVTX_EVENTS = {
 };
 
 describe("History — store history, KPIs, EVTX ingest, retention", () => {
+  // Phase 0: History is fenced behind the off-by-default experimental flag;
+  // these tests enable it to keep covering the fenced page.
+  beforeEach(() => useUi.setState({ experimental: true }));
+  afterEach(() => useUi.setState({ experimental: false }));
+
   it("shows Command-Center KPIs and an honest empty events state", async () => {
     mockFetch({
       "/api/store/metrics": EMPTY_METRICS,

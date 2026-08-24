@@ -40,7 +40,7 @@ describe("FIX A — Overview honest banner on an unrecognized run", () => {
       "/console_state.json": consoleState([], { unrecognized: false, linesParsed: 2000, linesUnparsed: 0 }),
     });
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
     expect(screen.queryByText(/Log format not recognized/)).not.toBeInTheDocument();
   });
 });
@@ -92,7 +92,7 @@ describe("FIX C — github/gitlab blob URL -> raw file URL", () => {
   it("shows an inline hint in the link field when a blob URL is pasted", async () => {
     mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": { openIncidents: 0, mttdSeconds: null, mttdBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 }, "/console_state.json": consoleState([]) });
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.click(screen.getByRole("button", { name: /attach a link/i }));
     await userEvent.type(screen.getByLabelText("Log file URL"),

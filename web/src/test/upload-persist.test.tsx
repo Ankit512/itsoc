@@ -27,7 +27,7 @@ describe("upload runs as a persistent background job", () => {
       "/api/progress": { status: "running", phase: "rules", done: 0, total: 0 },
     });
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
@@ -37,9 +37,9 @@ describe("upload runs as a persistent background job", () => {
     expect(within(toast).getByText("server.csv")).toBeInTheDocument();
 
     // Navigate to another page — the notifier (shell-level, store-backed) stays.
-    // (All section pages are built now; Cases is a real page — the point of this
-    // test is that the notifier survives navigation regardless of destination.)
-    await userEvent.click(screen.getByRole("link", { name: /Cases/ }));
+    // (The point of this test is that the notifier survives navigation
+    // regardless of destination — Settings is one of the four default pages.)
+    await userEvent.click(screen.getByRole("link", { name: /Settings/ }));
     expect(screen.getByRole("status", { name: "Upload notification" })).toBeInTheDocument();
     expect(within(screen.getByRole("status", { name: "Upload notification" }))
       .getByText("server.csv")).toBeInTheDocument();
@@ -61,7 +61,7 @@ describe("upload runs as a persistent background job", () => {
       String(u).includes("/api/open") ? open() : realFetch(u, init)));
 
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total Findings");
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
 

@@ -221,14 +221,14 @@ export interface Report { name: string; bytes: number; createdAt: string }
 
 /** Downloadable export formats served by GET /api/export. Each is a real
  *  serialization of the CURRENT run's findings (console/export.py) — no
- *  fabricated rows. `label`/`ext` drive the Download panel controls. */
+ *  fabricated rows. `label`/`ext` drive the Download panel controls.
+ *  Phase 0 (spec §3) trims the OFFERED formats to HTML + JSON; the backend
+ *  serializers for the others remain in console/export.py (fenced, not
+ *  deleted), which is why the type still names them. */
 export type ExportFormat = "csv" | "html" | "xml" | "json" | "md";
 export const EXPORT_FORMATS: { format: ExportFormat; label: string; ext: string }[] = [
-  { format: "csv", label: "CSV", ext: "csv" },
-  { format: "json", label: "JSON", ext: "json" },
-  { format: "xml", label: "XML", ext: "xml" },
   { format: "html", label: "HTML", ext: "html" },
-  { format: "md", label: "Markdown", ext: "md" },
+  { format: "json", label: "JSON", ext: "json" },
 ];
 
 /** Both /api/assets and /api/users return {error} (HTTP 200) when the server
