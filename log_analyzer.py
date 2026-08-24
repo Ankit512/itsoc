@@ -52,6 +52,7 @@ import normalize  # noqa: E402
 import formats_universal  # noqa: E402  broadened multi-format ingestion (native-first)
 import explanation_guard  # noqa: E402
 import rule_context  # noqa: E402
+import rules_app  # noqa: E402  app/vendor-level sibling rules (non-rfc3164 formats)
 import rules_syslog  # noqa: E402
 from anomaly_detector import detect, to_llm_context  # noqa: E402
 
@@ -808,6 +809,28 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
         if dropped:
             print(f"Dedupe: collapsed {dropped} companion line(s); "
                   f"{counts['auth_fail'] - dropped} auth event(s) = real attempts")
+    else:
+        # App/vendor-level sibling rules (rules_app.py) for the formats the
+        # classic syslog family does not own: Windows exports, vendor CSV/JSON/
+        # XML, application logs, generic text. rfc3164 stays the exclusive
+        # domain of the frozen detector + rules_syslog, so tests/eval and every
+        # existing syslog surface are untouched by construction. Windows
+        # 4625/4624 logons are first translated into the canonical auth
+        # vocabulary so the FROZEN detector owns brute-force/compromise
+        # verdicts on Windows exports too — rules_app adds only new types.
+        try:
+            # App rules read the ORIGINAL vendor text; canonicalization runs
+            # after, so the canonical auth vocabulary (which the frozen
+            # detector owns) can never re-trigger a generic pattern.
+            extra_anomalies = rules_app.detect_app_extra(records)
+            if extra_anomalies:
+                print(f"App rules: {len(extra_anomalies)} sibling finding(s)")
+            records, wcounts = rules_app.canonicalize_windows_auth(records)
+            if wcounts["auth_fail"] or wcounts["auth_ok"]:
+                print(f"Vocabulary: translated {wcounts['auth_fail']} Windows logon-failure "
+                      f"and {wcounts['auth_ok']} logon-success event(s) into rule vocabulary")
+        except Exception as exc:
+            print(f"WARNING: app-level rule detection failed: {exc}")
 
     raw_anomalies = detect(records) + extra_anomalies
     # Derived from the same record stream v1 just consumed — v1 itself is untouched.

@@ -37,8 +37,72 @@ RULE_TECHNIQUES = {
     "suspicious_outbound": [
         {"id": "T1571", "name": "Non-Standard Port", "tactic": "Command and Control"},
     ],
+    # --- rules_app.py Windows Event-ID rules (multi-format ingestion) -------
+    # Each event id IS the technique's canonical telemetry, so the mapping is
+    # definitional, not guessed.
+    "windows_audit_log_cleared": [
+        {"id": "T1070.001", "name": "Clear Windows Event Logs", "tactic": "Defense Evasion"},
+    ],
+    "windows_service_installed": [
+        {"id": "T1543.003", "name": "Windows Service", "tactic": "Persistence"},
+    ],
+    "windows_user_created": [
+        {"id": "T1136.001", "name": "Create Account: Local Account", "tactic": "Persistence"},
+    ],
+    "windows_user_deleted": [
+        {"id": "T1070", "name": "Indicator Removal", "tactic": "Defense Evasion"},
+    ],
+    "windows_privileged_group_change": [
+        {"id": "T1098", "name": "Account Manipulation", "tactic": "Persistence"},
+    ],
+    "windows_account_lockout": [
+        {"id": "T1531", "name": "Account Access Removal", "tactic": "Impact"},
+    ],
+    "windows_suspicious_process": [
+        {"id": "T1059", "name": "Command and Scripting Interpreter", "tactic": "Execution"},
+    ],
+    # --- rules_app.py threat-vocabulary rules -------------------------------
+    # The rule's pattern names the technique explicitly (the log SAID
+    # "ransomware"/"lateral movement"/...), so the annotation restates the
+    # matched vocabulary rather than inferring behaviour.
+    "threat_ransomware": [
+        {"id": "T1486", "name": "Data Encrypted for Impact", "tactic": "Impact"},
+    ],
+    "threat_active_compromise": [
+        {"id": "T1078", "name": "Valid Accounts", "tactic": "Initial Access"},
+    ],
+    "threat_c2_indicator": [
+        {"id": "T1071", "name": "Application Layer Protocol", "tactic": "Command and Control"},
+    ],
+    "threat_malware_indicator": [
+        {"id": "T1204.002", "name": "Malicious File", "tactic": "Execution"},
+    ],
+    "threat_persistence": [
+        {"id": "T1053", "name": "Scheduled Task/Job", "tactic": "Persistence"},
+    ],
+    "threat_privilege_escalation": [
+        {"id": "T1548", "name": "Abuse Elevation Control Mechanism", "tactic": "Privilege Escalation"},
+    ],
+    "threat_lateral_movement": [
+        {"id": "T1021", "name": "Remote Services", "tactic": "Lateral Movement"},
+    ],
+    "threat_port_scan": [
+        {"id": "T1046", "name": "Network Service Scanning", "tactic": "Discovery"},
+    ],
+    "threat_credential_attack": [
+        {"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"},
+    ],
+    "threat_data_exfiltration": [
+        {"id": "T1041", "name": "Exfiltration Over C2 Channel", "tactic": "Exfiltration"},
+    ],
     # Deliberately unmapped — not attacker techniques, or method unverified:
     #   critical_service_event, disk_pressure, error_rate_spike, possible_break_in
+    #   ioc_observed (an indicator candidate is not yet a technique)
+    #   threat_rogue_wireless (a rogue AP's method is unverified; the upstream
+    #     tree's T1557.002 "ARP Cache Poisoning" claim was wrong and is not kept)
+    #   infra_* (availability/operational signals, not attacker behaviours)
+    #   zookeeper_* / generic_* (ops signals; claiming ATT&CK "Service
+    #     Exhaustion" for WARN lifecycle churn would be invented attribution)
 }
 
 

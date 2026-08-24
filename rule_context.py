@@ -101,6 +101,35 @@ def predicate_for(anomaly):
                 "  (POSSIBLE BREAK-IN ATTEMPT), grouped per source IP\n"
                 "-> severity = medium")
 
+    # App/vendor-level sibling rules (rules_app.py) — restated rule constants,
+    # exactly like the blocks above. rules_app never runs on rfc3164 input.
+    windows_predicates = {
+        "windows_audit_log_cleared": "EventCode in {1102, 104} -> critical",
+        "windows_service_installed": "EventCode == 7045 -> high",
+        "windows_user_created": "EventCode == 4720 -> high",
+        "windows_user_deleted": "EventCode == 4726 -> medium",
+        "windows_privileged_group_change": "EventCode in {4728, 4732, 4756} -> high",
+        "windows_account_lockout": "EventCode == 4740 -> medium",
+        "windows_suspicious_process":
+            "EventCode == 4688 AND process matches common LOLBin/scripting executable -> medium",
+    }
+    if atype in windows_predicates:
+        return windows_predicates[atype]
+
+    if atype.startswith("infra_"):
+        return ("cross-platform infrastructure rule matched a security/availability "
+                "condition\n-> severity from vendor-reported level, else the matched "
+                "deterministic pattern's table")
+
+    if atype.startswith("threat_"):
+        return ("cross-platform threat pattern matched security telemetry\n"
+                "-> severity is defined by the registered threat rule")
+
+    if atype == "ioc_observed":
+        return ("security-relevant context contained an IP/domain/hash IOC candidate\n"
+                "-> medium (validate with threat intelligence; presence alone is "
+                "not a verdict)")
+
     return ""
 
 
@@ -212,6 +241,28 @@ def timeline_for(anomaly, records, by_raw, by_line):
     if atype == "critical_service_event":
         return [_event(record, record.get("msg", "")[:110])]
 
+    if atype.startswith("windows_"):
+        eid = ents.get("event_id", "?")
+        label_map = {
+            "windows_audit_log_cleared": "Windows audit log cleared",
+            "windows_service_installed": "Windows service installed",
+            "windows_user_created": "Windows user account created",
+            "windows_user_deleted": "Windows user account deleted",
+            "windows_privileged_group_change": "Windows privileged group membership changed",
+            "windows_account_lockout": "Windows account locked out",
+            "windows_suspicious_process": "Suspicious Windows process execution",
+        }
+        return [_event(record, f"{label_map.get(atype, atype)} (EventID {eid})")]
+
+    if atype.startswith("infra_"):
+        dtype = ents.get("device_type", "unknown")
+        eid = ents.get("event_id", "")
+        suffix = f" (EventID {eid})" if eid else ""
+        return [_event(record, f"{dtype.replace('_', ' ').title()} alert{suffix}")]
+
+    if atype.startswith("threat_") or atype == "ioc_observed":
+        return [_event(record, anomaly.get("summary", atype)[:150])]
+
     return []
 
 
@@ -227,6 +278,10 @@ def enrich(anomalies, records):
         by_line.setdefault(r.get("n"), r)
 
     for a in anomalies:
-        a["predicate"] = predicate_for(a)
-        a["timeline"] = timeline_for(a, records, by_raw, by_line)
+        a["predicate"] = a.get("predicate") or predicate_for(a)
+        # A rule that built its own timeline (e.g. rules_app's ZooKeeper/generic
+        # occurrence timelines) keeps it; rebuilding here would erase evidence.
+        rebuilt = timeline_for(a, records, by_raw, by_line)
+        if rebuilt or not a.get("timeline"):
+            a["timeline"] = rebuilt
     return anomalies

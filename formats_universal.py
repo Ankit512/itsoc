@@ -59,6 +59,10 @@ KEY_VALUE_RE = re.compile(r"^\s*([^=\s][^=]*?)\s*=\s*(.*)$")
 _ISO_TS_CANDIDATES = (
     "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f",
     "%Y-%m-%d %H:%M:%S.%f",
+    # US-style Windows Event Log text exports ("08/18/2026 07:18:34.068 PM"):
+    # without these, Windows-export records reach the detector with ts=None and
+    # its time-window rules (brute-force, bursts) can never correlate them.
+    "%m/%d/%Y %I:%M:%S.%f %p", "%m/%d/%Y %I:%M:%S %p",
 )
 
 
@@ -534,10 +538,13 @@ def detect_input_format(path: Path):
 
     if ext == ".evtx":
         return "evtx", encoding
-    if text.startswith("<") or ext == ".xml":
-        return "xml", encoding
+    # HTML must be decided BEFORE the generic "<" -> xml rule: every HTML
+    # document starts with "<", so the old order made the html parser
+    # unreachable and sent HTML reports to the (stricter) XML parser.
     if "<html" in text[:1000].lower() or ext in {".html", ".htm"}:
         return "html", encoding
+    if text.startswith("<") or ext == ".xml":
+        return "xml", encoding
     if ext in {".jsonl", ".ndjson"}:
         return "jsonl", encoding
     if ext == ".json":
