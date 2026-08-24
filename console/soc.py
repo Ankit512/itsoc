@@ -41,6 +41,7 @@ sys.path.insert(0, str(ROOT / "threat_intel"))
 
 import explanation_guard  # noqa: E402  # deterministic prose↔facts gate (repo root)
 import export  # noqa: E402
+import fsafe  # noqa: E402  # atomic + locked flat-file writes (console/fsafe.py)
 import redact  # noqa: E402
 from rule_mitre_map import RULE_TECHNIQUES  # noqa: E402
 from tactic_phase_map import phase_for_tactics  # noqa: E402
@@ -79,7 +80,7 @@ def _load(name):
 
 def _save(name, data):
     SOC_DIR.mkdir(parents=True, exist_ok=True)
-    (SOC_DIR / name).write_text(json.dumps(data, indent=1))
+    fsafe.atomic_write_text(SOC_DIR / name, json.dumps(data, indent=1))
 
 
 # ---------------------------------------------------------------------------

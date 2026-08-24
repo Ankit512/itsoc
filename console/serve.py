@@ -56,6 +56,7 @@ sys.path.insert(0, str(HERE))
 
 import adapter  # noqa: E402
 import export  # noqa: E402
+import fsafe  # noqa: E402  # atomic + locked flat-file writes (console/fsafe.py)
 import redact  # noqa: E402
 import soc  # noqa: E402
 import store  # noqa: E402  # persistent SOC Command Center store (console/store.py)
@@ -247,7 +248,7 @@ def save_run(state):
         serial += 1
         path = RUNS_DIR / f"{stamp}-{run_id}-{serial}.json".replace("/", "_")
     try:
-        path.write_text(json.dumps(state))
+        fsafe.atomic_write_text(path, json.dumps(state))
     except OSError:
         return None
     CURRENT_RUN_FILE = path.name
@@ -611,13 +612,13 @@ def persist_state():
     reopened from history, because history still held the version saved at run time.
     """
     try:
-        STATE_FILE.write_text(json.dumps(STATE, indent=2))
+        fsafe.atomic_write_text(STATE_FILE, json.dumps(STATE, indent=2))
     except OSError:
         pass
     if not CURRENT_RUN_FILE:
         return
     try:
-        (RUNS_DIR / CURRENT_RUN_FILE).write_text(json.dumps(STATE))
+        fsafe.atomic_write_text(RUNS_DIR / CURRENT_RUN_FILE, json.dumps(STATE))
     except OSError:
         pass
 
