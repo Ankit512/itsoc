@@ -22,6 +22,7 @@ Usage:
 
 import inspect
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -2939,6 +2940,19 @@ def check_discovery():
             check("GET /api/discovery/status returns the real scanner shape",
                   s_status == 200 and set(body) >= {"running", "target", "nmapInstalled", "vuln"})
 
+            # Phase 0 refocus: the scan action is DISABLED BY DEFAULT — an
+            # honest 403 naming the principle, never a silent no-op. Status
+            # (a read) stays available either way.
+            os.environ.pop("ITSOC_EXPERIMENTAL", None)
+            s_off, off = post("/api/discovery/scan", {"target": "127.0.0.1"})
+            check("POST /api/discovery/scan is 403 by default (read-only principle)",
+                  s_off == 403 and off.get("error") == serve.EXPERIMENTAL_OFF_MSG, str(off))
+            s_toff, toff = post("/api/ti/enrich", {"ip": "203.0.113.9"})
+            check("POST /api/ti/enrich is 403 by default (zero-egress principle)",
+                  s_toff == 403 and toff.get("error") == serve.EXPERIMENTAL_OFF_MSG, str(toff))
+            # The rest of the scan checks exercise the ENABLED path explicitly.
+            os.environ["ITSOC_EXPERIMENTAL"] = "1"
+
             # A public target is refused with an honest 400 — never scanned.
             s_pub, pub = post("/api/discovery/scan", {"target": "8.8.8.8"})
             check("POST /api/discovery/scan REFUSES a public target -> 400 honest error",
@@ -2973,6 +2987,7 @@ def check_discovery():
     finally:
         discovery.nmap_path = real_nmap
         store.SOC_DIR, store.DB_PATH = real
+        os.environ.pop("ITSOC_EXPERIMENTAL", None)
 
     return 0 if all(results) else 1
 
