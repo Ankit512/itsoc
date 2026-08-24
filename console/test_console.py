@@ -3718,6 +3718,133 @@ def check_advisory_rca():
     return 0 if all(results) else 1
 
 
+def check_storage_atomic():
+    """Atomic + locked flat-file writes (console/fsafe.py).
+
+    The real risk this guards: POST /api/mark -> persist_state racing a re-run's
+    save_run on the same history file, or a crash mid-write, leaving a truncated
+    run JSON. The crash window is simulated deterministically: os.replace is
+    monkeypatched to raise between the temp write and the swap, and the on-disk
+    file must still parse as the COMPLETE previous JSON — never a half-write.
+    All paths are monkeypatched to a temp dir; the real stores are never touched.
+    """
+    import os
+    import threading
+
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import fsafe
+    import serve
+    import soc as soc_mod
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nStorage hardening (console/fsafe.py — atomic + locked flat-file writes):")
+
+    original = {"runId": "r1", "findings": [1, 2, 3], "marks": {"d0": "real"}}
+    real_replace = os.replace
+
+    def boom(src, dst):
+        raise OSError("simulated crash between temp write and swap")
+
+    with tempfile.TemporaryDirectory(prefix="fsafe-test-") as tmp:
+        tmpdir = Path(tmp)
+
+        # --- unit: atomic write + interrupted write leaves the file intact ---
+        target = tmpdir / "run.json"
+        fsafe.atomic_write_text(target, json.dumps(original))
+        check("atomic write lands as complete parseable JSON",
+              json.loads(target.read_text()) == original)
+
+        os.replace = boom
+        try:
+            try:
+                fsafe.atomic_write_text(target, json.dumps({"runId": "half"}))
+                raised = False
+            except OSError:
+                raised = True
+        finally:
+            os.replace = real_replace
+        check("interrupted write raises OSError (never fails silently)", raised)
+        check("interrupted write leaves the ORIGINAL file complete and parseable",
+              json.loads(target.read_text()) == original)
+        check("interrupted write leaves no temp litter",
+              not list(tmpdir.glob("*.tmp")))
+
+        # --- unit: racing writers never interleave into corrupt bytes -------
+        def writer(i):
+            for j in range(15):
+                fsafe.atomic_write_text(
+                    target, json.dumps({"w": i, "j": j, "pad": "x" * 4096}))
+        threads = [threading.Thread(target=writer, args=(i,)) for i in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        final = json.loads(target.read_text())
+        check("60 racing writes end as ONE writer's complete payload",
+              set(final) == {"w", "j", "pad"} and len(final["pad"]) == 4096)
+
+        # --- serve: save_run + persist_state go through the atomic path -----
+        real_serve = (serve.RUNS_DIR, serve.STATE_FILE, serve.STATE,
+                      serve.CURRENT_RUN_FILE)
+        try:
+            serve.RUNS_DIR = tmpdir / "runs"
+            serve.STATE_FILE = tmpdir / "console_state.json"
+            state = {"runId": "run-x", "generatedAt": "2026-08-24T00:00:00+00:00",
+                     "findings": [{"id": "d0", "title": "t"}], "marks": {}}
+            name = serve.save_run(state)
+            saved = serve.RUNS_DIR / name
+            check("save_run persists a complete parseable run",
+                  name and json.loads(saved.read_text()) == state)
+
+            # the task's stated race: persist_state dies mid-write; the saved
+            # run on disk must still be the previous COMPLETE version
+            serve.STATE = dict(state, marks={"d0": "real"})
+            os.replace = boom
+            try:
+                serve.persist_state()      # swallows OSError by design
+            finally:
+                os.replace = real_replace
+            check("persist_state interrupted mid-write -> saved run still complete",
+                  json.loads(saved.read_text()) == state)
+
+            serve.persist_state()
+            check("persist_state after recovery lands the reviewer's marks",
+                  json.loads(saved.read_text())["marks"] == {"d0": "real"})
+        finally:
+            (serve.RUNS_DIR, serve.STATE_FILE, serve.STATE,
+             serve.CURRENT_RUN_FILE) = real_serve
+
+        # --- soc: _save goes through the atomic path ------------------------
+        real_soc_dir = soc_mod.SOC_DIR
+        try:
+            soc_mod.SOC_DIR = tmpdir / "soc"
+            soc_mod._save("incidents.json", {"inc-1": {"state": "new"}})
+            inc = soc_mod.SOC_DIR / "incidents.json"
+            check("soc._save persists complete parseable JSON",
+                  json.loads(inc.read_text()) == {"inc-1": {"state": "new"}})
+            os.replace = boom
+            try:
+                try:
+                    soc_mod._save("incidents.json", {"inc-1": {"state": "resolved"}})
+                except OSError:
+                    pass
+            finally:
+                os.replace = real_replace
+            check("soc._save interrupted mid-write -> store still complete",
+                  json.loads(inc.read_text()) == {"inc-1": {"state": "new"}})
+        finally:
+            soc_mod.SOC_DIR = real_soc_dir
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -3774,16 +3901,17 @@ def main():
     formats_ = check_formats_universal()
     explguard_ = check_explanation_guard()
     rca_ = check_advisory_rca()
+    storage_ = check_storage_atomic()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_ or explguard_ or rca_):
+            or formats_ or explguard_ or rca_ or storage_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "+ explanation-guard + advisory-rca checks green")
+          "+ explanation-guard + advisory-rca + storage-atomic checks green")
     return 0
 
 

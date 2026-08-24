@@ -13,6 +13,7 @@ demo_threat_report.*
 
 # adapter output when written next to the console (serve.py keeps it in memory)
 console/console_state.json
+console/console_state.json.lock
 
 # saved run history for the console (local results, machine-specific).
 # .soc is ignored per-child so the versioned runbook store stays committed:
