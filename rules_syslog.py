@@ -492,6 +492,37 @@ def _normalized_alert_id(record, severity, device_type):
     return eid or f"text-{device_type}-{severity}"
 
 
+# Prefixes of the canonical auth vocabulary. A record whose message is already
+# canonical is the dedicated auth rules' input even when no translation was
+# needed (canonical-format logs arrive pre-translated, so no auth_source stamp).
+_CANON_AUTH_PREFIXES = (CANON_FAIL.split("{")[0], CANON_OK.split("{")[0])
+
+# The auth-failure vocabulary, mirroring normalize.AUTH_FAILURE_HINT. Needed
+# here as well because an auth failure the canonicalizer cannot attribute (e.g.
+# a pam_unix line whose rhost is a hostname, not an IP) carries no auth_source
+# stamp yet is still the dedicated auth rules' input domain.
+_AUTH_FAILURE_TEXT = re.compile(
+    r"(failed password|authentication failure|invalid user|failed none|failed publickey|"
+    r"break-in|failed to authenticate)", re.I)
+
+
+def _is_dedicated_auth_input(record, text):
+    """True when this record belongs to the dedicated auth/break-in rules.
+
+    Auth events are the input to detect_auth_bruteforce / the compromise rule /
+    detect_break_in_attempts — normalize deliberately levels auth failures WARN
+    (not ERROR) for exactly this reason (see normalize.LEVEL_HINTS). Counting
+    them here as generic infrastructure alerts reports one attack twice under
+    two finding types; an auth burst below the rules' thresholds is honestly
+    NO finding, not a rebadged medium alert."""
+    if record.get("auth_source"):
+        return True
+    msg = str(record.get("msg") or record.get("message") or "")
+    if any(prefix in msg for prefix in _CANON_AUTH_PREFIXES):
+        return True
+    return bool(BREAK_IN.search(text) or _AUTH_FAILURE_TEXT.search(text))
+
+
 def detect_infrastructure_alerts(records):
     """Catch high-signal security, availability and operational alerts across heterogeneous devices."""
     anomalies = []
@@ -508,6 +539,10 @@ def detect_infrastructure_alerts(records):
             continue
         # Avoid duplicating dedicated Windows Event-ID rules.
         if eid in (WINDOWS_AUDIT_CLEARED_IDS | WINDOWS_SERVICE_INSTALL_IDS | WINDOWS_USER_CREATED_IDS | WINDOWS_USER_DELETED_IDS | WINDOWS_GROUP_ADD_IDS | WINDOWS_LOCKOUT_IDS | WINDOWS_PROCESS_CREATE_IDS):
+            continue
+        # Avoid duplicating the dedicated auth/break-in rules (same principle
+        # as the Windows Event-ID guard above): those rules own auth events.
+        if _is_dedicated_auth_input(r, text):
             continue
         # Avoid turning ordinary success/up/recovery lines into alerts.
         if sev == "low" and not any(x in text.lower() for x in ("warning", "threshold", "expir", "drift", "retry", "certificate", "license")):
