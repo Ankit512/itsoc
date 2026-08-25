@@ -28,6 +28,7 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
 import store
@@ -173,23 +174,48 @@ def ti_key_status():
 # the user must replace; the poller refuses to call a URL that still contains
 # one, so an unconfigured connector never makes a bogus request.
 OEM_TEMPLATES = {
+    # User must replace placeholder host and supply credentials. Endpoints are
+    # intentionally configurable because product/version/tenant deployments vary.
+    "Fortinet FortiGate": {
+        "vendor": "fortinet", "baseUrl": "https://FORTIGATE",
+        "eventsPath": "/api/v2/log/memory", "authMode": "bearer",
+        "notes": "Verify the log endpoint for your FortiOS version/VDOM."},
+    "Check Point": {
+        "vendor": "checkpoint", "baseUrl": "https://CHECKPOINT-MANAGEMENT",
+        "eventsPath": "/web_api/show-logs", "authMode": "checkpoint",
+        "notes": "Uses Management API login + show-logs + logout."},
+    "Splunk": {
+        "vendor": "splunk", "baseUrl": "https://SPLUNK",
+        "eventsPath": "/services/search/jobs/export", "authMode": "bearer",
+        "notes": "Use an SPL query in config.query."},
+    "Trend Micro Vision One": {
+        "vendor": "trend_micro", "baseUrl": "https://VISION-ONE",
+        "eventsPath": "/v3.0/workbench/alerts", "authMode": "bearer",
+        "notes": "Trend Vision One Workbench API."},
+    "Palo Alto Networks": {
+        "vendor": "paloalto", "baseUrl": "https://PALOALTO",
+        "eventsPath": "/api/", "authMode": "panos",
+        "notes": "PAN-OS XML API; configure logType/query."},
     "Cisco Firepower": {"vendor": "cisco", "baseUrl": "https://FIREPOWER",
-                        "eventsPath": "/api/fdm/v6/events"},
+                        "eventsPath": "/api/fdm/v6/events", "authMode": "bearer"},
     "Ruckus SmartZone": {"vendor": "ruckus", "baseUrl": "https://SMARTZONE",
-                         "eventsPath": "/wsg/api/public/v11_0/events"},
+                         "eventsPath": "/wsg/api/public/v11_0/events", "authMode": "bearer"},
     "ManageEngine Log360": {"vendor": "log360", "baseUrl": "https://LOG360",
-                            "eventsPath": "/api/v2/events"},
+                            "eventsPath": "/api/v2/events", "authMode": "bearer"},
 }
 _PLACEHOLDER_HOSTS = ("FIREPOWER", "SMARTZONE", "LOG360", "MANAGEMENT",
-                      "FORTIMANAGER", "JUNOS")
+                      "FORTIMANAGER", "JUNOS", "FORTIGATE", "CHECKPOINT-MANAGEMENT",
+                      "SPLUNK", "VISION-ONE", "PALOALTO")
 
 
 def _token_setting(name):
-    # Secret-hinted (contains 'token') so the store masks it on read.
     return f"oem_token_{name}"
 
+def _secret_setting(name, field):
+    return f"oem_{field}_{name}"
 
-def create_connector(name, config, enabled=None, interval=None, token=None):
+
+def create_connector(name, config, enabled=None, interval=None, token=None, username=None, password=None):
     """Create/update an OEM connector. `config` = {vendor, baseUrl, eventsPath}.
     A supplied token is stored as a SECRET setting (masked, never returned); the
     connector's config keeps only a reference to that setting key.
@@ -212,10 +238,20 @@ def create_connector(name, config, enabled=None, interval=None, token=None):
         "vendor": pick("vendor"),
         "baseUrl": pick("baseUrl"),
         "eventsPath": pick("eventsPath"),
+        "authMode": pick("authMode") or "bearer",
+        "query": pick("query"),
+        "logType": pick("logType") or "threat",
+        "params": config.get("params") if isinstance(config.get("params"), dict) else (existing.get("params") or {}),
         "tokenKey": _token_setting(name),
+        "usernameKey": _secret_setting(name, "username"),
+        "passwordKey": _secret_setting(name, "password"),
     }
     if token:
         store.set_setting(_token_setting(name), token)
+    if username:
+        store.set_setting(_secret_setting(name, "username"), username)
+    if password:
+        store.set_setting(_secret_setting(name, "password"), password)
     store.upsert_connector(
         name, kind="oem", config=cfg,
         enabled=enabled, interval=interval)
@@ -235,6 +271,10 @@ def _safe_row(row):
         "hasConfig": bool(row.get("hasConfig")),
         "hasToken": bool(store.get_setting(_token_setting(row.get("name", "")), "")),
     }
+
+
+def templates():
+    return json.loads(json.dumps(OEM_TEMPLATES))
 
 
 def list_connectors():
@@ -261,35 +301,128 @@ def _read_config(name):
         return None
 
 
+def _http_request(url, headers=None, method="GET", data=None, timeout=HTTP_TIMEOUT):
+    req = urllib.request.Request(url, headers=headers or {}, method=method)
+    if data is not None:
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        req.data = data
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8", "replace")
+
+
+def _checkpoint_poll(base, cfg, token, username, password):
+    # Check Point Management API: login -> show-logs -> logout. API for Logs
+    # supports filters, timeframes, log servers and paging.
+    login_url = base.rstrip("/") + "/web_api/login"
+    body = json.dumps({"user": username or "", "password": password or ""}).encode()
+    login_raw = _http_request(login_url, {"Content-Type": "application/json", "Accept": "application/json"}, "POST", body)
+    login = json.loads(login_raw or "{}")
+    sid = login.get("sid")
+    if not sid:
+        raise RuntimeError("Check Point login succeeded without a session id")
+    try:
+        payload = {"limit": int(cfg.get("params", {}).get("limit", 100))}
+        if cfg.get("query"):
+            payload["query"] = cfg["query"]
+        for k in ("time-frame", "log-server", "logs_type"):
+            if k in (cfg.get("params") or {}):
+                payload[k] = cfg["params"][k]
+        raw = _http_request(base.rstrip("/") + "/web_api/show-logs",
+                            {"Content-Type": "application/json", "Accept": "application/json", "X-chkp-sid": sid},
+                            "POST", json.dumps(payload).encode())
+        return json.loads(raw or "{}")
+    finally:
+        try:
+            _http_request(login_url, {"Content-Type": "application/json", "Accept": "application/json", "X-chkp-sid": sid}, "POST", b'{"uid":""}')
+        except Exception:
+            pass
+
+
+def _splunk_poll(base, cfg, token):
+    query = cfg.get("query") or "search index=* | head 100"
+    params = {"search": query, "output_mode": "json", "exec_mode": "oneshot", "count": str((cfg.get("params") or {}).get("count", 100))}
+    raw = _http_request(base.rstrip("/") + "/services/search/jobs/export",
+                        {"Authorization": f"Bearer {token}", "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                        "POST", urllib.parse.urlencode(params).encode())
+    # Splunk export may be newline-delimited JSON with a result field.
+    records = []
+    for line in raw.splitlines():
+        try:
+            obj = json.loads(line)
+            if isinstance(obj, dict) and isinstance(obj.get("result"), dict):
+                records.append(obj["result"])
+            elif isinstance(obj, dict):
+                records.append(obj)
+        except json.JSONDecodeError:
+            continue
+    return {"events": records}
+
+
+def _panos_poll(base, cfg, token):
+    params = {"type": "log", "log-type": cfg.get("logType") or "threat", "key": token}
+    if cfg.get("query"):
+        params["query"] = cfg["query"]
+    params.update(cfg.get("params") or {})
+    url = base.rstrip("/") + "/api/?" + urllib.parse.urlencode(params)
+    raw = _http_request(url, {"Accept": "application/xml"}, "GET")
+    root = ET.fromstring(raw)
+    records = []
+    for entry in root.findall('.//entry'):
+        rec = {}
+        for child in list(entry):
+            tag = child.tag.split('}', 1)[-1]
+            rec[tag] = child.text or ""
+        if rec:
+            records.append(rec)
+    return {"events": records}
+
+
 def poll_connector(name):
-    """Poll one connector's events endpoint once, now. Returns
-    {name, ok, stored, error}. A placeholder/empty base URL or a failed call is
-    an honest error that stores nothing — never a fabricated event.
-    """
     cfg = _read_config(name)
     if cfg is None:
         return _finish_poll(name, 0, "connector is not configured")
-
     base = cfg.get("baseUrl", "")
     path = cfg.get("eventsPath", "")
     url = (base.rstrip("/") + "/" + path.lstrip("/")) if (base and path) else ""
     if not url:
         return _finish_poll(name, 0, "connector base URL / events path not set")
     if any(ph in url.upper() for ph in _PLACEHOLDER_HOSTS):
-        return _finish_poll(
-            name, 0, "connector base URL is still a placeholder — set the real host")
+        return _finish_poll(name, 0, "connector base URL is still a placeholder — set the real host")
 
-    headers = {"Accept": "application/json"}
     token = store.get_setting(cfg.get("tokenKey", ""), "") if cfg.get("tokenKey") else ""
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
-    vendor = cfg.get("vendor") or name
+    username = store.get_setting(cfg.get("usernameKey", ""), "") if cfg.get("usernameKey") else ""
+    password = store.get_setting(cfg.get("passwordKey", ""), "") if cfg.get("passwordKey") else ""
+    vendor = (cfg.get("vendor") or name).lower()
     try:
-        payload = _http_get_json(url, headers)
+        mode = (cfg.get("authMode") or "bearer").lower()
+        if vendor == "checkpoint" or mode == "checkpoint":
+            if not username or not password:
+                return _finish_poll(name, 0, "Check Point requires username and password")
+            payload = _checkpoint_poll(base, cfg, token, username, password)
+        elif vendor == "splunk":
+            if not token:
+                return _finish_poll(name, 0, "Splunk requires an API token")
+            payload = _splunk_poll(base, cfg, token)
+        elif vendor == "paloalto" or mode == "panos":
+            if not token:
+                return _finish_poll(name, 0, "Palo Alto requires a PAN-OS API key")
+            payload = _panos_poll(base, cfg, token)
+        else:
+            headers = {"Accept": "application/json"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            qs = cfg.get("params") or {}
+            if cfg.get("query"):
+                qs = dict(qs); qs.setdefault("query", cfg["query"])
+            if qs:
+                url += ("&" if "?" in url else "?") + urllib.parse.urlencode(qs, doseq=True)
+            payload = _http_get_json(url, headers)
     except (urllib.error.URLError, urllib.error.HTTPError, OSError,
-            socket.timeout, ValueError, json.JSONDecodeError) as exc:
+            socket.timeout, ValueError, json.JSONDecodeError, ET.ParseError) as exc:
         return _finish_poll(name, 0, _explain(exc))
+    except Exception as exc:
+        return _finish_poll(name, 0, str(exc))
 
     stored = _ingest_events(name, vendor, payload)
     return _finish_poll(name, stored, "")

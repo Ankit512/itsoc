@@ -1,0 +1,389 @@
+{
+  "live": true,
+  "runId": "Zookeeper_2k-2026-08-24",
+  "runWindow": "17:41\u201317:41 UTC",
+  "runHosts": "unknown",
+  "runParsed": "1,999 lines parsed \u00b7 0 unparsed",
+  "generatedAt": "2026-08-24T13:45:37.708265+00:00",
+  "manifest": {
+    "input_sha256": "ca38c8b373c693760a86dea60ad73ea69cee2c260576f8bb329a1b1e068c2949",
+    "detector_sha256": "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876",
+    "model": "llama3.1:8b",
+    "temperature": 0.0,
+    "ruleset": "v3-universal-soc-high-coverage",
+    "endpoint": "http://localhost:11434/v1"
+  },
+  "linesParsed": 1999,
+  "linesUnparsed": 0,
+  "unrecognized": false,
+  "emptyInput": false,
+  "compareRun": false,
+  "underratedCount": null,
+  "chunksUsable": null,
+  "chunksTotal": null,
+  "degraded": false,
+  "analyzerErrors": 0,
+  "modelFindings": 0,
+  "findings": [
+    {
+      "id": "detector-0",
+      "sev": "CRITICAL",
+      "sevColor": "#e2807f",
+      "ruleSev": "CRITICAL",
+      "llmSev": null,
+      "llmWhy": null,
+      "delta": null,
+      "prov": "RULE-CAUGHT",
+      "type": "zookeeper_quorum_instability",
+      "host": "\u2014",
+      "hostDerived": false,
+      "time": "",
+      "stamp": "",
+      "title": "ZooKeeper quorum communication instability detected: 291 connection-break event(s), 262 SendWorker exit(s), 266 SendWorker interrupt(s), and 314 queue interruption(s)",
+      "ruleWhy": "The combination of repeated broken peer connections and worker interruption/exit activity is a stronger availability signal than any single WARN event.",
+      "explanation": "",
+      "predicate": "",
+      "ruleRef": "",
+      "occurrences": 1,
+      "mitre": [
+        {
+          "id": "T1499.002",
+          "name": "Service Exhaustion",
+          "tactic": "Impact"
+        }
+      ],
+      "chips": [],
+      "lines": [
+        {
+          "n": "",
+          "a": "Multiple ZooKeeper quorum failure lifecycle patterns occurred in the same log. This is a correlation alert, not a claim of malicious activity.",
+          "hit": "",
+          "b": "",
+          "crit": true
+        }
+      ],
+      "linesNote": "this rule records a summary, not a line excerpt",
+      "timeline": []
+    },
+    {
+      "id": "detector-1",
+      "sev": "HIGH",
+      "sevColor": "#d8a35e",
+      "ruleSev": "HIGH",
+      "llmSev": null,
+      "llmWhy": null,
+      "delta": null,
+      "prov": "RULE-CAUGHT",
+      "type": "zookeeper_connection_broken",
+      "host": "\u2014",
+      "hostDerived": false,
+      "time": "",
+      "stamp": "",
+      "title": "ZooKeeper quorum connection repeatedly broke between peer nodes (291 occurrences)",
+      "ruleWhy": "Repeated quorum connection breaks can indicate unstable peer communication, network loss, or a failing ZooKeeper peer.",
+      "explanation": "",
+      "predicate": "",
+      "ruleRef": "",
+      "occurrences": 1,
+      "mitre": [
+        {
+          "id": "T1499.002",
+          "name": "Service Exhaustion",
+          "tactic": "Impact"
+        }
+      ],
+      "chips": [],
+      "lines": [
+        {
+          "n": "",
+          "a": "{\"2015-07-29 17:41:44\": \"2015-07-29 19:13:24\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"282 - WARN  [RecvWorker:188978561024:QuorumCnxManager$RecvWorker@762] - Connection broken for id 188978561024\"} | last matching event: {\"2015-07-29 17:41:44\": \"2015-07-30 17:40:45\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"765 - WARN  [RecvWorker:1:QuorumCnxManager$RecvWorker@762] - Connection broken for id 1\"} | source lines: 6-1956",
+          "hit": "",
+          "b": "",
+          "crit": false
+        }
+      ],
+      "linesNote": "this rule records a summary, not a line excerpt",
+      "timeline": []
+    },
+    {
+      "id": "detector-2",
+      "sev": "HIGH",
+      "sevColor": "#d8a35e",
+      "ruleSev": "HIGH",
+      "llmSev": null,
+      "llmWhy": null,
+      "delta": null,
+      "prov": "RULE-CAUGHT",
+      "type": "zookeeper_sendworker_exit",
+      "host": "\u2014",
+      "hostDerived": false,
+      "time": "",
+      "stamp": "",
+      "title": "ZooKeeper SendWorker thread repeatedly exited (262 occurrences)",
+      "ruleWhy": "Repeated SendWorker exits are consistent with churn in the quorum communication layer and should be correlated with peer connection failures.",
+      "explanation": "",
+      "predicate": "",
+      "ruleRef": "",
+      "occurrences": 1,
+      "mitre": [
+        {
+          "id": "T1499.002",
+          "name": "Service Exhaustion",
+          "tactic": "Impact"
+        }
+      ],
+      "chips": [],
+      "lines": [
+        {
+          "n": "",
+          "a": "{\"2015-07-29 17:41:44\": \"2015-07-29 19:04:29\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"071 - WARN  [SendWorker:188978561024:QuorumCnxManager$SendWorker@688] - Send worker leaving thread\"} | last matching event: {\"2015-07-29 17:41:44\": \"2015-07-29 19:37:08\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"902 - WARN  [SendWorker:188978561024:QuorumCnxManager$SendWorker@688] - Send worker leaving thread\"} | source lines: 3-1915",
+          "hit": "",
+          "b": "",
+          "crit": false
+        }
+      ],
+      "linesNote": "this rule records a summary, not a line excerpt",
+      "timeline": []
+    },
+    {
+      "id": "detector-3",
+      "sev": "HIGH",
+      "sevColor": "#d8a35e",
+      "ruleSev": "HIGH",
+      "llmSev": null,
+      "llmWhy": null,
+      "delta": null,
+      "prov": "RULE-CAUGHT",
+      "type": "zookeeper_leader_election",
+      "host": "\u2014",
+      "hostDerived": false,
+      "time": "",
+      "stamp": "",
+      "title": "ZooKeeper leader-election activity was recorded (22 occurrences)",
+      "ruleWhy": "Leader-election activity can be normal during startup, but repeated elections during an established cluster can indicate quorum instability.",
+      "explanation": "",
+      "predicate": "",
+      "ruleRef": "",
+      "occurrences": 1,
+      "mitre": [],
+      "chips": [],
+      "lines": [
+        {
+          "n": "",
+          "a": "{\"2015-07-29 17:41:44\": \"2015-07-30 23:43:23\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"613 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:QuorumPeer@670] - LOOKING\"} | last matching event: {\"2015-07-29 17:41:44\": \"2015-08-07 07:27:46\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"402 - INFO  [WorkerReceiver[myid=3]:FastLeaderElection@542] - Notification: 3 (n.leader)\"} | source lines: 566-1995",
+          "hit": "",
+          "b": "",
+          "crit": false
+        }
+      ],
+      "linesNote": "this rule records a summary, not a line excerpt",
+      "timeline": []
+    },
+    {
+      "id": "detector-4",
+      "sev": "MEDIUM",
+      "sevColor": "#dcb64a",
+      "ruleSev": "MEDIUM",
+      "llmSev": null,
+      "llmWhy": null,
+      "delta": null,
+      "prov": "RULE-CAUGHT",
+      "type": "zookeeper_sendworker_interrupted",
+      "host": "\u2014",
+      "hostDerived": false,
+      "time": "",
+      "stamp": "",
+      "title": "ZooKeeper SendWorker was repeatedly interrupted while waiting for quorum messages (314 occurrences)",
+      "ruleWhy": "Frequent queue interruptions can accompany quorum connection churn and thread shutdown/restart activity.",
+      "explanation": "",
+      "predicate": "",
+      "ruleRef": "",
+      "occurrences": 1,
+      "mitre": [
+        {
+          "id": "T1499.002",
+          "name": "Service Exhaustion",
+          "tactic": "Impact"
+        }
+      ],
+      "chips": [],
+      "lines": [
+        {
+          "n": "",
+          "a": "{\"2015-07-29 17:41:44\": \"2015-07-29 19:04:29\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"079 - WARN  [SendWorker:188978561024:QuorumCnxManager$SendWorker@679] - Interrupted while waiting for message on queue\"} | last matching event: {\"2015-07-29 17:41:44\": \"2015-07-29 19:37:09\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"092 - WARN  [SendWorker:188978561024:QuorumCnxManager$SendWorker@679] - Interrupted while waiting for message on queue\"} | source lines: 4-1917",
+          "hit": "",
+          "b": "",
+          "crit": false
+        }
+      ],
+      "linesNote": "this rule records a summary, not a line excerpt",
+      "timeline": []
+    },
+    {
+      "id": "detector-5",
+      "sev": "MEDIUM",
+      "sevColor": "#dcb64a",
+      "ruleSev": "MEDIUM",
+      "llmSev": null,
+      "llmWhy": null,
+      "delta": null,
+      "prov": "RULE-CAUGHT",
+      "type": "zookeeper_sendworker_interrupt",
+      "host": "\u2014",
+      "hostDerived": false,
+      "time": "",
+      "stamp": "",
+      "title": "ZooKeeper RecvWorker repeatedly interrupted a SendWorker (266 occurrences)",
+      "ruleWhy": "This is a quorum communication lifecycle event. High recurrence together with broken connections indicates instability rather than a normal isolated shutdown.",
+      "explanation": "",
+      "predicate": "",
+      "ruleRef": "",
+      "occurrences": 1,
+      "mitre": [
+        {
+          "id": "T1499.002",
+          "name": "Service Exhaustion",
+          "tactic": "Impact"
+        }
+      ],
+      "chips": [],
+      "lines": [
+        {
+          "n": "",
+          "a": "{\"2015-07-29 17:41:44\": \"2015-07-29 19:14:07\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"559 - WARN  [RecvWorker:188978561024:QuorumCnxManager$RecvWorker@765] - Interrupting SendWorker\"} | last matching event: {\"2015-07-29 17:41:44\": \"2015-07-29 19:37:19\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"003 - WARN  [RecvWorker:188978561024:QuorumCnxManager$RecvWorker@765] - Interrupting SendWorker\"} | source lines: 16-1920",
+          "hit": "",
+          "b": "",
+          "crit": false
+        }
+      ],
+      "linesNote": "this rule records a summary, not a line excerpt",
+      "timeline": []
+    },
+    {
+      "id": "detector-6",
+      "sev": "LOW",
+      "sevColor": "#9397ab",
+      "ruleSev": "LOW",
+      "llmSev": null,
+      "llmWhy": null,
+      "delta": null,
+      "prov": "RULE-CAUGHT",
+      "type": "infra_unknown_low",
+      "host": "unknown",
+      "hostDerived": true,
+      "time": "17:41:44",
+      "stamp": "2015-07-29T17:41:44",
+      "title": "Unknown low alert on unknown",
+      "ruleWhy": "Deterministic cross-platform rule matched a LOW condition in unknown telemetry.",
+      "explanation": "",
+      "predicate": "cross-platform infrastructure rule matched a security/availability condition with normalized severity derived from vendor severity or deterministic pattern",
+      "ruleRef": "",
+      "occurrences": 40,
+      "mitre": [],
+      "chips": [],
+      "lines": [
+        {
+          "n": "",
+          "a": "{\"2015-07-29 17:41:44\": \"2015-07-30 20:06:34\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"001 - INFO  [SessionTracker:ZooKeeperServer@325] - Expiring session 0x24ede63a01b003b\"}",
+          "hit": "",
+          "b": "",
+          "crit": false
+        }
+      ],
+      "linesNote": "this rule records a summary, not a line excerpt",
+      "timeline": [
+        {
+          "t": "17:41:44",
+          "label": "Unknown alert",
+          "line": 550,
+          "dot": "#9397ab"
+        }
+      ]
+    },
+    {
+      "id": "detector-7",
+      "sev": "LOW",
+      "sevColor": "#9397ab",
+      "ruleSev": "LOW",
+      "llmSev": null,
+      "llmWhy": null,
+      "delta": null,
+      "prov": "RULE-CAUGHT",
+      "type": "zookeeper_peer_connection_request",
+      "host": "\u2014",
+      "hostDerived": false,
+      "time": "",
+      "stamp": "",
+      "title": "ZooKeeper received a quorum peer connection request (299 occurrences)",
+      "ruleWhy": "Peer connection requests are normally informational, but a high rate alongside connection failures can indicate reconnect churn.",
+      "explanation": "",
+      "predicate": "",
+      "ruleRef": "",
+      "occurrences": 1,
+      "mitre": [],
+      "chips": [],
+      "lines": [
+        {
+          "n": "",
+          "a": "{\"2015-07-29 17:41:44\": \"2015-07-29 19:04:12\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"394 - INFO  [/10.10.34.11:3888:QuorumCnxManager$Listener@493] - Received connection request /10.10.34.11:45307\"} | last matching event: {\"2015-07-29 17:41:44\": \"2015-07-31 15:15:17\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"186 - INFO  [/10.10.34.13:3888:QuorumCnxManager$Listener@493] - Received connection request /10.10.34.11:53230\"} | source lines: 2-1988",
+          "hit": "",
+          "b": "",
+          "crit": false
+        }
+      ],
+      "linesNote": "this rule records a summary, not a line excerpt",
+      "timeline": []
+    },
+    {
+      "id": "detector-8",
+      "sev": "LOW",
+      "sevColor": "#9397ab",
+      "ruleSev": "LOW",
+      "llmSev": null,
+      "llmWhy": null,
+      "delta": null,
+      "prov": "RULE-CAUGHT",
+      "type": "zookeeper_socket_closed",
+      "host": "\u2014",
+      "hostDerived": false,
+      "time": "",
+      "stamp": "",
+      "title": "ZooKeeper closed a client socket connection (48 occurrences)",
+      "ruleWhy": "A single socket close is common lifecycle activity; repeated closes should be correlated with session expiration or connection churn.",
+      "explanation": "",
+      "predicate": "",
+      "ruleRef": "",
+      "occurrences": 1,
+      "mitre": [],
+      "chips": [],
+      "lines": [
+        {
+          "n": "",
+          "a": "{\"2015-07-29 17:41:44\": \"2015-07-29 19:52:04\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"792 - INFO  [NIOServerCxn.Factory:0.0.0.0/0.0.0.0:2181:NIOServerCnxn@1001] - Closed socket connection for client /10.10.34.18:42772 which had sessionid 0x14ed93111f20005\"} | last matching event: {\"2015-07-29 17:41:44\": \"2015-08-10 17:53:14\", \"747 - INFO  [QuorumPeer[myid=1]/0:0:0:0:0:0:0:0:2181:FastLeaderElection@774] - Notification time out: 3200\": \"914 - INFO  [NIOServerCxn.Factory:0.0.0.0/0.0.0.0:2181:NIOServerCnxn@1001] - Closed socket connection for client /10.10.34.12:33342 which had sessionid 0x34f0557885e0002\"} | source lines: 495-1997",
+          "hit": "",
+          "b": "",
+          "crit": false
+        }
+      ],
+      "linesNote": "this rule records a summary, not a line excerpt",
+      "timeline": []
+    }
+  ],
+  "events": [],
+  "severityCounts": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0,
+    "INFO": 0,
+    "UNKNOWN": 0
+  },
+  "mitreFrequency": [
+    {
+      "id": "T1499.002",
+      "name": "Service Exhaustion",
+      "tactic": "Impact",
+      "count": 5
+    }
+  ]
+}

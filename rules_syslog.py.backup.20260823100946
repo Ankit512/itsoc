@@ -39,6 +39,8 @@ WINDOWS_AUDIT_CLEARED_IDS = {"1102", "104"}
 WINDOWS_SERVICE_INSTALL_IDS = {"7045"}
 WINDOWS_PROCESS_CREATE_IDS = {"4688"}
 WINDOWS_SPECIAL_PRIV_IDS = {"4672"}
+WINDOWS_EXPLICIT_CREDENTIAL_IDS = {"4648"}
+WINDOWS_AUDIT_POLICY_CHANGE_IDS = {"4719"}
 
 CANON_FAIL = "auth failed for user '{user}' from {ip}"
 CANON_OK = "auth success for user '{user}' from {ip}"
@@ -311,6 +313,29 @@ def detect_windows_extra(records):
                 "Account lockouts can indicate password guessing, stale credentials, or an operational issue.",
                 {"host": host, "event_id": eid, "user": user, "src_ip": _record_ip(r) or ""},
                 "Correlate with nearby failed logons and identify the source generating the failures."
+            ))
+
+        elif eid in WINDOWS_EXPLICIT_CREDENTIAL_IDS:
+            anomalies.append(_anomaly(
+                "medium", "windows_explicit_credentials",
+                f"Explicit Windows credentials used on {host}: {user}",
+                r,
+                "Event 4648 records use of explicit credentials. This can be legitimate administrative "
+                "activity, but it is also relevant to valid-account and credential-abuse investigations.",
+                {"host": host, "event_id": eid, "user": user, "subject_user": subject,
+                 "src_ip": _record_ip(r) or ""},
+                "Validate the initiating process, account, source host, and approved administrative activity."
+            ))
+
+        elif eid in WINDOWS_AUDIT_POLICY_CHANGE_IDS:
+            anomalies.append(_anomaly(
+                "high", "windows_audit_policy_changed",
+                f"Windows audit policy changed on {host}",
+                r,
+                "Event 4719 records a change to the system audit policy. Unexpected changes can reduce "
+                "visibility into security activity and should be reviewed as a potential defense-evasion action.",
+                {"host": host, "event_id": eid, "user": user, "subject_user": subject},
+                "Identify who changed the audit policy, compare the previous/current policy, and verify the change ticket."
             ))
 
         elif eid in WINDOWS_PROCESS_CREATE_IDS:
@@ -603,6 +628,77 @@ def detect_iocs(records):
     return out
 
 
+
+# ---------------------------------------------------------------------------
+# Web/Apache access-log detection. These are threat indicators, not proof that
+# an exploit succeeded. Severity is deterministic and independent of MITRE tags.
+# ---------------------------------------------------------------------------
+WEB_REQ_RE = re.compile(
+    r'(?P<ip>\d{1,3}(?:\.\d{1,3}){3}).*?"(?P<method>[A-Z]+)\s+(?P<uri>[^\s"]+)\s+HTTP/[0-9.]+"\s+(?P<status>\d{3})', re.I)
+WEB_SQLI_RE = re.compile(r"(?:union(?:%20|\+|\s)+select|select(?:%20|\+|\s)+.+(?:from|information_schema)|(?:sleep|benchmark)\s*\(|(?:or|and)(?:%20|\+|\s)+\d+\s*=\s*\d+|information_schema)", re.I)
+WEB_CMD_RE = re.compile(r"(?:%3b|;|%24%28|\$\(|%60|`)(?:[^\"']{0,120})(?:bash|sh|cmd|powershell|wget|curl|nc|python|perl|whoami|id)\b", re.I)
+WEB_TRAVERSAL_RE = re.compile(r"(?:\.\./|%2e%2e|%252e%252e|/etc/passwd|boot\.ini|win\.ini)", re.I)
+WEB_XSS_RE = re.compile(r"(?:<script|%3cscript|javascript:|onerror\s*=|onload\s*=)", re.I)
+WEB_SENSITIVE_RE = re.compile(r"(?:^|/)(?:\.env|\.git(?:/|$)|\.htaccess|web\.config|wp-config\.php|composer\.json|phpinfo\.php|server-status|server-info)(?:[/?#]|$)", re.I)
+WEB_SCANNER_RE = re.compile(r"(?:sqlmap|nikto|nmap|masscan|acunetix|nessus|openvas|wpscan|dirbuster|gobuster|zgrab|nuclei|burp)", re.I)
+WEB_ADMIN_RE = re.compile(r"/(?:administrator|wp-admin|wp-login\.php|phpmyadmin|admin)(?:[/?]|$)", re.I)
+
+def _web_anomaly(severity, atype, summary, record, rationale, entities, action):
+    return {"severity": severity, "type": atype, "summary": summary,
+            "evidence": str(record.get("raw") or record.get("msg") or "")[:6000],
+            "rationale": rationale, "entities": entities,
+            "recommended_action": action, "source": "web_detector"}
+
+def detect_web_access(records):
+    out=[]
+    admin_counts=defaultdict(int)
+    admin_sample={}
+    scanner_ips=defaultdict(int)
+    for r in records:
+        text=str(r.get("raw") or r.get("msg") or r.get("message") or "")
+        m=WEB_REQ_RE.search(text)
+        if not m:
+            continue
+        ip, method, uri, status=m.group("ip"),m.group("method"),m.group("uri"),m.group("status")
+        ent={"src_ip":ip,"ip":ip,"method":method,"uri":uri,"status":int(status)}
+        if WEB_SQLI_RE.search(uri):
+            out.append(_web_anomaly("high","web_sqli",f"SQL injection pattern from {ip}",r,
+                "The request URI contains a SQL-injection signature. This proves malicious input was sent, not that the application executed it.",ent,
+                "Validate the affected endpoint with application/WAF telemetry and perform an authorized application security test."))
+        if WEB_CMD_RE.search(uri):
+            out.append(_web_anomaly("critical","web_command_injection",f"Command injection pattern from {ip}",r,
+                "The URI contains shell/command-injection metacharacters combined with command-like tokens.",ent,
+                "Inspect the application endpoint and host telemetry; block malicious requests and patch the vulnerable input handling."))
+        if WEB_TRAVERSAL_RE.search(uri):
+            out.append(_web_anomaly("high","web_path_traversal",f"Path traversal pattern from {ip}",r,
+                "The request contains traversal sequences or sensitive local paths.",ent,
+                "Review the endpoint for canonicalization and file-access controls; validate with an authorized test."))
+        if WEB_XSS_RE.search(uri):
+            out.append(_web_anomaly("high","web_xss",f"Cross-site scripting pattern from {ip}",r,
+                "The request contains script/JavaScript injection syntax.",ent,
+                "Review output encoding and input handling for the affected endpoint."))
+        if WEB_SENSITIVE_RE.search(uri):
+            out.append(_web_anomaly("medium","web_sensitive_file_probe",f"Sensitive file probing from {ip}",r,
+                "The requested resource is commonly used to expose configuration, credentials, source, or server metadata.",ent,
+                "Confirm the resource is inaccessible to untrusted users and remove unnecessary exposure."))
+        ua=text.split('"')[-2] if text.count('"')>=4 else ""
+        if WEB_SCANNER_RE.search(ua) or WEB_SCANNER_RE.search(text):
+            scanner_ips[ip]+=1
+            if ip not in scanner_ips or scanner_ips[ip] <= 1: scanner_ips[ip]=1
+        if WEB_ADMIN_RE.search(uri):
+            admin_counts[ip]+=1; admin_sample[ip]=r
+    for ip,count in scanner_ips.items():
+        if count:
+            out.append(_web_anomaly("medium","web_scanner",f"Automated web scanner activity from {ip}",admin_sample.get(ip, {"raw":ip}),
+                "The request stream contains a known vulnerability-scanner user-agent or signature.",{"src_ip":ip,"ip":ip,"requests":count},
+                "Identify the scanner owner, review targeted paths, and validate exposed applications."))
+    for ip,count in sorted(admin_counts.items(), key=lambda x:-x[1])[:20]:
+        if count >= 10:
+            out.append(_web_anomaly("medium","web_admin_probing",f"Repeated administrative-path probing from {ip} ({count} requests)",admin_sample[ip],
+                "Repeated requests to administrative paths can indicate reconnaissance or credential attack preparation.",{"src_ip":ip,"ip":ip,"requests":count},
+                "Review source reputation, authentication logs, and whether the administrative interface should be internet-facing."))
+    return out
+
 def detect_extra(records):
     """Backward-compatible entry point for every supported input format."""
     anomalies = []
@@ -611,4 +707,5 @@ def detect_extra(records):
     anomalies.extend(detect_infrastructure_alerts(records))
     anomalies.extend(detect_threats(records))
     anomalies.extend(detect_iocs(records))
+    anomalies.extend(detect_web_access(records))
     return anomalies

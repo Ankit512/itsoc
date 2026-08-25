@@ -33,6 +33,65 @@ sys.path.insert(0, str(ROOT / "threat_intel"))
 import normalize  # noqa: E402
 from rule_mitre_map import techniques_for_rule  # noqa: E402
 
+# Fallback mappings for newer deterministic rules that may not yet exist in
+# threat_intel/rule_mitre_map.py. These are derived ATT&CK annotations only;
+# they never change severity or prove malicious intent.
+FALLBACK_MITRE = {
+    "zookeeper_quorum_instability": [{"id": "T1499.002", "name": "Service Exhaustion", "tactic": "Impact"}],
+    "zookeeper_connection_broken": [{"id": "T1499.002", "name": "Service Exhaustion", "tactic": "Impact"}],
+    "zookeeper_sendworker_exit": [{"id": "T1499.002", "name": "Service Exhaustion", "tactic": "Impact"}],
+    "zookeeper_sendworker_interrupt": [{"id": "T1499.002", "name": "Service Exhaustion", "tactic": "Impact"}],
+    "zookeeper_sendworker_interrupted": [{"id": "T1499.002", "name": "Service Exhaustion", "tactic": "Impact"}],
+    "threat_ransomware": [{"id": "T1486", "name": "Data Encrypted for Impact", "tactic": "Impact"}],
+    "threat_active_compromise": [{"id": "T1078", "name": "Valid Accounts", "tactic": "Initial Access"}],
+    "threat_c2_indicator": [{"id": "T1071", "name": "Application Layer Protocol", "tactic": "Command and Control"}],
+    "threat_malware_indicator": [{"id": "T1204.002", "name": "Malicious File", "tactic": "Execution"}],
+    "threat_persistence": [{"id": "T1053", "name": "Scheduled Task/Job", "tactic": "Persistence"}],
+    "threat_privilege_escalation": [{"id": "T1548", "name": "Abuse Elevation Control Mechanism", "tactic": "Privilege Escalation"}],
+    "threat_lateral_movement": [{"id": "T1021", "name": "Remote Services", "tactic": "Lateral Movement"}],
+    "threat_port_scan": [{"id": "T1046", "name": "Network Service Scanning", "tactic": "Discovery"}],
+    "threat_credential_attack": [{"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"}],
+    "threat_data_exfiltration": [{"id": "T1041", "name": "Exfiltration Over C2 Channel", "tactic": "Exfiltration"}],
+    "threat_rogue_wireless": [{"id": "T1557.002", "name": "ARP Cache Poisoning", "tactic": "Credential Access"}],
+    "suspicious_outbound": [{"id": "T1071", "name": "Application Layer Protocol", "tactic": "Command and Control"}],
+    "ioc_observed": [],
+
+    # Core deterministic detections not present in older rule_mitre_map.py versions.
+    "auth_bruteforce": [{"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"}],
+    "auth_bruteforce_success": [{"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"}],
+    "possible_break_in": [{"id": "T1190", "name": "Exploit Public-Facing Application", "tactic": "Initial Access"}],
+    "suspicious_outbound": [{"id": "T1071", "name": "Application Layer Protocol", "tactic": "Command and Control"}],
+    "insecure_service_exposure": [{"id": "T1190", "name": "Exploit Public-Facing Application", "tactic": "Initial Access"}],
+    "vulnerability_nmap_nse": [{"id": "T1190", "name": "Exploit Public-Facing Application", "tactic": "Initial Access"}],
+    "url_security_header": [{"id": "T1190", "name": "Exploit Public-Facing Application", "tactic": "Initial Access"}],
+    "url_tls": [{"id": "T1190", "name": "Exploit Public-Facing Application", "tactic": "Initial Access"}],
+    "url_server_disclosure": [{"id": "T1082", "name": "System Information Discovery", "tactic": "Discovery"}],
+    "url_information_disclosure": [{"id": "T1082", "name": "System Information Discovery", "tactic": "Discovery"}],
+    "critical_service_event": [{"id": "T1499.002", "name": "Service Exhaustion", "tactic": "Impact"}],
+    "disk_pressure": [{"id": "T1499.002", "name": "Service Exhaustion", "tactic": "Impact"}],
+    "error_rate_spike": [{"id": "T1499.002", "name": "Service Exhaustion", "tactic": "Impact"}],
+    "windows_audit_log_cleared": [{"id": "T1070.001", "name": "Clear Windows Event Logs", "tactic": "Defense Evasion"}],
+    "windows_service_installed": [{"id": "T1543.003", "name": "Windows Service", "tactic": "Persistence"}],
+    "windows_user_created": [{"id": "T1136.001", "name": "Create Account: Local Account", "tactic": "Persistence"}],
+    "windows_user_deleted": [{"id": "T1070", "name": "Indicator Removal", "tactic": "Defense Evasion"}],
+    "windows_privileged_group_change": [{"id": "T1098", "name": "Account Manipulation", "tactic": "Persistence"}],
+    "windows_account_lockout": [{"id": "T1531", "name": "Account Access Removal", "tactic": "Impact"}],
+    "windows_suspicious_process": [{"id": "T1059", "name": "Command and Scripting Interpreter", "tactic": "Execution"}],
+}
+
+def _mitre_for_rule(rule_id):
+    """Return ATT&CK annotations from the canonical map, then safe fallbacks.
+
+    Fallbacks cover deterministic rules added after older rule_mitre_map.py
+    versions. Unknown rules remain unmapped rather than receiving a guessed
+    ATT&CK technique. MITRE is display/enrichment metadata only.
+    """
+    rid = str(rule_id or "")
+    mapped = techniques_for_rule(rid) or []
+    if mapped:
+        return mapped
+    return FALLBACK_MITRE.get(rid, [])
+
 SEV_COLOR = {
     "CRITICAL": "#e2807f", "HIGH": "#d8a35e", "MEDIUM": "#dcb64a",
     "LOW": "#9397ab", "INFO": "#75798c",
@@ -216,10 +275,34 @@ def _mitre_frequency(findings):
     return sorted(agg.values(), key=lambda e: (-e["count"], e["id"]))
 
 
+def _entry_time(entry):
+    """Clock-time label for one timeline entry, whichever shape it's in.
+
+    rule_context.py's rebuilt entries carry "t" already (e.g. "14:02:31").
+    Entries this module never rebuilds — a rule id rule_context.py has no
+    case for, like rules_syslog.py's web_* findings — keep their original
+    {line, ts, event} shape from anomaly_detector.py/rules_syslog.py, which
+    has no "t" key at all. Derive it from the ISO "ts" instead of assuming
+    one shape everywhere.
+    """
+    t = entry.get("t")
+    if t:
+        return t
+    ts = entry.get("ts") or ""
+    return ts[11:19] if len(ts) >= 19 else ""
+
+
+def _entry_label(entry):
+    """Human label for one timeline entry, whichever shape it's in (see
+    _entry_time): rebuilt entries use "label", original ones use "event"."""
+    return entry.get("label") or entry.get("event") or ""
+
+
 def adapt(report, threat_report=None):
     by_line, have_log = _load_records(report.get("source_file", ""))
     compare = report.get("compare")
     compare_run = compare is not None
+
 
     findings = []
     for f in report.get("findings", []):
@@ -250,7 +333,7 @@ def adapt(report, threat_report=None):
             "type": f.get("rule_id") or f.get("category") or "finding",
             "host": host,
             "hostDerived": host_derived,
-            "time": timeline[-1]["t"] if timeline else "",
+            "time": _entry_time(timeline[-1]) if timeline else "",
             "stamp": (timeline[-1].get("ts") or "") if timeline else "",
             "title": f.get("summary", ""),
             "ruleWhy": f.get("rationale", ""),
@@ -261,13 +344,13 @@ def adapt(report, threat_report=None):
             # Derived ATT&CK annotation from threat_intel/rule_mitre_map.py.
             # Read-only context: it never alters severity, verdict, or order,
             # and an unmapped rule gets [] — the console then shows nothing.
-            "mitre": techniques_for_rule(f.get("rule_id")),
+            "mitre": _mitre_for_rule(f.get("rule_id")),
             "chips": chips,
             "lines": lines,
             "linesNote": lines_note,
             # `line` is carried through deliberately: on-demand explanation needs to
             # find the chunk a finding came from, and dropping it silently broke that.
-            "timeline": [{"t": e.get("t", ""), "label": e.get("label", ""),
+            "timeline": [{"t": _entry_time(e), "label": _entry_label(e),
                           "line": e.get("line"),
                           "dot": SEV_COLOR.get(sev, "#9397ab")} for e in timeline],
         })

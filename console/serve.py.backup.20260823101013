@@ -714,44 +714,17 @@ def stream_frames(dropped, item):
 
 
 def resolve_stream_source(value):
-    """Resolve a live-stream source safely.
-
-    The browser normally sends STATE.logPath verbatim.  Older SPA state can
-    however retain a temporary analysis path after the server has restarted;
-    those /tmp/anomaly-console-* paths no longer exist even though the current
-    run is valid.  In that case, when the requested path is a local analysis
-    temp path and its basename matches the currently loaded run, use the
-    server-owned current logPath.  We never accept an arbitrary filesystem
-    path from the browser.
-    """
-    value = str(value or "")
+    """Whitelist for /api/stream: bundled samples plus the currently loaded
+    run's log (exact-match on the path this server itself resolved earlier).
+    Same security boundary as /api/analyze — a browser string is never
+    joined onto a path."""
     try:
         return resolve_sample(value)
     except ValueError:
         pass
-
     current = STATE.get("logPath")
-    if current:
-        current_path = Path(current)
-        if value == str(current_path) and current_path.exists():
-            return current_path
-
-        # Recover from stale SPA state after a server restart.  Only allow
-        # paths that look like our own temporary analysis paths, and only when
-        # the basename matches the current run's source.
-        try:
-            requested = Path(value)
-            stale_tmp = (
-                requested.name == current_path.name
-                and requested.parent.name.startswith("analysis-")
-                and requested.parent.parent.name.startswith("anomaly-console-")
-                and current_path.exists()
-            )
-            if stale_tmp:
-                return current_path
-        except (OSError, ValueError):
-            pass
-
+    if current and value == current and Path(current).exists():
+        return Path(current)
     raise ValueError(f"not a streamable source: {value!r}")
 
 
@@ -1253,8 +1226,6 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json(ti_oem.ti_key_status())
         elif path == "/api/oem/connectors":
             self._json({"connectors": ti_oem.list_connectors()})
-        elif path == "/api/oem/templates":
-            self._json({"templates": ti_oem.templates()})
         # --- Windows EVTX ingest (socf-evtx-history) ------------------------
         elif path == "/api/evtx/status":
             self._json({"available": evtx_ingest.evtx_available(),
@@ -1532,8 +1503,6 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
                 enabled=payload.get("enabled"),
                 interval=payload.get("interval"),
                 token=payload.get("token"),
-                username=payload.get("username"),
-                password=payload.get("password"),
             )
         except ValueError as exc:
             return self._json({"error": str(exc)}, 400)

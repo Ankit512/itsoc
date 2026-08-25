@@ -39,8 +39,6 @@ import os
 import re
 import sys
 import subprocess
-import concurrent.futures
-import time
 import xml.etree.ElementTree as ET
 import urllib.error
 import urllib.request
@@ -69,7 +67,7 @@ except ValueError:
     print(f"ERROR: LLM_TEMPERATURE must be a number, got {os.getenv('LLM_TEMPERATURE')!r}")
     sys.exit(1)
 
-RULESET_VERSION = "v3-universal-soc-high-coverage"
+RULESET_VERSION = "v2-universal-soc"
 
 # Gap-fill = asking the model about chunks NO rule fired on, to catch sub-threshold
 # things like "disk at 78%". It is the only reason to send a chunk containing no
@@ -78,12 +76,12 @@ RULESET_VERSION = "v3-universal-soc-high-coverage"
 # cheap, and is opt-in beyond that via --deep-scan.
 GAP_FILL_MAX_CHUNKS = 4
 
-# Keep LLM explanations bounded. The deterministic rules are authoritative and
-# must not wait indefinitely for prose. These are environment-configurable.
-LLM_TIMEOUT = int(os.getenv("SOC_LLM_TIMEOUT", "90"))
-LLM_RETRIES = int(os.getenv("SOC_LLM_RETRIES", "0"))
-LLM_WORKERS = max(1, int(os.getenv("SOC_LLM_WORKERS", "3")))
-MAX_COMPLETION_TOKENS = int(os.getenv("SOC_MAX_COMPLETION_TOKENS", "384"))
+# No completion cap. Measured: a cap of 320 truncated real explanation replies —
+# sample-2 went from 5 findings with prose to 4 with none — while saving nothing
+# (13.6s vs 13.7s per call, because generation was never the bottleneck; a 1,661-token
+# prompt and model reloads were). A cap that silently empties the report is a bad
+# trade at any speed, so the knob is gone rather than tuned.
+MAX_COMPLETION_TOKENS = None
 
 # Explanations are generated eagerly for only the most severe findings; the rest are
 # produced on demand when a reviewer opens them. Wall time for a run is then bounded
@@ -106,8 +104,6 @@ OLLAMA_KEEP_ALIVE = "30m"
 # Machine-readable progress for console/serve.py. Off by default so CLI output stays
 # prose; serve.py sets LOG_ANALYZER_PROGRESS=1 and parses these lines.
 _PROGRESS = os.getenv("LOG_ANALYZER_PROGRESS") == "1"
-RULE_WARNING_SECONDS = int(os.getenv("SOC_RULE_WARNING_SECONDS", "30"))
-ANALYSIS_HARD_TIMEOUT = int(os.getenv("SOC_ANALYSIS_HARD_TIMEOUT", "0"))  # 0 = disabled
 
 
 def progress(**fields):
@@ -920,7 +916,7 @@ def build_user_prompt(log_text, ctx, suffix=""):
     return f"{ctx}\n\nAnalyze this log chunk:\n\n{log_text}{suffix}"
 
 
-def chat_completion(base_url, api_key, model, system, user, timeout=LLM_TIMEOUT):
+def chat_completion(base_url, api_key, model, system, user, timeout=300):
     """POST one prompt to an OpenAI-compatible /chat/completions and return the reply text."""
     payload = json.dumps({
         "model": model,
@@ -929,7 +925,6 @@ def chat_completion(base_url, api_key, model, system, user, timeout=LLM_TIMEOUT)
             {"role": "user", "content": user},
         ],
         "temperature": LLM_TEMPERATURE,
-        "max_tokens": MAX_COMPLETION_TOKENS,
         "response_format": {"type": "json_object"},
     }).encode()
 
@@ -946,7 +941,7 @@ def chat_completion(base_url, api_key, model, system, user, timeout=LLM_TIMEOUT)
     return body["choices"][0]["message"]["content"]
 
 
-def chat_completion_stream(base_url, api_key, model, system, user, timeout=LLM_TIMEOUT):
+def chat_completion_stream(base_url, api_key, model, system, user, timeout=300):
     """Yield reply-text chunks from an OpenAI-compatible /chat/completions with
     stream:true (Ollama supports this on its /v1 endpoint).
 
@@ -1038,25 +1033,20 @@ def analyze_chunk(base_url, api_key, model, chunk_lines, chunk_index, ctx):
     user_prompt = build_user_prompt(log_text, ctx)
     raw_text = ""
 
-    for attempt in range(1, LLM_RETRIES + 2):
+    for attempt in (1, 2):
         try:
             raw_text = strip_fences(
-                chat_completion(base_url, api_key, model, SYSTEM_PROMPT, user_prompt,
-                                timeout=LLM_TIMEOUT)
+                chat_completion(base_url, api_key, model, SYSTEM_PROMPT, user_prompt)
             )
         except Exception as e:
-            # Network/timeouts are not worth an automatic second full generation.
-            # Deterministic findings remain authoritative and the UI can retry the
-            # explanation on demand.
             return {
                 "findings": [{
                     "severity": "low",
                     "category": "api_error",
                     "summary": f"API call failed: {e}",
                     "evidence": "",
-                    "recommended_action": "Retry explanation on demand or check API connectivity",
+                    "recommended_action": "Retry this chunk or check API connectivity",
                     "confidence": "low",
-                    "source": "analyzer",
                 }],
                 "chunk_summary": "API error on this chunk",
             }
@@ -1074,20 +1064,21 @@ def analyze_chunk(base_url, api_key, model, chunk_lines, chunk_index, ctx):
         if problem is None:
             break
 
-        if attempt > LLM_RETRIES:
+        if attempt == 2:
             if problem == "unparseable":
                 return {
                     "findings": [{
                         "severity": "low",
                         "category": "analysis_error",
-                        "summary": "Model response could not be parsed as JSON",
+                        "summary": "Model response could not be parsed as JSON (after one retry)",
                         "evidence": raw_text[:200],
                         "recommended_action": "Review chunk manually",
                         "confidence": "low",
-                        "source": "analyzer",
                     }],
                     "chunk_summary": "Parsing error on this chunk",
                 }
+            # Off-schema twice: fail LOUDLY. An empty findings list here would be a
+            # false all-clear for a chunk that was never actually analyzed.
             return {
                 "findings": [{
                     "severity": "HIGH",
@@ -1095,8 +1086,8 @@ def analyze_chunk(base_url, api_key, model, chunk_lines, chunk_index, ctx):
                     "summary": "Model returned off-schema response; chunk not analyzed",
                     "evidence": describe_schema_failure(parsed),
                     "recommended_action": (
-                        "This chunk was NOT analyzed by the model. "
-                        "Retry with a smaller --lines-per-chunk or a stronger model."
+                        "This chunk was NOT analyzed by the model — treat it as unreviewed. "
+                        "Retry with a smaller --lines-per-chunk or a larger model."
                     ),
                     "confidence": "high",
                     "rule_id": "analyzer_error",
@@ -1107,6 +1098,7 @@ def analyze_chunk(base_url, api_key, model, chunk_lines, chunk_index, ctx):
 
         nudge = RETRY_NUDGE if problem == "unparseable" else SCHEMA_NUDGE
         print(f"    chunk {chunk_index + 1}: {problem} response, retrying once...")
+        # Same helper as the first attempt — the retry keeps the pre-flagged context.
         user_prompt = build_user_prompt(log_text, ctx, suffix=nudge)
 
     parsed["chunk_index"] = chunk_index
@@ -1152,303 +1144,6 @@ def severity_rank(finding):
     """Sort key. Case-insensitive: detector findings carry uppercase severities."""
     return SEVERITY_ORDER.get(str(finding.get("severity", "info")).lower(), 5)
 
-
-
-# ---------------------------------------------------------------------------
-# Generic ZooKeeper / QuorumCnxManager detection
-# ---------------------------------------------------------------------------
-# ZooKeeper logs often contain no ERROR/CRITICAL records even when the cluster
-# is unhealthy.  The supplied Zookeeper_2k.log is a good example: the useful
-# signals are repeated WARN sequences such as "Connection broken",
-# "Interrupting SendWorker", "Send worker leaving thread", and
-# "Interrupted while waiting for message on queue".  The generic ruleset used
-# by older anomaly_detector/rules_syslog versions does not reliably promote
-# these application-specific patterns to findings.
-#
-# These rules are deterministic, local, and conservative:
-#   * INFO connection/session messages are only promoted when a related failure
-#     pattern is also present.
-#   * repeated WARN patterns become findings with severity based on recurrence.
-#   * one finding is kept per semantic condition, while occurrences preserves
-#     the real count.
-#   * this does NOT claim that a WARN line is a security attack. It is a
-#     reliability/availability alert and can be mapped to MITRE separately.
-
-_ZK_RULES = (
-    {
-        "type": "zookeeper_connection_broken",
-        "pattern": re.compile(r"\bConnection broken for id\b", re.I),
-        "category": "zookeeper_quorum",
-        "summary": "ZooKeeper quorum connection repeatedly broke between peer nodes",
-        "rationale": "Repeated quorum connection breaks can indicate unstable peer communication, network loss, or a failing ZooKeeper peer.",
-        "action": "Check ZooKeeper peer connectivity on the quorum port, packet loss/latency, firewall rules, node health, and ZooKeeper server logs on both peers.",
-        "base": "MEDIUM",
-        "thresholds": ((20, "HIGH"), (5, "MEDIUM"), (1, "LOW")),
-    },
-    {
-        "type": "zookeeper_sendworker_exit",
-        "pattern": re.compile(r"\bSend worker leaving thread\b", re.I),
-        "category": "zookeeper_quorum",
-        "summary": "ZooKeeper SendWorker thread repeatedly exited",
-        "rationale": "Repeated SendWorker exits are consistent with churn in the quorum communication layer and should be correlated with peer connection failures.",
-        "action": "Correlate SendWorker exits with Connection broken and Interrupting SendWorker events; verify peer reachability and ZooKeeper JVM/node health.",
-        "base": "MEDIUM",
-        "thresholds": ((30, "HIGH"), (10, "MEDIUM"), (1, "LOW")),
-    },
-    {
-        "type": "zookeeper_sendworker_interrupted",
-        "pattern": re.compile(r"\bInterrupted while waiting for message on queue\b", re.I),
-        "category": "zookeeper_quorum",
-        "summary": "ZooKeeper SendWorker was repeatedly interrupted while waiting for quorum messages",
-        "rationale": "Frequent queue interruptions can accompany quorum connection churn and thread shutdown/restart activity.",
-        "action": "Review quorum connection stability, JVM/thread health, and the surrounding ZooKeeper WARN/ERROR sequence.",
-        "base": "LOW",
-        "thresholds": ((50, "MEDIUM"), (10, "LOW"), (1, "INFO")),
-    },
-    {
-        "type": "zookeeper_sendworker_interrupt",
-        "pattern": re.compile(r"\bInterrupting SendWorker\b", re.I),
-        "category": "zookeeper_quorum",
-        "summary": "ZooKeeper RecvWorker repeatedly interrupted a SendWorker",
-        "rationale": "This is a quorum communication lifecycle event. High recurrence together with broken connections indicates instability rather than a normal isolated shutdown.",
-        "action": "Correlate with Connection broken and SendWorker exit events and inspect network and peer health.",
-        "base": "LOW",
-        "thresholds": ((30, "MEDIUM"), (10, "LOW"), (1, "INFO")),
-    },
-    {
-        "type": "zookeeper_peer_connection_request",
-        "pattern": re.compile(r"\bReceived connection request\s+/\S+", re.I),
-        "category": "zookeeper_quorum",
-        "summary": "ZooKeeper received a quorum peer connection request",
-        "rationale": "Peer connection requests are normally informational, but a high rate alongside connection failures can indicate reconnect churn.",
-        "action": "Review the rate of peer reconnects and correlate the source peer with Connection broken events.",
-        "base": "INFO",
-        "thresholds": ((50, "LOW"), (10, "INFO"), (1, "INFO")),
-    },
-    {
-        "type": "zookeeper_session_expired",
-        "pattern": re.compile(r"\bExpiring session\b.*\btimeout of\b.*\bexceeded\b", re.I),
-        "category": "zookeeper_session",
-        "summary": "ZooKeeper session expired because its timeout was exceeded",
-        "rationale": "An expired session means the client did not maintain its ZooKeeper session within the negotiated timeout.",
-        "action": "Identify the client, check client-to-ZooKeeper connectivity and latency, and correlate with server load and quorum instability.",
-        "base": "MEDIUM",
-        "thresholds": ((10, "HIGH"), (3, "MEDIUM"), (1, "LOW")),
-    },
-    {
-        "type": "zookeeper_socket_closed",
-        "pattern": re.compile(r"\bClosed socket connection for client\b", re.I),
-        "category": "zookeeper_session",
-        "summary": "ZooKeeper closed a client socket connection",
-        "rationale": "A single socket close is common lifecycle activity; repeated closes should be correlated with session expiration or connection churn.",
-        "action": "Correlate the client address with session expiration, reconnects, and application health before treating it as an incident.",
-        "base": "INFO",
-        "thresholds": ((30, "LOW"), (1, "INFO")),
-    },
-    {
-        "type": "zookeeper_leader_election",
-        "pattern": re.compile(r"\bFastLeaderElection\b.*\b(LOOKING|leader)\b", re.I),
-        "category": "zookeeper_cluster",
-        "summary": "ZooKeeper leader-election activity was recorded",
-        "rationale": "Leader-election activity can be normal during startup, but repeated elections during an established cluster can indicate quorum instability.",
-        "action": "Correlate election events with quorum connection failures, node restarts, latency, and cluster membership.",
-        "base": "LOW",
-        "thresholds": ((5, "HIGH"), (2, "MEDIUM"), (1, "LOW")),
-    },
-)
-
-def _zk_severity(count, thresholds):
-    for minimum, severity in thresholds:
-        if count >= minimum:
-            return severity
-    return "INFO"
-
-def _record_text(record):
-    return str(record.get("msg") or record.get("message") or record.get("raw") or "")
-
-def _zookeeper_extra_anomalies(records):
-    """Detect application-specific ZooKeeper conditions missed by generic rules.
-
-    The function deliberately operates on the already-normalized record stream,
-    so it works with plain ZooKeeper logs as well as logs coming through the
-    universal parser.
-    """
-    if not records:
-        return []
-
-    matched = {rule["type"]: [] for rule in _ZK_RULES}
-    for rec in records:
-        text = _record_text(rec)
-        if not text:
-            continue
-        for rule in _ZK_RULES:
-            if rule["pattern"].search(text):
-                matched[rule["type"]].append(rec)
-
-    # Only activate this ruleset when the input actually looks like ZooKeeper.
-    zk_total = sum(len(v) for v in matched.values())
-    zk_marker = any(
-        re.search(r"(?:QuorumCnxManager|ZooKeeperServer|FastLeaderElection|NIOServerCnxn)", _record_text(r), re.I)
-        for r in records[:1000]
-    )
-    if not zk_marker and zk_total == 0:
-        return []
-
-    findings = []
-    for rule in _ZK_RULES:
-        hits = matched[rule["type"]]
-        if not hits:
-            continue
-
-        count = len(hits)
-        sev = _zk_severity(count, rule["thresholds"])
-
-        # Build a compact evidence timeline.  Keep first/last and up to 8 samples
-        # so a 2,000-line file does not create a huge report.
-        timeline = []
-        for r in hits[:8]:
-            timeline.append({
-                "line": r.get("line") or r.get("n"),
-                "timestamp": str(r.get("timestamp") or r.get("ts") or ""),
-                "message": _record_text(r)[:300],
-            })
-        if count > 8:
-            timeline.append({
-                "line": hits[-1].get("line") or hits[-1].get("n"),
-                "timestamp": str(hits[-1].get("timestamp") or hits[-1].get("ts") or ""),
-                "message": f"... {count - 8} additional matching event(s)",
-            })
-
-        first = _record_text(hits[0])[:500]
-        last = _record_text(hits[-1])[:500]
-        line_numbers = [r.get("line") or r.get("n") for r in hits if r.get("line") or r.get("n")]
-        entities = {}
-
-        # Extract peer/client IPs where present.
-        ips = []
-        for h in hits:
-            ips.extend(re.findall(r"/((?:\d{1,3}\.){3}\d{1,3})(?::\d+)?", _record_text(h)))
-        if ips:
-            uniq = list(dict.fromkeys(ips))
-            entities["ips"] = uniq[:20]
-
-        summary = rule["summary"]
-        if count > 1:
-            summary += f" ({count} occurrences)"
-
-        findings.append({
-            "severity": sev,
-            "type": rule["type"],
-            "summary": summary,
-            "evidence": (
-                f"{first}"
-                + (f" | last matching event: {last}" if last != first else "")
-                + (f" | source lines: {min(line_numbers)}-{max(line_numbers)}" if line_numbers else "")
-            ),
-            "rationale": rule["rationale"],
-            "entities": entities,
-            "occurrences": count,
-            "timeline": timeline,
-            "predicate": f"ZooKeeper pattern '{rule['type']}' matched {count} record(s)",
-            "recommended_action": rule["action"],
-            "source": "zookeeper_rules",
-        })
-
-    # Correlation alert: the combination is more useful than any single WARN.
-    broken = len(matched["zookeeper_connection_broken"])
-    exits = len(matched["zookeeper_sendworker_exit"])
-    interrupted = len(matched["zookeeper_sendworker_interrupt"])
-    queue_wait = len(matched["zookeeper_sendworker_interrupted"])
-    if broken and (exits or interrupted or queue_wait):
-        total = broken + exits + interrupted + queue_wait
-        if broken >= 20 and (exits + interrupted + queue_wait) >= 20:
-            sev = "CRITICAL"
-        elif broken >= 5 and (exits + interrupted + queue_wait) >= 5:
-            sev = "HIGH"
-        else:
-            sev = "MEDIUM"
-
-        findings.append({
-            "severity": sev,
-            "type": "zookeeper_quorum_instability",
-            "summary": (
-                "ZooKeeper quorum communication instability detected: "
-                f"{broken} connection-break event(s), {exits} SendWorker exit(s), "
-                f"{interrupted} SendWorker interrupt(s), and {queue_wait} queue interruption(s)"
-            ),
-            "evidence": (
-                "Multiple ZooKeeper quorum failure lifecycle patterns occurred in the same log. "
-                "This is a correlation alert, not a claim of malicious activity."
-            ),
-            "rationale": "The combination of repeated broken peer connections and worker interruption/exit activity is a stronger availability signal than any single WARN event.",
-            "entities": {},
-            "occurrences": total,
-            "timeline": [],
-            "predicate": "Correlated ZooKeeper quorum communication instability",
-            "recommended_action": (
-                "Check all ZooKeeper peers on the quorum ports, packet loss/latency, "
-                "firewall/load-balancer behavior, JVM saturation, disk I/O, and cluster health."
-            ),
-            "source": "zookeeper_rules",
-        })
-
-    return findings
-
-
-# ---------------------------------------------------------------------------
-# Universal application/OS high-signal detection
-# ---------------------------------------------------------------------------
-# These rules complement, rather than replace, anomaly_detector/rules_syslog.
-# They intentionally collapse repeated occurrences into semantic findings while
-# preserving the occurrence count and source-line evidence.
-
-_GENERIC_RULES = (
-    ("generic_fatal_error", re.compile(r"\b(?:FATAL|CRITICAL|PANIC)\b", re.I), "CRITICAL", "Critical/fatal condition reported by the application or OS", "Investigate the surrounding events, process/service state, and recent configuration or deployment changes."),
-    ("generic_out_of_memory", re.compile(r"(?:out of memory|oom-killer|oom kill|cannot allocate memory|java\.lang\.OutOfMemoryError|memory allocation failed)", re.I), "CRITICAL", "Out-of-memory condition detected", "Check memory pressure, OOM-killer events, process limits, JVM/container limits, and recent workload changes."),
-    ("generic_disk_full", re.compile(r"(?:no space left on device|disk (?:is )?full|filesystem.*(?:full|100%|9[5-9]%))", re.I), "HIGH", "Disk/filesystem capacity exhaustion detected", "Check filesystem utilization, inode usage, application logs, and safe cleanup/retention."),
-    ("generic_service_failed", re.compile(r"(?:failed to start|start request repeated too quickly|service.*failed|unit .* failed|failed with result|Main process exited.*failure)", re.I), "HIGH", "Service startup or runtime failure detected", "Check service status, dependencies, recent configuration changes, and the service journal/log."),
-    ("generic_kernel_fault", re.compile(r"(?:kernel panic|segfault|general protection fault|BUG: unable to handle kernel|Oops:|call trace:)", re.I), "CRITICAL", "Kernel-level fault detected", "Investigate kernel/module changes, hardware health, crash dumps, and the affected host."),
-    ("generic_connection_refused", re.compile(r"(?:connection refused|connect\(\).*refused|connection reset by peer|connection timed out|connect timeout)", re.I), "MEDIUM", "Network connection failure detected", "Check endpoint reachability, listening ports, firewall rules, routing, service health, and packet loss/latency."),
-    ("generic_tls_failure", re.compile(r"(?:SSL(?:_ERROR)?|TLS).*(?:handshake|certificate|verify|alert|failed|error)|certificate.*(?:expired|invalid|verify failed)", re.I), "HIGH", "TLS/SSL or certificate failure detected", "Verify certificate validity/chain, system time, trust stores, protocol/cipher compatibility, and the peer configuration."),
-    ("generic_auth_failure", re.compile(r"(?:authentication failure|auth(?:entication)? failed|failed password|invalid password|login failed|user authentication failed)", re.I), "MEDIUM", "Authentication failure detected", "Correlate source, account, time, and recurrence; investigate brute-force or misconfiguration when repeated."),
-    ("generic_permission_denied", re.compile(r"(?:permission denied|access denied|operation not permitted|unauthorized)", re.I), "MEDIUM", "Permission or authorization failure detected", "Verify the account, requested resource, ACL/role policy, and whether the access was expected."),
-    ("generic_file_integrity", re.compile(r"(?:integrity check failed|checksum mismatch|hash mismatch|modified unexpectedly|tamper(?:ed|ing) detected)", re.I), "HIGH", "File/integrity validation failure detected", "Validate the affected file/object against a trusted baseline and review the initiating process and account."),
-    ("generic_security_block", re.compile(r"(?:blocked|denied|dropped).*(?:connection|packet|request|traffic)|(?:firewall|ids|ips).*(?:block|deny|drop)", re.I), "MEDIUM", "Security/network control blocked or denied activity", "Identify source, destination, rule/policy, and recurrence; determine whether the blocked activity was malicious or expected."),
-    ("generic_http_server_error", re.compile(r"(?:HTTP/[12](?:\.\d)?\s+5\d\d|\b(?:status|response)\s+5\d\d\b|\b5\d\d\s+(?:GET|POST|PUT|DELETE))", re.I), "MEDIUM", "HTTP server-side error detected", "Correlate the endpoint, application error, upstream dependency, and request volume."),
-    ("generic_database_failure", re.compile(r"(?:database|db|sql).*(?:connection failed|connection refused|deadlock|too many connections|query failed|timeout|unavailable)", re.I), "HIGH", "Database availability or query failure detected", "Check database health, connection pool limits, locks/deadlocks, latency, and application dependency status."),
-)
-
-def _generic_extra_anomalies(records):
-    if not records:
-        return []
-    hits = {rid: [] for rid, *_ in _GENERIC_RULES}
-    for rec in records:
-        text = _record_text(rec)
-        if not text:
-            continue
-        for rid, pattern, sev, *_ in _GENERIC_RULES:
-            if pattern.search(text):
-                hits[rid].append(rec)
-    findings=[]
-    for rid, pattern, base_sev, summary, action in _GENERIC_RULES:
-        rows=hits[rid]
-        if not rows:
-            continue
-        sev=base_sev
-        # Repeated medium/high-signal failures are promoted one level.
-        if len(rows) >= 10:
-            sev={"INFO":"LOW","LOW":"MEDIUM","MEDIUM":"HIGH","HIGH":"CRITICAL","CRITICAL":"CRITICAL"}[base_sev]
-        lines=[r.get("line") or r.get("n") for r in rows if r.get("line") or r.get("n")]
-        sample=_record_text(rows[0])[:500]
-        findings.append({
-            "severity":sev, "type":rid, "summary":f"{summary} ({len(rows)} occurrences)",
-            "evidence":sample + (f" | source lines: {min(lines)}-{max(lines)}" if lines else ""),
-            "rationale":f"Deterministic high-signal pattern matched {len(rows)} log record(s). Severity is rule-derived and recurrence-aware.",
-            "entities":{}, "occurrences":len(rows), "timeline":[{"line":r.get("line") or r.get("n"),"message":_record_text(r)[:300]} for r in rows[:8]],
-            "predicate":f"Generic high-signal pattern '{rid}' matched {len(rows)} record(s)",
-            "recommended_action":action, "source":"generic_rules"
-        })
-    return findings
 
 def detector_to_findings(anomalies):
     """Map deduped detector anomalies into the analyzer's finding schema.
@@ -1550,7 +1245,7 @@ def preflight(base_url, api_key, model):
         headers={"Authorization": f"Bearer {api_key}"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=min(10, LLM_TIMEOUT)) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             available = [m.get("id") for m in json.loads(resp.read()).get("data", [])]
     except urllib.error.HTTPError as e:
         # Some providers don't expose /models, or gate it behind other scopes.
@@ -1571,7 +1266,7 @@ def preflight(base_url, api_key, model):
         root = base_url[:-3] if base_url.rstrip("/").endswith("/v1") else base_url
         req = urllib.request.Request(root.rstrip("/") + "/api/generate", data=pin,
                                      headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=min(20, LLM_TIMEOUT)):
+        with urllib.request.urlopen(req, timeout=120):
             pass
     except Exception:
         pass
@@ -1904,11 +1599,8 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
             print(f"WARNING: Nmap scan failed: {exc}")
 
     # Universal deterministic rule pass: every recognized format goes through
-    # the same vocabulary, Windows/vendor rules and threat rules. This phase is
-    # authoritative and must finish before any LLM work.
-    rules_started = time.monotonic()
-    print("Rules: starting deterministic normalization/detection...", flush=True)
-    progress(phase="rules", done=0, findings=0, chunks=0)
+    # the same vocabulary, Windows/vendor rules and threat rules. This fixes the
+    # earlier Windows-only gap where extra rules were gated on rfc3164.
     try:
         records, counts = rules_syslog.canonicalize(records)
     except Exception as exc:
@@ -1922,21 +1614,6 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
         print(f"WARNING: cross-platform rule detection failed: {exc}")
         extra_anomalies = []
 
-    # Application-aware gap fill.  Keep the existing rules authoritative, but
-    # add deterministic ZooKeeper findings for patterns that are represented as
-    # WARN/INFO lifecycle messages rather than generic security signatures.
-    try:
-        zk_anomalies = _zookeeper_extra_anomalies(records)
-        if zk_anomalies:
-            print(f"ZooKeeper rules: {len(zk_anomalies)} application finding(s)")
-        extra_anomalies.extend(zk_anomalies)
-        generic_anomalies = _generic_extra_anomalies(records)
-        if generic_anomalies:
-            print(f"Generic high-signal rules: {len(generic_anomalies)} finding(s)")
-        extra_anomalies.extend(generic_anomalies)
-    except Exception as exc:
-        print(f"WARNING: ZooKeeper rule detection failed: {exc}")
-
     records, dropped = rules_syslog.dedupe_auth_attempts(records)
     if dropped:
         print(f"Dedupe: collapsed {dropped} companion authentication line(s)")
@@ -1949,19 +1626,8 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
     raw_anomalies = rule_context.enrich(raw_anomalies, records)
     anomalies = dedupe_anomalies(raw_anomalies)
     collapsed = len(raw_anomalies) - len(anomalies)
-    rules_elapsed = time.monotonic() - rules_started
     print(f"Detector: {len(anomalies)} anomaly(ies)"
-          + (f" ({collapsed} duplicate(s) collapsed)" if collapsed else "")
-          + f" in {rules_elapsed:.1f}s")
-    if rules_elapsed > RULE_WARNING_SECONDS:
-        print(
-            f"WARNING: deterministic rules took {rules_elapsed:.1f}s. "
-            f"For large files this is the rules/correlation phase, not the LLM."
-        )
-    progress(
-        phase="rules", done=1, findings=len(anomalies),
-        seconds=round(rules_elapsed, 1)
-    )
+          + (f" ({collapsed} duplicate(s) collapsed)" if collapsed else ""))
     ctx = to_llm_context(anomalies)
 
     run_model = should_run_model(stats) and not rules_only
@@ -2055,80 +1721,56 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
     progress(phase="explain", done=0, total=len(selected), findings=len(anomalies),
              chunks=len(all_chunks), gapFill=gap_fill)
 
-    # Explanations are independent. Run a small bounded worker pool so a slow
-    # local/remote model does not serialize every chunk. Rules have already completed
-    # and are published before this phase.
-    def _explain_one(item):
-        step, idx = item
+    for step, idx in enumerate(selected, start=1):
         start_line, chunk_lines = all_chunks[idx]
-        started = time.monotonic()
-        result = analyze_chunk(
-            base_url, api_key, model, chunk_lines, idx,
-            chunk_ctx.get(idx, empty_ctx)
-        )
-        elapsed = time.monotonic() - started
-        return step, idx, start_line, chunk_lines, result, elapsed
+        print(f"  Explaining chunk {idx + 1}/{len(all_chunks)} "
+              f"({step}/{len(selected)}, lines {start_line}-{start_line + len(chunk_lines)})...")
+        result = analyze_chunk(base_url, api_key, model, chunk_lines, idx,
+                               chunk_ctx.get(idx, empty_ctx))
+        progress(phase="explain", done=step, total=len(selected), chunk=idx + 1)
 
-    if selected:
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=min(LLM_WORKERS, len(selected))
-        ) as pool:
-            futures = [pool.submit(_explain_one, (step, idx))
-                       for step, idx in enumerate(selected, start=1)]
-
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    step, idx, start_line, chunk_lines, result, elapsed = future.result()
-                except Exception as exc:
-                    print(f"    explanation worker failed: {exc}")
+        # Tie each explanation to the findings in THIS chunk with that rule id.
+        # Keying by rule id alone pasted one chunk's prose onto every finding of the
+        # same type — an explanation naming 112.95.230.3 appeared on findings about
+        # entirely different addresses, which is worse than showing nothing.
+        here = by_chunk.get(idx, [])
+        for ex in result.get("explanations", []):
+            rid, text = ex.get("rule_id"), ex.get("explanation")
+            if not text:
+                continue
+            targets = [j for j in here if anomalies[j].get("type") == rid] or \
+                      ([here[0]] if len(here) == 1 and not rid else [])
+            for j in targets:
+                # When a chunk holds two findings of the same type the model writes
+                # one explanation, usually naming only one of them. Attach it only
+                # where the prose actually refers to that finding; the others stay
+                # pending and get their own on demand. Prose about the wrong host is
+                # worse than no prose.
+                ident = anomaly_ident(anomalies[j])
+                if ident and ident not in text:
                     continue
+                explanations.setdefault(j, text)
 
-                print(
-                    f"  Explained chunk {idx + 1}/{len(all_chunks)} "
-                    f"(worker {step}/{len(selected)}, "
-                    f"{elapsed:.1f}s, lines {start_line}-{start_line + len(chunk_lines)})"
-                )
-                progress(
-                    phase="explain", done=len(explanations), total=len(selected),
-                    chunk=idx + 1, seconds=round(elapsed, 1)
-                )
-
-                here = by_chunk.get(idx, [])
-                for ex in result.get("explanations", []):
-                    rid, text = ex.get("rule_id"), ex.get("explanation")
-                    if not text:
-                        continue
-                    targets = [j for j in here if anomalies[j].get("type") == rid] or \
-                              ([here[0]] if len(here) == 1 and not rid else [])
-                    for j in targets:
-                        ident = anomaly_ident(anomalies[j])
-                        if ident and ident not in text:
-                            continue
-                        explanations.setdefault(j, text)
-
-                for finding in result.get("findings", []):
-                    if finding.get("source") == "analyzer":
-                        finding["chunk_index"] = idx
-                        finding["approx_line_start"] = start_line
-                        llm_findings.append(finding)
-                        continue
-                    if restates_detector(finding, anomalies):
-                        print(
-                            f"    dropped LLM finding (restates a pre-flagged anomaly): "
-                            f"{finding.get('summary', '')[:60]}"
-                        )
-                        continue
-                    finding["chunk_index"] = idx
-                    finding["approx_line_start"] = start_line
-                    finding["rule_id"] = None
-                    finding["source"] = "llm"
-                    finding.setdefault("severity", "info")
-                    finding.setdefault(
-                        "summary", "(model omitted a summary for this finding)"
-                    )
-                    llm_findings.append(finding)
-
-                chunk_summaries.append(result.get("chunk_summary", ""))
+        for finding in result.get("findings", []):
+            # Analyzer-generated findings (e.g. off-schema failures) are ours, not the
+            # model's: never deduped away, never relabelled.
+            if finding.get("source") == "analyzer":
+                finding["chunk_index"] = idx
+                finding["approx_line_start"] = start_line
+                llm_findings.append(finding)
+                continue
+            if restates_detector(finding, anomalies):
+                print(f"    dropped LLM finding (restates a pre-flagged anomaly): {finding.get('summary', '')[:60]}")
+                continue
+            finding["chunk_index"] = idx
+            finding["approx_line_start"] = start_line
+            finding["rule_id"] = None
+            finding["source"] = "llm"       # set here, never trusted from the model
+            # The model sometimes omits fields even in a shape-valid findings list.
+            finding.setdefault("severity", "info")
+            finding.setdefault("summary", "(model omitted a summary for this finding)")
+            llm_findings.append(finding)
+        chunk_summaries.append(result.get("chunk_summary", ""))
 
     # Second pass: findings whose chunk we already explained but which came back
     # without prose. Asking again for one finding at a time removes the ambiguity that
@@ -2366,12 +2008,6 @@ if __name__ == "__main__":
                         help="Nmap execution timeout in seconds (default 300).")
     parser.add_argument("--nmap-diagnose", action="store_true",
                         help="Validate Nmap binary/NSE vulnerability scripts and exit.")
-    parser.add_argument("--llm-timeout", type=int, default=LLM_TIMEOUT,
-                        help="LLM request timeout seconds (default from SOC_LLM_TIMEOUT).")
-    parser.add_argument("--llm-workers", type=int, default=LLM_WORKERS,
-                        help="Parallel LLM explanation workers (default 3).")
-    parser.add_argument("--llm-retries", type=int, default=LLM_RETRIES,
-                        help="Extra retries for malformed model responses (default 0).")
     args = parser.parse_args()
 
     if args.lines_per_chunk < 1:
@@ -2398,10 +2034,6 @@ if __name__ == "__main__":
             print(f"Nmap diagnostics FAILED: {exc}")
             sys.exit(1)
 
-    # CLI overrides for bounded explanation execution.
-    LLM_TIMEOUT = max(10, int(args.llm_timeout))
-    LLM_WORKERS = max(1, min(8, int(args.llm_workers)))
-    LLM_RETRIES = max(0, min(2, int(args.llm_retries)))
     try:
         rc = run(args.input, args.output, args.lines_per_chunk, args.model, args.base_url,
                  LLM_API_KEY, compare=args.compare, deep_scan=args.deep_scan,
