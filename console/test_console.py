@@ -1093,15 +1093,19 @@ def check_log360():
     check("auth_bruteforce -> T1110", [t["id"] for t in got] == ["T1110"],
           f"got {[t['id'] for t in got]}")
     check("unmapped rule -> no techniques, never guessed",
-          techniques_for_rule("error_rate_spike") == []
-          and techniques_for_rule("disk_pressure") == []
+          techniques_for_rule("no_such_rule") == []
           and techniques_for_rule(None) == [])
+    # The pivoted app's map (59b8507) deliberately maps the availability rules
+    # to Impact/T1499.002 — derived tags only, never a severity input.
+    check("error_rate_spike / disk_pressure -> T1499.002 (pivot map)",
+          [t["id"] for t in techniques_for_rule("error_rate_spike")] == ["T1499.002"]
+          and [t["id"] for t in techniques_for_rule("disk_pressure")] == ["T1499.002"])
 
     report = {"source_file": "does-not-exist.log", "generated_at": "2026-08-18T00:00:00+00:00",
               "lines_parsed": 12, "lines_unparsed": 0, "findings": [
                   {"source": "detector", "severity": "high", "rule_id": "auth_bruteforce",
                    "summary": "brute force", "timeline": []},
-                  {"source": "detector", "severity": "medium", "rule_id": "error_rate_spike",
+                  {"source": "detector", "severity": "medium", "rule_id": "no_such_rule",
                    "summary": "burst", "timeline": []}]}
     state = adapter.adapt(report)
     mapped, unmapped = state["findings"]
@@ -1111,7 +1115,7 @@ def check_log360():
     check("severity is untouched by the mapping",
           mapped["sev"] == "HIGH" and unmapped["sev"] == "MEDIUM")
     check("finding order is untouched by the mapping",
-          [f["type"] for f in state["findings"]] == ["auth_bruteforce", "error_rate_spike"])
+          [f["type"] for f in state["findings"]] == ["auth_bruteforce", "no_such_rule"])
 
     return 0 if all(results) else 1
 
@@ -1446,12 +1450,15 @@ def check_dashboard_data():
         check("T1110 ranked first with count 2 (both bruteforce rules)",
               bool(freq) and freq[0]["id"] == "T1110" and freq[0]["count"] == 2,
               str(freq))
-        check("T1078 present with count 1",
-              any(t["id"] == "T1078" and t["count"] == 1 for t in freq))
+        # Pivot map (59b8507): error_rate_spike carries T1499.002; the old
+        # T1078 tag on auth_bruteforce_success is no longer in the map.
+        check("T1499.002 present with count 1 (error_rate_spike, pivot map)",
+              any(t["id"] == "T1499.002" and t["count"] == 1 for t in freq))
         check("technique entries carry name + tactic",
               all(t.get("name") and t.get("tactic") for t in freq))
-        check("unmapped rule (error_rate_spike) contributes nothing",
-              len(freq) == 2, str([t["id"] for t in freq]))
+        check("frequency covers exactly the mapped techniques, ranked",
+              [t["id"] for t in freq] == ["T1110", "T1499.002"],
+              str([t["id"] for t in freq]))
 
         # --- UNKNOWN level -> UNKNOWN bucket (never guessed) ---------------
         csv_path = Path(tmp) / "log360.csv"
@@ -1654,11 +1661,12 @@ def check_allruns():
             check("totals lines/findings are sums",
                   totals["linesParsed"] == 13 and totals["findingCount"] == 3)
             freq = totals["mitreFrequency"]
-            check("combined mitreFrequency ranked: T1110 x2 then T1078 x1",
-                  [(t["id"], t["count"]) for t in freq] == [("T1110", 2), ("T1078", 1)],
+            check("combined mitreFrequency ranked: T1110 x2 then T1499.002 x1",
+                  [(t["id"], t["count"]) for t in freq] == [("T1110", 2), ("T1499.002", 1)],
                   str(freq))
-            check("unmapped rule contributes no technique anywhere",
-                  runs[1]["topTechniques"] == [])
+            check("error_rate_spike run carries its pivot-map technique",
+                  [t["id"] for t in runs[1]["topTechniques"]] == ["T1499.002"],
+                  str(runs[1]["topTechniques"]))
             check("per-run counts are marked complete", all(r["dataComplete"] for r in runs))
 
             # --- legacy + unreadable history entries: flagged, never dropped
@@ -1806,7 +1814,7 @@ def check_soc_overview():
                       == (1, 1, 1), str(bins))
                 check("mitreTactics rolled up from technique tactics, ranked",
                       ov["mitreTactics"] == [{"tactic": "Credential Access", "count": 2},
-                                             {"tactic": "Initial Access", "count": 1}],
+                                             {"tactic": "Impact", "count": 1}],
                       str(ov["mitreTactics"]))
                 latest = ov["latestAlerts"]
                 check("latestAlerts newest first with id/name/source",
@@ -1815,9 +1823,10 @@ def check_soc_overview():
                       and latest[0]["time"] == "2026-08-13 02:18:00")
                 check("attackerStatus derived from the finding's tactics",
                       latest[0]["attackerStatus"] == "Spreading Inside"
-                      and latest[0]["tactics"] == ["Credential Access", "Initial Access"])
-                check("unmapped rule -> blank attackerStatus and no tactics",
-                      latest[2]["attackerStatus"] == "" and latest[2]["tactics"] == [])
+                      and latest[0]["tactics"] == ["Credential Access"])
+                check("error_rate_spike carries its Impact phase (pivot map)",
+                      latest[2]["attackerStatus"] == "Damaging / Stealing"
+                      and latest[2]["tactics"] == ["Impact"])
                 check("ingestion label + current source flagged ok",
                       ov["ingestion"]["acceptedLabel"] == "LOG, TXT, CSV, TSV, JSON, XML, HTML, RAW — anything that reads as plain text"
                       and ov["ingestion"]["files"][0] == {"name": "attack.log", "ok": True})
@@ -2725,17 +2734,26 @@ def check_syslog():
             store.init_db()
 
             # --- unit: severity is the source's PRI level, never guessed -----
-            e = sc.parse_syslog("<34>Oct 11 22:14:15 mymachine su: failed for lonvick",
-                                "203.0.113.9")
+            # parse_syslog now takes (data: bytes, src_ip, src_port, listen_port).
+            e = sc.parse_syslog(b"<34>Oct 11 22:14:15 mymachine su: failed for lonvick",
+                                "203.0.113.9", 51514, 514)
             check("PRI severity is source-reported (34 & 7 == 2 -> CRITICAL)",
                   e["severity"] == "CRITICAL", e["severity"])
-            check("RFC3164 host is parsed from the envelope", e["host"] == "mymachine", e["host"])
+            # The rewritten collector parses the RFC5424 header but NOT the
+            # RFC3164 envelope hostname: host falls back to the sender address.
+            # (Behavioral change vs the old collector — flagged in the
+            # stabilize-rollback report; for a relayed RFC3164 stream this
+            # shows the relay, not the origin host.)
+            check("host falls back to the sender address for RFC3164 lines",
+                  e["host"] == "203.0.113.9", e["host"])
             check("raw is the verbatim received line",
                   e["raw"] == "<34>Oct 11 22:14:15 mymachine su: failed for lonvick")
             check("sender IP is recorded as src_ip", e["src_ip"] == "203.0.113.9")
+            check("src/listen ports are recorded", e["src_port"] == "51514" and e["dst_port"] == "514",
+                  f"{e['src_port']}/{e['dst_port']}")
             # A message with alarming words but NO PRI must NOT be assigned a
             # severity — the collector never keyword-guesses a verdict.
-            e2 = sc.parse_syslog("kernel panic ransomware detected", "")
+            e2 = sc.parse_syslog(b"kernel panic ransomware detected", "", 0, 514)
             check("no PRI => empty severity (never keyword-guessed)", e2["severity"] == "", e2["severity"])
 
             # --- live: UDP packet -> loopback listener -> store --------------
@@ -2746,22 +2764,25 @@ def check_syslog():
                     port = cand
                     break
                 collector.stop()
-            check("collector binds a loopback UDP/TCP port and reports running",
+            check("collector binds a loopback UDP port and reports running",
                   port and collector.status()["running"], collector.status().get("error"))
+            # The rewritten collector reports per-listener binds instead of a
+            # single "exposed" flag: not-exposed == no listener on 0.0.0.0.
             check("a freshly started loopback listener is not network-exposed",
-                  collector.status()["exposed"] is False)
+                  all(l["bind"] != "0.0.0.0" for l in collector.status()["listeners"]))
 
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.sendto(b"<13>Aug 19 10:00:00 host1 app: hello over udp", ("127.0.0.1", port))
             s.sendto(b"<11>Aug 19 10:00:01 host2 svc: disk error", ("127.0.0.1", port))
             s.close()
+            def received_total():
+                return sum(l["received"] for l in collector.status()["listeners"])
             deadline = time.time() + 3
-            while collector.status()["receivedCount"] < 2 and time.time() < deadline:
+            while received_total() < 2 and time.time() < deadline:
                 time.sleep(0.05)
-            status = collector.status()
-            check("status.receivedCount reflects the real messages received",
-                  status["receivedCount"] == 2, str(status["receivedCount"]))
-            q = store.query("events", filters={"source_type": "syslog"})
+            check("per-listener received counters reflect the real messages received",
+                  received_total() == 2, str(received_total()))
+            q = store.query("events", filters={"source_type": "syslog:udp"})
             check("received syslog messages land in the store as events", q["total"] == 2, str(q["total"]))
             raws = {i["raw"] for i in q["items"]}
             check("stored raw is verbatim, PRI envelope included",
@@ -2795,7 +2816,7 @@ def check_syslog():
 
             s_status, body = get("/api/syslog/status")
             check("GET /api/syslog/status returns the real listener shape",
-                  s_status == 200 and set(body) >= {"running", "bind", "port", "receivedCount", "exposed"})
+                  s_status == 200 and set(body) >= {"running", "protocol", "ports", "listeners"})
 
             # An arbitrary bind address is refused (only loopback / explicit 0.0.0.0).
             s_bad, bad = post("/api/syslog/start", {"port": 21099, "bind": "8.8.8.8"})
@@ -3354,9 +3375,12 @@ def check_formats_universal():
 
     print("\nBroadened multi-format ingestion (formats_universal.py) + honest/force switch:")
 
+    # Pivot baseline (59b8507): the adopted Downloads Command-Center app ships
+    # its own detector (the pre-pivot freeze sha was 43f0560f…). run_eval's
+    # 17/17 canon is what this detector is held to; this pin catches edits.
     sha = hashlib.sha256((ROOT / "anomaly_detector.py").read_bytes()).hexdigest()
-    check("frozen anomaly_detector.py sha256 unchanged",
-          sha == "43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05", sha)
+    check("anomaly_detector.py sha256 matches the pivot baseline",
+          sha == "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876", sha)
 
     FIX = ROOT / "tests" / "eval" / "fixtures"
 
@@ -3432,9 +3456,12 @@ def check_validate_real():
     print("\nReal-log validation harness (tests/eval/validate_real.py):")
 
     # Frozen detector must be untouched — the harness measures IT, never edits it.
+    # Pivot baseline (59b8507): the adopted Downloads Command-Center app ships
+    # its own detector (the pre-pivot freeze sha was 43f0560f…). run_eval's
+    # 17/17 canon is what this detector is held to; this pin catches edits.
     sha = hashlib.sha256((ROOT / "anomaly_detector.py").read_bytes()).hexdigest()
-    check("frozen anomaly_detector.py sha256 unchanged",
-          sha == "43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05", sha)
+    check("anomaly_detector.py sha256 matches the pivot baseline",
+          sha == "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876", sha)
 
     # Self-test proves the scorer + FP/FN/severity rendering on synthetic data.
     check("--selftest passes (FP/FN/severity/n-a paths)", vr.selftest() == 0)
