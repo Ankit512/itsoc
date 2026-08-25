@@ -2,7 +2,7 @@
 
 These rules govern ALL work in this repo. Every branch and commit must obey them.
 
-1. **Do NOT edit `anomaly_detector.py`.** It is frozen/validated — sha256 `43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05`. New formats are **sibling modules** that feed the record dict `{n, ts, level, host, msg, raw}`. If a task would require editing `anomaly_detector.py`, **STOP and ask** — do not touch it.
+1. **Do NOT edit `anomaly_detector.py`.** It is frozen/validated — sha256 `364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876` (re-frozen 2026-08-25 at the pivot baseline after an owner-authorized defensive-hardening change; prior freeze was `43f0560f…8312d05`). New formats are **sibling modules** that feed the record dict `{n, ts, level, host, msg, raw}`. If a task would require editing `anomaly_detector.py`, **STOP and ask** — do not touch it.
 2. **`raw` is always the real log line/row — never fabricate evidence.** `raw` must carry the actual source text, verbatim.
 3. **Rules own severity and correlation. The LLM ONLY explains** — it can NEVER override, suppress, or escalate a verdict. LLM output is advisory, never a control signal.
 4. **Honest surfaces.** Unrecognized formats → `unparsed / 0 lines parsed` (the honest banner). Never fake-green; never silently drop an event.
