@@ -2144,23 +2144,39 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
         if skipped:
             print(f"    {len(skipped)} left for on-demand (cap is {SECOND_PASS_MAX} "
                   f"per run) — they keep their rule verdict and evidence either way.")
-        for j in retry:
+        # Each re-ask targets ONE finding with its own context, so they are
+        # independent — run them through the same bounded pool as the eager
+        # batch instead of serially (H2: worst case was SECOND_PASS_MAX
+        # sequential model calls of wall time). Results attach by finding
+        # index, so completion order cannot change the report.
+        def _reask_one(j):
             idx = next(i for i in selected if j in by_chunk.get(i, []))
             _, chunk_lines = all_chunks[idx]
             same_type = sum(1 for k in by_chunk.get(idx, [])
                             if anomalies[k].get("type") == anomalies[j].get("type"))
-            text = explain_single(
+            return j, explain_single(
                 base_url, api_key, model, chunk_lines, idx,
                 to_llm_context([anomalies[j]]),
                 rule_id=anomalies[j].get("type"),
                 # Only enforce the identity check when there is actually a same-type
                 # sibling in this chunk to confuse it with.
                 ident=anomaly_ident(anomalies[j]) if same_type > 1 else None)
-            if text:
-                explanations[j] = text
-            else:
-                print(f"    still unexplained: {anomalies[j].get('type')} "
-                      f"(kept as pending, not as an empty answer)")
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(LLM_WORKERS, len(retry))
+        ) as pool:
+            for future in concurrent.futures.as_completed(
+                    [pool.submit(_reask_one, j) for j in retry]):
+                try:
+                    j, text = future.result()
+                except Exception as exc:
+                    print(f"    re-ask worker failed: {exc}")
+                    continue
+                if text:
+                    explanations[j] = text
+                else:
+                    print(f"    still unexplained: {anomalies[j].get('type')} "
+                          f"(kept as pending, not as an empty answer)")
 
     # Detector findings are authoritative and added ONCE, not per chunk.
     detector_findings = detector_to_findings(anomalies)
@@ -2188,7 +2204,8 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
         compare_chunks = [all_chunks[i][1] for i in selected]
         progress(phase="compare", done=0, total=len(compare_chunks))
         llm_alone, statuses = compare_mod.run_llm_alone(
-            compare_chunks, chat_fn, model, LLM_TEMPERATURE, strip_fences)
+            compare_chunks, chat_fn, model, LLM_TEMPERATURE, strip_fences,
+            workers=LLM_WORKERS)
         ok = sum(1 for s in statuses if s in compare_mod.USABLE_STATUSES)
         coverage_ok = ok == len(statuses)
         print(f"  unprimed pass: {ok}/{len(statuses)} chunk(s) usable, "
