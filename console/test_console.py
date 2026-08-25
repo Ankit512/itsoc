@@ -3497,6 +3497,195 @@ def check_validate_real():
     return 0 if all(results) else 1
 
 
+def check_rules_parity():
+    """H1 latency-gate parity — the gated rule sweep must be BYTE-IDENTICAL to
+    the ungated per-pattern semantics it replaced.
+
+    The reference implementations below are faithful copies of the pre-gate
+    logic and read the SAME live pattern tables in rules_syslog.py (never a
+    separate keyword list), so an edited table keeps the comparison honest.
+    Two layers of proof over every eval case + every file in samples/:
+      1. gate property: each derived union matches a text exactly when some
+         member pattern matches it;
+      2. end-to-end: detect_extra == the ungated reference composition,
+         compared as serialized JSON (byte-identical finding sets).
+    Latency work must never change what is detected — this is that contract.
+    """
+    import re
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    import log_analyzer as la
+    import rules_syslog as rs
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nH1 rules-parity (gated sweep == ungated semantics, byte-identical):")
+
+    # --- ungated reference implementations (pre-H1 logic, live tables) ------
+    def ref_severity_from_text(text):
+        for sev, patterns in (("critical", rs.CRITICAL_PATTERNS), ("high", rs.HIGH_PATTERNS),
+                              ("medium", rs.MEDIUM_PATTERNS), ("low", rs.LOW_PATTERNS)):
+            if any(rx.search(text) for rx in patterns):
+                return sev
+        return None
+
+    def ref_device_type(record, text):
+        explicit = str(rs._field(record, "device_type", "DeviceType", "type", "Type",
+                                 default="")).lower()
+        for typ in rs.DEVICE_PATTERNS:
+            if typ in explicit:
+                return typ
+        for typ, rx in rs.DEVICE_PATTERNS.items():
+            if rx.search(text) or rx.search(rs._vendor(record)):
+                return typ
+        return "unknown"
+
+    def ref_infra(records):
+        anomalies = []
+        for r in records:
+            text = rs._all_text(r)
+            if not text.strip():
+                continue
+            eid = rs._event_id(r)
+            host = rs._entity_host(r)
+            dtype = ref_device_type(r, text)
+            sev = rs._structured_severity(r) or ref_severity_from_text(text)
+            if not sev:
+                continue
+            if eid in (rs.WINDOWS_AUDIT_CLEARED_IDS | rs.WINDOWS_SERVICE_INSTALL_IDS |
+                       rs.WINDOWS_USER_CREATED_IDS | rs.WINDOWS_USER_DELETED_IDS |
+                       rs.WINDOWS_GROUP_ADD_IDS | rs.WINDOWS_LOCKOUT_IDS |
+                       rs.WINDOWS_PROCESS_CREATE_IDS):
+                continue
+            if rs._is_dedicated_auth_input(r, text):
+                continue
+            if sev == "low" and not any(x in text.lower() for x in (
+                    "warning", "threshold", "expir", "drift", "retry",
+                    "certificate", "license")):
+                continue
+            action = {
+                "critical": "Immediately validate the event, preserve evidence, identify the actor/source and assess service or security impact.",
+                "high": "Validate the event against an approved change/security action and investigate the source, affected asset and surrounding events.",
+                "medium": "Correlate with nearby events and confirm whether this is expected operational activity or a security/availability issue.",
+                "low": "Review during routine monitoring and confirm that the condition is expected or below the operational threshold.",
+            }[sev]
+            summary = f"{dtype.replace('_', ' ').title()} {sev} alert on {host}"
+            if eid:
+                summary += f" (EventID {eid})"
+            anomalies.append(rs._anomaly(
+                sev, f"infra_{dtype}_{sev}", summary, r,
+                f"Deterministic cross-platform rule matched a {sev.upper()} condition in {dtype.replace('_', ' ')} telemetry.",
+                {"host": host, "device_type": dtype, "event_id": eid or "",
+                 "vendor": rs._vendor(r)},
+                action))
+        return anomalies
+
+    def ref_text(r):
+        return " ".join(str(r.get(k, "")) for k in ("raw", "msg", "original_msg", "message")
+                        if r.get(k))
+
+    def ref_threats(records):
+        out = []
+        for r in records:
+            text = ref_text(r)
+            if not text.strip():
+                continue
+            for sev, atype, rx in rs.THREAT_PATTERNS:
+                if not rx.search(text):
+                    continue
+                ips = sorted(set(rs.IOC_IP_RE.findall(text)))
+                domains = sorted(set(rs.IOC_DOMAIN_RE.findall(text)))
+                hashes = sorted(set(rs.IOC_HASH_RE.findall(text)))
+                host = rs._entity_host(r)
+                out.append(rs._anomaly(
+                    sev, atype, f"{atype.replace('_', ' ').title()} detected on {host}", r,
+                    f"Deterministic threat pattern matched security telemetry: {rx.pattern}",
+                    {"host": host, "ioc_ips": ips, "ioc_domains": domains,
+                     "ioc_hashes": hashes},
+                    "Preserve evidence, identify the source and affected asset, correlate adjacent events, and contain according to the incident playbook."))
+                break
+        return out
+
+    def ref_iocs(records):
+        out = []
+        for r in records:
+            text = ref_text(r)
+            ips = sorted(set(rs.IOC_IP_RE.findall(text)))
+            domains = sorted(set(rs.IOC_DOMAIN_RE.findall(text)))
+            hashes = sorted(set(rs.IOC_HASH_RE.findall(text)))
+            if not (ips or domains or hashes):
+                continue
+            if not re.search(r"\b(c2|malware|trojan|ransomware|blocked|denied|indicator|ioc|threat|exploit|attack)\b", text, re.I):
+                continue
+            out.append(rs._anomaly(
+                "medium", "ioc_observed", f"Potential IOC observed on {rs._entity_host(r)}", r,
+                "An IP, domain or file hash was observed in security-relevant context. Presence alone does not prove maliciousness.",
+                {"host": rs._entity_host(r), "ioc_ips": ips, "ioc_domains": domains,
+                 "ioc_hashes": hashes},
+                "Validate the indicator against approved threat-intelligence sources and correlate it with the originating asset."))
+        return out
+
+    def ref_detect_extra(records):
+        out = []
+        out.extend(rs.detect_break_in_attempts(records))
+        out.extend(rs.detect_windows_extra(records))
+        out.extend(ref_infra(records))
+        out.extend(ref_threats(records))
+        out.extend(ref_iocs(records))
+        return out
+
+    # --- corpus -------------------------------------------------------------
+    corpus = sorted((ROOT / "tests" / "eval" / "cases").glob("*.log")) + \
+             sorted(p for p in (ROOT / "samples").iterdir() if p.is_file())
+    loaded = []
+    for p in corpus:
+        try:
+            records, _ = la.load_log_file(p)
+        except Exception:
+            continue
+        recs, _ = rs.canonicalize(records)
+        loaded.append((p.name, recs))
+    check(f"corpus loaded ({len(loaded)} files: eval cases + samples/)", len(loaded) >= 20,
+          str(len(loaded)))
+
+    # --- 1. gate property: union(text) == any(member(text)) -----------------
+    gate_ok, gate_checked = True, 0
+    families = [("device", rs._DEVICE_ANY, list(rs.DEVICE_PATTERNS.values())),
+                ("threat", rs._THREAT_ANY, [rx for _, _, rx in rs.THREAT_PATTERNS])]
+    families += [(f"sev:{sev}", union,
+                  {"critical": rs.CRITICAL_PATTERNS, "high": rs.HIGH_PATTERNS,
+                   "medium": rs.MEDIUM_PATTERNS, "low": rs.LOW_PATTERNS}[sev])
+                 for sev, union in rs._SEVERITY_UNIONS]
+    for _, recs in loaded:
+        for r in recs:
+            for text in (rs._all_text(r), ref_text(r)):
+                for name, union, members in families:
+                    gate_checked += 1
+                    if bool(union.search(text)) != any(m.search(text) for m in members):
+                        gate_ok = False
+                        print(f"    gate '{name}' diverges on: {text[:120]!r}")
+    check(f"every derived union == its members on every corpus text "
+          f"({gate_checked} checks)", gate_ok)
+
+    # --- 2. end-to-end byte-identical finding sets --------------------------
+    all_identical, files_checked = True, 0
+    for name, recs in loaded:
+        a = json.dumps(ref_detect_extra(recs), sort_keys=True, default=str)
+        b = json.dumps(rs.detect_extra(recs), sort_keys=True, default=str)
+        files_checked += 1
+        if a != b:
+            all_identical = False
+            print(f"    MISMATCH on {name}")
+    check(f"detect_extra byte-identical to ungated reference on all "
+          f"{files_checked} corpus files", all_identical)
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -3551,16 +3740,17 @@ def main():
     evtx_ = check_evtx()
     validate_ = check_validate_real()
     formats_ = check_formats_universal()
+    parity_ = check_rules_parity()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_):
+            or formats_ or parity_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "checks green")
+          "+ rules-parity checks green")
     return 0
 
 
