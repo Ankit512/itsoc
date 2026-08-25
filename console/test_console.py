@@ -3497,6 +3497,147 @@ def check_validate_real():
     return 0 if all(results) else 1
 
 
+def check_explain_stream():
+    """H5 — on-demand explanation streaming (POST /api/explain {stream:true}).
+
+    The reviewer reads prose from the first token instead of waiting out the
+    whole generation. Checks, against a live socket with a stubbed model
+    stream: SSE delivery (delta frames then done), the finished text landing
+    in the finding and the persisted state exactly like the blocking path,
+    an already-explained finding answering plain JSON (the client's fallback
+    contract), an empty stream ending in an honest error (never stored as an
+    answer), and — at unit level — the remote-compute stream passing through
+    the SAME redact() choke point (raw IPs never reach the prompt).
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import http.server
+    import threading
+    import urllib.request
+    import log_analyzer as la
+    import serve
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nOn-demand explanation streaming (/api/explain stream:true — H5):")
+
+    real = (serve.RUNS_DIR, serve.STATE_FILE, serve.STATE, serve.CURRENT_RUN_FILE,
+            la.chat_completion_stream)
+    captured = {}
+
+    def fake_stream(base_url, api_key, model, system, user, timeout=None):
+        captured["system"], captured["user"] = system, user
+        yield "Brute force "
+        yield "against admin "
+        yield "succeeded."
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="explain-stream-test-") as tmp:
+            tmp = Path(tmp)
+            log_path = tmp / "auth.log"
+            log_path.write_text("".join(
+                f"Aug 25 02:00:{i:02d} server-01 sshd[9]: Failed password for admin "
+                f"from 203.0.113.99 port 51{i:02d} ssh2\n" for i in range(30)))
+            serve.RUNS_DIR = tmp / ".runs"
+            serve.STATE_FILE = tmp / "console_state.json"
+            serve.CURRENT_RUN_FILE = None
+            serve.set_compute({"mode": "local"})
+            finding = {"id": "d0", "sev": "CRITICAL", "type": "auth_bruteforce_success",
+                       "title": "Brute-force then successful login for 'admin'",
+                       "timeline": [{"line": 3}]}
+            serve.STATE = {"idle": False, "runId": "t", "logPath": str(log_path),
+                           "findings": [finding]}
+            la.chat_completion_stream = fake_stream
+
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/explain",
+                    data=json.dumps({"id": "d0", "stream": True}).encode(),
+                    headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req) as resp:
+                    ctype = resp.headers.get("Content-Type", "")
+                    body = resp.read().decode()
+                check("stream reply is SSE", "text/event-stream" in ctype, ctype)
+                frames = [json.loads(l[len("data:"):].strip())
+                          for l in body.splitlines() if l.startswith("data:")]
+                deltas = [f["delta"] for f in frames if "delta" in f]
+                check("delta frames arrive in order",
+                      deltas == ["Brute force ", "against admin ", "succeeded."],
+                      str(deltas))
+                check("stream ends with done", any(f.get("done") for f in frames))
+                check("finished text lands in the finding like the blocking path",
+                      finding.get("explanation") == "Brute force against admin succeeded."
+                      and finding.get("explanationOnDemand") is True)
+                saved = json.loads(serve.STATE_FILE.read_text())
+                check("explanation persisted to state (survives a refresh)",
+                      saved["findings"][0].get("explanation", "").endswith("succeeded."))
+                check("prompt carries the finding and its chunk, advisory-framed",
+                      "auth_bruteforce_success" in captured.get("user", "")
+                      and "Failed password" in captured.get("user", "")
+                      and "never change" in captured.get("system", ""))
+
+                # Already explained -> plain JSON (the client's fallback path).
+                with urllib.request.urlopen(urllib.request.Request(
+                        f"http://127.0.0.1:{port}/api/explain",
+                        data=json.dumps({"id": "d0", "stream": True}).encode(),
+                        headers={"Content-Type": "application/json"})) as resp:
+                    ctype2 = resp.headers.get("Content-Type", "")
+                    again = json.loads(resp.read())
+                check("already-explained finding answers plain JSON, not SSE",
+                      "application/json" in ctype2
+                      and again.get("explanation", "").endswith("succeeded."))
+
+                # Empty stream -> honest error event, nothing stored.
+                finding2 = {"id": "d1", "sev": "HIGH", "type": "possible_break_in",
+                            "title": "x", "timeline": [{"line": 5}]}
+                serve.STATE["findings"].append(finding2)
+
+                def empty_stream(*a, **k):
+                    return iter(())
+                la.chat_completion_stream = empty_stream
+                with urllib.request.urlopen(urllib.request.Request(
+                        f"http://127.0.0.1:{port}/api/explain",
+                        data=json.dumps({"id": "d1", "stream": True}).encode(),
+                        headers={"Content-Type": "application/json"})) as resp:
+                    body2 = resp.read().decode()
+                frames2 = [json.loads(l[len("data:"):].strip())
+                           for l in body2.splitlines() if l.startswith("data:")]
+                check("empty stream -> honest error event, never a made-up answer",
+                      any("error" in f for f in frames2)
+                      and not finding2.get("explanation"))
+            finally:
+                srv.shutdown()
+
+            # --- unit: remote mode streams through the redact choke point ---
+            la.chat_completion_stream = fake_stream
+            captured.clear()
+            finding3 = {"id": "d2", "sev": "CRITICAL", "type": "auth_bruteforce_success",
+                        "title": "t", "timeline": [{"line": 2}]}
+            serve.STATE["findings"].append(finding3)
+            deltas_gen, sent = serve.explain_finding_stream(
+                finding3, serve.STATE,
+                compute={"mode": "remote", "baseUrl": "http://example.invalid/v1"})
+            list(deltas_gen)                       # drive the fake stream
+            check("remote stream counts outbound redacted lines", sent == 1, str(sent))
+            check("remote stream prompt is REDACTED (raw IP never leaves)",
+                  "203.0.113.99" not in captured.get("user", "")
+                  and captured.get("user"))
+    finally:
+        (serve.RUNS_DIR, serve.STATE_FILE, serve.STATE, serve.CURRENT_RUN_FILE,
+         la.chat_completion_stream) = real
+        serve.set_compute({"mode": "local"})
+
+    return 0 if all(results) else 1
+
+
 def check_rules_parity():
     """H1 latency-gate parity — the gated rule sweep must be BYTE-IDENTICAL to
     the ungated per-pattern semantics it replaced.
@@ -3741,16 +3882,17 @@ def main():
     validate_ = check_validate_real()
     formats_ = check_formats_universal()
     parity_ = check_rules_parity()
+    explstream_ = check_explain_stream()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_ or parity_):
+            or formats_ or parity_ or explstream_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "+ rules-parity checks green")
+          "+ rules-parity + explain-stream checks green")
     return 0
 
 
