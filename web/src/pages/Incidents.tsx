@@ -49,7 +49,7 @@ function RcaPanel({ incidentId }: { incidentId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-md border p-3">
+      <div className="rounded-md border p-3" data-testid="rca-facts">
         <div className="mb-1 text-[9.5px] uppercase tracking-wide text-muted-foreground">
           Cluster facts · deterministic
         </div>
@@ -84,7 +84,7 @@ function RcaPanel({ incidentId }: { incidentId: string }) {
         )}
       </div>
 
-      <div className="rounded-md border p-3">
+      <div className="rounded-md border p-3" data-testid="rca-runbook">
         <div className="mb-1 text-[9.5px] uppercase tracking-wide text-muted-foreground">
           Runbook citation · retrieved, never forced
         </div>
@@ -104,7 +104,7 @@ function RcaPanel({ incidentId }: { incidentId: string }) {
         )}
       </div>
 
-      <div className="rounded-md border p-3">
+      <div className="rounded-md border p-3" data-testid="rca-hypothesis">
         <div className="mb-1 flex items-center gap-2">
           <span className="text-[9.5px] uppercase tracking-wide text-muted-foreground">
             Root-cause hypothesis
