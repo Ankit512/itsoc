@@ -627,6 +627,40 @@ def ask_analyst_stream(question, state=None, compute=None):
     yield from la.chat_completion_stream(base, key, model, ASK_SYSTEM_STREAM, user)
 
 
+RCA_SYSTEM_PROMPT = (
+    "You assist a SOC analyst with an ADVISORY root-cause hypothesis. You will "
+    "receive deterministic incident facts and possibly a cited runbook passage. "
+    'Reply as a JSON object: {"hypothesis": "2-4 plain sentences"}. Use only '
+    "entities present in the input; never rate, change, or dispute severity — "
+    "that verdict is owned by deterministic rules.")
+
+
+def rca_hypothesis_fn():
+    """The injected LLM callable for soc.derive_rca — or None, honestly.
+
+    Local compute only: RCA facts name real hosts/IPs, and the only sanctioned
+    remote egress is the redaction choke point in explain_finding(). Remote
+    mode or an unreachable endpoint therefore degrades the hypothesis layer to
+    an honest absence; the deterministic facts and runbook layers still serve.
+    """
+    if COMPUTE.get("mode") == "remote" or not llm_reachable():
+        return None
+
+    def ask(prompt):
+        # chat_completion pins response_format to a JSON object, so the prose
+        # travels inside {"hypothesis": ...}; anything off-shape becomes "",
+        # which derive_rca reports as an honest "no hypothesis".
+        reply = la.chat_completion(la.LLM_BASE_URL, la.LLM_API_KEY,
+                                   la.LLM_MODEL, RCA_SYSTEM_PROMPT, prompt)
+        try:
+            parsed = json.loads(la.strip_fences(reply))
+        except (json.JSONDecodeError, TypeError):
+            return ""
+        text = parsed.get("hypothesis") if isinstance(parsed, dict) else ""
+        return text if isinstance(text, str) else ""
+    return ask
+
+
 def carry_marks(previous, state):
     """Keep marks when the SAME run is published again (rules-only, then explained).
 
@@ -1303,6 +1337,10 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             self._json({"incidents": soc.list_incidents(
                 STATE, state_filter=(qs.get("state") or [None])[0])})
+        elif path.startswith("/api/incidents/") and path.endswith("/rca"):
+            rca = soc.derive_rca(path.split("/")[3], STATE,
+                                 hypothesis_fn=rca_hypothesis_fn())
+            self._json(rca) if rca else self._json({"error": "no such incident"}, 404)
         elif path.startswith("/api/incidents/"):
             inc = soc.get_incident(path.split("/")[3])
             self._json(inc) if inc else self._json({"error": "no such incident"}, 404)

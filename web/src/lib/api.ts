@@ -208,6 +208,8 @@ export interface Rca {
   hypothesis: RcaHypothesis;
 }
 
+
+
 export interface Asset {
   id: string; name: string; kind: "host" | "ip";
   events: number; findings: number; atRisk: boolean;
