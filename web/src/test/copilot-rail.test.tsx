@@ -11,7 +11,7 @@ import { renderApp, mockFetch, consoleState, finding, OVERVIEW } from "./helpers
  *  (3) Honest forecast,
  *  (4) Prioritize (Start here),
  *  (5) Cited resolution via runbook engine.
- *  Asserts verbatim footer: "Rules set severity. I interpret & explain — I don't decide."
+ *  Asserts verbatim footer: "Rules set the severity. I explain & prioritize — I don't decide."
  *  Asserts advisory boundaries: never fabricates, never decides or changes severity.
  */
 
@@ -67,7 +67,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
 
     // Verbatim footer requirement:
     const footer = screen.getByTestId("copilot-footer");
-    expect(footer).toHaveTextContent("Rules set severity. I interpret & explain — I don't decide.");
+    expect(footer).toHaveTextContent("Rules set the severity. I explain & prioritize — I don't decide.");
 
     // Advisory disclaimer text:
     expect(screen.getByText(/never changed here/i)).toBeInTheDocument();

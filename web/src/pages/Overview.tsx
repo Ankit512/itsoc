@@ -9,10 +9,8 @@ import { Link } from "react-router-dom";
 import { api, type Delta, type Metrics, type OverviewData } from "@/lib/api";
 import { sevVar } from "@/lib/severity";
 import { Card, CardContent } from "@/components/ui/card";
-import { SeverityDonut } from "@/components/charts/SeverityDonut";
 import { AlertsOverTime } from "@/components/charts/AlertsOverTime";
 import { TacticBars } from "@/components/charts/TacticBars";
-import { AiAnalyst } from "@/components/AiAnalyst";
 import { UnrecognizedBanner } from "@/components/UnrecognizedBanner";
 import { useUi } from "@/store/ui";
 
@@ -148,7 +146,7 @@ export function Overview() {
       <Card className="border-dashed">
         <CardContent className="p-6 text-[12.5px] text-muted-foreground">
           {(data as { error: string } | undefined)?.error ?? "No run yet"} — upload a
-          log above or open <Link className="text-primary underline" to="/alerts">Alerts</Link>.
+          log above or open <Link className="text-primary underline" to="/findings">Findings</Link>.
           No sample data is shown in its place.
         </CardContent>
       </Card>
@@ -164,32 +162,31 @@ export function Overview() {
       {unparsed && (
         <p className="text-[12px] text-muted-foreground" style={{ color: "var(--sev-medium)" }}>
           The counts below are all zero because <b>nothing was parsed</b>, not
-          because nothing was found. Open <Link className="underline" to="/alerts">Alerts</Link>{" "}
+          because nothing was found. Open <Link className="underline" to="/findings">Findings</Link>{" "}
           for the run details.
         </p>
       )}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2.5">
-        <KpiCard label="Total Alerts" count={k.total} delta={k.deltas.total} icon={Bell} />
+        <KpiCard label="Total" count={k.total} delta={k.deltas.total} icon={Bell} />
         <KpiCard label="Critical" count={k.critical} delta={k.deltas.critical} icon={OctagonAlert} color={sevVar("CRITICAL")} />
         <KpiCard label="High" count={k.high} delta={k.deltas.high} icon={CircleAlert} color={sevVar("HIGH")} />
         <KpiCard label="Medium" count={k.medium} delta={k.deltas.medium} icon={CircleArrowDown} color={sevVar("MEDIUM")} />
         <KpiCard label="Low" count={k.low} delta={k.deltas.low} icon={ShieldCheck} color={sevVar("LOW")} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-stretch gap-4">
+      {/* Reference layout (design_itsoc_overview.html §2): a wide "Findings over
+          time" stacked-bar panel beside a "Top ATT&CK tactics" bar panel. No
+          donut — the severity mix already reads from the five KPI tiles above. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] items-stretch gap-4">
         <div className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-3.5 text-[13.5px] font-semibold">Alerts by Severity</h3>
-          <SeverityDonut data={overview.severityDonut} />
-        </div>
-        <div className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-3.5 text-[13.5px] font-semibold">Alerts Over Time</h3>
+          <h3 className="mb-3.5 text-[13.5px] font-semibold">Findings over time</h3>
           <AlertsOverTime data={overview.alertsOverTime} />
         </div>
         <div className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-[13.5px] font-semibold">Top Attack Tactics (MITRE)</h3>
+            <h3 className="text-[13.5px] font-semibold">Top ATT&amp;CK tactics</h3>
             <span className="rounded-full border border-border px-2 py-0.5 text-[9.5px] text-muted-foreground">
-              derived tags — not verdicts
+              derived · not a verdict
             </span>
           </div>
           <TacticBars data={overview.mitreTactics} />
@@ -198,9 +195,9 @@ export function Overview() {
 
       <div className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-[13.5px] font-semibold">Latest Alerts</h3>
+          <h3 className="text-[13.5px] font-semibold">Latest findings</h3>
           <span className="text-[11.5px] text-muted-foreground">
-            {overview.latestAlerts.length} most recent of {k.total} · drill into Alerts for evidence
+            {overview.latestAlerts.length} most recent of {k.total} · drill into Findings for evidence
           </span>
         </div>
         <div className="overflow-x-auto">
@@ -211,7 +208,7 @@ export function Overview() {
                 <th className={th}>Severity</th>
                 <th className={th}>Attacker Status</th>
                 <th className={th}>Primary MITRE Tactics</th>
-                <th className={`${th} min-w-[300px]`}>Alert Name / Description</th>
+                <th className={`${th} min-w-[300px]`}>Finding / Description</th>
                 <th className={th}>Source</th>
                 <th className={th}>Action</th>
               </tr>
@@ -220,7 +217,7 @@ export function Overview() {
               {overview.latestAlerts.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-3 py-4 text-center text-muted-foreground">
-                    No alerts in this window.
+                    No findings in this window.
                   </td>
                 </tr>
               )}
@@ -259,7 +256,7 @@ export function Overview() {
                   <td className={td}>
                     <span className="inline-flex items-center gap-2.5 text-muted-foreground">
                       <Link to={`/alerts?sel=${encodeURIComponent(a.id)}`}
-                            title="View this finding's evidence in Alerts" aria-label="View finding"
+                            title="View this finding's evidence in Findings" aria-label="View finding"
                             className="inline-flex hover:text-foreground">
                         <Eye className="h-4 w-4" strokeWidth={1.8} aria-hidden />
                       </Link>
@@ -283,8 +280,6 @@ export function Overview() {
       </div>
 
       <OpsFooter />
-
-      <AiAnalyst model={overview.model} />
     </div>
   );
 }

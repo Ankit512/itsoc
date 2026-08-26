@@ -19,89 +19,66 @@
       lazy aliases of those triplets: custom properties substitute at the
       element that USES them, so a single alias block tracks both themes with
       zero duplicated values. New/reskinned components should consume THESE.
+      This is the ONLY definition of these names — no competing literal block.
 
+   Palette VALUES track the authoritative visual reference
+   docs/design/reference/design_itsoc_overview.html (both themes).
    ONE accent (§2): violet #6d5cf0 (light) / #7c6cff (dark) — carried by
    --primary/--ring/--acc; --accent(-foreground) are its tint/shade for
    active-nav fill and accessible text on the tint.
 
    The severity status palette stays as raw values (charts read them via
    style="fill:var(--sev-*)"; CSS var() is invalid in SVG presentation
-   attributes, so never fill="var()"). Both severity quartets were validated
-   with the dataviz six-checks script against their surface (light #f4f5f8 ·
-   dark #232532). Color is never the only signal: severity names and counts
-   always render as text beside it.
+   attributes, so never fill="var()"). Color is never the only signal:
+   severity names and counts always render as text beside it.
    ========================================================================== */
 @layer base {
   :root,
   [data-theme="light"] {
-    --background: 228 22% 96%;        /* #f4f5f8 */
-    --foreground: 225 33% 15%;        /* #1a2033 */
-    --card: 0 0% 100%;
-    --card-foreground: 225 33% 15%;
-    --muted: 228 18% 92%;
-    --muted-foreground: 227 10% 43%;  /* #5a6172-ish */
-    --primary: 246.9 83.1% 65.1%;     /* #6d5cf0 — THE accent (light), spec §2 */
+    /* Reference palette (docs/design/reference/design_itsoc_overview.html), light. */
+    --background: 220 23.1% 97.5%;    /* bg  #f7f8fa */
+    --foreground: 222 23.8% 8.2%;     /* ink #10131a */
+    --card: 0 0% 100%;                /* panel  #ffffff */
+    --card-foreground: 222 23.8% 8.2%;
+    --muted: 240 33.3% 98.8%;         /* panel2 #fbfbfd */
+    --muted-foreground: 220.6 13.2% 46.1%; /* mut #667085 */
+    --primary: 246.9 83.1% 65.1%;     /* acc #6d5cf0 — THE accent (light), spec §2 */
     --primary-foreground: 0 0% 100%;
     --accent: 247 84% 96%;            /* accent tint for active nav */
     --accent-foreground: 247 75% 45%; /* accent shade, readable on the tint */
-    --border: 231 24% 91%;            /* #e4e6ee */
-    --input: 231 24% 91%;
+    --border: 225 19% 91.8%;          /* bd  #e6e8ee */
+    --input: 225 19% 91.8%;
     --ring: 246.9 83.1% 65.1%;
 
-    --sev-critical: #991b1b;
-    --sev-high: #ea580c;
-    --sev-medium: #caa204;
-    --sev-low: #166534;
-
-    /* itsoc. canonical design tokens (TOKENS.md) */
-    --bg: #f6f7f9;
-    --pan: #ffffff;
-    --pan2: #fbfbfd;
-    --bd: #e7e9ef;
-    --ink: #12141a;
-    --mut: #6a7385;
-    --acc: #6d5cf0;
-    --crit: #df4650;
-    --high: #d98600;
-    --med: #b08a00;
-    --low: #12a37e;
+    --sev-critical: #e5484d;
+    --sev-high: #e08600;
+    --sev-medium: #b08900;
+    --sev-low: #12a382;
 
     --shadow: 0 1px 2px rgba(26, 32, 51, 0.06), 0 4px 14px rgba(26, 32, 51, 0.06);
   }
 
   .dark,
   [data-theme="dark"] {
-    --background: 233 26% 12%;        /* #161826 */
-    --foreground: 240 9% 92%;         /* #e9e9ed */
-    --card: 232 17% 17%;              /* #232532 */
-    --card-foreground: 240 9% 92%;
-    --muted: 231 14% 22%;
-    --muted-foreground: 229 15% 72%;  /* #b2b6ca-ish */
-    --primary: 246.5 100% 71.2%;      /* #7c6cff — THE accent (dark), spec §2 */
-    --primary-foreground: 233 26% 12%;
+    /* Reference palette (docs/design/reference/design_itsoc_overview.html), dark. */
+    --background: 222.9 24.1% 5.7%;   /* bg  #0b0d12 */
+    --foreground: 220 23.1% 92.4%;    /* ink #e7eaf0 */
+    --card: 222 21.7% 9%;             /* panel  #12151c */
+    --card-foreground: 220 23.1% 92.4%;
+    --muted: 220 24.3% 7.3%;          /* panel2 #0e1117 */
+    --muted-foreground: 220 12.6% 57.8%;   /* mut #868fa1 */
+    --primary: 246.5 100% 71.2%;      /* acc #7c6cff — THE accent (dark), spec §2 */
+    --primary-foreground: 0 0% 100%;
     --accent: 247 28% 28%;            /* accent tint for active nav */
     --accent-foreground: 247 91% 83%; /* accent shade, readable on the tint */
-    --border: 240 9% 92% / 0.14;
-    --input: 240 9% 92% / 0.14;
+    --border: 222.4 21.5% 15.5%;      /* bd  #1f2430 */
+    --input: 222.4 21.5% 15.5%;
     --ring: 246.5 100% 71.2%;
 
-    --sev-critical: #b25353;
-    --sev-high: #cd8036;
-    --sev-medium: #827208;
-    --sev-low: #3f9f83;
-
-    /* itsoc. canonical design tokens (TOKENS.md) */
-    --bg: #0d0e12;
-    --pan: #14161d;
-    --pan2: #101218;
-    --bd: #1d212b;
-    --ink: #e9ebf1;
-    --mut: #828b9c;
-    --acc: #7c6cff;
-    --crit: #f0616d;
-    --high: #f2a33c;
-    --med: #d6b02e;
-    --low: #33c895;
+    --sev-critical: #f4525f;
+    --sev-high: #f5a524;
+    --sev-medium: #d9b310;
+    --sev-low: #2bd4a4;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.3);
   }

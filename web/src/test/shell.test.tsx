@@ -18,8 +18,9 @@ describe("itsoc. Phase 1 App Shell", () => {
   it("renders core nav items (Overview · Findings · Incidents · Sources · Settings) + Logout", async () => {
     renderApp(<App />);
     await screen.findByTestId("wordmark");
+    // "Overview" also appears as the page-title heading, so allow more than one.
     for (const item of ["Overview", "Findings", "Incidents", "Sources", "Settings", "Logout"]) {
-      expect(screen.getByText(item)).toBeInTheDocument();
+      expect(screen.getAllByText(item).length).toBeGreaterThan(0);
     }
     // Logout is an honest local action (a link to /logout), not a fake auth flow.
     expect(screen.getByText("Logout").closest("a")).toHaveAttribute("href", "/logout");
@@ -45,7 +46,7 @@ describe("itsoc. Phase 1 App Shell", () => {
   it("renders the top bar header actions and ⌘K trigger", async () => {
     renderApp(<App />);
     await screen.findByTestId("wordmark");
-    expect(screen.getByRole("heading", { name: "SOC Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
     expect(screen.getByText("Upload Logs")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /filters/i })).toBeDisabled();

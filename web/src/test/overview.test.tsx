@@ -1,5 +1,4 @@
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import App from "@/App";
 import { renderApp, mockFetch, consoleState, OVERVIEW, METRICS } from "./helpers";
 
@@ -17,12 +16,13 @@ describe("Overview page (v6)", () => {
   it("renders KPIs, charts, tactics and latest alerts from /api/overview", async () => {
     renderApp(<App />);
 
-    expect(await screen.findByText("Total Alerts")).toBeInTheDocument();
-    // "31" appears in the KPI card AND the donut center — both are correct.
-    expect(screen.getAllByText("31").length).toBeGreaterThanOrEqual(2);
+    expect(await screen.findByText("Total")).toBeInTheDocument();
+    // The severity mix reads from the five KPI tiles; the reference has no donut.
+    expect(screen.getAllByText("31").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("22").length).toBeGreaterThanOrEqual(1);
 
-    expect(screen.getByTestId("chart-donut")).toBeInTheDocument();
+    // Reference §2: "Findings over time" + "Top ATT&CK tactics" panels, no donut.
+    expect(screen.queryByTestId("chart-donut")).not.toBeInTheDocument();
     expect(screen.getByTestId("chart-overtime")).toBeInTheDocument();
     expect(screen.getAllByTestId("chart-tactic").length).toBe(2);
 
@@ -50,7 +50,7 @@ describe("Overview page (v6)", () => {
 
   it("shows a real delta ONLY where a prior period exists", async () => {
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total");
     expect(screen.getAllByText(/vs previous/).length).toBe(1);
     expect(screen.getByText(/12% vs previous/)).toBeInTheDocument();
     // The four KPIs without a prior period say so instead of showing nothing.
@@ -68,16 +68,16 @@ describe("Overview page (v6)", () => {
     expect(screen.getByText(/derived, never invented/)).toBeInTheDocument();
   });
 
-  it("keeps the AI analyst advisory-only, behind the floating button", async () => {
+  it("docks the AI analyst as an advisory rail (reference §2 three-column shape)", async () => {
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
-    // Closed on first paint so the panel never covers the dashboard.
-    expect(screen.queryByText(/never changed here/)).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Open AI Analyst" }));
+    await screen.findByText("Total");
+    // The analyst is a docked rail, always present and advisory-labeled — it
+    // reads verdicts, never sets them, and says so in its footer verbatim.
+    expect(screen.getByTestId("copilot-dock")).toBeInTheDocument();
     expect(screen.getByText(/never changed here/)).toBeInTheDocument();
-    expect(screen.getByText("Model: llama3.1:8b")).toBeInTheDocument();
-    expect(screen.getByText("What are the recent attack patterns?")).toBeInTheDocument();
+    expect(screen.getByTestId("copilot-footer")).toHaveTextContent(
+      "Rules set the severity. I explain & prioritize — I don't decide.",
+    );
   });
 
   it("no run yet -> says so, never sample numbers", async () => {

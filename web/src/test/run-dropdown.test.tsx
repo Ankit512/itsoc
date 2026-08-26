@@ -24,7 +24,7 @@ describe("run switching via the header dropdown", () => {
       String(u).includes("/api/open") ? open() : realFetch(u, init)));
 
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total");
 
     const select = await screen.findByRole("combobox", { name: "Select run" });
     // The dropdown is the run selector: the current run is selected, both runs listed.
@@ -43,7 +43,7 @@ describe("run switching via the header dropdown", () => {
       "/api/runs": { current: null, runs: [] },
     });
     renderApp(<App />);
-    await screen.findByText("Total Alerts");
+    await screen.findByText("Total");
     expect(await screen.findByText("No runs yet")).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Select run" })).not.toBeInTheDocument();
   });

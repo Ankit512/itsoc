@@ -248,7 +248,7 @@ function IncidentDetail({ inc }: { inc: Incident }) {
             {inc.findingIds.map((fid) => (
               <a key={fid} href={`/alerts?sel=${encodeURIComponent(fid)}`}
                 className="rounded border border-border bg-card px-2 py-0.5 font-mono text-[10.5px] hover:bg-muted transition-colors"
-                title="Open this finding in Alerts">
+                title="Open this finding in Findings">
                 {fid}
               </a>
             ))}

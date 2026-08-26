@@ -10,6 +10,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { RunHistory } from "@/components/RunHistory";
 import { RunSwitcher } from "@/components/RunSwitcher";
 import { CommandPalette } from "@/components/CommandPalette";
+import { CopilotRail } from "@/components/CopilotRail";
 import { IngestNotifier } from "@/components/IngestNotifier";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useJobs } from "@/store/jobs";
@@ -43,9 +44,9 @@ export const EXPERIMENTAL_NAV = [
 export const NAV = [...CORE_NAV, ...EXPERIMENTAL_NAV];
 
 const TITLES: Record<string, { title: string; subtitle: string }> = {
-  "/": { title: "SOC Dashboard", subtitle: "Security Overview" },
-  "/alerts": { title: "Findings", subtitle: "Alerts & Detections" },
-  "/findings": { title: "Findings", subtitle: "Alerts & Detections" },
+  "/": { title: "Overview", subtitle: "security posture" },
+  "/alerts": { title: "Findings", subtitle: "Detections & evidence" },
+  "/findings": { title: "Findings", subtitle: "Detections & evidence" },
   "/incidents": { title: "Incidents", subtitle: "Incident Management & RCA" },
   "/collectors": { title: "Sources", subtitle: "Live Collectors & Syslog" },
   "/sources": { title: "Sources", subtitle: "Live Collectors & Syslog" },
@@ -192,7 +193,7 @@ function Sidebar() {
 }
 
 const ACCEPTED_TITLE =
-  "Accepted: LOG, TXT, CSV, TSV, JSON, XML, HTML, RAW — anything that reads as plain text. Analyzed locally by the rules engine; results open in Alerts. Windows EVTX (.evtx) is ingested into the persistent store and appears on the History page.";
+  "Accepted: LOG, TXT, CSV, TSV, JSON, XML, HTML, RAW — anything that reads as plain text. Analyzed locally by the rules engine; results open in Findings. Windows EVTX (.evtx) is ingested into the persistent store and appears on the History page.";
 
 function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const startUpload = useJobs((s) => s.startUpload);
@@ -366,7 +367,7 @@ function Header({ onOpenUpload }: { onOpenUpload: () => void }) {
         </button>
         <button
           disabled
-          title="Filtering is not built yet — alert filters live on the Alerts page"
+          title="Filtering is not built yet — finding filters live on the Findings page"
           className={cn(chip, "cursor-not-allowed opacity-50")}
         >
           <Filter className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} aria-hidden />
@@ -423,6 +424,11 @@ export function AppShell() {
   const { pathname } = useLocation();
   const [uploadOpen, setUploadOpen] = useState(false);
 
+  // The copilot is a docked right rail (reference §2 three-column shape:
+  // nav · content · analyst rail), rendered on wide screens. It is hidden on
+  // the logout screen. One instance only — no duplicate floating launcher.
+  const showCopilot = pathname !== "/logout";
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar />
@@ -431,6 +437,15 @@ export function AppShell() {
         {pathname === "/" && <RunFacts />}
         <Outlet />
       </main>
+
+      {showCopilot && (
+        <aside
+          data-testid="copilot-dock"
+          className="hidden xl:flex w-[300px] flex-none flex-col border-l border-border bg-muted/40 p-3.5"
+        >
+          <CopilotRail docked />
+        </aside>
+      )}
 
       <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} />
       <CommandPalette onUploadClick={() => setUploadOpen(true)} />

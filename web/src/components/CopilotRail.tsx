@@ -117,7 +117,7 @@ export function CopilotRail({
   const projectedFindings = Math.round(avgFindingsPerRun);
 
   // Role 5: Resolution runbook match
-  const matchedRunbook = selectedRca && !("error" in selectedRca) && selectedRca.runbook.matched
+  const matchedRunbook = selectedRca && !("error" in selectedRca) && selectedRca.runbook?.matched
     ? selectedRca.runbook : undefined;
 
   // Elapsed timer while streaming
@@ -588,7 +588,7 @@ export function CopilotRail({
         data-testid="copilot-footer"
         className="cop-f border-t pt-2 text-[11px] font-medium text-muted-foreground"
       >
-        Rules set severity. I interpret &amp; explain — I don&apos;t decide.
+        Rules set the severity. I explain &amp; prioritize — I don&apos;t decide.
       </div>
     </section>
   );
