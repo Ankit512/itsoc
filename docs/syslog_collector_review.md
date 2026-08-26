@@ -30,28 +30,25 @@ only, loopback-default bind, TCP support, store-contract docs.*
 | TCP support | **DROPPED.** The rewrite is UDP-only. The surface is honest about it (`protocol: "UDP"` everywhere), so nothing is faked — but reliable delivery / RFC 6587-framed relays are no longer servable. Not a quick fix (framing + connection lifecycle); recommendation below. |
 | Store-contract docs | **KEPT.** Writes go through `store.insert_event` (dedup by `event_hash`); the contract and its severity-pass-through honesty model are documented in `console/store.py` and `docs/soc_command_center.md`. |
 
-## Residual observations (not fixed here — deliberate)
+## Hardening follow-up (implemented on `feat/collector-hardening`)
 
-1. **Default port set includes 513.** `start()` with no args binds 513/514/1514;
-   UDP 513 is legacy who/rlogin territory, not syslog. The HTTP route only ever
-   opens a single port (default 1514), so the web path is unaffected, and the
-   loopback default bounds the exposure — but trimming `DEFAULT_PORTS` to
-   `(514, 1514)` would be a one-line tightening. Behavior change → owner's call.
-2. **`SO_REUSEADDR` on the UDP sockets.** UDP has no TIME_WAIT, so the flag buys
-   nothing here — and on this platform it lets another local process bind the
-   same port and split the stream. Loopback-only default keeps it local-attacker
-   territory. Dropping the setsockopt is a one-liner; owner's call.
-3. **`_store()` re-imports `store` and calls `init_db()` per datagram.** Both are
-   idempotent, so this is a per-event perf nit, not an honesty gap.
-4. Parse failures increment `errors` with `lastError` — visible, not silent. Fine.
+1. **Port 513 removed.** Defaults are now `(514, 1514)`; callers may still pass
+   any explicit valid port, so only the incorrect implicit bind was removed.
+2. **UDP `SO_REUSEADDR` removed.** The listener owns its UDP port exclusively,
+   preventing another local process from splitting the stream. TCP retains the
+   option because connection TIME_WAIT makes it necessary for clean restarts.
+3. **Store initialization moved out of the hot path.** `store` imports once and
+   `init_db()` runs once at collector startup; `_store()` only inserts.
+4. **TCP restored with RFC 6587 framing.** Each configured port binds UDP and
+   TCP. TCP accepts both octet-counting and LF-delimited non-transparent framing,
+   including fragmented/coalesced reads, with a bounded receive buffer and
+   verbatim payload storage. Compatibility tests exercise all four cases over
+   real loopback sockets.
+5. **Duplicate root collector removed.** `console/syslog_collector.py` is again
+   the single implementation, avoiding import-order-dependent status behavior.
 
 ## Recommendation
 
-**KEEP the rewrite** with the two parse fixes landed on this branch. It preserves
-the load-bearing honesty properties (source severity, loopback default, verbatim
-raw, honest status/errors) and adds genuinely better observability. **HARDEN
-selectively, at the owner's discretion:** (a) reinstate a TCP listener with RFC
-6587 octet-counting/LF framing if relayed/reliable delivery still matters — this
-is the one real capability regression left; (b) trim 513 from `DEFAULT_PORTS`;
-(c) drop `SO_REUSEADDR`. None of (a)–(c) is forced here because each changes
-behavior someone may rely on; all are small, reviewable diffs.
+**KEEP the hardened rewrite.** It preserves source severity, loopback default,
+verbatim raw, and honest status/errors while restoring reliable TCP delivery and
+removing the three bounded safety/performance issues above.
