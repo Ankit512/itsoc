@@ -2722,7 +2722,7 @@ def check_syslog():
 
     Unit level: PRI severity is SOURCE-REPORTED (decoded from the PRI, never
     guessed), raw is verbatim, no-PRI => empty severity. Live level: a real UDP
-    packet to a loopback listener lands in the store as a syslog event, status
+    packets to loopback UDP/TCP listeners land in the store as syslog events, status
     reflects the true running/stopped/received state, and a bad bind/port is an
     honest error, not a fake 'running'. Runs against a temp store DB.
     """
@@ -2754,6 +2754,9 @@ def check_syslog():
             store.SOC_DIR = Path(tmp)
             store.DB_PATH = Path(tmp) / "soc_history.db"
             store.init_db()
+
+            check("default ports are syslog ports only (legacy UDP 513 removed)",
+                  sc.DEFAULT_PORTS == (514, 1514), str(sc.DEFAULT_PORTS))
 
             # --- unit: severity is the source's PRI level, never guessed -----
             # parse_syslog now takes (data: bytes, src_ip, src_port, listen_port).
@@ -2809,10 +2812,35 @@ def check_syslog():
                 collector.stop()
             check("collector binds a loopback UDP port and reports running",
                   port and collector.status()["running"], collector.status().get("error"))
+            check("collector restores both UDP and TCP protocols on the configured port",
+                  collector.status().get("protocols") == ["udp", "tcp"]
+                  and {(l["protocol"], l["port"]) for l in collector.status()["listeners"]}
+                  == {("UDP", port), ("TCP", port)}, str(collector.status()))
             # The rewritten collector reports per-listener binds instead of a
             # single "exposed" flag: not-exposed == no listener on 0.0.0.0.
             check("a freshly started loopback listener is not network-exposed",
                   all(l["bind"] != "0.0.0.0" for l in collector.status()["listeners"]))
+
+            # UDP deliberately has no SO_REUSEADDR: a second local socket must
+            # not be able to bind and split the stream.
+            competitor = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            competitor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            udp_exclusive = False
+            try:
+                competitor.bind(("127.0.0.1", port))
+            except OSError:
+                udp_exclusive = True
+            finally:
+                competitor.close()
+            check("UDP bind is exclusive (no SO_REUSEADDR stream splitting)", udp_exclusive)
+
+            # init_db belongs to listener startup, not the per-message hot path.
+            original_init = store.init_db
+            init_calls = {"n": 0}
+            def counted_init():
+                init_calls["n"] += 1
+                return original_init()
+            store.init_db = counted_init
 
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.sendto(b"<13>Aug 19 10:00:00 host1 app: hello over udp", ("127.0.0.1", port))
@@ -2837,6 +2865,42 @@ def check_syslog():
             hosts = {i["host"] for i in q["items"]}
             check("stored host is the envelope origin, not 127.0.0.1",
                   hosts == {"host1", "host2"}, str(hosts))
+            check("store schema initialization is not repeated per UDP datagram",
+                  init_calls["n"] == 0, str(init_calls["n"]))
+
+            # --- live: RFC 6587 TCP framing --------------------------------
+            octet_a = b"<14>Oct 11 22:14:15 tcp-a app: fragmented frame"
+            octet_b = b"<11>1 2003-10-11T22:14:15.003Z tcp-b svc - ID9 - coalesced frame"
+            wire = (str(len(octet_a)).encode() + b" " + octet_a
+                    + str(len(octet_b)).encode() + b" " + octet_b)
+            with socket.create_connection(("127.0.0.1", port), timeout=2) as tcp:
+                tcp.sendall(wire[:9])
+                tcp.sendall(wire[9:])
+            with socket.create_connection(("127.0.0.1", port), timeout=2) as tcp:
+                tcp.sendall(b"<13>Oct 11 22:14:16 tcp-c app: line one\n"
+                            b"<12>Oct 11 22:14:17 tcp-d app: line two\n")
+
+            def tcp_received():
+                return sum(l["received"] for l in collector.status()["listeners"]
+                           if l["protocol"] == "TCP")
+            deadline = time.time() + 3
+            while tcp_received() < 4 and time.time() < deadline:
+                time.sleep(0.05)
+            check("RFC6587 handles fragmented/coalesced octet frames and LF frames",
+                  tcp_received() == 4, str(tcp_received()))
+            tq = store.query("events", filters={"source_type": "syslog:tcp"})
+            tcp_raw = {i["raw"] for i in tq["items"]}
+            check("TCP stores exactly the four verbatim RFC6587 payloads",
+                  tq["total"] == 4 and tcp_raw == {
+                      octet_a.decode(), octet_b.decode(),
+                      "<13>Oct 11 22:14:16 tcp-c app: line one",
+                      "<12>Oct 11 22:14:17 tcp-d app: line two",
+                  }, str(tcp_raw))
+            check("TCP PRI severity remains source-reported",
+                  {i["raw"]: i["severity"] for i in tq["items"]}.get(octet_b.decode()) == "ERROR")
+            check("store schema initialization is not repeated per TCP frame",
+                  init_calls["n"] == 0, str(init_calls["n"]))
+            store.init_db = original_init
 
             stopped = collector.stop()
             check("stop() leaves the listener honestly not-running", stopped["running"] is False)
@@ -2891,6 +2955,8 @@ def check_syslog():
             srv.shutdown()
     finally:
         collector.stop()
+        if "original_init" in locals():
+            store.init_db = original_init
         store.SOC_DIR, store.DB_PATH = real
 
     return 0 if all(results) else 1
