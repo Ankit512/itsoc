@@ -1,29 +1,36 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut } from "lucide-react";
+import { LogOut, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useUi } from "@/store/ui";
 import { useJobs } from "@/store/jobs";
+import { useAuth } from "@/context/AuthContext";
 
-/** Logout — honest for a local, single-user tool. There is NO server auth,
- *  account, or session to end, so this does not fake one. What it offers is a
- *  real, clearly-labelled action: clear the local UI state (saved theme, the
- *  background upload job, search) back to a neutral default. */
+/** Logout — honest for a local, single-profile demo tool.
+ *  Signs out of the active local demo session token, revokes backend session,
+ *  and resets local browser UI state back to neutral default.
+ */
 export function Logout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const resetUi = useUi((s) => s.resetUi);
   const resetJobs = useJobs((s) => s._reset);
+  const { logout, user } = useAuth();
   const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const clearLocal = () => {
-    resetUi();
-    resetJobs();
-    // Server data is fetched fresh; drop any cached queries so nothing stale
-    // lingers in the neutral state.
-    queryClient.clear();
-    setDone(true);
+  const handleSignOut = async () => {
+    setLoading(true);
+    try {
+      await logout();
+      resetUi();
+      resetJobs();
+      queryClient.clear();
+      setDone(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -36,37 +43,52 @@ export function Logout() {
           </div>
 
           <p className="mt-3 text-[13px] leading-normal text-muted-foreground">
-            This console is a <span className="font-semibold text-foreground">local, single-user
-            tool</span>. There is no account, no login, and no server session —
-            so there is nothing to actually sign out of, and this screen does not
-            pretend otherwise.
+            Sign out of this <span className="font-semibold text-foreground">local demo session</span>.
+            {user ? (
+              <> Currently active as <code className="rounded bg-muted px-1.5 py-0.5 text-[12px] font-medium text-foreground">{user.username}</code> ({user.role}).</>
+            ) : null}
           </p>
           <p className="mt-2 text-[13px] leading-normal text-muted-foreground">
-            What it can do is clear this browser’s local UI state back to a neutral
-            default: forget your saved theme, dismiss any in-progress upload
-            notification, and clear the current search. Your analyzed runs live on
-            the backend and are untouched.
+            Signing out revokes your local session token and resets this browser’s UI state (saved theme,
+            active notifications, and cached queries) back to a neutral default. Your analyzed runs,
+            incidents, and findings live on the backend and are untouched.
           </p>
 
           {done ? (
             <div className="mt-4 rounded-md border bg-background p-3 text-[12.5px] text-muted-foreground">
-              Local UI state cleared. You are on a neutral, signed-out screen —
-              there was no session to end.
-              <div className="mt-2">
-                <button onClick={() => navigate("/")}
-                  className="rounded-md border border-primary bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground hover:opacity-90">
-                  Back to dashboard
+              <div className="flex items-center gap-2 font-medium text-foreground">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                <span>Signed out of local demo session.</span>
+              </div>
+              <p className="mt-1 text-[12px]">Local UI state and session tokens have been cleared.</p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => navigate("/login")}
+                  className="rounded-md border border-primary bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground hover:opacity-90"
+                >
+                  Sign in again
+                </button>
+                <button
+                  onClick={() => navigate("/")}
+                  className="rounded-md border px-3 py-1.5 text-[12.5px] hover:border-primary"
+                >
+                  View dashboard
                 </button>
               </div>
             </div>
           ) : (
             <div className="mt-4 flex items-center gap-2">
-              <button onClick={clearLocal}
-                className="rounded-md border border-primary bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground hover:opacity-90">
-                Clear local UI state
+              <button
+                onClick={handleSignOut}
+                disabled={loading}
+                className="rounded-md border border-primary bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {loading ? "Signing out..." : "Sign out of local session"}
               </button>
-              <button onClick={() => navigate("/")}
-                className="rounded-md border px-3 py-1.5 text-[12.5px] hover:border-primary">
+              <button
+                onClick={() => navigate("/")}
+                className="rounded-md border px-3 py-1.5 text-[12.5px] hover:border-primary"
+              >
                 Cancel
               </button>
             </div>

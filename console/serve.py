@@ -55,14 +55,15 @@ ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 
 import adapter  # noqa: E402
+import auth  # noqa: E402  # local demo auth + swap seam (Phase 6)
+import discovery  # noqa: E402  # nmap discovery + vuln scan -> store (socf-discovery)
+import evtx_ingest  # noqa: E402  # Windows .evtx ingest -> store (socf-evtx-history)
 import export  # noqa: E402
 import redact  # noqa: E402
 import soc  # noqa: E402
 import store  # noqa: E402  # persistent SOC Command Center store (console/store.py)
 import syslog_collector  # noqa: E402  # live syslog listener -> store (socf-syslog)
-import discovery  # noqa: E402  # nmap discovery + vuln scan -> store (socf-discovery)
 import ti_oem  # noqa: E402  # TI enrichment (OTX/AbuseIPDB) + OEM polling (socf-ti-oem)
-import evtx_ingest  # noqa: E402  # Windows .evtx ingest -> store (socf-evtx-history)
 
 # OEM/TI fence: the ti_oem connectors poll EXTERNAL vendor APIs and accept
 # credentials. Off by default; the operator opts in per process with
@@ -1348,6 +1349,11 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json({"available": evtx_ingest.evtx_available(),
                         "message": "" if evtx_ingest.evtx_available()
                         else evtx_ingest.EVTX_MISSING_MSG})
+        # --- Auth endpoints (Phase 6: demo polish + swap seam) --------------
+        elif path == "/api/auth/status":
+            self._json(auth.AUTH_PROVIDER.get_status())
+        elif path == "/api/auth/me":
+            self._auth_me()
         elif path.startswith("/api/"):
             # An unknown /api path is a real 404 — never fall through to the SPA
             # (that would return HTML for a missing endpoint and mask the bug).
@@ -1451,6 +1457,13 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         # --- Windows EVTX ingest (socf-evtx-history) -----------------------
         elif path == "/api/evtx/ingest":
             self._evtx_ingest()
+        # --- Auth endpoints (Phase 6: demo polish + swap seam) --------------
+        elif path == "/api/auth/signup":
+            self._auth_signup()
+        elif path == "/api/auth/login":
+            self._auth_login()
+        elif path == "/api/auth/logout":
+            self._auth_logout()
         else:
             self.send_error(405, "This console only accepts POST /api/analyze")
 
@@ -2104,6 +2117,59 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         STATE["marks"] = marks
         persist_state()
         return self._json({"marks": marks})
+
+    # --- Phase 6: Auth handlers (local demo + swap seam) -------------------
+    def _get_auth_token(self):
+        auth_hdr = self.headers.get("Authorization", "")
+        if auth_hdr.startswith("Bearer "):
+            return auth_hdr[7:].strip()
+        return self.headers.get("X-Auth-Token", "").strip()
+
+    def _auth_me(self):
+        token = self._get_auth_token()
+        user = auth.AUTH_PROVIDER.authenticate_token(token)
+        if user:
+            self._json({"user": user, "authenticated": True})
+        else:
+            self._json({"user": None, "authenticated": False, "error": "unauthenticated"}, 401)
+
+    def _auth_signup(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            return self._json({"error": "bad request: invalid JSON"}, 400)
+        username = payload.get("username")
+        passphrase = payload.get("passphrase") or payload.get("password")
+        role = payload.get("role", "analyst")
+        try:
+            user, token = auth.AUTH_PROVIDER.signup(username, passphrase, role=role)
+            return self._json({"user": user, "token": token, "authenticated": True}, 201)
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        except Exception as exc:
+            return self._json({"error": f"signup failed: {exc}"}, 500)
+
+    def _auth_login(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            return self._json({"error": "bad request: invalid JSON"}, 400)
+        username = payload.get("username")
+        passphrase = payload.get("passphrase") or payload.get("password")
+        try:
+            user, token = auth.AUTH_PROVIDER.login(username, passphrase)
+            return self._json({"user": user, "token": token, "authenticated": True})
+        except PermissionError as exc:
+            return self._json({"error": str(exc)}, 401)
+        except Exception as exc:
+            return self._json({"error": f"login failed: {exc}"}, 500)
+
+    def _auth_logout(self):
+        token = self._get_auth_token()
+        auth.AUTH_PROVIDER.logout(token)
+        return self._json({"ok": True})
 
     def log_message(self, fmt, *args):
         # Format first: log_error() passes (code, message), so indexing args and

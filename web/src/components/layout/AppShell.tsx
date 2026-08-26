@@ -13,6 +13,7 @@ import { IngestNotifier } from "@/components/IngestNotifier";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useJobs } from "@/store/jobs";
 import { isBlobPageUrl, rawFileUrl } from "@/lib/rawUrl";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 /** The uniform v6 shell: every route renders inside this exact frame, so the
@@ -49,12 +50,13 @@ const TITLES: Record<string, string> = {
 };
 
 function Sidebar() {
+  const { user } = useAuth();
   return (
     <aside className="flex w-[172px] flex-none flex-col border-r bg-card px-3 py-[18px]">
       <div className="px-2.5 pb-[22px]">
         <ShieldCheck className="h-[34px] w-[34px] text-primary" strokeWidth={1.8} role="img" aria-label="itsoc" />
       </div>
-      <nav aria-label="Main" className="flex flex-col gap-[3px]">
+      <nav aria-label="Main" className="flex flex-1 flex-col gap-[3px]">
         {NAV.map(({ to, label, icon: Icon, ready }) => (
           <NavLink
             key={to}
@@ -72,20 +74,29 @@ function Sidebar() {
             {label}
           </NavLink>
         ))}
-        <NavLink
-          to="/logout"
-          title="Local single-user tool — no server session; clears local UI state"
-          className={({ isActive }) =>
-            cn(
-              "mt-8 flex items-center gap-[11px] rounded-md px-[11px] py-[9px] text-left text-[13.5px] text-muted-foreground hover:bg-background",
-              isActive && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
-            )
-          }
-        >
-          <LogOut className="h-[17px] w-[17px] flex-none" strokeWidth={1.8} aria-hidden />
-          Logout
-        </NavLink>
       </nav>
+      {user && (
+        <div className="mt-4 border-t pt-3 px-1 text-[11.5px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 font-medium text-foreground">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+            <span className="truncate">{user.username}</span>
+          </div>
+          <div className="text-[10.5px] text-muted-foreground uppercase tracking-wider">{user.role}</div>
+        </div>
+      )}
+      <NavLink
+        to="/logout"
+        title="Sign out of this local demo session"
+        className={({ isActive }) =>
+          cn(
+            "mt-2 flex items-center gap-[11px] rounded-md px-[11px] py-[9px] text-left text-[13.5px] text-muted-foreground hover:bg-background",
+            isActive && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
+          )
+        }
+      >
+        <LogOut className="h-[17px] w-[17px] flex-none" strokeWidth={1.8} aria-hidden />
+        Logout
+      </NavLink>
     </aside>
   );
 }
