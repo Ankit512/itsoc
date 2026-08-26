@@ -42,10 +42,10 @@ function LiveStatus({ status }: { status?: SyslogStatus }) {
           </span>
         </StatusRow>
         <StatusRow label="Bind / port">
-          <span className="font-mono">{status ? `${status.bind}:${status.port}` : "—"}</span>
+          <span className="font-mono">{status?.bind && status?.port ? `${status.bind}:${status.port}` : "—"}</span>
         </StatusRow>
         <StatusRow label="Protocols">
-          <span className="font-mono">{status?.protocols?.join(" + ").toUpperCase() || "UDP + TCP"}</span>
+          <span className="font-mono">{status?.protocols?.join(" + ").toUpperCase() || "UDP"}</span>
         </StatusRow>
         <StatusRow label="Messages received">
           <span className="tabular-nums">{status?.receivedCount ?? 0}</span>

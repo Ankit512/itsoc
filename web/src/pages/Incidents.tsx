@@ -221,7 +221,14 @@ export function Incidents() {
                   >
                     <td className="px-2 py-2"><SeverityBadge severity={inc.severity} /></td>
                     <td className="px-2 py-2"><StateBadge state={inc.state} /></td>
-                    <td className="px-2 py-2 font-mono text-[11.5px]">{inc.entity}</td>
+                    <td className="px-2 py-2 font-mono text-[11.5px]">
+                      {inc.entity}
+                      {inc.isRollup && (
+                        <span className="ml-1.5 rounded border px-1 py-0.5 text-[9.5px] uppercase tracking-wide text-muted-foreground">
+                          rollup
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2 py-2 tabular-nums text-[12.5px]">{inc.findingCount}</td>
                     <td className="px-2 py-2 font-mono text-[11px] text-muted-foreground">
                       {inc.createdAt ?? "n/a"}

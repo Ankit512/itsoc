@@ -123,19 +123,26 @@ export function RunHistory() {
                           unparsed
                         </span>
                       )}
-                      <span className="ml-auto whitespace-nowrap tabular-nums text-muted-foreground">
+                      <span className="ml-auto whitespace-nowrap tabular-nums text-muted-foreground"
+                            title={r.findingSeverityCounts
+                              ? Object.entries(r.findingSeverityCounts)
+                                  .filter(([_, c]) => c > 0)
+                                  .map(([s, c]) => `${c} ${s.toLowerCase()} finding(s)`)
+                                  .join(", ") || `${r.findingCount ?? 0} finding(s)`
+                              : `${r.findingCount ?? 0} finding(s)`}>
                         {r.findingCount ?? 0} finding(s)
                       </span>
                     </span>
                     <span className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                       <span className="font-mono">{(r.generatedAt || "").slice(0, 16).replace("T", " ")}</span>
                       {r.dataComplete !== false ? (
-                        <span className="ml-auto flex items-center gap-1.5">
+                        <span className="ml-auto flex items-center gap-1.5" title="Events by severity level">
+                          <span className="text-[9.5px] uppercase tracking-wider text-muted-foreground">events:</span>
                           {SEV_ORDER.map((b) => {
                             const n = r.severityCounts?.[b] ?? 0;
                             return n > 0 ? (
-                              <span key={b} className="flex items-center gap-1 tabular-nums">
-                                <i className="h-2 w-2 rounded-full" style={{ background: sevVar(b) }} />
+                              <span key={b} className="flex items-center gap-1 tabular-nums" title={`${n} ${b.toLowerCase()} event(s)`}>
+                                <i className="h-2 w-2 rounded-full" style={{ background: sevVar(b) }} aria-hidden />
                                 {n}
                               </span>
                             ) : null;

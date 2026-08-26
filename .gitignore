@@ -38,3 +38,6 @@ __pycache__/
 report.json
 report.md
 state.json
+node_modules
+web/node_modules
+

@@ -360,6 +360,12 @@ def runs_summary():
         if not isinstance(freq, list):
             freq = adapter._mitre_frequency(s.get("findings", []))
 
+        findings_list = s.get("findings", [])
+        finding_sev_counts = {
+            b: sum(1 for f in findings_list if str(f.get("sev", "")).upper() == b)
+            for b in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+        }
+
         entry = {
             "file": r["file"],
             "runId": s.get("runId", ""),
@@ -368,6 +374,7 @@ def runs_summary():
             "linesParsed": s.get("linesParsed", 0),
             "findingCount": len(s.get("findings", [])),
             "severityCounts": {b: int(counts.get(b, 0)) for b in adapter.BUCKETS},
+            "findingSeverityCounts": finding_sev_counts,
             "topTechniques": freq[:5],
             "unrecognized": bool(s.get("unrecognized")),
             "dataComplete": data_complete,

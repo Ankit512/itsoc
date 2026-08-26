@@ -3299,17 +3299,19 @@ def check_evtx():
 
             # --- HTTP: /api/evtx/* + store history endpoints ----------------
             srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+            srv.daemon_threads = True
             hport = srv.server_address[1]
             threading.Thread(target=srv.serve_forever, daemon=True).start()
 
             def get(path):
-                with urllib.request.urlopen(f"http://127.0.0.1:{hport}{path}") as r:
+                req = urllib.request.Request(f"http://127.0.0.1:{hport}{path}", headers={"Connection": "close"})
+                with urllib.request.urlopen(req) as r:
                     return r.status, json.loads(r.read())
 
             def post_json(path, obj):
                 req = urllib.request.Request(
                     f"http://127.0.0.1:{hport}{path}", data=json.dumps(obj).encode(),
-                    headers={"Content-Type": "application/json"})
+                    headers={"Content-Type": "application/json", "Connection": "close"})
                 try:
                     with urllib.request.urlopen(req) as r:
                         return r.status, json.loads(r.read())
@@ -3324,7 +3326,7 @@ def check_evtx():
                     f"\r\n--{boundary}--\r\n".encode()
                 req = urllib.request.Request(
                     f"http://127.0.0.1:{hport}/api/evtx/ingest", data=body,
-                    headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+                    headers={"Content-Type": f"multipart/form-data; boundary={boundary}", "Connection": "close"})
                 try:
                     with urllib.request.urlopen(req) as r:
                         return r.status, json.loads(r.read())
@@ -3997,6 +3999,120 @@ def check_structured_output():
     return 0 if all(results) else 1
 
 
+def check_redesign_phase4():
+    """Redesign Phase 4 — backend quality and bug fixes (SPEC §3).
+
+    Checks:
+    1. Incident dedup/rollup: deduplicates identical findings/incident IDs and
+       consolidates single-finding low-severity noise into a rollup cluster.
+    2. Collectors bind/port: COLLECTOR.status() returns real bind, port, and
+       protocols instead of undefined.
+    3. Run-switcher severity counts: runs_summary() returns per-run findingSeverityCounts.
+    4. Severity-weighted asset/user risk: derive_assets and derive_users compute
+       riskScore and maxSeverity weighted by rule severity (CRITICAL=10..LOW=1).
+    5. Frozen detector sha is unchanged.
+    """
+    import hashlib
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import soc
+    import syslog_collector as sc
+    import serve
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nRedesign Phase 4 quality fixes (dedup/rollup, collectors bind/port, run counts, risk scoring):")
+
+    # 1. Detector freeze sha
+    sha = hashlib.sha256((ROOT / "anomaly_detector.py").read_bytes()).hexdigest()
+    check("anomaly_detector.py sha256 matches the baseline",
+          sha == "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876", sha)
+
+    # 2. Incident dedup & low-severity rollup
+    sample_state = {
+        "runId": "run-test-p4",
+        "findings": [
+            # Two duplicate findings with the same ID
+            {"id": "f-1", "type": "error_rate_spike", "sev": "LOW",
+             "stamp": "2026-08-20T10:00:00Z", "chips": [], "hostDerived": False},
+            {"id": "f-1", "type": "error_rate_spike", "sev": "LOW",
+             "stamp": "2026-08-20T10:00:00Z", "chips": [], "hostDerived": False},
+            # Multiple scattered single-finding LOW items for the same entity (>30 min apart)
+            {"id": "f-2", "type": "error_rate_spike", "sev": "LOW",
+             "stamp": "2026-08-20T12:00:00Z", "chips": [], "hostDerived": False},
+            {"id": "f-3", "type": "error_rate_spike", "sev": "LOW",
+             "stamp": "2026-08-20T15:00:00Z", "chips": [], "hostDerived": False},
+            # A distinct HIGH severity finding on an IP
+            {"id": "f-4", "type": "auth_bruteforce", "sev": "HIGH",
+             "stamp": "2026-08-20T10:05:00Z", "chips": [{"text": "10.0.0.5"}], "hostDerived": False},
+        ]
+    }
+    incs = soc.derive_incidents(sample_state)
+    inc_ids = [i["id"] for i in incs]
+    check("derive_incidents emits unique incident IDs (no duplicates)",
+          len(inc_ids) == len(set(inc_ids)) == 2, str(inc_ids))
+    low_rollup = next((i for i in incs if i["entity"] == "error_rate_spike"), None)
+    check("single-finding LOW noise rolled into a consolidated rollup cluster",
+          low_rollup is not None and low_rollup.get("isRollup") is True and low_rollup["findingCount"] == 3,
+          str(low_rollup))
+
+    # 3. Collectors bind and port
+    collector = sc.COLLECTOR
+    collector.stop()
+    status_stopped = collector.status()
+    check("stopped collector status has real bind and port (not undefined)",
+          status_stopped["bind"] == "127.0.0.1" and isinstance(status_stopped.get("port"), int)
+          and status_stopped["port"] > 0
+          and status_stopped["running"] is False and "udp" in status_stopped.get("protocols", []),
+          str(status_stopped))
+
+    # 4. Severity-weighted asset and user risk
+    asset_state = {
+        "events": [{"host": "web-prod-1", "ts": "2026-08-20T10:00:00Z", "msg": "login for user admin"}],
+        "findings": [
+            {"id": "f-crit", "host": "web-prod-1", "hostDerived": True, "sev": "CRITICAL",
+             "title": "Compromise for 'admin' on web-prod-1", "chips": [{"text": "10.0.0.1"}]},
+            {"id": "f-low", "host": "web-dev-2", "hostDerived": True, "sev": "LOW",
+             "title": "Low warning on web-dev-2", "chips": [{"text": "10.0.0.2"}]},
+        ]
+    }
+    assets = soc.derive_assets(asset_state)
+    users = soc.derive_users(asset_state)
+    top_asset = assets[0]
+    check("assets sorted by severity-weighted risk score (CRITICAL=10 > LOW=1)",
+          top_asset["name"] in ("web-prod-1", "10.0.0.1") and top_asset["riskScore"] >= 10
+          and top_asset["maxSeverity"] == "CRITICAL", str(assets))
+    check("users extracted and sorted by severity-weighted risk score",
+          len(users) == 1 and users[0]["name"] == "admin" and users[0]["riskScore"] == 10
+          and users[0]["maxSeverity"] == "CRITICAL", str(users))
+
+    # 5. Runs summary finding severity counts
+    with tempfile.TemporaryDirectory(prefix="p4-runs-") as tmp:
+        orig_runs = serve.RUNS_DIR
+        try:
+            serve.RUNS_DIR = Path(tmp)
+            (serve.RUNS_DIR / "run1.json").write_text(json.dumps({
+                "runId": "run1", "generatedAt": "2026-08-20T10:00:00Z",
+                "sourceLabel": "test.log", "linesParsed": 100,
+                "findings": [{"id": "1", "sev": "CRITICAL"}, {"id": "2", "sev": "HIGH"}, {"id": "3", "sev": "HIGH"}],
+                "severityCounts": {"CRITICAL": 10, "HIGH": 20, "MEDIUM": 0, "LOW": 70, "INFO": 0, "UNKNOWN": 0},
+            }))
+            sum_out = serve.runs_summary()
+            r0 = sum_out["runs"][0]
+            check("runs_summary includes findingSeverityCounts matching findings",
+                  r0.get("findingSeverityCounts") == {"CRITICAL": 1, "HIGH": 2, "MEDIUM": 0, "LOW": 0},
+                  str(r0.get("findingSeverityCounts")))
+        finally:
+            serve.RUNS_DIR = orig_runs
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -4054,16 +4170,17 @@ def main():
     parity_ = check_rules_parity()
     explstream_ = check_explain_stream()
     structured_ = check_structured_output()
+    phase4_ = check_redesign_phase4()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_ or parity_ or explstream_ or structured_):
+            or formats_ or parity_ or explstream_ or structured_ or phase4_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "+ rules-parity + explain-stream + structured-output checks green")
+          "+ rules-parity + explain-stream + structured-output + redesign-phase4 checks green")
     return 0
 
 
