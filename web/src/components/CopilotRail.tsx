@@ -38,76 +38,6 @@ const CONTEXTUAL_PROMPTS: Record<string, string[]> = {
   ],
 };
 
-const RUNBOOK_LIBRARY: Record<string, {
-  file: string;
-  title: string;
-  score: number;
-  coverage: number;
-  steps: string[];
-  evidence: string;
-}> = {
-  auth_bruteforce: {
-    file: "ssh-brute-force.md",
-    title: "SSH brute-force / credential attack response",
-    score: 21.85,
-    coverage: 1.0,
-    steps: [
-      "1. Block the source IP at the firewall; do not rely on the attacker giving up.",
-      "2. Review auth activity for the targeted username from other sources.",
-      "3. Check for username-spray shape across the fleet.",
-    ],
-    evidence: "Keep raw auth log lines for the full failure window plus 1 hour either side.",
-  },
-  auth_bruteforce_success: {
-    file: "ssh-brute-force.md",
-    title: "SSH brute-force / credential attack response",
-    score: 24.50,
-    coverage: 1.0,
-    steps: [
-      "1. Block the source IP at the firewall immediately.",
-      "2. Disable/lock targeted account, rotate credential, and invalidate active sessions.",
-      "3. Review lateral movement from the compromised account.",
-    ],
-    evidence: "Preserve the auth success log line, preceding failure sequence, and account audit trail.",
-  },
-  possible_break_in: {
-    file: "ssh-brute-force.md",
-    title: "SSH brute-force / credential attack response",
-    score: 18.20,
-    coverage: 1.0,
-    steps: [
-      "1. Verify reverse DNS mismatch on the connecting client IP.",
-      "2. Check if the source IP is a known scanner or proxy.",
-      "3. Enforce strict SSH key-only authentication.",
-    ],
-    evidence: "Keep the SSH disconnect/warning log line and source IP resolution records.",
-  },
-  disk_pressure: {
-    file: "disk-capacity.md",
-    title: "Disk capacity pressure response",
-    score: 16.40,
-    coverage: 1.0,
-    steps: [
-      "1. Identify the growing volume/path (logs, spool, temp, database files).",
-      "2. Free or expand storage before reaching 100% full.",
-      "3. Check for crash-looping services or runaway dump files.",
-    ],
-    evidence: "Record disk percentage readings and snapshot top directories on the affected volume.",
-  },
-  suspicious_outbound: {
-    file: "suspicious-outbound.md",
-    title: "Suspicious outbound connection (possible C2) response",
-    score: 19.80,
-    coverage: 1.0,
-    steps: [
-      "1. Identify the socket owner process on the source host (auditd / Sysmon).",
-      "2. If connection was allowed: isolate host from the network immediately.",
-      "3. If blocked: sweep host for initiating binary or scheduled task.",
-    ],
-    evidence: "Preserve firewall connection logs, destination IP, port, and process hashes.",
-  },
-};
-
 const FIRST_TOKEN_TIMEOUT_MS = 90_000;
 
 export type CopilotTab = "ask" | "prioritize" | "trend" | "forecast" | "resolution";
@@ -140,6 +70,12 @@ export function CopilotRail({
   const { data: state } = useQuery({ queryKey: ["consoleState"], queryFn: api.consoleState });
   const { data: overview } = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   const { data: runsSummary } = useQuery({ queryKey: ["runsSummary"], queryFn: api.runsSummary });
+  const selectedIncidentId = pathname === "/incidents" ? new URLSearchParams(search).get("sel") : null;
+  const { data: selectedRca } = useQuery({
+    queryKey: ["incidentRca", selectedIncidentId],
+    queryFn: () => api.incidentRca(selectedIncidentId!),
+    enabled: Boolean(selectedIncidentId),
+  });
 
   const effectiveModel =
     propModel ?? (overview && !("error" in overview) ? overview.model : null) ?? "not configured";
@@ -166,16 +102,23 @@ export function CopilotRail({
   const runs: RunsSummaryEntry[] = runsSummary?.runs ?? [];
   const totalRunsCount = runsSummary?.totals?.runCount ?? runs.length;
   const hasMultipleRuns = totalRunsCount >= 2;
+  const latestTechniques = new Map((runs[0]?.topTechniques ?? []).map((t) => [t.id, t]));
+  const previousTechniques = new Map((runs[1]?.topTechniques ?? []).map((t) => [t.id, t]));
+  const risingTechniques = [...latestTechniques.values()].filter(
+    (t) => t.count > (previousTechniques.get(t.id)?.count ?? 0)
+  );
+  const hasComparableTechniqueHistory = Boolean(runs[0]?.topTechniques && runs[1]?.topTechniques);
 
   // Role 3: Forecast computation (based on real runs)
   const hasEnoughRunsForForecast = totalRunsCount >= 3;
   const avgFindingsPerRun = runs.length > 0
     ? Math.round(runs.reduce((acc, r) => acc + (r.findingCount ?? 0), 0) / runs.length)
     : findings.length;
-  const projectedFindings = Math.max(1, Math.round(avgFindingsPerRun * 1.1));
+  const projectedFindings = Math.round(avgFindingsPerRun);
 
   // Role 5: Resolution runbook match
-  const matchedRunbook = priorityRule ? RUNBOOK_LIBRARY[priorityRule] : undefined;
+  const matchedRunbook = selectedRca && !("error" in selectedRca) && selectedRca.runbook.matched
+    ? selectedRca.runbook : undefined;
 
   // Elapsed timer while streaming
   useEffect(() => {
@@ -517,9 +460,18 @@ export function CopilotRail({
                       <span className="font-mono text-[11px] text-primary">{t.count} hits</span>
                     </li>
                   ))}
-                  {findings.some((f) => f.type?.includes("auth_bruteforce")) && (
-                    <li className="rounded bg-accent/50 p-1.5 text-[11px] text-accent-foreground">
-                      ▲ <b>Credential Access:</b> auth_bruteforce is rising across recent runs.
+                  {hasComparableTechniqueHistory ? risingTechniques.map((t) => (
+                    <li key={`rising-${t.id}`} className="rounded bg-accent/50 p-1.5 text-[11px] text-accent-foreground">
+                      ▲ <b>{t.name || t.id}:</b> {t.count - (previousTechniques.get(t.id)?.count ?? 0)} more hit(s) than the previous run.
+                    </li>
+                  )) : (
+                    <li className="rounded bg-muted/40 p-1.5 text-[11px] text-muted-foreground">
+                      Per-run technique history is unavailable — no direction is claimed.
+                    </li>
+                  )}
+                  {hasComparableTechniqueHistory && risingTechniques.length === 0 && (
+                    <li className="rounded bg-muted/40 p-1.5 text-[11px] text-muted-foreground">
+                      No technique increased between the two latest runs.
                     </li>
                   )}
                 </ul>
@@ -574,7 +526,7 @@ export function CopilotRail({
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  ▲ Trending: Elevated credential attempts based on observed run acceleration.
+                  Flat historical-average baseline; no acceleration or attack type is inferred.
                 </p>
               </div>
             ) : (
@@ -611,17 +563,14 @@ export function CopilotRail({
               </div>
               <div className="space-y-1 rounded bg-card p-2 text-[11.5px]">
                 <div className="font-semibold text-foreground">Immediate steps:</div>
-                {matchedRunbook.steps.map((st, i) => (
-                  <p key={i} className="text-muted-foreground">{st}</p>
-                ))}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                <b>Preserve:</b> {matchedRunbook.evidence}
+                <p className="whitespace-pre-wrap text-muted-foreground">{matchedRunbook.passage}</p>
               </div>
             </div>
           ) : (
             <div className="rounded-lg border bg-background p-3 text-[12px] text-muted-foreground">
-              no runbook match — below citation bar (score &lt; 1.0 or coverage &lt; 50%).
+              {selectedIncidentId
+                ? "No runbook cleared the backend citation threshold for this incident."
+                : "Select an incident to request its real derive_rca runbook result."}
             </div>
           )}
         </div>

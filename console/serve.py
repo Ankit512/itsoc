@@ -1289,8 +1289,20 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
     def _json(self, obj, status=200):
         self._send(json.dumps(obj).encode(), "application/json; charset=utf-8", status)
 
+    def _api_authorized(self, path):
+        """Fail-closed gate for backend data/actions; only bootstrap auth is public."""
+        if path in ("/api/auth/status", "/api/auth/signup", "/api/auth/login"):
+            return True
+        token = self._get_auth_token()
+        if auth.AUTH_PROVIDER.authenticate_token(token):
+            return True
+        self._json({"error": "unauthenticated"}, 401)
+        return False
+
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
+        if (path.startswith("/api/") or path == "/console_state.json") and not self._api_authorized(path):
+            return
         # The React SOC app now owns '/', '/alerts', and every client route
         # (served from web/dist by the SPA-fallback in _serve_web). The old
         # vanilla pages stay reachable under /legacy/* for existing bookmarks.
@@ -1449,6 +1461,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         global STATE, CURRENT_RUN_FILE
         path = urllib.parse.urlparse(self.path).path
+        if path.startswith("/api/") and not self._api_authorized(path):
+            return
         if path == "/api/analyze":
             self._analyze()
         elif path == "/api/progress":
@@ -2183,6 +2197,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         try:
             user, token = auth.AUTH_PROVIDER.signup(username, passphrase, role=role)
             return self._json({"user": user, "token": token, "authenticated": True}, 201)
+        except PermissionError as exc:
+            return self._json({"error": str(exc)}, 409)
         except ValueError as exc:
             return self._json({"error": str(exc)}, 400)
         except Exception as exc:

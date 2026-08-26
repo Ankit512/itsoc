@@ -27,10 +27,27 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CONSOLE_HTML = HERE / "anomaly_console.html"
+_AUTH_TEST_TMP = None
+_AUTH_TEST_TOKEN = None
+
+
+def enable_test_api_auth():
+    """Authenticate all suite HTTP helpers against the real centralized gate."""
+    global _AUTH_TEST_TMP, _AUTH_TEST_TOKEN
+    sys.path.insert(0, str(HERE))
+    import auth
+    _AUTH_TEST_TMP = tempfile.TemporaryDirectory(prefix="console-auth-")
+    auth.AUTH_PROVIDER = auth.LocalDemoAuth(Path(_AUTH_TEST_TMP.name))
+    _user, token = auth.AUTH_PROVIDER.signup("suite-analyst", "suite-passphrase")
+    _AUTH_TEST_TOKEN = token
+    opener = urllib.request.build_opener()
+    opener.addheaders = [("Authorization", f"Bearer {token}")]
+    urllib.request.install_opener(opener)
 
 # A live state in console/adapter.py's shape. Hand-written so the test needs no
 # analyzer run: two rule findings that disagree with the model, one that agrees,
@@ -2234,7 +2251,9 @@ def check_stream():
 
     def open_stream(port, source, last_event_id=None):
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=25)
-        headers = {"Last-Event-ID": last_event_id} if last_event_id else {}
+        headers = {"Authorization": f"Bearer {_AUTH_TEST_TOKEN}"}
+        if last_event_id:
+            headers["Last-Event-ID"] = last_event_id
         conn.request("GET", "/api/stream?source="
                      + urllib.parse.quote(source, safe=""), headers=headers)
         return conn, conn.getresponse()
@@ -2256,7 +2275,8 @@ def check_stream():
             try:
                 # --- whitelist: same boundary as /api/analyze ---------------
                 conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-                conn.request("GET", "/api/stream?source=/etc/passwd")
+                conn.request("GET", "/api/stream?source=/etc/passwd",
+                             headers={"Authorization": f"Bearer {_AUTH_TEST_TOKEN}"})
                 r = conn.getresponse()
                 body = json.loads(r.read() or b"{}")
                 check("arbitrary path is refused with an honest 400",
@@ -4277,6 +4297,7 @@ def main():
         if result.stderr.strip():
             print(result.stderr.strip()[:800])
 
+    enable_test_api_auth()
     routing = check_server_routing()
     log360 = check_log360()
     logcat_ = check_logcat()

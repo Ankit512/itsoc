@@ -1,9 +1,21 @@
+import { getToken } from "@/lib/auth";
+
 /** Typed client for the EXISTING Python console API (serve.py, 127.0.0.1:8765).
  *  Every shape below mirrors what the backend actually emits today — nothing
  *  here invents fields the server does not send. The Phase B SOC subsystems
  *  (console/soc.py, contract in docs/soc_subsystems.md) are consumed only
  *  where a page exists for them: the Overview's ops footer reads /api/metrics,
  *  which aggregates incidents, assets, users and run history server-side. */
+
+// One authenticated transport for every backend call in this module. It adds
+// only Authorization, so multipart FormData keeps its browser-generated
+// Content-Type boundary and callers retain their existing headers/signals.
+const fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  return globalThis.fetch(input, { ...init, headers });
+};
 
 export interface Delta { pct: number; dir: "up" | "down" }
 

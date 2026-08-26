@@ -32,12 +32,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setTokenState] = useState<string | null>(() => getToken());
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const t = getToken();
-    return t ? { username: "analyst", role: "analyst" } : null;
-  });
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [status, setStatus] = useState<AuthStatus | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const checkAuth = async () => {
     try {

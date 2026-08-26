@@ -45,7 +45,7 @@ describe("Auth subsystem & login screen (Phase 6)", () => {
     await userEvent.click(createTab);
 
     expect(screen.getByRole("button", { name: /create local profile/i })).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toBeInTheDocument(); // Role select
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("submits login and stores token on success", async () => {
@@ -86,6 +86,14 @@ describe("Auth subsystem & login screen (Phase 6)", () => {
     await userEvent.click(submitBtn);
 
     expect(await screen.findByText(/invalid username or passphrase/i)).toBeInTheDocument();
+  });
+
+  it("fails closed when a stored token cannot be verified", async () => {
+    localStorage.setItem("itsoc_auth_token", "stale-token");
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("backend unavailable"); }));
+    renderApp(<App />, { route: "/", token: "stale-token" });
+    expect(await screen.findByRole("button", { name: "Sign In" })).toBeInTheDocument();
+    expect(authLib.getToken()).toBeNull();
   });
 
   it("shows already signed in banner when profile is authenticated", async () => {

@@ -11,7 +11,6 @@ export function Login() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [username, setUsername] = useState("analyst");
   const [passphrase, setPassphrase] = useState("");
-  const [role, setRole] = useState<"analyst" | "admin" | "viewer">("analyst");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,7 +35,7 @@ export function Login() {
     setSubmitting(true);
     try {
       if (mode === "signup") {
-        await signup(username.trim(), passphrase, role);
+        await signup(username.trim(), passphrase);
       } else {
         await login(username.trim(), passphrase);
       }
@@ -155,21 +154,6 @@ export function Login() {
               </div>
             </div>
 
-            {mode === "signup" && (
-              <div>
-                <label className="block text-[12px] font-medium text-muted-foreground">Role</label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as "analyst" | "admin" | "viewer")}
-                  className="mt-1 w-full rounded-lg border bg-background py-2 px-3 text-[13px] focus:border-primary focus:outline-hidden"
-                >
-                  <option value="analyst">SOC Analyst</option>
-                  <option value="admin">Administrator</option>
-                  <option value="viewer">Read-only Viewer</option>
-                </select>
-              </div>
-            )}
-
             <button
               type="submit"
               disabled={submitting}
@@ -190,7 +174,7 @@ export function Login() {
           <div className="mt-4 rounded-md border border-border/70 bg-muted/30 p-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
             <span className="font-semibold text-foreground">Quick demo:</span> Log in with username{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">analyst</code>{" "}
-            and any passphrase. If no profile exists, one is auto-initialized.
+            and its passphrase. If no profile exists, choose Create Profile first.
           </div>
         </div>
 

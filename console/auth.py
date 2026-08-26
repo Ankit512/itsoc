@@ -77,7 +77,7 @@ class BaseAuthProvider(abc.ABC):
 
     @abc.abstractmethod
     def signup(self, username: str, passphrase: str, role: str = "analyst") -> tuple[dict, str]:
-        """Register or reset the profile. Returns (user_dict, token)."""
+        """Create the one local profile. Existing profiles are never replaced."""
         pass
 
     @abc.abstractmethod
@@ -135,13 +135,16 @@ class LocalDemoAuth(BaseAuthProvider):
         }
 
     def signup(self, username: str, passphrase: str, role: str = "analyst") -> tuple[dict, str]:
+        if self._load_profile() is not None:
+            raise PermissionError("A local profile already exists; sign in instead")
         username = str(username or "").strip()
         if not username:
             raise ValueError("username cannot be empty")
         if len(passphrase or "") < 4:
             raise ValueError("passphrase must be at least 4 characters")
-        if role not in ("analyst", "admin", "viewer"):
-            role = "analyst"
+        # This demo is not RBAC. Never let an unauthenticated caller mint an
+        # elevated identity by choosing a role in the signup payload.
+        role = "analyst"
 
         hashed, salt_hex = _hash_passphrase(passphrase)
         profile = {
@@ -161,9 +164,6 @@ class LocalDemoAuth(BaseAuthProvider):
         username = str(username or "").strip()
         profile = self._load_profile()
         if not profile:
-            # If no profile yet and logging in as analyst/admin, auto-seed demo profile for friction-free demos
-            if username in ("analyst", "admin", "demo") and passphrase:
-                return self.signup(username, passphrase, role="admin" if username == "admin" else "analyst")
             raise PermissionError("No local profile created yet. Please create a profile first.")
 
         if profile.get("username") != username:

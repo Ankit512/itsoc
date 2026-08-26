@@ -55,7 +55,7 @@ export function clearToken(): void {
   }
 }
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   const token = getToken();
   return {
     "Content-Type": "application/json",
@@ -101,13 +101,14 @@ export async function getMe(): Promise<AuthUser | null> {
         clearToken();
         return null;
       }
-      // Unrouted endpoint in mock or server starting up: retain session if token present
-      return { username: "analyst", role: "analyst" };
+      clearToken();
+      return null;
     }
     const data = (await res.json()) as { user: AuthUser | null };
     return data.user ?? null;
   } catch {
-    return token ? { username: "analyst", role: "analyst" } : null;
+    clearToken();
+    return null;
   }
 }
 
