@@ -3012,6 +3012,7 @@ def check_ti_oem():
     sys.path.insert(0, str(ROOT))
     sys.path.insert(0, str(HERE))
     import http.server
+    import os
     import threading
     import urllib.error
     import urllib.request
@@ -3029,6 +3030,7 @@ def check_ti_oem():
 
     real = (store.SOC_DIR, store.DB_PATH)
     real_bases = (ti_oem.OTX_BASE, ti_oem.ABUSE_BASE)
+    real_fence = os.environ.get("ITSOC_OEM")
     try:
         with tempfile.TemporaryDirectory(prefix="ti-oem-test-") as tmp:
             store.SOC_DIR = Path(tmp)
@@ -3152,6 +3154,19 @@ def check_ti_oem():
                 except urllib.error.HTTPError as e:
                     return e.code, json.loads(e.read())
 
+            # --- FENCE: off-by-default, honest 403, read-only GETs open ------
+            os.environ.pop("ITSOC_OEM", None)
+            for fp, fbody in (("/api/ti/enrich", {"ip": "8.8.8.8"}),
+                              ("/api/oem/connectors", {"name": "Fenced"}),
+                              ("/api/oem/poll", {"name": "Fenced"})):
+                s_f, b_f = post(fp, fbody)
+                check(f"POST {fp} without ITSOC_OEM=1 -> 403 honest fence error",
+                      s_f == 403 and "ITSOC_OEM=1" in (b_f.get("error") or ""),
+                      f"{s_f} {b_f}")
+            check("fenced connector create stored nothing",
+                  ti_oem.connector_view("Fenced") is None)
+            os.environ["ITSOC_OEM"] = "1"
+
             s_keys, keys = get("/api/ti/keys")
             check("GET /api/ti/keys reports presence only (no values)",
                   s_keys == 200 and keys.get("otx") is True and keys.get("abuseipdb") is True, str(keys))
@@ -3168,6 +3183,10 @@ def check_ti_oem():
     finally:
         ti_oem.OTX_BASE, ti_oem.ABUSE_BASE = real_bases
         store.SOC_DIR, store.DB_PATH = real
+        if real_fence is None:
+            os.environ.pop("ITSOC_OEM", None)
+        else:
+            os.environ["ITSOC_OEM"] = real_fence
 
     return 0 if all(results) else 1
 
