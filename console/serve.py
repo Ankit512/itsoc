@@ -63,6 +63,20 @@ import syslog_collector  # noqa: E402  # live syslog listener -> store (socf-sys
 import discovery  # noqa: E402  # nmap discovery + vuln scan -> store (socf-discovery)
 import ti_oem  # noqa: E402  # TI enrichment (OTX/AbuseIPDB) + OEM polling (socf-ti-oem)
 import evtx_ingest  # noqa: E402  # Windows .evtx ingest -> store (socf-evtx-history)
+
+# OEM/TI fence: the ti_oem connectors poll EXTERNAL vendor APIs and accept
+# credentials. Off by default; the operator opts in per process with
+# ITSOC_OEM=1 (checked at request time so tests can toggle it).
+OEM_FENCE_MSG = ("OEM/TI external connectors are disabled — this console makes no "
+                 "outbound vendor-API calls and accepts no connector credentials "
+                 "by default. Start the server with ITSOC_OEM=1 to opt in to "
+                 "external egress.")
+
+
+def oem_egress_enabled():
+    return os.environ.get("ITSOC_OEM", "").strip() == "1"
+
+
 sys.path.insert(0, str(ROOT))
 import log_analyzer as la  # noqa: E402
 import normalize  # noqa: E402  # envelope parser — streamed lines use the SAME one
@@ -1540,7 +1554,21 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
     # come from the provider's / vendor's real response, never keyword-guessed.
     # A missing key or a failed call is an honest state, never a fabricated hit.
     # Enter TI keys via POST /api/store/settings (otx_api_key/abuseipdb_api_key).
+    #
+    # FENCE (off-by-default): these connectors reach OUT to external vendor
+    # APIs and accept credentials — both outside the console's local-by-default
+    # posture. Every egress/credential route below refuses with an honest 403
+    # unless the server was started with ITSOC_OEM=1. Read-only views
+    # (templates, key presence, connector list) stay open — they make no
+    # external call and return no secret.
     # -----------------------------------------------------------------------
+    def _oem_fenced(self):
+        """True (after sending the honest 403) when OEM/TI egress is fenced."""
+        if oem_egress_enabled():
+            return False
+        self._json({"error": OEM_FENCE_MSG}, 403)
+        return True
+
     def _read_json_body(self):
         """Read a JSON object body, or None after sending a 400 error."""
         length = int(self.headers.get("Content-Length") or 0)
@@ -1555,6 +1583,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         return payload
 
     def _ti_enrich(self):
+        if self._oem_fenced():
+            return
         payload = self._read_json_body()
         if payload is None:
             return
@@ -1566,6 +1596,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         return self._json(result, 400 if result.get("error") else 200)
 
     def _oem_create_connector(self):
+        if self._oem_fenced():
+            return
         payload = self._read_json_body()
         if payload is None:
             return
@@ -1585,6 +1617,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         return self._json(view)
 
     def _oem_poll(self):
+        if self._oem_fenced():
+            return
         payload = self._read_json_body()
         if payload is None:
             return
@@ -2192,8 +2226,11 @@ def main():
     store.init_db()   # ensure the SOC Command Center store exists before serving
     # OEM poller (socf-ti-oem): polls each ENABLED, configured connector on its
     # interval. Idle until the user enables one; a placeholder base URL is never
-    # called. Runs as a daemon thread, so it dies with the process.
-    ti_oem.POLLER.start()
+    # called. Runs as a daemon thread, so it dies with the process. FENCED
+    # off-by-default: polling is outbound network egress, so the engine only
+    # starts when the operator opted in with ITSOC_OEM=1.
+    if oem_egress_enabled():
+        ti_oem.POLLER.start()
     with tempfile.TemporaryDirectory(prefix="anomaly-console-") as tmp:
         WORKDIR = tmp
         try:
@@ -2257,6 +2294,12 @@ def main():
             print(f"  serving run id : {STATE['runId']}")
             print(f"  generated at   : {STATE.get('generatedAt', '')[:19]}")
         print("  Re-running serve.py replaces this run at the same URL — just refresh.")
+        if oem_egress_enabled():
+            print("  OEM/TI connectors: ENABLED (ITSOC_OEM=1) — enabled connectors "
+                  "poll external vendor APIs.")
+        else:
+            print("  OEM/TI connectors: disabled (no external egress; start with "
+                  "ITSOC_OEM=1 to enable).")
         print("  Ctrl-C to stop.\n", flush=True)
 
         if not args.no_open:
