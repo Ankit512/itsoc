@@ -273,32 +273,54 @@ def save_run(state):
     return path.name
 
 
+# list_runs() is on the hot path of /api/runs, /api/metrics and /api/overview,
+# and used to re-parse every saved run file (748KB across 25 files in a real
+# history) on every call. Cache each file's nav entry keyed by (mtime, size):
+# an unchanged file costs a stat, a rewritten one (e.g. a reviewer marking a
+# finding) re-parses, a deleted one drops out. Values are copied on return so
+# no caller can mutate the cache.
+_RUNS_CACHE = {}   # file name -> ((mtime_ns, size), entry dict)
+
+
 def list_runs():
     """Saved runs, newest first, as navigation entries."""
     if not RUNS_DIR.exists():
         return []
-    out = []
+    out, seen = [], set()
     for path in sorted(RUNS_DIR.glob("*.json"), key=lambda f: f.name, reverse=True):
         try:
-            s = json.loads(path.read_text())
+            st = path.stat()
+            key = (st.st_mtime_ns, st.st_size)
+            cached = _RUNS_CACHE.get(path.name)
+            if cached and cached[0] == key:
+                entry = cached[1]
+            else:
+                s = json.loads(path.read_text())
+                entry = {
+                    "marked": len(s.get("marks") or {}),
+                    "file": path.name,
+                    "runId": s.get("runId", path.stem),
+                    "label": s.get("sourceLabel", ""),
+                    "generatedAt": s.get("generatedAt", ""),
+                    "findings": len(s.get("findings", [])),
+                    "unrecognized": bool(s.get("unrecognized")),
+                    "compareRun": bool(s.get("compareRun")),
+                }
+                _RUNS_CACHE[path.name] = (key, entry)
         except (OSError, json.JSONDecodeError):
             continue
-        out.append({
-            "marked": len(s.get("marks") or {}),
-            "file": path.name,
-            "runId": s.get("runId", path.stem),
-            "label": s.get("sourceLabel", ""),
-            "generatedAt": s.get("generatedAt", ""),
-            "findings": len(s.get("findings", [])),
-            "unrecognized": bool(s.get("unrecognized")),
-            "compareRun": bool(s.get("compareRun")),
-        })
+        seen.add(path.name)
+        out.append(dict(entry))
+    for gone in set(_RUNS_CACHE) - seen:
+        _RUNS_CACHE.pop(gone, None)
     return out
 
 
 def load_run(name):
-    """Reopen a saved run. Name is matched against the index, never joined blindly."""
-    if name not in {r["file"] for r in list_runs()}:
+    """Reopen a saved run. Name is matched against the directory's real file
+    names, never joined blindly. (It used to validate via list_runs(), which
+    parsed EVERY run file per load — making runs_summary O(N²) JSON parses.)"""
+    if not RUNS_DIR.exists() or name not in {p.name for p in RUNS_DIR.glob("*.json")}:
         raise ValueError("no such run")
     return json.loads((RUNS_DIR / name).read_text())
 
