@@ -8,11 +8,10 @@ over the two benchmark logs, with temperature 0, and records per model:
   - warm median latency per model call (call 1 pays the model load, so it is
     excluded from the median once there is more than one call). Calls may run
     LLM_WORKERS-wide, so per-call latency and wall time are reported separately.
-  - schema-valid vs invalid reply counts. This app always requests
-    response_format={"type": "json_object"} (log_analyzer.chat_completion), so
-    "structured output" here means json_object decoding — parseability is
-    endpoint-guaranteed; SHAPE validity is checked with la.validate_response,
-    the same check the analyzer itself applies.
+  - schema-valid vs invalid reply counts (SHAPE validity per
+    la.validate_response, the analyzer's own check), plus the run's
+    structured_output metadata ("on" = json_schema-constrained decoding,
+    "off", or "fallback:<reason>" when the endpoint rejected the schema).
   - findings counts by source — with the RULE-OWNED findings ASSERTED identical
     across models: rules own severity and correlation, so a model swap that
     changes a rule verdict is a bug this tool must surface, never hide. Rule
@@ -60,8 +59,9 @@ HOW_TO_PICK = """\
 
 - Set the winner via the `LLM_MODEL` env var (e.g. in your `.env` /
   shell profile): `export LLM_MODEL=<model>` — every entry point
-  (CLI `--model`, console, web) already follows it. The one sanctioned
-  code default stays `llama3.1:8b` in log_analyzer.py.
+  (CLI `--model`, console, web) already follows it. The sanctioned
+  code default is `qwen3:8b` in log_analyzer.py (a standard pullable
+  tag; llama3.1:8b is the documented fallback).
 - If the DEFAULT model is ever changed (a product decision, not this tool's):
   update the docs that name it in the same change. Console and report
   surfaces derive the model from run metadata, so they follow automatically.
@@ -92,9 +92,11 @@ def metered_chat(stats):
     real = la.chat_completion
     lock = threading.Lock()
 
-    def timed(base_url, api_key, model, system, user, timeout=la.LLM_TIMEOUT):
+    def timed(base_url, api_key, model, system, user, timeout=la.LLM_TIMEOUT,
+              response_schema=None):
         t0 = time.monotonic()
-        reply = real(base_url, api_key, model, system, user, timeout=timeout)
+        reply = real(base_url, api_key, model, system, user, timeout=timeout,
+                     response_schema=response_schema)
         dt = time.monotonic() - t0
         try:
             ok = la.validate_response(json.loads(la.strip_fences(reply)))
@@ -128,9 +130,11 @@ def rule_signature(report):
 
 def run_one(model, sample, base_url, api_key):
     """One model x one sample through la.run(); returns the measurements dict."""
-    # Reproducible decoding: temperature 0 (json_object mode is always on in
-    # this app's chat_completion — there is no schema/fallback switch to reset).
+    # Reproducible decoding: temperature 0, structured output ON, and no
+    # fallback stickiness carried over from a previous model's run.
     la.LLM_TEMPERATURE = 0.0
+    la.LLM_STRUCTURED_OUTPUT = True
+    la._STRUCTURED_FALLBACK["reason"] = None
 
     stats = {"latencies": [], "schema_valid": 0, "schema_invalid": 0}
     real, timed = metered_chat(stats)
@@ -165,6 +169,7 @@ def run_one(model, sample, base_url, api_key):
         "calls": len(stats["latencies"]),
         "warm_median_s": warm_median(stats["latencies"]),
         "wall_s": wall,
+        "structured_output": report.get("structured_output", "n/a"),
         "rule_signature": rule_signature(report),
         "explanations": explanations,
     }
@@ -186,15 +191,15 @@ def emit_report(rows, skipped, endpoint_note, rule_mismatches, out_path):
         lines.append("## Measurements")
         lines.append("")
         lines.append("| model | sample | rule findings | llm findings | analyzer errors "
-                     "| calls | schema-valid | schema-invalid | warm median latency (s) "
-                     "| run wall time (s) |")
-        lines.append("|---|---|---|---|---|---|---|---|---|---|")
+                     "| calls | schema-valid | schema-invalid | structured output "
+                     "| warm median latency (s) | run wall time (s) |")
+        lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
         for r in rows:
             med = f"{r['warm_median_s']:.2f}" if r["warm_median_s"] is not None else "n/a"
             lines.append(f"| `{r['model']}` | {r['sample']} | {r['rule_findings']} "
                          f"| {r['llm_findings']} | {r['analyzer_errors']} "
                          f"| {r['calls']} | {r['schema_valid']} | {r['schema_invalid']} "
-                         f"| {med} | {r['wall_s']:.1f} |")
+                         f"| `{r['structured_output']}` | {med} | {r['wall_s']:.1f} |")
         lines.append("")
         if rule_mismatches:
             lines.append("## RULE-FINDING MISMATCH — BUG, DO NOT PICK A WINNER FROM THIS RUN")

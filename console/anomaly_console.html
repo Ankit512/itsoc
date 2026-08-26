@@ -1468,7 +1468,7 @@ function detailPane(d) {
       </div>
 
       <div class="panel explain">
-        <div class="panel-k">Plain-language explanation · llama3.1:8b, local</div>
+        <div class="panel-k">Plain-language explanation · ${esc((DATA.manifest || {}).model || "model n/a")}, local</div>
         ${d.explanation ? `<p>${esc(d.explanation)}</p>` : (
           state.explaining === d.id
             ? `<p style="color:var(--color-neutral-500)">generating an explanation for this

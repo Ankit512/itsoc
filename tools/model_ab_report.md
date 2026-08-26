@@ -393,8 +393,9 @@ Rule findings were identical across all measured models (asserted per sample) â€
 
 - Set the winner via the `LLM_MODEL` env var (e.g. in your `.env` /
   shell profile): `export LLM_MODEL=<model>` â€” every entry point
-  (CLI `--model`, console, web) already follows it. The one sanctioned
-  code default stays `llama3.1:8b` in log_analyzer.py.
+  (CLI `--model`, console, web) already follows it. The sanctioned
+  code default is `qwen3:8b` in log_analyzer.py as of feat/schema-hardening
+  (a standard pullable tag; llama3.1:8b is the documented fallback).
 - If the DEFAULT model is ever changed (a product decision, not this tool's):
   update the docs that name it in the same change. Console and report
   surfaces derive the model from run metadata, so they follow automatically.

@@ -1238,7 +1238,8 @@ def check_remote_compute():
 
     captured = []
 
-    def fake_chat(base_url, api_key, model, system, user, timeout=300):
+    def fake_chat(base_url, api_key, model, system, user, timeout=300,
+                  response_schema=None):
         captured.append({"base_url": base_url, "api_key": api_key,
                          "model": model, "user": user})
         return json.dumps({"findings": [], "explanations": [
@@ -1851,7 +1852,8 @@ def check_soc_overview():
                 # --- /api/ask: advisory only, stubbed LLM, redacted remote --
                 captured = []
 
-                def fake_chat(base_url, api_key, model, system, user, timeout=300):
+                def fake_chat(base_url, api_key, model, system, user, timeout=300,
+                              response_schema=None):
                     captured.append({"base": base_url, "system": system, "user": user})
                     return json.dumps({"answer": "advisory answer"})
 
@@ -3870,6 +3872,131 @@ def check_rules_parity():
     return 0 if all(results) else 1
 
 
+def check_structured_output():
+    """Schema-constrained decoding (log_analyzer.chat_completion + RESPONSE_SCHEMA).
+
+    All against a fake endpoint — deterministic, no Ollama. The contract:
+    analyze-path calls request response_format json_schema carrying the app's
+    RESPONSE_SCHEMA; an endpoint that rejects it gets ONE json_object retry and
+    the downgrade is recorded (sticky, in run metadata) — never silent; the
+    LLM_STRUCTURED_OUTPUT=0 escape hatch sends json_object; reasoning_effort is
+    sent only when configured. RESPONSE_SCHEMA itself must agree with
+    validate_response so constrained decoding is never stricter than the
+    validated path.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    import http.server
+    import threading
+    import log_analyzer as la
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nStructured output (json_schema enforcement + honest fallback):")
+
+    seen = []            # each request's parsed body, in order
+    reject_schema = {"on": False}
+
+    class Fake(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            seen.append(body)
+            rf = body.get("response_format") or {}
+            if reject_schema["on"] and rf.get("type") == "json_schema":
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b'{"error": "response_format json_schema unsupported"}')
+                return
+            reply = {"choices": [{"message": {"content":
+                     json.dumps({"findings": [], "explanations": [], "chunk_summary": "ok"})}}]}
+            out = json.dumps(reply).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(out)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Fake)
+    base = f"http://127.0.0.1:{srv.server_address[1]}/v1"
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+    saved = (la.LLM_STRUCTURED_OUTPUT, la._STRUCTURED_FALLBACK["reason"],
+             la.LLM_REASONING_EFFORT)
+    try:
+        la.LLM_STRUCTURED_OUTPUT = True
+        la._STRUCTURED_FALLBACK["reason"] = None
+        la.LLM_REASONING_EFFORT = ""
+
+        # --- happy path: schema requested, status honest -----------------
+        reply = la.chat_completion(base, "k", "m", "sys", "user",
+                                   response_schema=la.RESPONSE_SCHEMA)
+        rf = seen[-1].get("response_format") or {}
+        check("analyze-path request carries response_format json_schema",
+              rf.get("type") == "json_schema", str(rf.get("type")))
+        check("the schema sent IS the app's RESPONSE_SCHEMA",
+              rf.get("json_schema", {}).get("schema") == la.RESPONSE_SCHEMA)
+        check("reply text passes through", json.loads(reply)["chunk_summary"] == "ok")
+        check("status reports 'on' while the schema is honored",
+              la.structured_output_status() == "on", la.structured_output_status())
+        check("reasoning_effort absent unless configured",
+              "reasoning_effort" not in seen[-1])
+
+        # --- rejection: one retry, loud sticky fallback ------------------
+        reject_schema["on"] = True
+        n_before = len(seen)
+        reply = la.chat_completion(base, "k", "m", "sys", "user",
+                                   response_schema=la.RESPONSE_SCHEMA)
+        check("rejected schema retries ONCE as json_object and still answers",
+              len(seen) == n_before + 2
+              and (seen[-1].get("response_format") or {}).get("type") == "json_object"
+              and json.loads(reply)["chunk_summary"] == "ok")
+        check("fallback is recorded for run metadata, with the reason",
+              la.structured_output_status().startswith("fallback:endpoint rejected json_schema"),
+              la.structured_output_status())
+        n_before = len(seen)
+        la.chat_completion(base, "k", "m", "sys", "user",
+                           response_schema=la.RESPONSE_SCHEMA)
+        check("fallback is sticky: the next call pays no doomed schema request",
+              len(seen) == n_before + 1
+              and (seen[-1].get("response_format") or {}).get("type") == "json_object")
+
+        # --- escape hatch + config knobs ---------------------------------
+        la._STRUCTURED_FALLBACK["reason"] = None
+        reject_schema["on"] = False
+        la.LLM_STRUCTURED_OUTPUT = False
+        la.chat_completion(base, "k", "m", "sys", "user",
+                           response_schema=la.RESPONSE_SCHEMA)
+        check("LLM_STRUCTURED_OUTPUT=0 sends json_object and reports 'off'",
+              (seen[-1].get("response_format") or {}).get("type") == "json_object"
+              and la.structured_output_status() == "off")
+        la.LLM_STRUCTURED_OUTPUT = True
+        la.LLM_REASONING_EFFORT = "none"
+        la.chat_completion(base, "k", "m", "sys", "user",
+                           response_schema=la.RESPONSE_SCHEMA)
+        check("configured reasoning_effort is sent",
+              seen[-1].get("reasoning_effort") == "none")
+
+        # --- schema/validator agreement ----------------------------------
+        check("schema and validator agree on the minimal valid reply",
+              la.validate_response({"findings": [{"summary": "x"}]}) is True)
+        check("schema requires exactly what the validator requires (summary)",
+              la.validate_response({"findings": [{}]}) is False
+              and la.RESPONSE_SCHEMA["properties"]["findings"]["items"]["required"] == ["summary"]
+              and la.RESPONSE_SCHEMA["required"] == ["findings"])
+    finally:
+        (la.LLM_STRUCTURED_OUTPUT, la._STRUCTURED_FALLBACK["reason"],
+         la.LLM_REASONING_EFFORT) = saved
+        srv.shutdown()
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -3926,16 +4053,17 @@ def main():
     formats_ = check_formats_universal()
     parity_ = check_rules_parity()
     explstream_ = check_explain_stream()
+    structured_ = check_structured_output()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_ or parity_ or explstream_):
+            or formats_ or parity_ or explstream_ or structured_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "+ rules-parity + explain-stream checks green")
+          "+ rules-parity + explain-stream + structured-output checks green")
     return 0
 
 
