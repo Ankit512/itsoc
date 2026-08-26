@@ -122,6 +122,7 @@ export interface RunsSummaryEntry {
   generatedAt?: string; sourceLabel?: string;
   linesParsed?: number; findingCount?: number;
   severityCounts?: Record<string, number>;
+  findingSeverityCounts?: Record<string, number>;
   topTechniques?: { id: string; name: string; tactic: string; count: number }[];
   unrecognized?: boolean; dataComplete?: boolean; unreadable?: boolean;
 }
@@ -166,16 +167,19 @@ export interface Incident {
   acknowledgedAt: string | null; // stamped by the analyst, else null
   resolvedAt: string | null;
   timeUncertain: boolean;
+  isRollup?: boolean;
 }
 
 export interface Asset {
   id: string; name: string; kind: "host" | "ip";
   events: number; findings: number; atRisk: boolean;
+  riskScore?: number; maxSeverity?: string | null;
   lastSeen: string | null;
 }
 
 export interface UserEntity {
   id: string; name: string; events: number; findings: number; atRisk: boolean;
+  riskScore?: number; maxSeverity?: string | null;
 }
 
 export interface ThreatIndicator {

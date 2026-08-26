@@ -2196,6 +2196,7 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
         return step, idx, start_line, chunk_lines, result, elapsed
 
     if selected:
+        chunks_done = 0
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=min(LLM_WORKERS, len(selected))
         ) as pool:
@@ -2203,10 +2204,15 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
                        for step, idx in enumerate(selected, start=1)]
 
             for future in concurrent.futures.as_completed(futures):
+                chunks_done += 1
                 try:
                     step, idx, start_line, chunk_lines, result, elapsed = future.result()
                 except Exception as exc:
                     print(f"    explanation worker failed: {exc}")
+                    progress(
+                        phase="explain", done=chunks_done, total=len(selected),
+                        findings=len(anomalies)
+                    )
                     continue
 
                 print(
@@ -2215,8 +2221,8 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
                     f"{elapsed:.1f}s, lines {start_line}-{start_line + len(chunk_lines)})"
                 )
                 progress(
-                    phase="explain", done=len(explanations), total=len(selected),
-                    chunk=idx + 1, seconds=round(elapsed, 1)
+                    phase="explain", done=chunks_done, total=len(selected),
+                    chunk=idx + 1, seconds=round(elapsed, 1), findings=len(anomalies)
                 )
 
                 here = by_chunk.get(idx, [])
