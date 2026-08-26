@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Universal UDP Syslog collector for UDP 513/514/1514.
+"""Universal UDP Syslog collector for UDP 514/1514.
 
 - Concurrent listeners on multiple UDP ports.
 - RFC3164 and RFC5424 PRI parsing when present.
@@ -25,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from normalize import RFC3164_RE  # noqa: E402  # the file pipeline's envelope regex
 
-DEFAULT_PORTS = (513, 514, 1514)
+DEFAULT_PORTS = (514, 1514)
 MAX_DATAGRAM = 65535
 
 _SEV = {
@@ -125,7 +125,6 @@ class _Listener:
 
     def start(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((self.bind, self.port))
         self.sock.settimeout(0.5)
         self.thread = threading.Thread(target=self._run, name=f"syslog-udp-{self.port}", daemon=True)
@@ -171,6 +170,7 @@ class SyslogCollector:
         self._last_bind = "127.0.0.1"
         self._last_port = 1514
         self._started_at = None
+        self._store_module = None
 
     @property
     def supported_ports(self):
@@ -196,6 +196,20 @@ class SyslogCollector:
             if active == set(ports) and all(l.thread and l.thread.is_alive() for l in self._listeners.values()):
                 return self.status()
             self._stop_locked()
+            try:
+                # Import resolution and schema setup belong to listener startup,
+                # not the per-datagram hot path. The store reads its DB path at
+                # call time, so tests and embedders may still redirect it before
+                # each start.
+                import store
+                if hasattr(store, "init_db"):
+                    store.init_db()
+                self._store_module = store
+            except Exception as exc:
+                self._store_module = None
+                self._last_error = f"store initialization failed: {exc}"
+                self._started_at = None
+                return self.status()
             started = {}
             try:
                 for p in ports:
@@ -234,9 +248,7 @@ class SyslogCollector:
 
     def _store(self, event):
         try:
-            import store
-            if hasattr(store, "init_db"):
-                store.init_db()
+            store = self._store_module
             if hasattr(store, "insert_event"):
                 return 1 if store.insert_event(event) else 0
         except Exception as exc:

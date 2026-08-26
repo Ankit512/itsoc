@@ -2727,6 +2727,15 @@ def check_syslog():
 
     print("\nLive syslog collector (console/syslog_collector.py + /api/syslog/*):")
 
+    check("default listeners are only the standard and unprivileged syslog ports",
+          sc.DEFAULT_PORTS == (514, 1514), str(sc.DEFAULT_PORTS))
+
+    # UDP has no TIME_WAIT. SO_REUSEADDR would allow a second local process to
+    # bind the same endpoint on some platforms and split the event stream.
+    source = Path(sc.__file__).read_text(encoding="utf-8")
+    check("UDP listener does not enable SO_REUSEADDR",
+          "setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR" not in source)
+
     real = (store.SOC_DIR, store.DB_PATH)
     collector = sc.COLLECTOR
     try:
@@ -2805,6 +2814,25 @@ def check_syslog():
                 time.sleep(0.05)
             check("per-listener received counters reflect the real messages received",
                   received_total() == 2, str(received_total()))
+            # init_db is performed once during start; it must never be repeated
+            # for each datagram. The cached module remains live for inserts.
+            real_init_db = store.init_db
+            real_insert_event = store.insert_event
+            init_calls = []
+            store.init_db = lambda: init_calls.append(True)
+            store.insert_event = lambda _event: True
+            try:
+                collector.stop()
+                st = collector.start(port=port, bind="127.0.0.1")
+                check("store schema initialization runs once per collector start",
+                      st["running"] and len(init_calls) == 1, str(len(init_calls)))
+                collector._store(e)
+                collector._store(e2)
+                check("per-event store writes do not repeat schema initialization",
+                      len(init_calls) == 1, str(len(init_calls)))
+            finally:
+                store.init_db = real_init_db
+                store.insert_event = real_insert_event
             q = store.query("events", filters={"source_type": "syslog:udp"})
             check("received syslog messages land in the store as events", q["total"] == 2, str(q["total"]))
             raws = {i["raw"] for i in q["items"]}

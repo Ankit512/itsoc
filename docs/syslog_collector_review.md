@@ -30,28 +30,34 @@ only, loopback-default bind, TCP support, store-contract docs.*
 | TCP support | **DROPPED.** The rewrite is UDP-only. The surface is honest about it (`protocol: "UDP"` everywhere), so nothing is faked — but reliable delivery / RFC 6587-framed relays are no longer servable. Not a quick fix (framing + connection lifecycle); recommendation below. |
 | Store-contract docs | **KEPT.** Writes go through `store.insert_event` (dedup by `event_hash`); the contract and its severity-pass-through honesty model are documented in `console/store.py` and `docs/soc_command_center.md`. |
 
-## Residual observations (not fixed here — deliberate)
+## Hardening follow-up (2026-08-26)
 
-1. **Default port set includes 513.** `start()` with no args binds 513/514/1514;
-   UDP 513 is legacy who/rlogin territory, not syslog. The HTTP route only ever
-   opens a single port (default 1514), so the web path is unaffected, and the
-   loopback default bounds the exposure — but trimming `DEFAULT_PORTS` to
-   `(514, 1514)` would be a one-line tightening. Behavior change → owner's call.
-2. **`SO_REUSEADDR` on the UDP sockets.** UDP has no TIME_WAIT, so the flag buys
-   nothing here — and on this platform it lets another local process bind the
-   same port and split the stream. Loopback-only default keeps it local-attacker
-   territory. Dropping the setsockopt is a one-liner; owner's call.
-3. **`_store()` re-imports `store` and calls `init_db()` per datagram.** Both are
-   idempotent, so this is a per-event perf nit, not an honesty gap.
-4. Parse failures increment `errors` with `lastError` — visible, not silent. Fine.
+Implemented and covered by collector tests:
+
+1. `DEFAULT_PORTS` is now `(514, 1514)`. Port 513 is legacy who/rlogin, not a
+   syslog default. Explicit caller-supplied ports remain supported.
+2. UDP listeners no longer set `SO_REUSEADDR`. UDP has no TIME_WAIT, and allowing
+   a second local process to share an endpoint can split the event stream.
+3. The store module is cached and `init_db()` runs once during each collector
+   start, before sockets accept traffic, rather than once per datagram. A failed
+   initialization is reported honestly and prevents a listener from claiming it
+   is running while persistence is unavailable.
+
+TCP remains deliberately deferred. Adding it safely is not just another socket:
+the collector currently keys listeners by port, and the API/UI/status contract
+advertises UDP-only protocol fields. A compatible implementation needs listeners
+keyed by `(protocol, port)`, bounded connection lifecycle, and RFC 6587 tests for
+octet-counted frames split across reads, multiple frames in one read, LF-delimited
+non-transparent framing, malformed/oversized length prefixes, disconnects with a
+partial frame, stop/restart with active clients, and simultaneous UDP+TCP on the
+same numeric port. Until those contracts exist, claiming TCP support would risk
+silent truncation or message coalescing and would violate source honesty.
 
 ## Recommendation
 
-**KEEP the rewrite** with the two parse fixes landed on this branch. It preserves
+**KEEP the rewrite** with the parse fixes and safe hardening above. It preserves
 the load-bearing honesty properties (source severity, loopback default, verbatim
 raw, honest status/errors) and adds genuinely better observability. **HARDEN
-selectively, at the owner's discretion:** (a) reinstate a TCP listener with RFC
-6587 octet-counting/LF framing if relayed/reliable delivery still matters — this
-is the one real capability regression left; (b) trim 513 from `DEFAULT_PORTS`;
-(c) drop `SO_REUSEADDR`. None of (a)–(c) is forced here because each changes
-behavior someone may rely on; all are small, reviewable diffs.
+selectively:** reinstate TCP with RFC 6587 framing if relayed/reliable delivery
+still matters, using the compatibility matrix above. This remains the one real
+capability regression.
