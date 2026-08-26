@@ -170,6 +170,44 @@ export interface Incident {
   isRollup?: boolean;
 }
 
+export interface RcaFactEvent { t: string; label: string; line?: number; findingId?: string; rule?: string }
+export interface RcaFacts {
+  incidentId?: string;
+  entity?: string;
+  entityKind?: string;
+  findingIds?: string[];
+  membersLoaded?: number;
+  rules: string[];
+  firstSeen: string | null;
+  lastSeen: string | null;
+  timeline: RcaFactEvent[];
+  note?: string | null;
+}
+
+export interface RcaRunbook {
+  matched: boolean;
+  file?: string;
+  title?: string;
+  passage?: string;
+  score?: number;
+  coverage?: number;
+  note?: string;
+}
+
+export interface RcaHypothesis {
+  text: string | null;
+  label: string;
+  note?: string | null;
+  reasons?: string[];
+}
+
+export interface Rca {
+  incidentId: string;
+  facts: RcaFacts;
+  runbook: RcaRunbook;
+  hypothesis: RcaHypothesis;
+}
+
 export interface Asset {
   id: string; name: string; kind: "host" | "ip";
   events: number; findings: number; atRisk: boolean;
@@ -554,6 +592,7 @@ export const api = {
     getJson<{ incidents: Incident[] }>(
       `/api/incidents${state ? `?state=${state}` : ""}`),
   incident: (id: string) => getJson<OrError<Incident>>(`/api/incidents/${id}`),
+  incidentRca: (id: string) => getJson<OrError<Rca>>(`/api/incidents/${id}/rca`),
 
   /** Analyst lifecycle transition (POST /api/incidents/<id>/state). Returns the
    *  updated incident; 400 (bad state) / 404 (unknown id) reject honestly. */

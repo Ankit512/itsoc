@@ -54,4 +54,85 @@ describe("Incidents page", () => {
     await userEvent.click(screen.getByRole("button", { name: "acknowledged" }));
     expect(post).toHaveBeenCalledTimes(1);
   });
+
+  it("renders the layered RCA panel with facts, matched runbook, and hypothesis", async () => {
+    const rca = {
+      incidentId: "inc-abc123",
+      facts: {
+        incidentId: "inc-abc123",
+        rules: ["auth_bruteforce_success", "suspicious_outbound"],
+        firstSeen: "2026-08-13T02:16:44+00:00",
+        lastSeen: "2026-08-13T02:18:00+00:00",
+        timeline: [
+          { t: "02:16:44", label: "Failed password for admin", rule: "auth_bruteforce" },
+          { t: "02:16:52", label: "Accepted password for admin", rule: "auth_bruteforce_success" },
+        ],
+      },
+      runbook: {
+        matched: true,
+        file: "auth_bruteforce.md",
+        title: "SSH Brute-Force & Credential Compromise",
+        passage: "Rotate the credential, force session logout, block the source IP.",
+        score: 4.1,
+        coverage: 1.0,
+      },
+      hypothesis: {
+        text: "A sustained brute-force from 203.0.113.44 succeeded against admin.",
+        label: "advisory · hypothesis · not a verdict",
+      },
+    };
+
+    mockFetch({
+      "/api/incidents/inc-abc123/rca": rca,
+      "/api/incidents": { incidents: [incident()] },
+    });
+
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    expect(await screen.findByTestId("rca-panel")).toBeInTheDocument();
+    expect(await screen.findByTestId("rca-facts")).toBeInTheDocument();
+    expect(screen.getByText("auth_bruteforce_success")).toBeInTheDocument();
+    expect(screen.getByText("Failed password for admin")).toBeInTheDocument();
+
+    expect(screen.getByTestId("rca-runbook")).toBeInTheDocument();
+    expect(screen.getByText("SSH Brute-Force & Credential Compromise")).toBeInTheDocument();
+    expect(screen.getByText(/Rotate the credential/)).toBeInTheDocument();
+
+    expect(screen.getByTestId("rca-hypothesis")).toBeInTheDocument();
+    expect(screen.getByText(/A sustained brute-force from 203.0.113.44/)).toBeInTheDocument();
+  });
+
+  it("renders honest absence notes when runbook and model are unavailable", async () => {
+    const rcaHonest = {
+      incidentId: "inc-abc123",
+      facts: {
+        rules: ["custom_rare_rule"],
+        firstSeen: null,
+        lastSeen: null,
+        timeline: [],
+        note: "some member findings are not in the loaded run",
+      },
+      runbook: {
+        matched: false,
+        note: "no runbook matched this cluster's rules with sufficient confidence",
+      },
+      hypothesis: {
+        text: null,
+        label: "advisory · hypothesis · not a verdict",
+        note: "model unavailable — deterministic facts only",
+      },
+    };
+
+    mockFetch({
+      "/api/incidents/inc-abc123/rca": rcaHonest,
+      "/api/incidents": { incidents: [incident()] },
+    });
+
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    expect(await screen.findByTestId("rca-panel")).toBeInTheDocument();
+    expect(await screen.findByText(/no runbook matched this cluster/)).toBeInTheDocument();
+    expect(screen.getByText(/model unavailable — deterministic facts only/)).toBeInTheDocument();
+    expect(screen.getByText(/some member findings are not in the loaded run/)).toBeInTheDocument();
+  });
 });
