@@ -19,8 +19,11 @@ LLM_BASE_URL at a hosted API and they will.
 
 Usage:
   ollama serve                      # if not already running
-  ollama pull llama3.1:8b
+  ollama pull qwen3:8b              # the default model — a standard tag, no create step
   python log_analyzer.py --input /path/to/logfile.log --output report
+
+  # llama3.1:8b remains available as the fallback model:
+  #   ollama pull llama3.1:8b && export LLM_MODEL=llama3.1:8b
 
   # or against a hosted OpenAI-compatible endpoint:
   export LLM_BASE_URL=https://api.example.com/v1
@@ -60,15 +63,19 @@ from anomaly_detector import detect, to_llm_context  # noqa: E402
 
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "ollama")
-LLM_MODEL = os.getenv("LLM_MODEL", "llama3.1:8b")
+# qwen3:8b is a standard pullable tag (ollama pull qwen3:8b — no create step).
+# Under json_schema enforcement it measured 5/5 schema-valid at the default
+# token cap; llama3.1:8b stays the documented fallback (its grammar-constrained
+# replies can hit the 384-token cap): export LLM_MODEL=llama3.1:8b
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:8b")
 
-# Thinking suppression for reasoning models (e.g. qwen3): when set, the value is
-# sent as OpenAI-compatible `reasoning_effort` on every chat request. "none"
-# disables qwen3's thinking on Ollama's /v1 endpoint (verified live; non-thinking
-# models like llama3.1 simply ignore the field there). Default: unset — nothing
-# is sent, so behavior with the default model is unchanged. A hosted endpoint
-# that rejects the field for its models: leave this unset.
-LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "")
+# Thinking suppression for reasoning models (e.g. qwen3): sent as
+# OpenAI-compatible `reasoning_effort` on every chat request. "none" disables
+# qwen3's thinking on Ollama's /v1 endpoint (verified live; non-thinking models
+# like llama3.1 simply ignore the field there), so the default model answers
+# without paying reasoning latency. Set LLM_REASONING_EFFORT="" (empty) to omit
+# the field entirely — e.g. for a hosted endpoint that rejects it.
+LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "none")
 
 # Schema-constrained decoding: ask the endpoint to constrain generation to the
 # reply schema (OpenAI-compatible response_format type "json_schema" — Ollama

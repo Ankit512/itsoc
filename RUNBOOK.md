@@ -20,7 +20,7 @@ almost everything about how the screens look:
 
 | | The rules | The AI model |
 |---|---|---|
-| What it is | Fixed checks written in code | A local AI (llama3.1:8b) |
+| What it is | Fixed checks written in code | A local AI (qwen3:8b by default) |
 | What it decides | **How serious a finding is** | Nothing about severity |
 | What it does | Finds and rates the problems | Explains them in plain English |
 | Can it be wrong? | It is predictable and repeatable | It can be inconsistent |
@@ -64,9 +64,11 @@ curl -fsSL https://ollama.com/install.sh | sh
 Then download the model — about 5 GB, once — and check it worked:
 
 ```bash
-ollama pull llama3.1:8b
+ollama pull qwen3:8b        # the default model — a standard tag, no extra setup
 ollama list
 ```
+
+Prefer llama3.1:8b instead? `ollama pull llama3.1:8b` and set `LLM_MODEL=llama3.1:8b`.
 
 Ollama normally starts by itself after installing. If this tool later says it cannot reach
 the AI, open a second terminal and run `ollama serve`.
@@ -293,7 +295,7 @@ Click **Run manifest · integrity**. You get:
 sha256(input)     7e8b3dfd9c3293ca…
 sha256(detector)  43f0560f2a81d52a…
 ruleset           v1
-model             llama3.1:8b · temp 0
+model             qwen3:8b · temp 0
 generated         2026-08-16T14:14:41
 ```
 
@@ -385,7 +387,7 @@ present — there is no server behind it to do that work. A banner at the top sa
 | Symptom | Cause | Fix |
 |---|---|---|
 | "cannot reach LLM endpoint" | Ollama is not running | `ollama serve` in another terminal |
-| "model not listed" | Model not downloaded | `ollama pull llama3.1:8b` |
+| "model not listed" | Model not downloaded | `ollama pull qwen3:8b` (or the model you set in `LLM_MODEL`) |
 | First analysis is slow | Model loads into memory (~9s) | Normal; later runs are warm |
 | Everything is very slow | Machine is low on memory | Close other apps; 16 GB is tight with a 5 GB model |
 | "Log format not recognized" | Unsupported log format | See §8 — the format needs a parser |
@@ -400,7 +402,7 @@ present — there is no server behind it to do that work. A banner at the top sa
 
 ## 13. How long things take
 
-Measured on a MacBook Air M4 (16 GB) with llama3.1:8b:
+Measured on a MacBook Air M4 (16 GB) with llama3.1:8b (the default is now qwen3:8b; per-call latency is comparable):
 
 | Task | Time |
 |---|---|
