@@ -1771,6 +1771,10 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
     def do_PATCH(self):
         """PATCH exists for exactly one thing: editing an analyst-created case."""
         path = urllib.parse.urlparse(self.path).path
+        # PATCH is a state mutation; gate it fail-closed like do_GET/do_POST so
+        # an unauthenticated caller cannot edit a case.
+        if path.startswith("/api/") and not self._api_authorized(path):
+            return
         if not path.startswith("/api/cases/"):
             return self.send_error(405, "read-only")
         length = int(self.headers.get("Content-Length") or 0)

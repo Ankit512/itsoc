@@ -54,6 +54,17 @@ def main():
 
             status, _ = request(base, "/api/overview", token=token)
             assert status == 200, status
+
+            # PATCH is a state mutation and must be gated fail-closed too: an
+            # unauthenticated PATCH /api/cases/{id} must be rejected before it
+            # ever reaches soc.patch_case.
+            status, patched = request(base, "/api/cases/some-id", "PATCH", {"status": "closed"})
+            assert status == 401, (status, patched)
+            # With a valid token the gate lets it through (404 = no such case,
+            # proving auth was not the blocker).
+            status, patched = request(base, "/api/cases/some-id", "PATCH",
+                                      {"status": "closed"}, token=token)
+            assert status == 404, (status, patched)
             server.shutdown()
     finally:
         auth.AUTH_PROVIDER = original
