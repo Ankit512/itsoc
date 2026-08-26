@@ -57,9 +57,15 @@ def _now():
 
 def _parse_ts(value):
     try:
-        return datetime.fromisoformat(value)
+        dt = datetime.fromisoformat(value)
     except (TypeError, ValueError):
         return None
+    # Normalize to naive-UTC so mixed tz-aware/tz-naive store timestamps never
+    # raise "can't compare offset-naive and offset-aware datetimes" when
+    # subtracted/compared (metrics MTTD/MTTR + incident cluster math).
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 # ---------------------------------------------------------------------------
