@@ -558,9 +558,11 @@ export function CopilotRail({
               <div className="text-xs font-semibold text-foreground">
                 {matchedRunbook.title}
               </div>
-              <div className="font-mono text-[10.5px] text-muted-foreground">
-                score {matchedRunbook.score} · rule coverage {(matchedRunbook.coverage * 100).toFixed(0)}%
-              </div>
+              {typeof matchedRunbook.score === "number" && typeof matchedRunbook.coverage === "number" && (
+                <div className="font-mono text-[10.5px] text-muted-foreground">
+                  score {matchedRunbook.score} · rule coverage {(matchedRunbook.coverage * 100).toFixed(0)}%
+                </div>
+              )}
               <div className="space-y-1 rounded bg-card p-2 text-[11.5px]">
                 <div className="font-semibold text-foreground">Immediate steps:</div>
                 <p className="whitespace-pre-wrap text-muted-foreground">{matchedRunbook.passage}</p>

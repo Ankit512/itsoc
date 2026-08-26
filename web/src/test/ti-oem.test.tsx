@@ -31,6 +31,8 @@ describe("Enrichment — TI panel (masked keys, honest states)", () => {
       Promise.resolve({ ok: true, status: 200, json: async () => body } as Response);
     vi.stubGlobal("fetch", vi.fn((u: RequestInfo | URL, init?: RequestInit) => {
       const url = String(u);
+      if (url.includes("/api/auth/me")) return reply({ user: { username: "analyst", role: "analyst" } });
+      if (url.includes("/api/auth/status")) return reply({ hasProfile: true, authType: "local_demo", provider: "LocalDemoAuth" });
       if (url.includes("/api/ti/enrich") && init?.method === "POST") {
         postBody = JSON.parse(String(init.body));
         return reply({

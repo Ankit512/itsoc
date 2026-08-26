@@ -46,6 +46,8 @@ describe("Discovery — nmap scan control panel", () => {
       Promise.resolve({ ok: true, status: 200, json: async () => body } as Response);
     vi.stubGlobal("fetch", vi.fn((u: RequestInfo | URL, init?: RequestInit) => {
       const url = String(u);
+      if (url.includes("/api/auth/me")) return reply({ user: { username: "analyst", role: "analyst" } });
+      if (url.includes("/api/auth/status")) return reply({ hasProfile: true, authType: "local_demo", provider: "LocalDemoAuth" });
       if (url.includes("/api/discovery/scan") && init?.method === "POST") {
         postBody = JSON.parse(String(init.body));
         return reply({ ...IDLE, running: true, target: "10.0.0.0/24", vuln: true });
@@ -68,6 +70,8 @@ describe("Discovery — nmap scan control panel", () => {
       Promise.resolve({ ok, status, json: async () => body } as Response);
     vi.stubGlobal("fetch", vi.fn((u: RequestInfo | URL, init?: RequestInit) => {
       const url = String(u);
+      if (url.includes("/api/auth/me")) return reply({ user: { username: "analyst", role: "analyst" } });
+      if (url.includes("/api/auth/status")) return reply({ hasProfile: true, authType: "local_demo", provider: "LocalDemoAuth" });
       if (url.includes("/api/discovery/scan") && init?.method === "POST") {
         return reply({ error: "only private/authorized targets may be scanned" }, false, 400);
       }
