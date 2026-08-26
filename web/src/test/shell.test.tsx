@@ -1,41 +1,61 @@
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import App from "@/App";
-import { NAV } from "@/components/layout/AppShell";
+import { EXPERIMENTAL_NAV } from "@/components/layout/AppShell";
 import { renderApp, mockFetch, OVERVIEW, METRICS } from "./helpers";
 
-describe("uniform v6 app shell", () => {
+describe("itsoc. Phase 1 App Shell", () => {
   beforeEach(() => mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS }));
 
-  it("renders every nav item, with unbuilt sections honestly titled", async () => {
+  it("renders the itsoc. wordmark with the accent dot", async () => {
     renderApp(<App />);
-    for (const item of ["Overview", "Alerts", "Incidents", "Threat Intel",
-                        "Assets", "Reports", "Cases", "Settings", "Logout"]) {
+    const wordmark = screen.getByTestId("wordmark");
+    expect(wordmark).toHaveTextContent("itsoc.");
+  });
+
+  it("renders core nav items (Overview · Findings · Incidents · Sources · Settings) + Logout", async () => {
+    renderApp(<App />);
+    for (const item of ["Overview", "Findings", "Incidents", "Sources", "Settings", "Logout"]) {
       expect(screen.getByText(item)).toBeInTheDocument();
     }
-    // Unbuilt nav items carry an honest "not built yet" title; derive the
-    // expected count from NAV so this stays correct as pages are built.
-    const nav = screen.getByRole("navigation", { name: "Main" });
-    // Derive the expected count from NAV so this stays correct as pages are
-    // built; queryAllByTitle (not getAllByTitle) returns [] when all are built.
-    const unbuilt = NAV.filter((n) => !n.ready).length;
-    expect(within(nav).queryAllByTitle(/not built yet/i).length).toBe(unbuilt);
     // Logout is an honest local action (a link to /logout), not a fake auth flow.
     expect(screen.getByText("Logout").closest("a")).toHaveAttribute("href", "/logout");
   });
 
-  it("renders the v6 header actions on every page", async () => {
+  it("houses Experimental group and toggles its visibility", async () => {
+    renderApp(<App />);
+    // By default experimental is off
+    expect(screen.getByText(/Command Center/)).toBeInTheDocument();
+    expect(screen.getAllByText("off").length).toBeGreaterThan(0);
+
+    // Toggle experimental on
+    await userEvent.click(screen.getByRole("button", { name: /experimental/i }));
+    expect(screen.getByText("on")).toBeInTheDocument();
+
+    // Experimental items are now visible
+    for (const { label } of EXPERIMENTAL_NAV) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it("renders the top bar header actions and ⌘K trigger", async () => {
     renderApp(<App />);
     expect(screen.getByRole("heading", { name: "SOC Dashboard" })).toBeInTheDocument();
     expect(screen.getByText("Upload Logs")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
-    // Filters exists but is honestly disabled until filtering is built.
     expect(screen.getByRole("button", { name: /filters/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /switch to dark mode/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /open command palette/i })).toBeInTheDocument();
+  });
+
+  it("opens the ⌘K command palette on trigger click", async () => {
+    renderApp(<App />);
+    await userEvent.click(screen.getByRole("button", { name: /open command palette/i }));
+    expect(screen.getByRole("dialog", { name: "Command Palette" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search screens, actions, or ask itsoc/i)).toBeInTheDocument();
   });
 
   it("an unknown route renders the honest placeholder inside the same shell", async () => {
-    // Use the catch-all (a genuinely unknown path) so this holds regardless of
-    // which section pages have been built.
     renderApp(<App />, { route: "/no-such-page" });
     expect(screen.getByRole("navigation", { name: "Main" })).toBeInTheDocument();
     expect(screen.getByText(/coming in a later phase/i)).toBeInTheDocument();
