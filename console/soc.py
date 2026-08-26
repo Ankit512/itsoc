@@ -83,6 +83,9 @@ def _save(name, data):
 # Incidents — correlated clusters of real findings
 # ---------------------------------------------------------------------------
 
+SEV_WEIGHT = {"CRITICAL": 10, "HIGH": 5, "MEDIUM": 2, "LOW": 1, "INFO": 0}
+
+
 def _primary_entity(finding):
     """The entity a finding is about: first IP chip, else derived host, else
     its rule type. All three are values the parser actually observed."""
@@ -100,13 +103,22 @@ def derive_incidents(state):
 
     Deterministic and documented in docs/soc_subsystems.md. An incident is
     only ever built from ≥1 real finding — there is no other source.
+    Deduplicates literal duplicates and rolls single-finding low-value clusters
+    into a consolidated rollup.
     """
     by_entity = {}
+    seen_finding_ids = set()
     for f in state.get("findings", []):
+        fid = f.get("id")
+        if fid and fid in seen_finding_ids:
+            continue
+        if fid:
+            seen_finding_ids.add(fid)
         entity, kind = _primary_entity(f)
         by_entity.setdefault((entity, kind), []).append(f)
 
     incidents = []
+    seen_incident_ids = set()
     for (entity, kind), members in by_entity.items():
         stamped = sorted((f for f in members if _parse_ts(f.get("stamp"))),
                          key=lambda f: f["stamp"])
@@ -126,7 +138,22 @@ def derive_incidents(state):
             else:
                 clusters.append(unstamped)
 
+        # Roll up single-finding LOW/INFO clusters for this entity to prevent noise
+        low_single_clusters = [
+            c for c in clusters
+            if len(c) == 1 and str(c[0].get("sev", "")).upper() in ("LOW", "INFO")
+        ]
+        if len(low_single_clusters) > 1:
+            combined_low = [f for c in low_single_clusters for f in c]
+            clusters = [
+                c for c in clusters
+                if not (len(c) == 1 and str(c[0].get("sev", "")).upper() in ("LOW", "INFO"))
+            ]
+            clusters.append(combined_low)
+
         for members in clusters:
+            if not members:
+                continue
             stamps = sorted(f["stamp"] for f in members if _parse_ts(f.get("stamp")))
             first = stamps[0] if stamps else None
             techniques, tactics = [], []
@@ -139,13 +166,29 @@ def derive_incidents(state):
                         tactics.append(t["tactic"])
             sev = min((str(f.get("sev", "INFO")).upper() for f in members),
                       key=lambda s: SEV_RANK.get(s, 5))
-            raw_id = f"{state.get('runId', '')}|{entity}|{first or 'no-stamp'}"
+            fids = sorted(str(f.get("id")) for f in members)
+            fids_hash = hashlib.sha1(",".join(fids).encode()).hexdigest()[:8]
+            raw_id = f"{state.get('runId', '')}|{entity}|{kind}|{first or 'no-stamp'}|{fids_hash}"
+            inc_id = "inc-" + hashlib.sha1(raw_id.encode()).hexdigest()[:12]
+            if inc_id in seen_incident_ids:
+                continue
+            seen_incident_ids.add(inc_id)
+
+            is_rollup = len(members) > 1 and sev in ("LOW", "INFO") and len(stamps) > 1 and (
+                (_parse_ts(stamps[-1]) - _parse_ts(stamps[0])).total_seconds() > CLUSTER_GAP_SECONDS
+            )
+            title = (
+                f"{entity} — {len(members)} low-severity finding(s) (rollup)"
+                if is_rollup
+                else f"{entity} — {len(members)} correlated finding(s)"
+            )
+
             incidents.append({
-                "id": "inc-" + hashlib.sha1(raw_id.encode()).hexdigest()[:12],
+                "id": inc_id,
                 "runId": state.get("runId", ""),
                 "entity": entity,
                 "entityKind": kind,
-                "title": f"{entity} — {len(members)} correlated finding(s)",
+                "title": title,
                 "severity": sev,
                 "findingIds": [f.get("id") for f in members],
                 "findingCount": len(members),
@@ -155,6 +198,7 @@ def derive_incidents(state):
                 "firstSeen": first,
                 "lastSeen": stamps[-1] if stamps else None,
                 "timeUncertain": bool(unstamped),
+                "isRollup": bool(is_rollup),
             })
     return incidents
 
@@ -184,9 +228,15 @@ def list_incidents(state=None, state_filter=None):
     else:
         store = _load("incidents.json")
     out = sorted(store.values(), key=lambda i: i.get("createdAt") or "", reverse=True)
+    deduped = []
+    seen = set()
+    for inc in out:
+        if inc.get("id") and inc["id"] not in seen:
+            seen.add(inc["id"])
+            deduped.append(inc)
     if state_filter:
-        out = [i for i in out if i.get("state") == state_filter]
-    return out
+        deduped = [i for i in deduped if i.get("state") == state_filter]
+    return deduped
 
 
 def get_incident(iid):
@@ -430,7 +480,8 @@ def derive_rca(iid, state=None, hypothesis_fn=None):
 
 
 # ---------------------------------------------------------------------------
-# Assets & users — observed entities only (severity-weighted risk)
+# Assets & users — observed entities only
+
 # ---------------------------------------------------------------------------
 
 def derive_assets(state):
@@ -442,6 +493,7 @@ def derive_assets(state):
         if key not in assets:
             assets[key] = {"id": f"asset-{kind}-{name}", "name": name, "kind": kind,
                            "events": 0, "findings": 0, "atRisk": False,
+                           "riskScore": 0, "maxSeverity": None,
                            "lastSeen": None}
         return assets[key]
 
@@ -453,21 +505,31 @@ def derive_assets(state):
                 a["lastSeen"] = e["ts"]
 
     for f in state.get("findings", []):
+        f_sev = str(f.get("sev") or "INFO").upper()
+        weight = SEV_WEIGHT.get(f_sev, 1)
+
         if f.get("hostDerived") and f.get("host") not in (None, "", "—"):
             a = touch(f["host"], "host")
             a["findings"] += 1
             a["atRisk"] = True
+            a["riskScore"] += weight
+            if not a["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(a["maxSeverity"], 5):
+                a["maxSeverity"] = f_sev
+
         for chip in f.get("chips") or []:
             text = str(chip.get("text", ""))
             if redact.IPV4_RE.fullmatch(text):
                 a = touch(text, "ip")
                 a["findings"] += 1
                 a["atRisk"] = True
+                a["riskScore"] += weight
+                if not a["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(a["maxSeverity"], 5):
+                    a["maxSeverity"] = f_sev
                 if f.get("stamp") and (a["lastSeen"] or "") < f["stamp"]:
                     a["lastSeen"] = f["stamp"]
 
     return sorted(assets.values(),
-                  key=lambda a: (-a["findings"], -a["events"], a["name"]))
+                  key=lambda a: (-a["riskScore"], -a["findings"], -a["events"], a["name"]))
 
 
 def derive_users(state):
@@ -484,16 +546,25 @@ def derive_users(state):
     for e in state.get("events", []):
         for name in found_in(e.get("msg")):
             u = users.setdefault(name, {"id": f"user-{name}", "name": name,
-                                        "events": 0, "findings": 0, "atRisk": False})
+                                        "events": 0, "findings": 0, "atRisk": False,
+                                        "riskScore": 0, "maxSeverity": None})
             u["events"] += 1
+
     for f in state.get("findings", []):
+        f_sev = str(f.get("sev") or "INFO").upper()
+        weight = SEV_WEIGHT.get(f_sev, 1)
         for name in set(found_in(f.get("title"))):
             u = users.setdefault(name, {"id": f"user-{name}", "name": name,
-                                        "events": 0, "findings": 0, "atRisk": False})
+                                        "events": 0, "findings": 0, "atRisk": False,
+                                        "riskScore": 0, "maxSeverity": None})
             u["findings"] += 1
             u["atRisk"] = True
+            u["riskScore"] += weight
+            if not u["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(u["maxSeverity"], 5):
+                u["maxSeverity"] = f_sev
 
-    return sorted(users.values(), key=lambda u: (-u["findings"], -u["events"], u["name"]))
+    return sorted(users.values(), key=lambda u: (-u["riskScore"], -u["findings"], -u["events"], u["name"]))
+
 
 
 # ---------------------------------------------------------------------------

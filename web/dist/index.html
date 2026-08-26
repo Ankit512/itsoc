@@ -3,9 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>itsoc — SOC Platform</title>
+    <title>itsoc. — SOC console</title>
     <script>
-      // Apply the saved/OS theme before first paint to avoid a flash.
+      // Apply the saved/OS theme before first paint to avoid a flash. Stamps
+      // both the `dark` class (tailwind darkMode:"class") and data-theme (the
+      // design-token contract in src/index.css) — same source, two consumers.
       try {
         var t = localStorage.getItem("itsoc-theme");
         if (t !== "light" && t !== "dark") {
@@ -13,10 +15,11 @@
             ? "dark" : "light";
         }
         if (t === "dark") document.documentElement.classList.add("dark");
+        document.documentElement.setAttribute("data-theme", t);
       } catch (e) { /* no storage: stay light */ }
     </script>
-    <script type="module" crossorigin src="/assets/index-BjZY7-EW.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-RaqBwAOf.css">
+    <script type="module" crossorigin src="/assets/index-D5aaqgYW.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CzMwDf75.css">
   </head>
   <body>
     <div id="root"></div>
