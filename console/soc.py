@@ -23,16 +23,20 @@ Stdlib only. anomaly_detector.py is never imported or modified.
 
 import hashlib
 import json
+import math
 import re
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "threat_intel"))
 
+import explanation_guard  # noqa: E402
 import export  # noqa: E402
 import redact  # noqa: E402
 from rule_mitre_map import RULE_TECHNIQUES  # noqa: E402
@@ -79,9 +83,6 @@ def _save(name, data):
 # Incidents — correlated clusters of real findings
 # ---------------------------------------------------------------------------
 
-SEV_WEIGHT = {"CRITICAL": 10, "HIGH": 5, "MEDIUM": 2, "LOW": 1, "INFO": 0}
-
-
 def _primary_entity(finding):
     """The entity a finding is about: first IP chip, else derived host, else
     its rule type. All three are values the parser actually observed."""
@@ -99,22 +100,13 @@ def derive_incidents(state):
 
     Deterministic and documented in docs/soc_subsystems.md. An incident is
     only ever built from ≥1 real finding — there is no other source.
-    Deduplicates literal duplicates and rolls single-finding low-value clusters
-    into a consolidated rollup.
     """
     by_entity = {}
-    seen_finding_ids = set()
     for f in state.get("findings", []):
-        fid = f.get("id")
-        if fid and fid in seen_finding_ids:
-            continue
-        if fid:
-            seen_finding_ids.add(fid)
         entity, kind = _primary_entity(f)
         by_entity.setdefault((entity, kind), []).append(f)
 
     incidents = []
-    seen_incident_ids = set()
     for (entity, kind), members in by_entity.items():
         stamped = sorted((f for f in members if _parse_ts(f.get("stamp"))),
                          key=lambda f: f["stamp"])
@@ -134,22 +126,7 @@ def derive_incidents(state):
             else:
                 clusters.append(unstamped)
 
-        # Roll up single-finding LOW/INFO clusters for this entity to prevent noise
-        low_single_clusters = [
-            c for c in clusters
-            if len(c) == 1 and str(c[0].get("sev", "")).upper() in ("LOW", "INFO")
-        ]
-        if len(low_single_clusters) > 1:
-            combined_low = [f for c in low_single_clusters for f in c]
-            clusters = [
-                c for c in clusters
-                if not (len(c) == 1 and str(c[0].get("sev", "")).upper() in ("LOW", "INFO"))
-            ]
-            clusters.append(combined_low)
-
         for members in clusters:
-            if not members:
-                continue
             stamps = sorted(f["stamp"] for f in members if _parse_ts(f.get("stamp")))
             first = stamps[0] if stamps else None
             techniques, tactics = [], []
@@ -162,29 +139,13 @@ def derive_incidents(state):
                         tactics.append(t["tactic"])
             sev = min((str(f.get("sev", "INFO")).upper() for f in members),
                       key=lambda s: SEV_RANK.get(s, 5))
-            fids = sorted(str(f.get("id")) for f in members)
-            fids_hash = hashlib.sha1(",".join(fids).encode()).hexdigest()[:8]
-            raw_id = f"{state.get('runId', '')}|{entity}|{kind}|{first or 'no-stamp'}|{fids_hash}"
-            inc_id = "inc-" + hashlib.sha1(raw_id.encode()).hexdigest()[:12]
-            if inc_id in seen_incident_ids:
-                continue
-            seen_incident_ids.add(inc_id)
-
-            is_rollup = len(members) > 1 and sev in ("LOW", "INFO") and len(stamps) > 1 and (
-                (_parse_ts(stamps[-1]) - _parse_ts(stamps[0])).total_seconds() > CLUSTER_GAP_SECONDS
-            )
-            title = (
-                f"{entity} — {len(members)} low-severity finding(s) (rollup)"
-                if is_rollup
-                else f"{entity} — {len(members)} correlated finding(s)"
-            )
-
+            raw_id = f"{state.get('runId', '')}|{entity}|{first or 'no-stamp'}"
             incidents.append({
-                "id": inc_id,
+                "id": "inc-" + hashlib.sha1(raw_id.encode()).hexdigest()[:12],
                 "runId": state.get("runId", ""),
                 "entity": entity,
                 "entityKind": kind,
-                "title": title,
+                "title": f"{entity} — {len(members)} correlated finding(s)",
                 "severity": sev,
                 "findingIds": [f.get("id") for f in members],
                 "findingCount": len(members),
@@ -194,7 +155,6 @@ def derive_incidents(state):
                 "firstSeen": first,
                 "lastSeen": stamps[-1] if stamps else None,
                 "timeUncertain": bool(unstamped),
-                "isRollup": bool(is_rollup),
             })
     return incidents
 
@@ -224,15 +184,9 @@ def list_incidents(state=None, state_filter=None):
     else:
         store = _load("incidents.json")
     out = sorted(store.values(), key=lambda i: i.get("createdAt") or "", reverse=True)
-    deduped = []
-    seen = set()
-    for inc in out:
-        if inc.get("id") and inc["id"] not in seen:
-            seen.add(inc["id"])
-            deduped.append(inc)
     if state_filter:
-        deduped = [i for i in deduped if i.get("state") == state_filter]
-    return deduped
+        out = [i for i in out if i.get("state") == state_filter]
+    return out
 
 
 def get_incident(iid):
@@ -262,6 +216,220 @@ def set_incident_state(iid, new_state):
 
 
 # ---------------------------------------------------------------------------
+# RCA — layered root-cause view of one incident (advisory on top, never below)
+# ---------------------------------------------------------------------------
+#
+# Three layers, each degrading to an HONEST absence, never a fabricated fill:
+#   1. deterministic cluster facts — always present, straight from the
+#      incident record and its member findings (whose timelines are
+#      rule_context.enrich/timeline_for output carried through the adapter);
+#   2. a runbook citation — only when BM25 retrieval over
+#      console/.soc/runbooks/*.md clears an explicit score+coverage bar;
+#   3. an LLM hypothesis — only via a caller-injected callable, built solely
+#      from layers 1–2, labeled advisory, and withheld when
+#      explanation_guard.verify_explanation rejects it.
+# Nothing here reads or writes severity; rules own the verdict.
+
+RCA_HYPOTHESIS_LABEL = "advisory · hypothesis · not a verdict"
+
+# Conservative "is this runbook actually about this incident" bar, applied to
+# the BEST-scoring runbook only. Coverage = fraction of the incident's
+# distinct RULE-ID tokens present in the doc (the applicability question —
+# free-text tokens like IP digits deliberately don't count); score = plain
+# BM25 (k1=1.5, b=0.75) over the full query. Both must clear. Deliberately
+# strict — a wrong citation reads as authority, an honest "no runbook match"
+# reads as exactly what it is. Tunable defaults, not validated constants.
+RCA_MIN_COVERAGE = 0.5
+RCA_MIN_SCORE = 1.0
+
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
+def _rca_tokens(text):
+    return _WORD_RE.findall(text.lower())
+
+
+def _bm25_rank(query_tokens, docs, k1=1.5, b=0.75):
+    """Plain BM25 over tokenized docs. Returns [(score, index)] best-first.
+
+    Stdlib-only on purpose: the corpus is a handful of markdown files, and a
+    dependency-free scorer keeps the honest-threshold logic auditable."""
+    if not docs:
+        return []
+    n = len(docs)
+    avgdl = sum(len(d) for d in docs) / n
+    df = Counter()
+    for d in docs:
+        df.update(set(d))
+    scores = []
+    for i, d in enumerate(docs):
+        tf = Counter(d)
+        score = 0.0
+        for term in query_tokens:
+            if not tf[term]:
+                continue
+            idf = math.log((n - df[term] + 0.5) / (df[term] + 0.5) + 1)
+            score += idf * (tf[term] * (k1 + 1)) / (
+                tf[term] + k1 * (1 - b + b * len(d) / avgdl))
+        scores.append((score, i))
+    return sorted(scores, key=lambda pair: -pair[0])
+
+
+def _cite_runbook(query_text, rule_tokens):
+    """Best runbook for this incident, or an honest no-match.
+
+    Returns {"matched": True, file, title, passage, score, coverage} only when
+    the best doc clears BOTH thresholds; otherwise {"matched": False, "note"}.
+    A citation is never forced — an empty runbooks dir (or a cluster whose
+    rules aren't loaded) is a no-match, not an error, and the passage shown is
+    the doc's own best paragraph, verbatim."""
+    runbooks_dir = SOC_DIR / "runbooks"
+    files = sorted(runbooks_dir.glob("*.md")) if runbooks_dir.is_dir() else []
+    if not files:
+        return {"matched": False,
+                "note": "no runbook match — the runbook store is empty"}
+    if not rule_tokens:
+        return {"matched": False,
+                "note": "no runbook match — this incident's rules are not "
+                        "loaded, so applicability cannot be checked"}
+
+    texts = []
+    for path in files:
+        try:
+            texts.append(path.read_text(errors="replace"))
+        except OSError:
+            texts.append("")
+    docs = [_rca_tokens(t) for t in texts]
+
+    query = _rca_tokens(query_text)
+    distinct = set(query)
+    ranked = _bm25_rank(query, docs)
+    if not ranked or not distinct:
+        return {"matched": False, "note": "no runbook match"}
+
+    score, best = ranked[0]
+    coverage = len(rule_tokens & set(docs[best])) / len(rule_tokens)
+    if score < RCA_MIN_SCORE or coverage < RCA_MIN_COVERAGE:
+        return {"matched": False,
+                "note": (f"no runbook match — best candidate "
+                         f"{files[best].name} scored {score:.2f} "
+                         f"(coverage {coverage:.0%}), below the citation bar")}
+
+    text = texts[best]
+    title = next((ln.lstrip("# ").strip() for ln in text.splitlines()
+                  if ln.startswith("#")), files[best].name)
+    # The cited passage is the doc's own best paragraph, chosen by term hits —
+    # quoted verbatim so the analyst reads the runbook, not a paraphrase.
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    passage = max(paragraphs,
+                  key=lambda p: len(distinct & set(_rca_tokens(p))))
+    return {"matched": True, "file": files[best].name, "title": title,
+            "passage": passage, "score": round(score, 2),
+            "coverage": round(coverage, 2)}
+
+
+def derive_rca(iid, state=None, hypothesis_fn=None):
+    """Layered RCA for one incident; None for an unknown id.
+
+    `hypothesis_fn`, when given, is a callable(prompt) -> advisory prose owned
+    by the caller (serve.py injects the local model; tests inject stubs). This
+    module never imports the LLM, and severity is never read back or changed.
+    """
+    inc = get_incident(iid)
+    if not inc:
+        return None
+
+    # --- Layer 1: deterministic facts, always ------------------------------
+    by_id = {}
+    if state and not state.get("idle") and state.get("runId") == inc.get("runId"):
+        by_id = {f.get("id"): f for f in state.get("findings", [])}
+    members = [by_id[fid] for fid in inc.get("findingIds", []) if fid in by_id]
+
+    timeline = []
+    for m in members:
+        for e in m.get("timeline", []):
+            timeline.append({"t": e.get("t", ""), "label": e.get("label", ""),
+                             "line": e.get("line"), "findingId": m.get("id"),
+                             "rule": m.get("type")})
+    timeline.sort(key=lambda e: (e["t"] == "", e["t"], e["line"] or 0))
+
+    facts = {
+        "incidentId": inc["id"],
+        "entity": inc.get("entity"),
+        "entityKind": inc.get("entityKind"),
+        "findingIds": inc.get("findingIds", []),
+        "membersLoaded": len(members),
+        "rules": sorted({m.get("type") for m in members if m.get("type")}),
+        "firstSeen": inc.get("firstSeen"),
+        "lastSeen": inc.get("lastSeen"),
+        "timeline": timeline,
+        # Honest gap, not a reconstruction: member findings live in run state,
+        # so an incident from another run keeps its ids but loses the timeline.
+        "note": (None if len(members) == len(inc.get("findingIds", []))
+                 else "some member findings are not in the loaded run — "
+                      "their timeline entries are unavailable"),
+    }
+
+    # --- Layer 2: runbook citation, only over the bar ----------------------
+    query = " ".join(facts["rules"] * 2                # rule ids weigh double
+                     + [inc.get("entityKind") or ""]
+                     + [m.get("title") or "" for m in members])
+    rule_tokens = {tok for rule in facts["rules"] for tok in _rca_tokens(rule)}
+    runbook = _cite_runbook(query, rule_tokens)
+
+    # --- Layer 3: advisory hypothesis, guarded -----------------------------
+    hypothesis = {"text": None, "label": RCA_HYPOTHESIS_LABEL,
+                  "note": "model unavailable — deterministic facts only"}
+    if hypothesis_fn is not None:
+        prompt = json.dumps({
+            "task": ("Write a 2-4 sentence root-cause hypothesis for this "
+                     "incident. Use ONLY the facts and the cited runbook "
+                     "passage below. Never name a host, IP, or username that "
+                     "does not appear in them. Do not rate or change "
+                     "severity. Plain text only."),
+            "facts": facts,
+            "runbook_passage": runbook.get("passage") if runbook["matched"] else None,
+        }, indent=1)
+        try:
+            text = (hypothesis_fn(prompt) or "").strip()
+        except Exception:
+            text = ""
+        if not text:
+            hypothesis["note"] = "model returned no hypothesis"
+        else:
+            # Grounding corpus for the guard: the cluster's own deterministic
+            # fields plus the cited passage (prose may echo what it was shown).
+            # The rule id is asserted only for a single-rule cluster — with
+            # mixed rules there is no one fault type the prose must match.
+            rules = facts["rules"]
+            pseudo = {
+                "type": rules[0] if len(rules) == 1 else None,
+                "summary": inc.get("title", ""),
+                "entities": {"entity": inc.get("entity")},
+                "rules": rules,
+                "members": [{"title": m.get("title"), "type": m.get("type"),
+                             "host": m.get("host"), "chips": m.get("chips")}
+                            for m in members],
+                "timeline": timeline,
+                "runbook": runbook.get("passage") if runbook["matched"] else "",
+                "span": [facts["firstSeen"], facts["lastSeen"]],
+            }
+            verdict = explanation_guard.verify_explanation(pseudo, text)
+            if verdict["ok"]:
+                hypothesis = {"text": text, "label": RCA_HYPOTHESIS_LABEL,
+                              "note": None}
+            else:
+                hypothesis = {"text": None, "label": RCA_HYPOTHESIS_LABEL,
+                              "note": "withheld — failed the explanation "
+                                      "consistency guard",
+                              "reasons": verdict["reasons"]}
+
+    return {"incidentId": inc["id"], "facts": facts, "runbook": runbook,
+            "hypothesis": hypothesis}
+
+
+
+# ---------------------------------------------------------------------------
 # Assets & users — observed entities only (severity-weighted risk)
 # ---------------------------------------------------------------------------
 
@@ -274,7 +442,6 @@ def derive_assets(state):
         if key not in assets:
             assets[key] = {"id": f"asset-{kind}-{name}", "name": name, "kind": kind,
                            "events": 0, "findings": 0, "atRisk": False,
-                           "riskScore": 0, "maxSeverity": None,
                            "lastSeen": None}
         return assets[key]
 
@@ -286,31 +453,21 @@ def derive_assets(state):
                 a["lastSeen"] = e["ts"]
 
     for f in state.get("findings", []):
-        f_sev = str(f.get("sev") or "INFO").upper()
-        weight = SEV_WEIGHT.get(f_sev, 1)
-
         if f.get("hostDerived") and f.get("host") not in (None, "", "—"):
             a = touch(f["host"], "host")
             a["findings"] += 1
             a["atRisk"] = True
-            a["riskScore"] += weight
-            if not a["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(a["maxSeverity"], 5):
-                a["maxSeverity"] = f_sev
-
         for chip in f.get("chips") or []:
             text = str(chip.get("text", ""))
             if redact.IPV4_RE.fullmatch(text):
                 a = touch(text, "ip")
                 a["findings"] += 1
                 a["atRisk"] = True
-                a["riskScore"] += weight
-                if not a["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(a["maxSeverity"], 5):
-                    a["maxSeverity"] = f_sev
                 if f.get("stamp") and (a["lastSeen"] or "") < f["stamp"]:
                     a["lastSeen"] = f["stamp"]
 
     return sorted(assets.values(),
-                  key=lambda a: (-a["riskScore"], -a["findings"], -a["events"], a["name"]))
+                  key=lambda a: (-a["findings"], -a["events"], a["name"]))
 
 
 def derive_users(state):
@@ -327,25 +484,16 @@ def derive_users(state):
     for e in state.get("events", []):
         for name in found_in(e.get("msg")):
             u = users.setdefault(name, {"id": f"user-{name}", "name": name,
-                                        "events": 0, "findings": 0, "atRisk": False,
-                                        "riskScore": 0, "maxSeverity": None})
+                                        "events": 0, "findings": 0, "atRisk": False})
             u["events"] += 1
-
     for f in state.get("findings", []):
-        f_sev = str(f.get("sev") or "INFO").upper()
-        weight = SEV_WEIGHT.get(f_sev, 1)
         for name in set(found_in(f.get("title"))):
             u = users.setdefault(name, {"id": f"user-{name}", "name": name,
-                                        "events": 0, "findings": 0, "atRisk": False,
-                                        "riskScore": 0, "maxSeverity": None})
+                                        "events": 0, "findings": 0, "atRisk": False})
             u["findings"] += 1
             u["atRisk"] = True
-            u["riskScore"] += weight
-            if not u["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(u["maxSeverity"], 5):
-                u["maxSeverity"] = f_sev
 
-    return sorted(users.values(), key=lambda u: (-u["riskScore"], -u["findings"], -u["events"], u["name"]))
-
+    return sorted(users.values(), key=lambda u: (-u["findings"], -u["events"], u["name"]))
 
 
 # ---------------------------------------------------------------------------
