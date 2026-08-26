@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Universal UDP Syslog collector for UDP 513/514/1514.
+"""Universal Syslog collector for UDP/TCP 514/1514.
 
-- Concurrent listeners on multiple UDP ports.
+- Concurrent UDP and TCP listeners on multiple ports.
+- RFC 6587 TCP framing: octet-counting and non-transparent (LF-delimited).
 - RFC3164 and RFC5424 PRI parsing when present.
 - RFC3164/RFC5424 envelope hostname parsing (RFC3164 via the SAME regex the
   file pipeline uses — normalize.RFC3164_RE). `host` is the origin host the
@@ -24,9 +25,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from normalize import RFC3164_RE  # noqa: E402  # the file pipeline's envelope regex
+import store  # noqa: E402  # imported once; schema is initialized once per start
 
-DEFAULT_PORTS = (513, 514, 1514)
+DEFAULT_PORTS = (514, 1514)
 MAX_DATAGRAM = 65535
+MAX_TCP_BUFFER = MAX_DATAGRAM * 2
 
 _SEV = {
     0: "EMERGENCY", 1: "ALERT", 2: "CRITICAL", 3: "ERROR",
@@ -47,7 +50,8 @@ def _now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def parse_syslog(data: bytes, src_ip: str, src_port: int, listen_port: int) -> dict:
+def parse_syslog(data: bytes, src_ip: str, src_port: int, listen_port: int,
+                 protocol: str = "udp") -> dict:
     text = data.decode("utf-8", "replace").rstrip("\x00\r\n")
     facility = severity = None
     pri = None
@@ -86,8 +90,8 @@ def parse_syslog(data: bytes, src_ip: str, src_port: int, listen_port: int) -> d
 
     return {
         "ts": _now(),
-        "source": f"udp:{listen_port}",
-        "source_type": "syslog:udp",
+        "source": f"{protocol}:{listen_port}",
+        "source_type": f"syslog:{protocol}",
         "category": "syslog",
         "host": host or src_ip,
         # Honest fallback provenance: "sender-ip" means the envelope named no
@@ -108,7 +112,9 @@ def parse_syslog(data: bytes, src_ip: str, src_port: int, listen_port: int) -> d
     }
 
 
-class _Listener:
+class _BaseListener:
+    protocol = ""
+
     def __init__(self, owner, port, bind):
         self.owner = owner
         self.port = int(port)
@@ -123,14 +129,6 @@ class _Listener:
         self.last_source = ""
         self.last_message_at = ""
 
-    def start(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind((self.bind, self.port))
-        self.sock.settimeout(0.5)
-        self.thread = threading.Thread(target=self._run, name=f"syslog-udp-{self.port}", daemon=True)
-        self.thread.start()
-
     def stop(self):
         self.stop_event.set()
         s, self.sock = self.sock, None
@@ -139,6 +137,30 @@ class _Listener:
             except OSError: pass
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=1.5)
+
+    def _record(self, data, addr):
+        event = parse_syslog(data, addr[0], addr[1], self.port, self.protocol.lower())
+        self.received += 1
+        self.last_source = f"{addr[0]}:{addr[1]}"
+        self.last_message_at = event["ts"]
+        self.stored += self.owner._store(event)
+
+    def _error(self, exc):
+        self.errors += 1
+        self.last_error = str(exc)
+
+
+class _UDPListener(_BaseListener):
+    protocol = "UDP"
+
+    def start(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # UDP has no TIME_WAIT. SO_REUSEADDR can let another local process bind
+        # the same port and split the event stream, so exclusive bind is safer.
+        self.sock.bind((self.bind, self.port))
+        self.sock.settimeout(0.5)
+        self.thread = threading.Thread(target=self._run, name=f"syslog-udp-{self.port}", daemon=True)
+        self.thread.start()
 
     def _run(self):
         while not self.stop_event.is_set():
@@ -149,18 +171,102 @@ class _Listener:
             except OSError:
                 break
             except Exception as exc:
-                self.errors += 1
-                self.last_error = str(exc)
+                self._error(exc)
                 continue
             try:
-                event = parse_syslog(data, addr[0], addr[1], self.port)
-                self.received += 1
-                self.last_source = f"{addr[0]}:{addr[1]}"
-                self.last_message_at = event["ts"]
-                self.stored += self.owner._store(event)
+                self._record(data, addr)
             except Exception as exc:
-                self.errors += 1
-                self.last_error = str(exc)
+                self._error(exc)
+
+
+class _TCPListener(_BaseListener):
+    protocol = "TCP"
+
+    def start(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # TCP restart needs address reuse because closed connections enter
+        # TIME_WAIT; unlike UDP, this does not split datagrams between sockets.
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind((self.bind, self.port))
+        self.sock.listen(32)
+        self.sock.settimeout(0.5)
+        self.thread = threading.Thread(target=self._run, name=f"syslog-tcp-{self.port}", daemon=True)
+        self.thread.start()
+
+    def _run(self):
+        while not self.stop_event.is_set():
+            try:
+                conn, addr = self.sock.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            except Exception as exc:
+                self._error(exc)
+                continue
+            threading.Thread(target=self._client, args=(conn, addr),
+                             name=f"syslog-tcp-client-{self.port}", daemon=True).start()
+
+    def _client(self, conn, addr):
+        buffer = b""
+        with conn:
+            conn.settimeout(0.5)
+            while not self.stop_event.is_set():
+                try:
+                    chunk = conn.recv(MAX_DATAGRAM)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                buffer += chunk
+                try:
+                    frames, buffer = self._frames(buffer, final=False)
+                    for frame in frames:
+                        self._record(frame, addr)
+                except ValueError as exc:
+                    self._error(exc)
+                    return
+            try:
+                frames, _ = self._frames(buffer, final=True)
+                for frame in frames:
+                    self._record(frame, addr)
+            except ValueError as exc:
+                self._error(exc)
+
+    @staticmethod
+    def _frames(buffer, final=False):
+        """Extract RFC 6587 octet-counted or LF-delimited frames from bytes."""
+        frames = []
+        while buffer:
+            prefix = re.match(br"^(\d+) ", buffer)
+            if prefix:
+                length = int(prefix.group(1))
+                if length > MAX_DATAGRAM:
+                    raise ValueError(f"RFC6587 frame exceeds {MAX_DATAGRAM} bytes")
+                start = prefix.end()
+                if len(buffer) - start < length:
+                    if len(buffer) > MAX_TCP_BUFFER:
+                        raise ValueError("RFC6587 receive buffer limit exceeded")
+                    break
+                frame, buffer = buffer[start:start + length], buffer[start + length:]
+                if frame:
+                    frames.append(frame)
+                continue
+            newline = buffer.find(b"\n")
+            if newline >= 0:
+                frame, buffer = buffer[:newline].rstrip(b"\r"), buffer[newline + 1:]
+                if frame:
+                    frames.append(frame)
+                continue
+            if len(buffer) > MAX_TCP_BUFFER:
+                raise ValueError("RFC6587 receive buffer limit exceeded")
+            if final and buffer.rstrip(b"\r"):
+                frames.append(buffer.rstrip(b"\r"))
+                buffer = b""
+            break
+        return frames, buffer
 
 
 class SyslogCollector:
@@ -192,20 +298,25 @@ class SyslogCollector:
             self._last_bind = bind
             self._last_port = ports[0] if ports else 1514
             # Idempotent for the same configuration.
+            wanted = {(proto, p) for p in ports for proto in ("udp", "tcp")}
             active = set(self._listeners)
-            if active == set(ports) and all(l.thread and l.thread.is_alive() for l in self._listeners.values()):
+            if active == wanted and all(l.thread and l.thread.is_alive() for l in self._listeners.values()):
                 return self.status()
             self._stop_locked()
             started = {}
             try:
+                store.init_db()
                 for p in ports:
-                    l = _Listener(self, p, bind)
-                    l.start()
-                    started[p] = l
-            except OSError as exc:
+                    for proto, listener_type in (("udp", _UDPListener), ("tcp", _TCPListener)):
+                        l = listener_type(self, p, bind)
+                        l.start()
+                        started[(proto, p)] = l
+            except Exception as exc:
                 for l in started.values(): l.stop()
                 self._listeners = {}
-                self._last_error = self._bind_error(exc, p, bind)
+                self._last_error = (self._bind_error(exc, p, bind)
+                                    if isinstance(exc, OSError)
+                                    else f"cannot initialize syslog store: {exc}")
                 self._started_at = None
                 return self.status()
             self._listeners = started
@@ -215,10 +326,10 @@ class SyslogCollector:
 
     def _bind_error(self, exc, port, bind):
         if getattr(exc, "errno", None) in (13,):
-            return f"cannot bind UDP {port} on {bind}: permission denied; UDP ports below 1024 require appropriate privileges"
+            return f"cannot bind syslog port {port} on {bind}: permission denied; ports below 1024 require appropriate privileges"
         if getattr(exc, "errno", None) in (98, 48, 10048):
-            return f"cannot bind UDP {port} on {bind}: address already in use"
-        return f"cannot bind UDP {port} on {bind}: {exc}"
+            return f"cannot bind syslog port {port} on {bind}: address already in use"
+        return f"cannot bind syslog port {port} on {bind}: {exc}"
 
     def _stop_locked(self):
         listeners = list(self._listeners.values())
@@ -234,11 +345,7 @@ class SyslogCollector:
 
     def _store(self, event):
         try:
-            import store
-            if hasattr(store, "init_db"):
-                store.init_db()
-            if hasattr(store, "insert_event"):
-                return 1 if store.insert_event(event) else 0
+            return 1 if store.insert_event(event) else 0
         except Exception as exc:
             self._last_error = f"store insert failed: {exc}"
         return 0
@@ -246,11 +353,11 @@ class SyslogCollector:
     def status(self):
         with self._lock:
             listeners = []
-            for p in sorted(self._listeners):
-                l = self._listeners[p]
+            for key in sorted(self._listeners, key=lambda x: (x[1], x[0])):
+                l = self._listeners[key]
                 listeners.append({
-                    "port": p,
-                    "protocol": "UDP",
+                    "port": l.port,
+                    "protocol": l.protocol,
                     "bind": l.bind,
                     "running": bool(l.thread and l.thread.is_alive() and not l.stop_event.is_set()),
                     "received": l.received,
@@ -272,15 +379,15 @@ class SyslogCollector:
                 "running": running,
                 "bind": bind_val,
                 "port": port_val,
-                "protocol": "UDP",
-                "protocols": ["udp"],
+                "protocol": "UDP + TCP",
+                "protocols": ["udp", "tcp"],
                 "exposed": any(x["bind"] == "0.0.0.0" for x in listeners),
                 "receivedCount": sum(x["received"] for x in listeners),
                 "storedCount": sum(x["stored"] for x in listeners),
                 "startedAt": started_at,
                 "lastEventAt": last_event_at,
                 "supportedPorts": list(DEFAULT_PORTS),
-                "ports": [x["port"] for x in listeners],
+                "ports": sorted({x["port"] for x in listeners}),
                 "listeners": listeners,
                 "error": self._last_error,
             }

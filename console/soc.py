@@ -370,9 +370,7 @@ def _cite_runbook(query_text, rule_tokens):
                   if ln.startswith("#")), files[best].name)
     # The cited passage is the doc's own best paragraph, chosen by term hits —
     # quoted verbatim so the analyst reads the runbook, not a paraphrase.
-    paragraphs = [p.strip() for p in text.split("
-
-") if p.strip()]
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     passage = max(paragraphs,
                   key=lambda p: len(distinct & set(_rca_tokens(p))))
     return {"matched": True, "file": files[best].name, "title": title,

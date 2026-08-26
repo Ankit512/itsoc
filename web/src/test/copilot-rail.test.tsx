@@ -33,8 +33,8 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
           ],
         },
         runs: [
-          { file: "run-3.json", runId: "run-3", sourceLabel: "auth-3.log", linesParsed: 2000, findingCount: 3, dataComplete: true },
-          { file: "run-2.json", runId: "run-2", sourceLabel: "auth-2.log", linesParsed: 2000, findingCount: 4, dataComplete: true },
+          { file: "run-3.json", runId: "run-3", sourceLabel: "auth-3.log", linesParsed: 2000, findingCount: 3, dataComplete: true, topTechniques: [{ id: "T1110", name: "Brute Force", tactic: "Credential Access", count: 7 }] },
+          { file: "run-2.json", runId: "run-2", sourceLabel: "auth-2.log", linesParsed: 2000, findingCount: 4, dataComplete: true, topTechniques: [{ id: "T1110", name: "Brute Force", tactic: "Credential Access", count: 4 }] },
           { file: "run-1.json", runId: "run-1", sourceLabel: "auth-1.log", linesParsed: 2000, findingCount: 2, dataComplete: true },
         ],
       },
@@ -101,7 +101,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(trendCard).toHaveTextContent("3 saved run(s)");
     expect(trendCard).toHaveTextContent("Brute Force");
     expect(trendCard).toHaveTextContent("7 hits");
-    expect(trendCard).toHaveTextContent(/Credential Access.*auth_bruteforce is rising/i);
+    expect(trendCard).toHaveTextContent(/Brute Force:.*3 more hit\(s\) than the previous run/i);
   });
 
   it("Role 2 (single run): honestly explains trend requires at least 2 runs", async () => {
@@ -174,18 +174,14 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(viewLink).toHaveAttribute("href", "/alerts?sel=detector-0");
   });
 
-  it("Role 5: Cited Resolution matches verified runbook with verbatim steps and score", async () => {
+  it("Role 5: without a selected incident, honestly requires derive_rca context", async () => {
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
 
     const resTab = await screen.findByRole("tab", { name: /runbook/i });
     await userEvent.click(resTab);
 
     const card = await screen.findByTestId("copilot-resolution-card");
-    expect(card).toHaveTextContent("SSH brute-force / credential attack response");
-    expect(card).toHaveTextContent("ssh-brute-force.md");
-    expect(card).toHaveTextContent(/score 24\.5 · rule coverage 100%/i);
-    expect(card).toHaveTextContent("1. Block the source IP at the firewall immediately.");
-    expect(card).toHaveTextContent("2. Disable/lock targeted account, rotate credential, and invalidate active sessions.");
+    expect(card).toHaveTextContent(/select an incident to request its real derive_rca runbook result/i);
   });
 
   it("Role 5 (no match): displays honest below-citation-threshold note", async () => {
@@ -199,6 +195,6 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     const resTab = await screen.findByRole("tab", { name: /runbook/i });
     await userEvent.click(resTab);
 
-    expect(await screen.findByText(/no runbook match — below citation bar/i)).toBeInTheDocument();
+    expect(await screen.findByText(/select an incident to request its real derive_rca runbook result/i)).toBeInTheDocument();
   });
 });

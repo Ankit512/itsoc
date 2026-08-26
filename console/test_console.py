@@ -27,10 +27,27 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CONSOLE_HTML = HERE / "anomaly_console.html"
+_AUTH_TEST_TMP = None
+_AUTH_TEST_TOKEN = None
+
+
+def enable_test_api_auth():
+    """Authenticate all suite HTTP helpers against the real centralized gate."""
+    global _AUTH_TEST_TMP, _AUTH_TEST_TOKEN
+    sys.path.insert(0, str(HERE))
+    import auth
+    _AUTH_TEST_TMP = tempfile.TemporaryDirectory(prefix="console-auth-")
+    auth.AUTH_PROVIDER = auth.LocalDemoAuth(Path(_AUTH_TEST_TMP.name))
+    _user, token = auth.AUTH_PROVIDER.signup("suite-analyst", "suite-passphrase")
+    _AUTH_TEST_TOKEN = token
+    opener = urllib.request.build_opener()
+    opener.addheaders = [("Authorization", f"Bearer {token}")]
+    urllib.request.install_opener(opener)
 
 # A live state in console/adapter.py's shape. Hand-written so the test needs no
 # analyzer run: two rule findings that disagree with the model, one that agrees,
@@ -2234,7 +2251,9 @@ def check_stream():
 
     def open_stream(port, source, last_event_id=None):
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=25)
-        headers = {"Last-Event-ID": last_event_id} if last_event_id else {}
+        headers = {"Authorization": f"Bearer {_AUTH_TEST_TOKEN}"}
+        if last_event_id:
+            headers["Last-Event-ID"] = last_event_id
         conn.request("GET", "/api/stream?source="
                      + urllib.parse.quote(source, safe=""), headers=headers)
         return conn, conn.getresponse()
@@ -2256,7 +2275,8 @@ def check_stream():
             try:
                 # --- whitelist: same boundary as /api/analyze ---------------
                 conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-                conn.request("GET", "/api/stream?source=/etc/passwd")
+                conn.request("GET", "/api/stream?source=/etc/passwd",
+                             headers={"Authorization": f"Bearer {_AUTH_TEST_TOKEN}"})
                 r = conn.getresponse()
                 body = json.loads(r.read() or b"{}")
                 check("arbitrary path is refused with an honest 400",
@@ -2702,7 +2722,7 @@ def check_syslog():
 
     Unit level: PRI severity is SOURCE-REPORTED (decoded from the PRI, never
     guessed), raw is verbatim, no-PRI => empty severity. Live level: a real UDP
-    packet to a loopback listener lands in the store as a syslog event, status
+    packets to loopback UDP/TCP listeners land in the store as syslog events, status
     reflects the true running/stopped/received state, and a bad bind/port is an
     honest error, not a fake 'running'. Runs against a temp store DB.
     """
@@ -2734,6 +2754,9 @@ def check_syslog():
             store.SOC_DIR = Path(tmp)
             store.DB_PATH = Path(tmp) / "soc_history.db"
             store.init_db()
+
+            check("default ports are syslog ports only (legacy UDP 513 removed)",
+                  sc.DEFAULT_PORTS == (514, 1514), str(sc.DEFAULT_PORTS))
 
             # --- unit: severity is the source's PRI level, never guessed -----
             # parse_syslog now takes (data: bytes, src_ip, src_port, listen_port).
@@ -2789,10 +2812,35 @@ def check_syslog():
                 collector.stop()
             check("collector binds a loopback UDP port and reports running",
                   port and collector.status()["running"], collector.status().get("error"))
+            check("collector restores both UDP and TCP protocols on the configured port",
+                  collector.status().get("protocols") == ["udp", "tcp"]
+                  and {(l["protocol"], l["port"]) for l in collector.status()["listeners"]}
+                  == {("UDP", port), ("TCP", port)}, str(collector.status()))
             # The rewritten collector reports per-listener binds instead of a
             # single "exposed" flag: not-exposed == no listener on 0.0.0.0.
             check("a freshly started loopback listener is not network-exposed",
                   all(l["bind"] != "0.0.0.0" for l in collector.status()["listeners"]))
+
+            # UDP deliberately has no SO_REUSEADDR: a second local socket must
+            # not be able to bind and split the stream.
+            competitor = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            competitor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            udp_exclusive = False
+            try:
+                competitor.bind(("127.0.0.1", port))
+            except OSError:
+                udp_exclusive = True
+            finally:
+                competitor.close()
+            check("UDP bind is exclusive (no SO_REUSEADDR stream splitting)", udp_exclusive)
+
+            # init_db belongs to listener startup, not the per-message hot path.
+            original_init = store.init_db
+            init_calls = {"n": 0}
+            def counted_init():
+                init_calls["n"] += 1
+                return original_init()
+            store.init_db = counted_init
 
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.sendto(b"<13>Aug 19 10:00:00 host1 app: hello over udp", ("127.0.0.1", port))
@@ -2817,6 +2865,42 @@ def check_syslog():
             hosts = {i["host"] for i in q["items"]}
             check("stored host is the envelope origin, not 127.0.0.1",
                   hosts == {"host1", "host2"}, str(hosts))
+            check("store schema initialization is not repeated per UDP datagram",
+                  init_calls["n"] == 0, str(init_calls["n"]))
+
+            # --- live: RFC 6587 TCP framing --------------------------------
+            octet_a = b"<14>Oct 11 22:14:15 tcp-a app: fragmented frame"
+            octet_b = b"<11>1 2003-10-11T22:14:15.003Z tcp-b svc - ID9 - coalesced frame"
+            wire = (str(len(octet_a)).encode() + b" " + octet_a
+                    + str(len(octet_b)).encode() + b" " + octet_b)
+            with socket.create_connection(("127.0.0.1", port), timeout=2) as tcp:
+                tcp.sendall(wire[:9])
+                tcp.sendall(wire[9:])
+            with socket.create_connection(("127.0.0.1", port), timeout=2) as tcp:
+                tcp.sendall(b"<13>Oct 11 22:14:16 tcp-c app: line one\n"
+                            b"<12>Oct 11 22:14:17 tcp-d app: line two\n")
+
+            def tcp_received():
+                return sum(l["received"] for l in collector.status()["listeners"]
+                           if l["protocol"] == "TCP")
+            deadline = time.time() + 3
+            while tcp_received() < 4 and time.time() < deadline:
+                time.sleep(0.05)
+            check("RFC6587 handles fragmented/coalesced octet frames and LF frames",
+                  tcp_received() == 4, str(tcp_received()))
+            tq = store.query("events", filters={"source_type": "syslog:tcp"})
+            tcp_raw = {i["raw"] for i in tq["items"]}
+            check("TCP stores exactly the four verbatim RFC6587 payloads",
+                  tq["total"] == 4 and tcp_raw == {
+                      octet_a.decode(), octet_b.decode(),
+                      "<13>Oct 11 22:14:16 tcp-c app: line one",
+                      "<12>Oct 11 22:14:17 tcp-d app: line two",
+                  }, str(tcp_raw))
+            check("TCP PRI severity remains source-reported",
+                  {i["raw"]: i["severity"] for i in tq["items"]}.get(octet_b.decode()) == "ERROR")
+            check("store schema initialization is not repeated per TCP frame",
+                  init_calls["n"] == 0, str(init_calls["n"]))
+            store.init_db = original_init
 
             stopped = collector.stop()
             check("stop() leaves the listener honestly not-running", stopped["running"] is False)
@@ -2871,6 +2955,8 @@ def check_syslog():
             srv.shutdown()
     finally:
         collector.stop()
+        if "original_init" in locals():
+            store.init_db = original_init
         store.SOC_DIR, store.DB_PATH = real
 
     return 0 if all(results) else 1
@@ -4113,6 +4199,135 @@ def check_redesign_phase4():
     return 0 if all(results) else 1
 
 
+def check_auth():
+    """Redesign Phase 6 — Local demo auth & swap seam (console/auth.py, serve.py /api/auth/*)."""
+    print("\nRedesign Phase 6 Auth (demo single-profile, scrypt hashing, swap-seam contracts):")
+    results = []
+
+    def check(label, cond):
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}")
+        results.append(bool(cond))
+
+    import hashlib
+    import http.server
+    import threading
+    import urllib.request
+    import urllib.error
+    ROOT = HERE.parent
+    import auth
+    import serve
+    sha = hashlib.sha256((ROOT / "anomaly_detector.py").read_bytes()).hexdigest()
+    check("anomaly_detector.py sha256 matches the baseline",
+          sha == "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876")
+
+    with tempfile.TemporaryDirectory(prefix="auth-test-") as tmp:
+        tmp_soc = Path(tmp)
+        test_auth = auth.LocalDemoAuth(soc_dir=tmp_soc)
+
+        # 1. Uninitialized status
+        st = test_auth.get_status()
+        check("initial status reports hasProfile=False and local_demo authType",
+              st.get("hasProfile") is False and st.get("authType") == "local_demo")
+
+        # 2. Signup stores salted hash, not plaintext
+        user, token = test_auth.signup("analyst", "supersecret123", role="analyst")
+        check("signup returns user dict and 64-hex session token",
+              user.get("username") == "analyst" and user.get("role") == "analyst" and len(token) == 64)
+
+        auth_json_path = tmp_soc / "auth.json"
+        check("auth.json created in .soc directory", auth_json_path.exists())
+        saved_raw = auth_json_path.read_text()
+        check("plaintext passphrase is NEVER stored in auth.json", "supersecret123" not in saved_raw)
+        saved_data = json.loads(saved_raw)
+        check("stored hash is salted scrypt/pbkdf2 format",
+              "$" in saved_data.get("hash", "") and len(saved_data.get("salt", "")) > 10)
+
+        # 3. Token authentication
+        authed_user = test_auth.authenticate_token(token)
+        check("authenticate_token validates valid session token",
+              authed_user is not None and authed_user.get("username") == "analyst")
+        check("authenticate_token returns None for invalid token",
+              test_auth.authenticate_token("invalid_token_123") is None)
+
+        # 4. Login with valid vs invalid credentials
+        login_user, new_token = test_auth.login("analyst", "supersecret123")
+        check("login succeeds with correct passphrase",
+              login_user.get("username") == "analyst" and len(new_token) == 64)
+
+        wrong_pass = False
+        try:
+            test_auth.login("analyst", "wrongpassword")
+        except PermissionError:
+            wrong_pass = True
+        check("login raises PermissionError on incorrect passphrase", wrong_pass)
+
+        # 5. Logout revokes token
+        test_auth.logout(token)
+        check("logout revokes session token", test_auth.authenticate_token(token) is None)
+
+        # 6. HTTP Server /api/auth/* endpoint contracts
+        orig_provider = auth.AUTH_PROVIDER
+        auth.AUTH_PROVIDER = test_auth
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+        srv.daemon_threads = True
+        hport = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        def http_get(path, headers=None):
+            req = urllib.request.Request(f"http://127.0.0.1:{hport}{path}", headers={"Connection": "close", **(headers or {})})
+            try:
+                with urllib.request.urlopen(req) as r:
+                    return r.status, json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read())
+
+        def http_post(path, obj, headers=None):
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{hport}{path}",
+                data=json.dumps(obj).encode(),
+                headers={"Content-Type": "application/json", "Connection": "close", **(headers or {})})
+            try:
+                with urllib.request.urlopen(req) as r:
+                    return r.status, json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read())
+
+        try:
+            # GET /api/auth/status
+            s_code, s_data = http_get("/api/auth/status")
+            check("GET /api/auth/status returns 200 with provider info",
+                  s_code == 200 and s_data.get("hasProfile") is True)
+
+            # POST /api/auth/login
+            l_code, l_data = http_post("/api/auth/login", {"username": "analyst", "passphrase": "supersecret123"})
+            check("POST /api/auth/login returns 200 and session token",
+                  l_code == 200 and l_data.get("token") and l_data.get("user", {}).get("username") == "analyst")
+            http_token = l_data.get("token")
+
+            # GET /api/auth/me with Bearer token
+            me_code, me_data = http_get("/api/auth/me", headers={"Authorization": f"Bearer {http_token}"})
+            check("GET /api/auth/me returns 200 and user profile with Bearer token",
+                  me_code == 200 and me_data.get("user", {}).get("username") == "analyst")
+
+            # GET /api/auth/me without token -> 401
+            unauth_code, unauth_data = http_get("/api/auth/me")
+            check("GET /api/auth/me without token returns 401", unauth_code == 401)
+
+            # POST /api/auth/logout with token
+            lo_code, lo_data = http_post("/api/auth/logout", {}, headers={"Authorization": f"Bearer {http_token}"})
+            check("POST /api/auth/logout returns ok: True", lo_code == 200 and lo_data.get("ok") is True)
+
+            # Subsequent /api/auth/me is 401
+            post_lo_code, _ = http_get("/api/auth/me", headers={"Authorization": f"Bearer {http_token}"})
+            check("GET /api/auth/me after logout returns 401", post_lo_code == 401)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+            auth.AUTH_PROVIDER = orig_provider
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -4148,6 +4363,7 @@ def main():
         if result.stderr.strip():
             print(result.stderr.strip()[:800])
 
+    enable_test_api_auth()
     routing = check_server_routing()
     log360 = check_log360()
     logcat_ = check_logcat()
@@ -4171,16 +4387,17 @@ def main():
     explstream_ = check_explain_stream()
     structured_ = check_structured_output()
     phase4_ = check_redesign_phase4()
+    auth_ = check_auth()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_ or parity_ or explstream_ or structured_ or phase4_):
+            or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "+ rules-parity + explain-stream + structured-output + redesign-phase4 checks green")
+          "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth checks green")
     return 0
 
 
