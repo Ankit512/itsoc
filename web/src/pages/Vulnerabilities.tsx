@@ -1,106 +1,78 @@
 import { useQuery } from "@tanstack/react-query";
-import { ShieldAlert } from "lucide-react";
 import { api, type StoreVuln } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { sevVar } from "@/lib/severity";
 
 /** Vulnerabilities — every finding nmap's NSE vuln scripts recorded in the
- *  persistent store, newest first. Severity is derived from the CVSS score NSE
- *  reported (standard band); when NSE gives no score the severity is shown as
- *  "unknown" rather than guessed. An empty store is an honest empty state — we
- *  never seed a sample vulnerability. */
-
-function SevBadge({ sev }: { sev: string }) {
-  const label = sev ? sev.toUpperCase() : "UNKNOWN";
+ *  persistent store, newest first, in the itsoc. design system (mirrors
+ *  prototype #p-vulns). Severity is derived from the CVSS score NSE reported;
+ *  when NSE gives no score the severity is shown as "unknown" rather than
+ *  guessed. An empty store is an honest empty state — never a seeded sample. */
+function SevCell({ sev }: { sev: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold">
-      <span className="inline-block h-2 w-2 rounded-full"
-            style={{ backgroundColor: sev ? sevVar(sev) : "hsl(var(--muted-foreground))" }} aria-hidden />
-      {sev ? label : <span className="font-normal text-muted-foreground">unknown</span>}
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600 }}>
+      <span aria-hidden style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+                                 background: sev ? sevVar(sev) : "var(--mut)" }} />
+      {sev ? sev.toUpperCase() : <span className="is-mut" style={{ fontWeight: 400 }}>unknown</span>}
     </span>
   );
 }
 
 export function Vulnerabilities() {
   const { data, error } = useQuery({
-    queryKey: ["vulns"], queryFn: () => api.vulns(200),
-    refetchInterval: 5000,
+    queryKey: ["vulns"], queryFn: () => api.vulns(200), refetchInterval: 5000,
   });
   const items: StoreVuln[] = data?.items ?? [];
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="rounded-xl border border-dashed border-border bg-card">
-        <CardContent className="p-4 text-[12.5px] text-muted-foreground leading-relaxed">
-          <b className="text-foreground">Discovered vulnerabilities.</b> Vulnerabilities discovered by nmap NSE <span className="font-mono text-primary text-[11.5px]">vuln</span> scripts
-          during a scan. Severity is the CVSS band NSE reported — an empty severity means NSE gave
-          no score, shown honestly as “unknown” rather than guessed.
-        </CardContent>
-      </Card>
+    <>
+      <div className="is-note">
+        Vulnerabilities discovered by nmap NSE <span className="is-mono" style={{ color: "var(--acc)" }}>vuln</span> scripts
+        during a scan. Severity is the CVSS band NSE reported — an empty severity means NSE gave no score,
+        shown honestly as “unknown” rather than guessed.
+      </div>
       {error && (
-        <p className="text-[12.5px] text-muted-foreground">
+        <p className="is-mut" style={{ fontSize: 12.5 }}>
           Backend not reachable — start the console server to view stored vulnerabilities.
         </p>
       )}
-      <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-        <CardHeader className="p-4 pb-3 border-b border-border">
-          <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-            <ShieldAlert className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-            Vulnerabilities
-            {items.length > 0 && (
-              <span className="text-[12px] font-normal text-muted-foreground">
-                · {data?.total ?? items.length} total
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 pt-3">
-          {items.length === 0 ? (
-            <p className="text-[12.5px] text-muted-foreground">
-              No vulnerabilities recorded yet. Run a “Service + vulnerability scan”
-              from the Discovery page against a private target — real NSE findings
-              appear here.
-            </p>
-          ) : (
-            <div className="overflow-auto rounded-lg border border-border">
-              <table className="w-full border-collapse text-left text-[12.5px]">
-                <thead className="sticky top-0 z-10 bg-card border-b border-border text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <tr>
-                    <th className="border-b border-border px-3 py-2.5">Found</th>
-                    <th className="border-b border-border px-3 py-2.5">Asset</th>
-                    <th className="border-b border-border px-3 py-2.5">Severity</th>
-                    <th className="border-b border-border px-3 py-2.5">CVSS</th>
-                    <th className="border-b border-border px-3 py-2.5">CVE</th>
-                    <th className="border-b border-border px-3 py-2.5">Script</th>
-                    <th className="border-b border-border px-3 py-2.5">Status</th>
-                    <th className="border-b border-border px-3 py-2.5">Details</th>
+      <div className="is-panel">
+        <div className="is-panel__h">
+          <h3>Vulnerabilities</h3>
+          {items.length > 0 && <span className="is-panel__sub">{data?.total ?? items.length} total</span>}
+        </div>
+        {items.length === 0 ? (
+          <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
+            No vulnerabilities recorded yet. Run a “Service + vulnerability scan” from the Discovery page
+            against a private target — real NSE findings appear here.
+          </p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="is-table">
+              <thead>
+                <tr><th>Found</th><th>Asset</th><th>Severity</th><th>CVSS</th><th>CVE</th><th>Script</th><th>Status</th><th>Details</th></tr>
+              </thead>
+              <tbody>
+                {items.map((v) => (
+                  <tr key={v.id} style={{ cursor: "default" }}>
+                    <td className="col-mono" style={{ whiteSpace: "nowrap" }}>{new Date(v.ts).toLocaleString()}</td>
+                    <td className="col-mono" style={{ color: "var(--ink)", fontWeight: 500 }}>{v.asset_ip || "—"}</td>
+                    <td><SevCell sev={v.severity} /></td>
+                    <td className="is-tnum" style={{ fontWeight: 600 }}>
+                      {v.cvss > 0 ? v.cvss.toFixed(1) : <span className="is-mut" style={{ fontWeight: 400 }}>—</span>}
+                    </td>
+                    <td className="is-mono" style={{ fontSize: 11, color: "var(--acc)" }}>{v.cve || <span className="is-mut">—</span>}</td>
+                    <td className="col-mono">{v.name || "—"}</td>
+                    <td style={{ fontSize: 12, fontWeight: 500 }}>{v.status || "OPEN"}</td>
+                    <td className="is-mono" style={{ fontSize: 11, color: "var(--mut)", wordBreak: "break-all" }}>
+                      {v.details ? (v.details.length > 240 ? v.details.slice(0, 240) + "…" : v.details) : "—"}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {items.map((v) => (
-                    <tr key={v.id} className="hover:bg-muted/40 transition-colors">
-                      <td className="border-b border-border px-3 py-2 tabular-nums text-muted-foreground whitespace-nowrap text-[11px]">
-                        {new Date(v.ts).toLocaleString()}
-                      </td>
-                      <td className="border-b border-border px-3 py-2 font-mono text-xs font-medium text-foreground">{v.asset_ip || "—"}</td>
-                      <td className="border-b border-border px-3 py-2"><SevBadge sev={v.severity} /></td>
-                      <td className="border-b border-border px-3 py-2 tabular-nums font-semibold">
-                        {v.cvss > 0 ? v.cvss.toFixed(1) : <span className="text-muted-foreground font-normal">—</span>}
-                      </td>
-                      <td className="border-b border-border px-3 py-2 font-mono text-xs text-primary">{v.cve || <span className="text-muted-foreground">—</span>}</td>
-                      <td className="border-b border-border px-3 py-2 font-mono text-xs">{v.name || "—"}</td>
-                      <td className="border-b border-border px-3 py-2 text-xs font-medium">{v.status || "OPEN"}</td>
-                      <td className="border-b border-border px-3 py-2 font-mono break-all text-[11px] text-muted-foreground leading-relaxed">
-                        {v.details ? (v.details.length > 240 ? v.details.slice(0, 240) + "…" : v.details) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

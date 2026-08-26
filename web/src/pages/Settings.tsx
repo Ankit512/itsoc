@@ -1,16 +1,15 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Cpu, Moon, ShieldCheck, Sun } from "lucide-react";
 import { api, type ComputeConfig, type OverviewData } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUi } from "@/store/ui";
 
-/** Settings — only the knobs that genuinely do something. Compute location and
- *  its redaction consequence (the real /api/compute you can set), the analyst
- *  model/endpoint shown honestly, and theme. No invented switches: every value
- *  here reflects real backend or client state. */
+/** Settings — only the knobs that genuinely do something, in the itsoc. design
+ *  system (mirrors prototype #p-settings). Compute location and its redaction
+ *  consequence (the real /api/compute you can set), the analyst model/endpoint
+ *  shown honestly, and theme. No invented switches: every value reflects real
+ *  backend or client state. Cards cap at ~560px per the handoff. */
 
-const field = "w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary";
+const CARD: React.CSSProperties = { maxWidth: 560 };
 
 function ComputeSettings() {
   const queryClient = useQueryClient();
@@ -33,8 +32,7 @@ function ComputeSettings() {
   }, [compute]);
 
   const save = useMutation({
-    mutationFn: () => api.setCompute(
-      mode === "local" ? { mode } : { mode, baseUrl, model, apiKey }),
+    mutationFn: () => api.setCompute(mode === "local" ? { mode } : { mode, baseUrl, model, apiKey }),
     onSuccess: (out) => {
       if (!out.ok) { setMsg(out.error ?? "Could not save."); return; }
       setMsg("Saved."); setApiKey("");
@@ -44,98 +42,82 @@ function ComputeSettings() {
   });
 
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-          <Cpu className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-          Compute location
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 flex flex-col gap-3">
-        {isLoading && <p className="text-[12.5px] text-muted-foreground">Loading current config…</p>}
-        {error && <p className="text-[12.5px] text-muted-foreground">Backend not reachable — start the console server.</p>}
-        {compute && (
-          <>
-            <p className="text-[12px] text-muted-foreground leading-relaxed">
-              Detection ALWAYS runs locally — this only changes where the advisory
-              LLM explanations compute. Currently:{" "}
-              <span className="font-semibold text-foreground">{compute.mode}</span>.
-            </p>
-            <div className="flex flex-col gap-2">
-              {(["local", "remote"] as const).map((m) => (
-                <label key={m} className="flex items-center gap-2 text-[12.5px] cursor-pointer">
-                  <input type="radio" name="compute-mode" value={m}
-                         checked={mode === m} onChange={() => setMode(m)} />
-                  <span className="font-semibold text-foreground">{m === "local" ? "Local" : "Remote"}</span>
-                  <span className="text-[11.5px] text-muted-foreground">
-                    {m === "local"
-                      ? "— nothing leaves this machine"
-                      : "— explanations call an OpenAI-compatible endpoint (redacted first)"}
-                  </span>
-                </label>
-              ))}
-            </div>
+    <div className="is-panel" style={CARD}>
+      <div className="is-panel__h"><h3>⚙ Compute location</h3></div>
+      {isLoading && <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>Loading current config…</p>}
+      {error && <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>Backend not reachable — start the console server.</p>}
+      {compute && (
+        <>
+          <p className="is-mut" style={{ fontSize: 12, lineHeight: 1.5, margin: "0 0 4px" }}>
+            Detection ALWAYS runs locally — this only changes where the advisory LLM explanations
+            compute. Currently: <b style={{ color: "var(--ink)" }}>{compute.mode}</b>.
+          </p>
+          {(["local", "remote"] as const).map((m) => (
+            <label key={m} className={"is-radio" + (mode === m ? " on" : "")}>
+              <input type="radio" name="compute-mode" value={m} className="is-visually-hidden"
+                     checked={mode === m} onChange={() => setMode(m)} />
+              <span className="dot" aria-hidden />
+              <span style={{ color: "var(--ink)" }}>{m === "local" ? "Local" : "Remote"}</span>
+              <small>
+                {m === "local" ? "— nothing leaves this machine"
+                  : "— explanations call an OpenAI-compatible endpoint (redacted first)"}
+              </small>
+            </label>
+          ))}
 
-            {mode === "remote" && (
-              <div className="flex flex-col gap-2.5 rounded-lg border border-border bg-muted/20 p-3">
-                <label className="text-[11px] font-medium text-muted-foreground">Base URL (must end in /v1)
-                  <input className={`mt-1 ${field}`} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
-                         aria-label="Remote base URL" placeholder="https://host:port/v1" />
-                </label>
-                <label className="text-[11px] font-medium text-muted-foreground">Model
-                  <input className={`mt-1 ${field}`} value={model} onChange={(e) => setModel(e.target.value)}
-                         aria-label="Remote model" placeholder="model name" />
-                </label>
-                <label className="text-[11px] font-medium text-muted-foreground">
-                  API key {compute.hasKey && <span className="text-foreground font-normal">(a key is currently set — leave blank to keep it)</span>}
-                  <input className={`mt-1 ${field}`} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-                         aria-label="Remote API key" placeholder="sk-…" autoComplete="off" />
-                </label>
-                <p className="text-[10.5px] text-muted-foreground">
-                  The key is sent to the backend but never returned to the browser.
-                </p>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 pt-1">
-              <button onClick={() => save.mutate()} disabled={save.isPending}
-                className="rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-opacity">
-                {save.isPending ? "Saving…" : "Save compute settings"}
-              </button>
-              {msg && <span className="text-[12px] text-muted-foreground">{msg}</span>}
+          {mode === "remote" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+              <label className="is-field"><span>Base URL (must end in /v1)</span>
+                <input className="is-input" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
+                       aria-label="Remote base URL" placeholder="https://host:port/v1" />
+              </label>
+              <label className="is-field"><span>Model</span>
+                <input className="is-input" value={model} onChange={(e) => setModel(e.target.value)}
+                       aria-label="Remote model" placeholder="model name" />
+              </label>
+              <label className="is-field">
+                <span>API key {compute.hasKey && <span style={{ color: "var(--ink)" }}>(a key is currently set — leave blank to keep it)</span>}</span>
+                <input className="is-input" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
+                       aria-label="Remote API key" placeholder="sk-…" autoComplete="off" />
+              </label>
+              <p className="is-mut" style={{ fontSize: 10.5, margin: 0 }}>
+                The key is sent to the backend but never returned to the browser.
+              </p>
             </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+            <button className="is-btn is-btn--primary" onClick={() => save.mutate()} disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Save compute settings"}
+            </button>
+            {msg && <span className="is-mut" style={{ fontSize: 12 }}>{msg}</span>}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
 function RedactionInfo({ compute }: { compute?: ComputeConfig }) {
   const remote = compute?.mode === "remote";
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-          <ShieldCheck className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-          Outbound redaction
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 text-[12.5px] leading-relaxed text-muted-foreground">
-        Redaction is a consequence of compute location, not a separate toggle —
-        so it is shown here honestly rather than as a switch that does nothing.
+    <div className="is-panel" style={CARD}>
+      <div className="is-panel__h"><h3>Outbound redaction</h3></div>
+      <p className="is-mut" style={{ fontSize: 12.5, lineHeight: 1.55, margin: 0 }}>
+        Redaction is a consequence of compute location, not a separate toggle — so it is shown here
+        honestly rather than as a switch that does nothing.
         {remote ? (
-          <> It is <span className="font-semibold text-foreground">active</span>: with
-          remote compute, finding summaries and your analyst questions pass through
-          the redaction choke point (<span className="font-mono text-primary text-[11.5px]">console/redact.py</span>)
-          before leaving this machine. Raw log lines never leave at all.</>
+          <> It is <b style={{ color: "var(--ink)" }}>active</b>: with remote compute, finding summaries
+          and your analyst questions pass through the redaction choke point{" "}
+          <span className="is-mono" style={{ color: "var(--acc)" }}>console/redact.py</span> before leaving
+          this machine. Raw log lines never leave at all.</>
         ) : (
-          <> It is <span className="font-semibold text-foreground">not applicable</span> right
-          now: compute is local, so nothing is sent anywhere and there is nothing to redact.
-          Switch to remote above and redaction engages automatically.</>
+          <> It is <b style={{ color: "var(--ink)" }}>not applicable</b> right now: compute is local, so
+          nothing is sent anywhere and there is nothing to redact. Switch to remote above and redaction
+          engages automatically.</>
         )}
-      </CardContent>
-    </Card>
+      </p>
+    </div>
   );
 }
 
@@ -146,22 +128,19 @@ function AnalystModel() {
   const model = compute?.mode === "remote" ? compute.model : overview?.model;
 
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="text-[14px] font-semibold">Analyst model</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 flex flex-col gap-1.5 text-[12.5px] text-muted-foreground">
-        <div>Model:{" "}
-          <span className="font-mono text-foreground font-medium">{model || "not reported (analyze a run first)"}</span></div>
+    <div className="is-panel" style={CARD}>
+      <div className="is-panel__h"><h3>Analyst model</h3></div>
+      <p style={{ fontSize: 12, margin: 0 }}>
+        Model: <span className="is-mono" style={{ color: "var(--ink)", fontWeight: 500 }}>{model || "not reported (analyze a run first)"}</span>
         {compute?.mode === "remote"
-          ? <div>Endpoint: <span className="font-mono text-foreground font-medium">{compute.baseUrl || "—"}</span></div>
-          : <div>Endpoint: <span className="font-medium text-foreground">local</span> (the model configured for the console server).</div>}
-        <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
-          The model only explains findings in plain language. It never sets or
-          changes a severity or verdict — those are the deterministic rules.
-        </p>
-      </CardContent>
-    </Card>
+          ? <> · Endpoint: <span className="is-mono" style={{ color: "var(--ink)", fontWeight: 500 }}>{compute.baseUrl || "—"}</span></>
+          : <> · Endpoint: <b style={{ color: "var(--ink)" }}>local</b></>}
+      </p>
+      <p className="is-mut" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+        The model only explains findings in plain language. It never sets or changes a severity or
+        verdict — those are the deterministic rules.
+      </p>
+    </div>
   );
 }
 
@@ -170,40 +149,33 @@ function ThemeSetting() {
   const toggleTheme = useUi((s) => s.toggleTheme);
   const dark = theme === "dark";
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="text-[14px] font-semibold">Appearance</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 flex items-center gap-3">
-        <span className="text-[12.5px] text-muted-foreground">
-          Theme: <span className="font-semibold text-foreground">{dark ? "Dark" : "Light"}</span>{" "}
-          — saved for your next visit.
+    <div className="is-panel" style={CARD}>
+      <div className="is-panel__h"><h3>Appearance</h3></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 12 }}>
+          Theme: <b style={{ color: "var(--ink)" }}>{dark ? "Dark" : "Light"}</b> — saved for your next visit.
         </span>
-        <button onClick={toggleTheme}
-          aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-          className="ml-auto inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors">
-          {dark ? <Sun className="h-3.5 w-3.5" aria-hidden /> : <Moon className="h-3.5 w-3.5" aria-hidden />}
-          Switch to {dark ? "light" : "dark"}
+        <button className="is-btn" onClick={toggleTheme}
+                aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}>
+          {dark ? "☀ Switch" : "☾ Switch"}
         </button>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 export function Settings() {
   const { data: compute } = useQuery<ComputeConfig>({ queryKey: ["compute"], queryFn: api.getCompute });
   return (
-    <div className="flex max-w-2xl flex-col gap-4">
-      <Card className="rounded-xl border border-dashed border-border bg-card">
-        <CardContent className="p-4 text-[12.5px] text-muted-foreground leading-relaxed">
-          <b className="text-foreground">System settings.</b> Only settings that genuinely do something are shown — each reflects real
-          backend or client state, nothing decorative.
-        </CardContent>
-      </Card>
+    <>
+      <div className="is-note" style={{ maxWidth: 560 }}>
+        <b>System settings.</b> Only settings that genuinely do something are shown — each reflects real
+        backend or client state, nothing decorative.
+      </div>
       <ComputeSettings />
       <RedactionInfo compute={compute} />
       <AnalystModel />
       <ThemeSetting />
-    </div>
+    </>
   );
 }

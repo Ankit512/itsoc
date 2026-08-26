@@ -9,7 +9,7 @@ describe("Settings page", () => {
                 "/api/compute": { mode: "local" } });
     renderApp(<App />, { route: "/settings" });
 
-    expect(await screen.findByText("Compute location")).toBeInTheDocument();
+    expect(await screen.findByText(/Compute location/)).toBeInTheDocument();
     // The current mode is read from the backend: the Local radio is checked.
     const local = await screen.findByRole("radio", { name: /local/i });
     expect(local).toBeChecked();
@@ -39,7 +39,7 @@ describe("Settings page", () => {
     }));
 
     renderApp(<App />, { route: "/settings" });
-    await screen.findByText("Compute location");
+    await screen.findByText(/Compute location/);
 
     await userEvent.click(await screen.findByRole("radio", { name: /remote/i }));
     await userEvent.type(screen.getByLabelText("Remote base URL"), "https://h/v1");

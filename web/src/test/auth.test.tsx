@@ -28,9 +28,9 @@ describe("Auth subsystem & login screen (Phase 6)", () => {
     });
     renderApp(<App />, { route: "/login" });
 
-    expect(await screen.findByRole("heading", { name: /itsoc/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create Profile" })).toBeInTheDocument();
+    expect(await screen.findByText(/itsoc/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Log in" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign up" })).toBeInTheDocument();
     expect(screen.getByText(/local demo/i)).toBeInTheDocument();
     expect(screen.getByText(/quick demo:/i)).toBeInTheDocument();
   });
@@ -41,7 +41,7 @@ describe("Auth subsystem & login screen (Phase 6)", () => {
     });
     renderApp(<App />, { route: "/login" });
 
-    const createTab = await screen.findByRole("button", { name: /create profile/i });
+    const createTab = await screen.findByRole("button", { name: /sign up/i });
     await userEvent.click(createTab);
 
     expect(screen.getByRole("button", { name: /create local profile/i })).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("Auth subsystem & login screen (Phase 6)", () => {
     localStorage.setItem("itsoc_auth_token", "stale-token");
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("backend unavailable"); }));
     renderApp(<App />, { route: "/", token: "stale-token" });
-    expect(await screen.findByRole("button", { name: "Sign In" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument();
     expect(authLib.getToken()).toBeNull();
   });
 

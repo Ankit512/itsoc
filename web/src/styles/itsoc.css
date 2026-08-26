@@ -90,6 +90,16 @@
 .is-input::placeholder{ color:var(--mut2); }
 .is-field{ display:flex; flex-direction:column; gap:6px; }
 .is-field label{ font-size:11.5px; color:var(--mut); font-weight:500; }
+/* Radio option row (Sources bind, Settings compute) — mirrors the prototype
+   `.radio`; label-driven so a real <input type=radio> stays keyboard-accessible
+   under the visual dot. */
+.is-radio{ display:flex; align-items:center; gap:9px; padding:6px 0; cursor:pointer; font-size:12.5px; }
+.is-radio .dot{ width:15px; height:15px; border-radius:50%; border:2px solid var(--bd); flex:0 0 auto; }
+.is-radio.on .dot{ border-color:var(--acc); box-shadow:inset 0 0 0 3px var(--acc); }
+.is-radio small{ color:var(--mut); }
+/* Keep the real radio/checkbox in the a11y + form tree but off-screen; the
+   visible `.dot` reflects its state. */
+.is-visually-hidden{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 
 /* ---- 7. CONTENT / PANELS ------------------------------------------------ */
 .is-content{ padding:16px 20px 24px; display:flex; flex-direction:column; gap:14px; }

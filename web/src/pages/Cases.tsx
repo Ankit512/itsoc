@@ -1,32 +1,31 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderKanban, Pencil, Plus, X } from "lucide-react";
 import { api, CASE_STATUSES, type Case, type CaseStatus } from "@/lib/api";
-import { Card, CardContent } from "@/components/ui/card";
 
-/** Cases — analyst-entered investigation records (cases.json). Full CRUD over
- *  the real /api/cases endpoints: this is the one subsystem whose data is
- *  honestly stored because the analyst types it. No derivation, no invented
- *  rows — an empty store shows an honest empty state. */
+/** Cases — analyst-entered investigation records (cases.json), in the itsoc.
+ *  design system (mirrors handoff §3). Full CRUD over the real /api/cases
+ *  endpoints: this is the one subsystem whose data is honestly stored because
+ *  the analyst types it. No derivation, no invented rows — an empty store shows
+ *  an honest empty state. */
 
-const STATUS_STYLE: Record<CaseStatus, { label: string; color: string; bg: string }> = {
-  open: { label: "Open", color: "var(--primary)", bg: "color-mix(in srgb, var(--primary) 12%, transparent)" },
-  investigating: { label: "Investigating", color: "var(--sev-medium)", bg: "color-mix(in srgb, var(--sev-medium) 12%, transparent)" },
-  closed: { label: "Closed", color: "hsl(var(--muted-foreground))", bg: "hsl(var(--muted))" },
+const STATUS_COLOR: Record<CaseStatus, string> = {
+  open: "var(--acc)",
+  investigating: "var(--med)",
+  closed: "var(--mut)",
+};
+const STATUS_LABEL: Record<CaseStatus, string> = {
+  open: "Open", investigating: "Investigating", closed: "Closed",
 };
 
 function StatusPill({ status }: { status: CaseStatus }) {
-  const s = STATUS_STYLE[status];
+  const c = STATUS_COLOR[status];
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold"
-          style={{ color: s.color, borderColor: s.color, backgroundColor: s.bg }}>
-      <i className="h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />
-      {s.label}
+    <span className="is-state" style={{ color: c, borderColor: "color-mix(in srgb, " + c + " 45%, transparent)" }}>
+      <i style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: c }} />
+      {STATUS_LABEL[status]}
     </span>
   );
 }
-
-const field = "w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary";
 
 function CreateCase() {
   const queryClient = useQueryClient();
@@ -46,52 +45,39 @@ function CreateCase() {
   });
 
   if (!open) {
-    return (
-      <button onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity shadow-xs">
-        <Plus className="h-3.5 w-3.5" strokeWidth={2} aria-hidden /> New case
-      </button>
-    );
+    return <button className="is-btn is-btn--primary" onClick={() => setOpen(true)}>+ New case</button>;
   }
 
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm">
-      <CardContent className="p-4">
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(e) => { e.preventDefault(); if (title.trim()) create.mutate(); }}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-[13.5px] font-semibold text-foreground">New case</span>
-            <button type="button" onClick={() => { setOpen(false); setErr(""); }}
-                    aria-label="Cancel new case"
-                    className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
-              <X className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          </div>
-          <label className="text-[11px] font-medium text-muted-foreground">Title (required)
-            <input className={`mt-1 ${field}`} value={title} onChange={(e) => setTitle(e.target.value)}
-                   aria-label="Case title" placeholder="e.g. Investigate brute-force from 203.0.113.44" />
-          </label>
-          <label className="text-[11px] font-medium text-muted-foreground">Assignee
-            <input className={`mt-1 ${field}`} value={assignee} onChange={(e) => setAssignee(e.target.value)}
-                   aria-label="Case assignee" placeholder="who is looking at this" />
-          </label>
-          <label className="text-[11px] font-medium text-muted-foreground">Notes
-            <textarea className={`mt-1 ${field} min-h-[64px] resize-y`} value={notes}
-                      onChange={(e) => setNotes(e.target.value)} aria-label="Case notes" />
-          </label>
-          {err && <p className="text-[11.5px]" style={{ color: "var(--sev-critical)" }}>{err}</p>}
-          <div className="flex items-center gap-2 pt-1">
-            <button type="submit" disabled={!title.trim() || create.isPending}
-              className="rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-opacity">
-              {create.isPending ? "Creating…" : "Create case"}
-            </button>
-            <span className="text-[11px] text-muted-foreground">Status starts as “open”.</span>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+    <div className="is-panel" style={{ width: "100%" }}>
+      <form style={{ display: "flex", flexDirection: "column", gap: 12 }}
+            onSubmit={(e) => { e.preventDefault(); if (title.trim()) create.mutate(); }}>
+        <div className="is-panel__h">
+          <h3>New case</h3>
+          <button type="button" className="is-icobtn" aria-label="Cancel new case"
+                  onClick={() => { setOpen(false); setErr(""); }} style={{ width: 26, height: 26 }}>✕</button>
+        </div>
+        <label className="is-field"><span>Title (required)</span>
+          <input className="is-input" value={title} onChange={(e) => setTitle(e.target.value)}
+                 aria-label="Case title" placeholder="e.g. Investigate brute-force from 203.0.113.44" />
+        </label>
+        <label className="is-field"><span>Assignee</span>
+          <input className="is-input" value={assignee} onChange={(e) => setAssignee(e.target.value)}
+                 aria-label="Case assignee" placeholder="who is looking at this" />
+        </label>
+        <label className="is-field"><span>Notes</span>
+          <textarea className="is-input" style={{ minHeight: 64, resize: "vertical" }} value={notes}
+                    onChange={(e) => setNotes(e.target.value)} aria-label="Case notes" />
+        </label>
+        {err && <p style={{ color: "var(--crit)", fontSize: 11.5, margin: 0 }}>{err}</p>}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button className="is-btn is-btn--primary" type="submit" disabled={!title.trim() || create.isPending}>
+            {create.isPending ? "Creating…" : "Create case"}
+          </button>
+          <span className="is-mut" style={{ fontSize: 11 }}>Status starts as “open”.</span>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -104,7 +90,6 @@ function CaseRow({ c }: { c: Case }) {
   const [err, setErr] = useState("");
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["cases"] });
-
   const patch = useMutation({
     mutationFn: (p: Parameters<typeof api.patchCase>[1]) => api.patchCase(c.id, p),
     onSuccess: (out) => {
@@ -116,84 +101,67 @@ function CaseRow({ c }: { c: Case }) {
   const links = [...c.links.findings, ...c.links.incidents];
 
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            {editing ? (
-              <input className={field} value={title} onChange={(e) => setTitle(e.target.value)}
-                     aria-label={`Edit title of ${c.id}`} />
-            ) : (
-              <div className="text-[14px] font-semibold text-foreground">{c.title}</div>
-            )}
-            <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground">{c.id}</div>
-          </div>
-          {/* Status is a live select — changing it PATCHes immediately. */}
-          <label className="flex items-center gap-2">
-            <span className="sr-only">Status of {c.id}</span>
-            <StatusPill status={c.status} />
-            <select
-              aria-label={`Status of ${c.id}`}
-              value={c.status}
-              disabled={patch.isPending}
-              onChange={(e) => patch.mutate({ status: e.target.value as CaseStatus })}
-              className="rounded-lg border border-border bg-card px-2 py-1 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
-            >
-              {CASE_STATUSES.map((s) => <option key={s} value={s}>{STATUS_STYLE[s].label}</option>)}
-            </select>
-          </label>
-          {!editing && (
-            <button onClick={() => setEditing(true)} aria-label={`Edit ${c.id}`}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-              <Pencil className="h-3.5 w-3.5" aria-hidden />
-            </button>
+    <div className="is-panel">
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          {editing ? (
+            <input className="is-input" value={title} onChange={(e) => setTitle(e.target.value)} aria-label={`Edit title of ${c.id}`} />
+          ) : (
+            <div style={{ fontSize: 14, fontWeight: 650 }}>{c.title}</div>
           )}
+          <div className="is-mono" style={{ marginTop: 2, fontSize: 10.5, color: "var(--mut)" }}>{c.id}</div>
         </div>
-
-        {editing ? (
-          <div className="mt-3 flex flex-col gap-2.5">
-            <label className="text-[11px] font-medium text-muted-foreground">Assignee
-              <input className={`mt-1 ${field}`} value={assignee} onChange={(e) => setAssignee(e.target.value)}
-                     aria-label={`Edit assignee of ${c.id}`} />
-            </label>
-            <label className="text-[11px] font-medium text-muted-foreground">Notes
-              <textarea className={`mt-1 ${field} min-h-[64px] resize-y`} value={notes}
-                        onChange={(e) => setNotes(e.target.value)} aria-label={`Edit notes of ${c.id}`} />
-            </label>
-            {err && <p className="text-[11.5px]" style={{ color: "var(--sev-critical)" }}>{err}</p>}
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => title.trim() && patch.mutate({ title, assignee, notes })}
-                disabled={!title.trim() || patch.isPending}
-                className="rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-opacity">
-                {patch.isPending ? "Saving…" : "Save"}
-              </button>
-              <button onClick={() => { setEditing(false); setTitle(c.title); setAssignee(c.assignee); setNotes(c.notes); setErr(""); }}
-                      className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {c.notes && <p className="mt-2.5 whitespace-pre-wrap text-[12.5px] text-muted-foreground leading-relaxed">{c.notes}</p>}
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-2.5 text-[11px] text-muted-foreground">
-              {c.assignee && <span>Assignee: <span className="text-foreground font-medium">{c.assignee}</span></span>}
-              <span>Created {c.createdAt.slice(0, 16).replace("T", " ")}</span>
-              <span>Updated {c.updatedAt.slice(0, 16).replace("T", " ")}</span>
-              {links.length > 0 && (
-                <span className="flex flex-wrap items-center gap-1">
-                  Linked:
-                  {links.map((l) => (
-                    <span key={l} className="rounded border border-border bg-muted/40 px-1.5 py-px font-mono text-[10px]">{l}</span>
-                  ))}
-                </span>
-              )}
-            </div>
-          </>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="is-visually-hidden">Status of {c.id}</span>
+          <StatusPill status={c.status} />
+          <select className="is-select" style={{ width: "auto", padding: "6px 8px" }}
+                  aria-label={`Status of ${c.id}`} value={c.status} disabled={patch.isPending}
+                  onChange={(e) => patch.mutate({ status: e.target.value as CaseStatus })}>
+            {CASE_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+          </select>
+        </label>
+        {!editing && (
+          <button className="is-icobtn" style={{ width: 28, height: 28 }} onClick={() => setEditing(true)} aria-label={`Edit ${c.id}`}>✎</button>
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {editing ? (
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+          <label className="is-field"><span>Assignee</span>
+            <input className="is-input" value={assignee} onChange={(e) => setAssignee(e.target.value)} aria-label={`Edit assignee of ${c.id}`} />
+          </label>
+          <label className="is-field"><span>Notes</span>
+            <textarea className="is-input" style={{ minHeight: 64, resize: "vertical" }} value={notes}
+                      onChange={(e) => setNotes(e.target.value)} aria-label={`Edit notes of ${c.id}`} />
+          </label>
+          {err && <p style={{ color: "var(--crit)", fontSize: 11.5, margin: 0 }}>{err}</p>}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button className="is-btn is-btn--primary" disabled={!title.trim() || patch.isPending}
+                    onClick={() => title.trim() && patch.mutate({ title, assignee, notes })}>
+              {patch.isPending ? "Saving…" : "Save"}
+            </button>
+            <button className="is-btn" onClick={() => { setEditing(false); setTitle(c.title); setAssignee(c.assignee); setNotes(c.notes); setErr(""); }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {c.notes && <p className="is-mut" style={{ marginTop: 10, whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.55 }}>{c.notes}</p>}
+          <div className="is-mut" style={{ marginTop: 12, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 16px", borderTop: "1px solid var(--bd)", paddingTop: 10, fontSize: 11 }}>
+            {c.assignee && <span>Assignee: <b style={{ color: "var(--ink)" }}>{c.assignee}</b></span>}
+            <span>Created {c.createdAt.slice(0, 16).replace("T", " ")}</span>
+            <span>Updated {c.updatedAt.slice(0, 16).replace("T", " ")}</span>
+            {links.length > 0 && (
+              <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+                Linked:
+                {links.map((l) => <span key={l} className="is-mono" style={{ border: "1px solid var(--bd)", borderRadius: 4, padding: "0 5px", fontSize: 10 }}>{l}</span>)}
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -202,40 +170,34 @@ export function Cases() {
   const cases = data?.cases ?? [];
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <p className="text-[12.5px] text-muted-foreground">
-          Investigation cases you create — stored locally in <span className="font-mono text-foreground font-medium">cases.json</span>.
-          This is analyst-entered data, not derived from findings.
+    <>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+        <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
+          Analyst-entered — no sample invented. Investigation cases you create, stored locally in{" "}
+          <span className="is-mono" style={{ color: "var(--ink)" }}>cases.json</span>. This is analyst-entered
+          data, not derived from findings.
         </p>
-        <div className="ml-auto"><CreateCase /></div>
+        <div style={{ marginLeft: "auto" }}><CreateCase /></div>
       </div>
 
-      {isLoading && <p className="text-muted-foreground">Loading cases…</p>}
+      {isLoading && <p className="is-mut">Loading cases…</p>}
       {error && (
-        <Card className="rounded-xl border border-dashed border-border bg-card">
-          <CardContent className="p-6 text-[12.5px] text-muted-foreground">
-            The console backend is not reachable — start it with
-            <code className="mx-1 rounded bg-muted px-1.5 py-0.5 font-mono">python3 console/serve.py</code>.
-          </CardContent>
-        </Card>
+        <div className="is-note">
+          The console backend is not reachable — start it with{" "}
+          <span className="is-mono">python3 console/serve.py</span>.
+        </div>
       )}
       {!isLoading && !error && cases.length === 0 && (
-        <Card className="rounded-xl border border-dashed border-border bg-card">
-          <CardContent className="p-8 text-center">
-            <FolderKanban className="mx-auto mb-2 h-6 w-6 text-muted-foreground" strokeWidth={1.6} aria-hidden />
-            <div className="text-[14px] font-semibold text-foreground">No cases yet</div>
-            <p className="mx-auto mt-1 max-w-md text-[12px] text-muted-foreground">
-              Create a case to track an investigation. Nothing is shown here until
-              you add one — no sample cases are invented.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="is-note" style={{ textAlign: "center", padding: "28px 14px" }}>
+          <div style={{ fontSize: 14, fontWeight: 650, color: "var(--ink)" }}>No cases yet</div>
+          <p className="is-mut" style={{ margin: "6px auto 0", maxWidth: 420, fontSize: 12 }}>
+            Create a case to track an investigation. Nothing is shown here until you add one — no sample
+            cases are invented.
+          </p>
+        </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        {cases.map((c) => <CaseRow key={c.id} c={c} />)}
-      </div>
-    </div>
+      {cases.map((c) => <CaseRow key={c.id} c={c} />)}
+    </>
   );
 }

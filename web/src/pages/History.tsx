@@ -1,17 +1,15 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database, FileUp, Trash2, TriangleAlert, Upload } from "lucide-react";
 import { api, type StoreEvent, type HistoryQuery } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { sevVar } from "@/lib/severity";
 
 /** History — the persistent store's event history, Command-Center KPIs, EVTX
- *  ingest, and retention controls. Every number is a real store count and every
- *  row is a stored event (raw verbatim, severity source-reported). An empty
- *  store shows an honest empty state; purge is destructive and gated behind a
- *  typed confirmation. */
+ *  ingest, and retention controls, in the itsoc. design system (mirrors
+ *  prototype #p-history + handoff §3). Every number is a real store count and
+ *  every row is a stored event (raw verbatim, severity source-reported). An
+ *  empty store shows an honest empty state; purge is destructive and gated
+ *  behind a typed confirmation. */
 
-const field = "w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary";
 const PAGE = 50;
 
 function Kpis() {
@@ -25,15 +23,13 @@ function Kpis() {
     { label: "IOC Hits", value: data?.iocHits },
   ];
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="is-kpis" style={{ gridTemplateColumns: "repeat(6, 1fr)" }}>
       {tiles.map((t) => (
-        <Card key={t.label} className="rounded-xl border border-border bg-card shadow-sm">
-          <CardContent className="flex flex-col gap-1 p-3.5">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t.label}</span>
-            <span className="text-[22px] font-bold tabular-nums leading-tight text-foreground">{t.value ?? "—"}</span>
-            {t.note && <span className="text-[10px] text-muted-foreground">{t.note}</span>}
-          </CardContent>
-        </Card>
+        <div key={t.label} className="is-kpi">
+          <div className="lbl">{t.label}</div>
+          <div className="val is-tnum">{t.value ?? "—"}</div>
+          {t.note && <div className="delta na">{t.note}</div>}
+        </div>
       ))}
     </div>
   );
@@ -50,12 +46,12 @@ function EvtxIngest() {
     mutationFn: (file: File) => api.evtxIngest(file),
     onSuccess: (out) => {
       if (out.ok && out.result) {
-        setTone("var(--sev-low)");
+        setTone("var(--low)");
         setMsg(`Ingested ${out.result.file ?? "file"} — stored ${out.result.stored} of ${out.result.parsed} record(s)`
           + (out.result.skipped ? ` (${out.result.skipped} unreadable)` : "") + ".");
         queryClient.invalidateQueries({ queryKey: ["store"] });
       } else {
-        setTone("var(--sev-critical)");
+        setTone("var(--crit)");
         setMsg(out.error ?? "Ingest failed.");
       }
     },
@@ -64,40 +60,27 @@ function EvtxIngest() {
   const unavailable = status && !status.available;
 
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-          <FileUp className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-          Ingest Windows Event Log (.evtx)
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 flex flex-col gap-3">
-        <p className="text-[12px] text-muted-foreground leading-relaxed">
-          Upload a Windows <span className="font-mono text-primary text-[11.5px]">.evtx</span> file to record its events in the
-          store. Each event's severity is the level Windows itself assigned (the EVTX
-          <span className="font-mono text-foreground font-medium"> Level</span>), and its raw is the verbatim record — never
-          keyword-guessed or rewritten.
-        </p>
-        {unavailable && (
-          <div className="flex items-start gap-2 rounded-lg border p-2.5 text-[11.5px]"
-               style={{ borderColor: "var(--sev-medium)", color: "var(--sev-medium)", background: "color-mix(in srgb, var(--sev-medium) 8%, transparent)" }}>
-            <TriangleAlert className="mt-px h-4 w-4 flex-none" aria-hidden />
-            <span>{status?.message}</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2 pt-1">
-          <input ref={inputRef} type="file" accept=".evtx" className="hidden" data-testid="evtx-file"
-                 aria-label="Choose an .evtx file"
-                 onChange={(e) => { const f = e.target.files?.[0]; if (f) ingest.mutate(f); e.target.value = ""; }} />
-          <button onClick={() => inputRef.current?.click()} disabled={ingest.isPending || unavailable}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-opacity">
-            <Upload className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-            {ingest.isPending ? "Ingesting…" : "Choose .evtx"}
-          </button>
-          {msg && <span className="text-[12px]" style={{ color: tone }}>{msg}</span>}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="is-panel">
+      <div className="is-panel__h"><h3>Ingest Windows Event Log (.evtx)</h3></div>
+      <p className="is-mut" style={{ fontSize: 12, lineHeight: 1.5, margin: "0 0 8px" }}>
+        Upload a Windows <span className="is-mono" style={{ color: "var(--acc)" }}>.evtx</span> file to record its events
+        in the store. Each event's severity is the level Windows itself assigned (the EVTX{" "}
+        <span className="is-mono" style={{ color: "var(--ink)" }}>Level</span>), and its raw is the verbatim record —
+        never keyword-guessed or rewritten.
+      </p>
+      {unavailable && (
+        <div className="is-note" style={{ borderColor: "var(--high)", color: "var(--high)" }}>{status?.message}</div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+        <input ref={inputRef} type="file" accept=".evtx" className="is-visually-hidden" data-testid="evtx-file"
+               aria-label="Choose an .evtx file"
+               onChange={(e) => { const f = e.target.files?.[0]; if (f) ingest.mutate(f); e.target.value = ""; }} />
+        <button className="is-btn is-btn--primary" onClick={() => inputRef.current?.click()} disabled={ingest.isPending || unavailable}>
+          {ingest.isPending ? "Ingesting…" : "Choose .evtx"}
+        </button>
+        {msg && <span style={{ fontSize: 12, color: tone }}>{msg}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -130,56 +113,43 @@ function Retention() {
   });
 
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-          <Database className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-          Retention &amp; cleanup
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 flex flex-col gap-3">
-        <label className="text-[11px] font-medium text-muted-foreground">
-          Retention window (days) — history older than this is removed on cleanup
-          <div className="mt-1 flex items-center gap-2">
-            <input className={field} inputMode="numeric" value={days}
-                   onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ""))}
-                   aria-label="Retention days" placeholder={`current: ${stored}`} />
-            <button onClick={() => save.mutate()} disabled={!days || save.isPending}
-              className="whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 transition-colors">
-              Save
-            </button>
-          </div>
-        </label>
-        <div>
-          <button onClick={() => cleanup.mutate()} disabled={cleanup.isPending}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 transition-colors">
-            {cleanup.isPending ? "Cleaning…" : `Run cleanup (older than ${stored} days)`}
+    <div className="is-panel">
+      <div className="is-panel__h"><h3>Retention &amp; cleanup</h3></div>
+      <label className="is-field">
+        <span>Retention window (days) — history older than this is removed on cleanup</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input className="is-input" inputMode="numeric" value={days} aria-label="Retention days"
+                 onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ""))} placeholder={`current: ${stored}`} />
+          <button className="is-btn" onClick={() => save.mutate()} disabled={!days || save.isPending}>Save</button>
+        </div>
+      </label>
+      <div style={{ marginTop: 8 }}>
+        <button className="is-btn" onClick={() => cleanup.mutate()} disabled={cleanup.isPending}>
+          {cleanup.isPending ? "Cleaning…" : `Run cleanup (older than ${stored} days)`}
+        </button>
+      </div>
+
+      <div className="is-note" style={{ borderColor: "var(--crit)", marginTop: 12 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "var(--crit)" }}>
+          Danger — purge all history
+        </span>
+        <p className="is-mut" style={{ fontSize: 11, lineHeight: 1.5, margin: "6px 0" }}>
+          Permanently wipes ALL stored events, assets, vulnerabilities, IOCs and investigations. Type{" "}
+          <span className="is-mono" style={{ fontWeight: 700, color: "var(--ink)" }}>PURGE</span> to confirm.
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input className="is-input" value={confirm} onChange={(e) => setConfirm(e.target.value)}
+                 aria-label="Type PURGE to confirm" placeholder="PURGE" />
+          <button className="is-btn" onClick={() => purge.mutate()} disabled={confirm !== "PURGE" || purge.isPending}
+                  style={{ whiteSpace: "nowrap", borderColor: "var(--crit)",
+                           background: confirm === "PURGE" ? "var(--crit)" : "transparent",
+                           color: confirm === "PURGE" ? "#fff" : "var(--crit)" }}>
+            {purge.isPending ? "Purging…" : "Purge everything"}
           </button>
         </div>
-
-        <div className="flex flex-col gap-2 rounded-lg border p-3"
-             style={{ borderColor: "var(--sev-critical)", background: "color-mix(in srgb, var(--sev-critical) 6%, transparent)" }}>
-          <span className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: "var(--sev-critical)" }}>
-            <Trash2 className="h-3.5 w-3.5" aria-hidden /> Danger — purge all history
-          </span>
-          <p className="text-[11px] text-muted-foreground leading-normal">
-            Permanently wipes ALL stored events, assets, vulnerabilities, IOCs and investigations.
-            Type <span className="font-mono font-bold text-foreground">PURGE</span> to confirm.
-          </p>
-          <div className="flex items-center gap-2">
-            <input className={field} value={confirm} onChange={(e) => setConfirm(e.target.value)}
-                   aria-label="Type PURGE to confirm" placeholder="PURGE" />
-            <button onClick={() => purge.mutate()} disabled={confirm !== "PURGE" || purge.isPending}
-              className="whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-40 transition-opacity"
-              style={{ background: confirm === "PURGE" ? "var(--sev-critical)" : "var(--muted)",
-                       borderColor: "var(--sev-critical)" }}>
-              {purge.isPending ? "Purging…" : "Purge everything"}
-            </button>
-          </div>
-        </div>
-        {msg && <span className="text-[12px] text-muted-foreground">{msg}</span>}
-      </CardContent>
-    </Card>
+      </div>
+      {msg && <span className="is-mut" style={{ fontSize: 12, marginTop: 8, display: "inline-block" }}>{msg}</span>}
+    </div>
   );
 }
 
@@ -193,120 +163,97 @@ function EventsTable() {
     source_type: sourceType || undefined, limit: PAGE, offset,
   };
   const { data } = useQuery({
-    queryKey: ["store", "events", query], queryFn: () => api.historyEvents(query),
-    refetchInterval: 5000,
+    queryKey: ["store", "events", query], queryFn: () => api.historyEvents(query), refetchInterval: 5000,
   });
   const items: StoreEvent[] = data?.items ?? [];
   const total = data?.total ?? 0;
-
   const reset = () => setOffset(0);
 
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-          Events
-          <span className="text-[12px] font-normal text-muted-foreground">· {total} total</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <input className="w-56 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
-                 value={q} onChange={(e) => { setQ(e.target.value); reset(); }}
-                 aria-label="Search events" placeholder="Search text…" />
-          <select className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary" value={severity}
-                  onChange={(e) => { setSeverity(e.target.value); reset(); }} aria-label="Filter severity">
-            <option value="">All severities</option>
-            {["CRITICAL", "HIGH", "ERROR", "WARNING", "MEDIUM", "LOW", "INFORMATION", "NOTICE", "VERBOSE"].map((s) =>
-              <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary" value={sourceType}
-                  onChange={(e) => { setSourceType(e.target.value); reset(); }} aria-label="Filter source type">
-            <option value="">All sources</option>
-            {["evtx", "syslog", "file", "oem:cisco", "oem:ruckus", "oem:log360"].map((s) =>
-              <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
+    <div className="is-panel">
+      <div className="is-panel__h"><h3>Events</h3><span className="is-panel__sub">{total} total</span></div>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <input className="is-input" style={{ width: 224 }} value={q} aria-label="Search events" placeholder="Search text…"
+               onChange={(e) => { setQ(e.target.value); reset(); }} />
+        <select className="is-select" style={{ width: "auto" }} value={severity} aria-label="Filter severity"
+                onChange={(e) => { setSeverity(e.target.value); reset(); }}>
+          <option value="">All severities</option>
+          {["CRITICAL", "HIGH", "ERROR", "WARNING", "MEDIUM", "LOW", "INFORMATION", "NOTICE", "VERBOSE"].map((s) =>
+            <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="is-select" style={{ width: "auto" }} value={sourceType} aria-label="Filter source type"
+                onChange={(e) => { setSourceType(e.target.value); reset(); }}>
+          <option value="">All sources</option>
+          {["evtx", "syslog", "file", "oem:cisco", "oem:ruckus", "oem:log360"].map((s) =>
+            <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
 
-        {items.length === 0 ? (
-          <p className="text-[12.5px] text-muted-foreground py-2">
-            No events in the store yet. Ingest an .evtx above, start the syslog collector, or add an
-            OEM connector — stored events appear here.
+      {items.length === 0 ? (
+        <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
+          No events in the store yet. Ingest an .evtx above, start the syslog collector, or add an OEM
+          connector — stored events appear here.
+        </p>
+      ) : (
+        <>
+          <p className="is-mut" style={{ fontSize: 11.5, marginTop: 0, marginBottom: 10 }}>
+            Severity is the level the source reported (never a verdict).{" "}
+            <span className="is-mono" style={{ color: "var(--ink)" }}>raw</span> is the exact stored record.
           </p>
-        ) : (
-          <>
-            <p className="text-[11.5px] text-muted-foreground">
-              Severity is the level the source reported (never a verdict).
-              <span className="font-mono text-foreground font-medium"> raw</span> is the exact stored record.
-            </p>
-            <div className="overflow-auto rounded-lg border border-border">
-              <table className="w-full border-collapse text-left text-[12.5px]">
-                <thead className="sticky top-0 z-10 bg-card border-b border-border text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <tr>
-                    <th className="border-b border-border px-3 py-2.5">Time</th>
-                    <th className="border-b border-border px-3 py-2.5">Source type</th>
-                    <th className="border-b border-border px-3 py-2.5">Host</th>
-                    <th className="border-b border-border px-3 py-2.5">Event ID</th>
-                    <th className="border-b border-border px-3 py-2.5">Severity</th>
-                    <th className="border-b border-border px-3 py-2.5">Message</th>
+          <div style={{ overflowX: "auto" }}>
+            <table className="is-table">
+              <thead>
+                <tr><th>Time</th><th>Source type</th><th>Host</th><th>Event ID</th><th>Severity</th><th>Message</th></tr>
+              </thead>
+              <tbody>
+                {items.map((e) => (
+                  <tr key={e.id} style={{ cursor: "default" }}>
+                    <td className="col-mono" style={{ whiteSpace: "nowrap" }}>{new Date(e.ts).toLocaleString()}</td>
+                    <td className="col-mono">{e.source_type || "—"}</td>
+                    <td className="col-mono" style={{ color: "var(--ink)", fontWeight: 500 }}>{e.host || "—"}</td>
+                    <td className="col-mono">{e.event_id || "—"}</td>
+                    <td style={{ fontSize: 12, fontWeight: 600, color: e.severity ? sevVar(e.severity) : undefined }}>
+                      {e.severity || <span className="is-mut" style={{ fontWeight: 400 }}>none</span>}
+                    </td>
+                    <td className="is-mono" style={{ fontSize: 11, color: "var(--mut)", wordBreak: "break-all" }} title={e.raw}>{e.message || e.raw}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {items.map((e) => (
-                    <tr key={e.id} className="hover:bg-muted/40 transition-colors">
-                      <td className="border-b border-border px-3 py-2 tabular-nums text-muted-foreground whitespace-nowrap text-[11px]">
-                        {new Date(e.ts).toLocaleString()}
-                      </td>
-                      <td className="border-b border-border px-3 py-2 font-mono text-xs text-muted-foreground">{e.source_type || "—"}</td>
-                      <td className="border-b border-border px-3 py-2 font-mono text-xs font-medium text-foreground">{e.host || "—"}</td>
-                      <td className="border-b border-border px-3 py-2 font-mono text-xs">{e.event_id || "—"}</td>
-                      <td className="border-b border-border px-3 py-2 font-semibold text-xs" style={{ color: e.severity ? sevVar(e.severity) : undefined }}>
-                        {e.severity || <span className="font-normal text-muted-foreground">none</span>}
-                      </td>
-                      <td className="border-b border-border px-3 py-2 font-mono break-all text-[11px] text-muted-foreground leading-relaxed" title={e.raw}>{e.message || e.raw}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex items-center gap-3 text-[12px] pt-1">
-              <button onClick={() => setOffset(Math.max(0, offset - PAGE))} disabled={offset === 0}
-                className="rounded-lg border border-border px-3 py-1 font-semibold text-foreground hover:bg-muted disabled:opacity-40 transition-colors">Prev</button>
-              <span className="tabular-nums text-muted-foreground font-medium">
-                {offset + 1}–{Math.min(offset + PAGE, total)} of {total}
-              </span>
-              <button onClick={() => setOffset(offset + PAGE)} disabled={offset + PAGE >= total}
-                className="rounded-lg border border-border px-3 py-1 font-semibold text-foreground hover:bg-muted disabled:opacity-40 transition-colors">Next</button>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, paddingTop: 10 }}>
+            <button className="is-btn" onClick={() => setOffset(Math.max(0, offset - PAGE))} disabled={offset === 0}>Prev</button>
+            <span className="is-tnum is-mut" style={{ fontWeight: 500 }}>
+              {offset + 1}–{Math.min(offset + PAGE, total)} of {total}
+            </span>
+            <button className="is-btn" onClick={() => setOffset(offset + PAGE)} disabled={offset + PAGE >= total}>Next</button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
 export function History() {
   const { error } = useQuery({ queryKey: ["store", "metrics"], queryFn: api.storeMetrics });
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="rounded-xl border border-dashed border-border bg-card">
-        <CardContent className="p-4 text-[12.5px] text-muted-foreground leading-relaxed">
-          <b className="text-foreground">Persistent Event Store.</b> Windows EVTX ingest, Command-Center counts, full event
-          history, and retention controls. Counts are real store totals; severity is always the level
-          the source reported, never a verdict.
-        </CardContent>
-      </Card>
+    <>
+      <div className="is-note">
+        <b>Persistent event store.</b> Windows EVTX ingest, Command-Center counts, full event history,
+        and retention controls. Counts are real store totals; severity is always the level the source
+        reported, never a verdict.
+      </div>
       {error && (
-        <p className="text-[12.5px] text-muted-foreground">
+        <p className="is-mut" style={{ fontSize: 12.5 }}>
           Backend not reachable — start the console server to view stored history.
         </p>
       )}
       <Kpis />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="is-grid-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
         <EvtxIngest />
         <Retention />
       </div>
       <EventsTable />
-    </div>
+    </>
   );
 }

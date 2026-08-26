@@ -1,12 +1,24 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Shield, Key, User, Lock, AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useUi } from "@/store/ui";
 
+/** Login — the itsoc. split auth screen (is-auth), mirroring the prototype login
+ *  frame: left brand panel (wordmark + tagline + 3 checks + honest note), right
+ *  card with Log in / Sign up tabs, username + passphrase, and the local-demo /
+ *  scrypt / swap-seam honesty note. Auth logic is unchanged (P2 is presentation
+ *  only): calls route through the single swap-seam (lib/auth.ts via useAuth).
+ *
+ *  Note: the handoff §3 prose mentions a "Name" field on Sign up, but the
+ *  authoritative prototype login has none, the signup backend takes only
+ *  (username, passphrase), and P2 forbids backend/auth changes — a field that
+ *  goes nowhere would be dishonest, so it is intentionally omitted. */
 export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, signup, isAuthenticated, user } = useAuth();
+  const theme = useUi((s) => s.theme);
+  const toggleTheme = useUi((s) => s.toggleTheme);
 
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [username, setUsername] = useState("analyst");
@@ -19,30 +31,18 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!username.trim()) {
-      setError("Please enter a username");
-      return;
-    }
-    if (!passphrase) {
-      setError("Please enter a passphrase");
-      return;
-    }
+    if (!username.trim()) { setError("Please enter a username"); return; }
+    if (!passphrase) { setError("Please enter a passphrase"); return; }
     if (mode === "signup" && passphrase.length < 4) {
-      setError("Passphrase must be at least 4 characters");
-      return;
+      setError("Passphrase must be at least 4 characters"); return;
     }
-
     setSubmitting(true);
     try {
-      if (mode === "signup") {
-        await signup(username.trim(), passphrase);
-      } else {
-        await login(username.trim(), passphrase);
-      }
+      if (mode === "signup") await signup(username.trim(), passphrase);
+      else await login(username.trim(), passphrase);
       navigate(from, { replace: true });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Authentication failed";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "Authentication failed");
     } finally {
       setSubmitting(false);
     }
@@ -50,23 +50,19 @@ export function Login() {
 
   if (isAuthenticated && user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4 text-foreground">
-        <div className="w-full max-w-md rounded-xl border bg-card p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-6 w-6 text-primary" />
-            <div>
-              <h2 className="text-[16px] font-semibold">Already signed in</h2>
-              <p className="text-[13px] text-muted-foreground">
-                Active profile: <span className="font-medium text-foreground">{user.username}</span> ({user.role})
-              </p>
-            </div>
-          </div>
-          <div className="mt-6 flex gap-3">
-            <button
-              onClick={() => navigate(from, { replace: true })}
-              className="flex-1 rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground hover:opacity-90"
-            >
-              Continue to console
+      <div className="is-auth">
+        <div className="is-auth__brand">
+          <div className="is-brand" style={{ fontSize: 30 }}>itsoc<span className="dot">.</span></div>
+          <div className="tag">Local, honest, rules-first<br />security operations.</div>
+        </div>
+        <div className="is-auth__form">
+          <div className="is-auth__card">
+            <h1 style={{ margin: "6px 0 0", fontSize: 21 }}>Already signed in</h1>
+            <p className="is-mut" style={{ margin: 0, fontSize: 12.5 }}>
+              Active profile: <b style={{ color: "var(--ink)" }}>{user.username}</b> ({user.role}).
+            </p>
+            <button className="is-btn is-btn--primary" onClick={() => navigate(from, { replace: true })}>
+              Continue to console →
             </button>
           </div>
         </div>
@@ -74,120 +70,73 @@ export function Login() {
     );
   }
 
+  const dark = theme === "dark";
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 text-foreground">
-      <div className="w-full max-w-[400px]">
-        {/* Brand Header */}
-        <div className="mb-6 flex flex-col items-center text-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-sm">
-            <Shield className="h-6 w-6" strokeWidth={2} />
-          </div>
-          <h1 className="mt-3 text-[22px] font-bold tracking-tight">itsoc<span className="text-primary">.</span></h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            Local-first Security Operations &amp; Anomaly Detection
-          </p>
+    <div className="is-auth">
+      <div className="is-auth__brand">
+        <div className="is-brand" style={{ fontSize: 30 }}>itsoc<span className="dot">.</span></div>
+        <div className="tag">Local, honest, rules-first<br />security operations.</div>
+        <ul className="pts">
+          <li>Deterministic rules own every verdict</li>
+          <li>The AI explains &amp; recommends — it never decides</li>
+          <li>Runs on your machine · nothing leaves by default</li>
+        </ul>
+        <div className="is-auth__honest">
+          Local demo — a single profile on this machine. No cloud account, no server session.
         </div>
+      </div>
 
-        {/* Card */}
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          {/* Mode Switcher Tabs */}
-          <div className="mb-5 flex rounded-lg border bg-muted/40 p-1">
-            <button
-              type="button"
-              onClick={() => { setMode("login"); setError(null); }}
-              className={`flex-1 rounded-md py-1.5 text-[12.5px] font-medium transition-all ${
-                mode === "login"
-                  ? "bg-card text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode("signup"); setError(null); }}
-              className={`flex-1 rounded-md py-1.5 text-[12.5px] font-medium transition-all ${
-                mode === "signup"
-                  ? "bg-card text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Create Profile
-            </button>
+      <div className="is-auth__form" style={{ position: "relative" }}>
+        <button className="is-icobtn" style={{ position: "absolute", top: 20, right: 20 }}
+                onClick={toggleTheme} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}>
+          {dark ? "☾" : "☀"}
+        </button>
+        <div className="is-auth__card">
+          <div className="is-tabs">
+            <button className={mode === "login" ? "on" : ""} type="button"
+                    onClick={() => { setMode("login"); setError(null); }}>Log in</button>
+            <button className={mode === "signup" ? "on" : ""} type="button"
+                    onClick={() => { setMode("signup"); setError(null); }}>Sign up</button>
           </div>
+          <h1 style={{ margin: "6px 0 0", fontSize: 21 }}>
+            {mode === "signup" ? "Create your local profile" : "Welcome back"}
+          </h1>
+          <p className="is-mut" style={{ margin: 0, fontSize: 12.5 }}>
+            {mode === "signup" ? "This is the single profile stored on this machine."
+              : "Unlock this console to continue."}
+          </p>
 
           {error && (
-            <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-[12.5px] text-destructive">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span className="leading-tight">{error}</span>
+            <div className="is-note" style={{ borderColor: "var(--crit)", color: "var(--crit)" }} role="alert">
+              {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            <div>
-              <label className="block text-[12px] font-medium text-muted-foreground">Username</label>
-              <div className="relative mt-1">
-                <User className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. analyst or admin"
-                  required
-                  className="w-full rounded-lg border bg-background py-2 pl-9 pr-3 text-[13px] placeholder:text-muted-foreground/50 focus:border-primary focus:outline-hidden"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[12px] font-medium text-muted-foreground">Passphrase</label>
-              <div className="relative mt-1">
-                <Lock className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <input
-                  type="password"
-                  value={passphrase}
-                  onChange={(e) => setPassphrase(e.target.value)}
-                  placeholder="••••••••••••"
-                  required
-                  className="w-full rounded-lg border bg-background py-2 pl-9 pr-3 text-[13px] placeholder:text-muted-foreground/50 focus:border-primary focus:outline-hidden"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              {submitting ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-              ) : (
-                <>
-                  <span>{mode === "signup" ? "Create Local Profile" : "Sign In to Session"}</span>
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+            <label className="is-field"><span>Username</span>
+              <input className="is-input" type="text" value={username} required
+                     onChange={(e) => setUsername(e.target.value)} placeholder="e.g. analyst" />
+            </label>
+            <label className="is-field"><span>Passphrase</span>
+              <input className="is-input" type="password" value={passphrase} required
+                     onChange={(e) => setPassphrase(e.target.value)} placeholder="••••••••••••" />
+            </label>
+            <button className="is-btn is-btn--primary" type="submit" disabled={submitting}
+                    style={{ justifyContent: "center", padding: 11 }}>
+              {submitting ? "Working…" : mode === "signup" ? "Create local profile →" : "Sign in to session →"}
             </button>
           </form>
 
-          {/* Quick Demo Hint */}
-          <div className="mt-4 rounded-md border border-border/70 bg-muted/30 p-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
-            <span className="font-semibold text-foreground">Quick demo:</span> Log in with username{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">analyst</code>{" "}
-            and its passphrase. If no profile exists, choose Create Profile first.
+          <div className="is-note" style={{ fontSize: 11.5 }}>
+            <b>Quick demo:</b> log in with username{" "}
+            <span className="is-mono" style={{ color: "var(--ink)" }}>analyst</span> and its passphrase.
+            If no profile exists, choose Sign up first.
           </div>
-        </div>
 
-        {/* Honesty & Swap-Seam Note */}
-        <div className="mt-4 rounded-lg border border-border/50 bg-card/50 p-3 text-center text-[11.5px] leading-normal text-muted-foreground">
-          <div className="flex items-center justify-center gap-1.5 font-medium text-foreground/80">
-            <Key className="h-3.5 w-3.5 text-primary" />
-            <span>Local demo — single profile on this machine</span>
+          <div className="is-auth__honest" style={{ marginTop: 2 }}>
+            Passphrase is salted &amp; scrypt-hashed locally. Client calls route through one swap-seam
+            module (<span className="is-mono">auth.ts</span>) ready for future token/passkey providers.
           </div>
-          <p className="mt-1 text-[11px]">
-            Passphrase is salted &amp; scrypt-hashed locally. Client calls route through a single swap-seam module
-            (<code className="font-mono text-[10.5px]">auth.ts</code>) ready for future token/passkey providers.
-          </p>
         </div>
       </div>
     </div>
