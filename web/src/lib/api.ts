@@ -208,43 +208,6 @@ export interface Rca {
   hypothesis: RcaHypothesis;
 }
 
-export interface RcaFacts {
-  incidentId: string;
-  entity: string;
-  entityKind: "ip" | "host" | "rule";
-  findingIds: string[];
-  membersLoaded: number;
-  rules: string[];
-  firstSeen: string | null;
-  lastSeen: string | null;
-  timeline: { t: string; label: string; line?: number; findingId?: string; rule?: string }[];
-  note: string | null;
-}
-
-export interface RcaRunbook {
-  matched: boolean;
-  file?: string;
-  title?: string;
-  passage?: string;
-  score?: number;
-  coverage?: number;
-  note?: string;
-}
-
-export interface RcaHypothesis {
-  text: string | null;
-  label: string;
-  note?: string | null;
-  reasons?: string[];
-}
-
-export interface Rca {
-  incidentId: string;
-  facts: RcaFacts;
-  runbook: RcaRunbook;
-  hypothesis: RcaHypothesis;
-}
-
 export interface Asset {
   id: string; name: string; kind: "host" | "ip";
   events: number; findings: number; atRisk: boolean;
