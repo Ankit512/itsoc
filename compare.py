@@ -87,7 +87,8 @@ def _save_cache(cache):
     CACHE_PATH.write_text(json.dumps(cache, indent=2))
 
 
-def run_llm_alone(chunks, chat_fn, model, temperature, strip_fences, use_cache=True):
+def run_llm_alone(chunks, chat_fn, model, temperature, strip_fences, use_cache=True,
+                  workers=1):
     """Analyze every chunk with the neutral prompt.
 
     chat_fn(system, user) -> raw reply text. Injected so this module never
@@ -103,15 +104,46 @@ def run_llm_alone(chunks, chat_fn, model, temperature, strip_fences, use_cache=T
     findings, status = [], []
     dirty = False
 
-    for idx, chunk_lines in enumerate(chunks):
-        text = "".join(chunk_lines)
-        key = _cache_key(model, temperature, text)
+    texts = ["".join(chunk_lines) for chunk_lines in chunks]
+    keys = [_cache_key(model, temperature, t) for t in texts]
 
+    # H4: analyze uncached chunks through a bounded pool instead of serially.
+    # One call per UNIQUE uncached key (duplicate chunks used to hit the cache
+    # on their second serial pass — deduping keeps that economy), results are
+    # keyed and assembled below in the original chunk order, so the returned
+    # findings/status lists are identical to the serial ones. temperature-0
+    # calls are per-chunk independent; the cache is written once at the end,
+    # exactly as before.
+    todo = {}
+    for text, key in zip(texts, keys):
+        if not (use_cache and key in cache) and key not in todo:
+            todo[key] = text
+    fresh = {}
+    if todo:
+        if workers > 1 and len(todo) > 1:
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=min(workers, len(todo))
+            ) as pool:
+                futures = {pool.submit(_analyze_one, text, chat_fn, strip_fences): key
+                           for key, text in todo.items()}
+                for future in concurrent.futures.as_completed(futures):
+                    key = futures[future]
+                    try:
+                        fresh[key] = future.result()
+                    except Exception as e:  # same containment _analyze_one gives
+                        fresh[key] = {"status": "api-error",
+                                      "detail": str(e)[:120], "findings": []}
+        else:
+            for key, text in todo.items():
+                fresh[key] = _analyze_one(text, chat_fn, strip_fences)
+
+    for idx, key in enumerate(keys):
         if use_cache and key in cache:
             entry = cache[key]
         else:
-            entry = _analyze_one(text, chat_fn, strip_fences)
-            if use_cache:
+            entry = fresh[key]
+            if use_cache and key not in cache:
                 cache[key] = entry
                 dirty = True
 

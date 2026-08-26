@@ -1092,20 +1092,15 @@ def analyze(source, value, compare, filename=None, data=None, threat_intel=None)
     return state
 
 
-def explain_finding(finding, state, compute=None):
-    """Advisory explanation for ONE finding, wherever compute runs.
+def _explain_payload(finding, state, compute):
+    """The shared assembly both explanation deliveries use: which lines go to
+    the model, over which endpoint, with which context. Remote mode passes
+    EVERYTHING outbound through the console/redact.py choke point — the
+    streaming path below reuses this function precisely so it cannot grow a
+    second, unredacted assembly.
 
-    Local mode is today's path, unchanged: the ~25-line chunk around the
-    finding goes to the model on this machine. Remote mode sends ONLY the
-    finding's own lines — never the chunk, never the whole log — and only
-    after console/redact.py has masked IPs, usernames and hostnames. Either
-    way the model's reply is advisory prose; verdicts were computed locally
-    long before this runs.
-
-    Returns (text, sent) where sent counts the redacted finding-lines that
-    actually left this machine (always 0 in local mode).
+    Returns (base, key, model, chunk_lines, chunk_index, ctx, sent).
     """
-    compute = COMPUTE if compute is None else compute
     log_path = Path(state.get("logPath", ""))
     lines = [e.get("line") for e in finding.get("timeline", []) if e.get("line")]
     if not log_path.exists() or not lines:
@@ -1121,19 +1116,34 @@ def explain_finding(finding, state, compute=None):
         wanted = sorted({n for n in lines if 0 < n <= len(all_lines)})
         hosts = {f.get("host") for f in state.get("findings", []) if f.get("hostDerived")}
         redacted, _ = redact.redact_lines([all_lines[n - 1] for n in wanted], hosts=hosts)
-        payload = [line + "\n" for line in redacted]
-        result = la.analyze_chunk(compute["baseUrl"], compute.get("apiKey") or "unused",
-                                  compute.get("model") or la.LLM_MODEL,
-                                  payload, 0, redact.redact_text(ctx, hosts=hosts))
-        sent = len(payload)
-    else:
-        size = 25
-        idx = (max(lines) - 1) // size
-        all_lines = log_path.read_text(errors="replace").splitlines(True)
-        chunk = all_lines[idx * size:(idx + 1) * size]
-        result = la.analyze_chunk(la.LLM_BASE_URL, la.LLM_API_KEY, la.LLM_MODEL,
-                                  chunk, idx, ctx)
-        sent = 0
+        return (compute["baseUrl"], compute.get("apiKey") or "unused",
+                compute.get("model") or la.LLM_MODEL,
+                [line + "\n" for line in redacted], 0,
+                redact.redact_text(ctx, hosts=hosts), len(redacted))
+
+    size = 25
+    idx = (max(lines) - 1) // size
+    all_lines = log_path.read_text(errors="replace").splitlines(True)
+    return (la.LLM_BASE_URL, la.LLM_API_KEY, la.LLM_MODEL,
+            all_lines[idx * size:(idx + 1) * size], idx, ctx, 0)
+
+
+def explain_finding(finding, state, compute=None):
+    """Advisory explanation for ONE finding, wherever compute runs.
+
+    Local mode is today's path, unchanged: the ~25-line chunk around the
+    finding goes to the model on this machine. Remote mode sends ONLY the
+    finding's own lines — never the chunk, never the whole log — and only
+    after console/redact.py has masked IPs, usernames and hostnames. Either
+    way the model's reply is advisory prose; verdicts were computed locally
+    long before this runs.
+
+    Returns (text, sent) where sent counts the redacted finding-lines that
+    actually left this machine (always 0 in local mode).
+    """
+    compute = COMPUTE if compute is None else compute
+    base, key, model, chunk, idx, ctx, sent = _explain_payload(finding, state, compute)
+    result = la.analyze_chunk(base, key, model, chunk, idx, ctx)
 
     text = ""
     for ex in result.get("explanations", []):
@@ -1142,6 +1152,41 @@ def explain_finding(finding, state, compute=None):
             text = ex["explanation"]
             break
     return text or "The model returned no explanation for this finding.", sent
+
+
+# The streaming delivery renders tokens as they arrive, so the reply must be
+# plain prose (a JSON envelope would leak braces into the stream) — the same
+# reasoning as ASK_SYSTEM_STREAM. Same advisory contract as the structured
+# explanation path: severities are final; the model only explains.
+EXPLAIN_SYSTEM_STREAM = (
+    "You are an advisory SOC analyst assistant for a local log-analysis console. "
+    "You will be shown one pre-flagged finding and the log lines around it. "
+    "Explain, in a short paragraph, what happened and why it matters. The "
+    "finding's severity and verdict were assigned by deterministic rules and "
+    "are final: you explain and advise, you never change, suppress, or "
+    "escalate them. Reply in plain prose — no JSON, no code fences."
+)
+
+
+def explain_finding_stream(finding, state, compute=None):
+    """ONE finding's advisory explanation as prose chunks (H5).
+
+    Same payload assembly — and therefore the same redaction choke point —
+    as explain_finding; only the delivery differs (chat_completion_stream,
+    like /api/ask's streaming path). Returns (delta_generator, sent) where
+    sent counts the redacted lines that will leave this machine (0 locally);
+    the caller accumulates the deltas and stores the final text exactly
+    where the blocking path would have.
+    """
+    compute = COMPUTE if compute is None else compute
+    base, key, model, chunk, idx, ctx, sent = _explain_payload(finding, state, compute)
+    user = (f"{ctx}\n\nLog lines (chunk {idx + 1}):\n{''.join(chunk)}\n"
+            f"Explain the flagged finding above.")
+
+    def deltas():
+        yield from la.chat_completion_stream(base, key, model,
+                                             EXPLAIN_SYSTEM_STREAM, user)
+    return deltas(), sent
 
 
 # ---------------------------------------------------------------------------
@@ -1862,6 +1907,9 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         if finding.get("explanation"):
             return self._json(finding)                     # already explained
 
+        if payload.get("stream"):
+            return self._explain_stream(finding)
+
         try:
             text, sent = explain_finding(finding, STATE)
         except LookupError:
@@ -1882,6 +1930,88 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         persist_state()
         print(f"  explained on demand: {fid}", flush=True)
         return self._json(finding)
+
+    def _explain_stream(self, finding):
+        """Stream ONE finding's explanation as SSE (H5): `{"delta": ...}` per
+        token, then `{"done": true}` — the reviewer reads prose from the first
+        token instead of staring at a spinner for the whole generation. The
+        payload (and, in remote mode, its redaction) is assembled by the same
+        _explain_payload the blocking path uses; the finished text lands in
+        the finding and the saved run exactly as the blocking path lands it.
+        An unreachable model is an `{"error": ...}` event, never made-up prose."""
+        global STATE
+        try:
+            deltas, sent = explain_finding_stream(finding, STATE)
+        except LookupError:
+            return self._json({"error": "cannot locate this finding's source lines"}, 409)
+        except Exception as e:
+            return self._json({"error": f"explanation failed: {e}"}, 500)
+
+        print(f"  explaining on demand (stream): {finding.get('id')}", flush=True)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+
+        def send(obj):
+            self.wfile.write(f"data: {json.dumps(obj)}\n\n".encode())
+            self.wfile.flush()
+
+        parts = []
+        client_gone = False
+        try:
+            for chunk in deltas:
+                parts.append(chunk)
+                try:
+                    send({"delta": chunk})
+                except (BrokenPipeError, ConnectionResetError):
+                    # Client cancelled mid-stream: stop generating further
+                    # tokens, and do NOT store a half explanation as if it
+                    # were the model's full answer.
+                    client_gone = True
+                    break
+        except Exception as e:
+            try:
+                send({"error": f"explanation failed: {e}"})
+            except OSError:
+                pass
+            return
+
+        def account_sent():
+            # Remote mode: the redacted lines left this machine when the
+            # request fired — the honest banner counts them even when the
+            # stream was cancelled or came back empty.
+            if sent and parts:
+                prev = (STATE.get("compute") or {}).get("sentLines", 0)
+                STATE["compute"] = compute_state(prev + sent)
+                persist_state()
+
+        if client_gone:
+            # Do NOT store a half explanation as the model's full answer.
+            account_sent()
+            return
+        text = "".join(parts).strip()
+        if not text:
+            account_sent()
+            try:
+                send({"error": "the model returned an empty explanation"})
+            except OSError:
+                pass
+            return
+        # Same post-conditions as the blocking path: the prose belongs to the
+        # finding and to the saved run, and outbound lines stay accounted for.
+        finding["explanation"] = text
+        finding["explanationOnDemand"] = True
+        if sent:
+            prev = (STATE.get("compute") or {}).get("sentLines", 0)
+            STATE["compute"] = compute_state(prev + sent)
+        persist_state()
+        print(f"  explained on demand (stream): {finding.get('id')}", flush=True)
+        try:
+            send({"done": True})
+        except OSError:
+            pass
 
     def _mark(self):
         """Record an analyst's true-positive / false-positive mark on a finding.

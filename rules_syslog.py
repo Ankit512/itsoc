@@ -469,8 +469,15 @@ def _device_type(record, text):
     for typ in DEVICE_PATTERNS:
         if typ in explicit:
             return typ
+    # Vendor is the same for every iteration — computed once, not 9 times.
+    vendor = _vendor(record)
+    # Union gate over the same 9 patterns: when nothing matches at all (the
+    # common case), skip the per-type loop entirely. First-matching-TYPE
+    # semantics below are untouched for records that pass the gate.
+    if not (_DEVICE_ANY.search(text) or _DEVICE_ANY.search(vendor)):
+        return "unknown"
     for typ, rx in DEVICE_PATTERNS.items():
-        if rx.search(text) or rx.search(_vendor(record)):
+        if rx.search(text) or rx.search(vendor):
             return typ
     return "unknown"
 
@@ -481,8 +488,12 @@ def _structured_severity(record):
 
 
 def _severity_from_text(text):
-    for sev, patterns in (("critical", CRITICAL_PATTERNS), ("high", HIGH_PATTERNS), ("medium", MEDIUM_PATTERNS), ("low", LOW_PATTERNS)):
-        if any(rx.search(text) for rx in patterns):
+    # One mechanically derived union regex per family instead of up to 40
+    # individual searches. A union of the SAME patterns matches exactly the
+    # texts any member matches, and family order is preserved — so the result
+    # is identical by construction (proven per-text by the parity test).
+    for sev, union in _SEVERITY_UNIONS:
+        if union.search(text):
             return sev
     return None
 
@@ -531,8 +542,6 @@ def detect_infrastructure_alerts(records):
         if not text.strip():
             continue
         eid = _event_id(r)
-        host = _entity_host(r)
-        dtype = _device_type(r, text)
         sev = _structured_severity(r) or _severity_from_text(text)
         # Ignore routine INFO/DEBUG unless a deterministic security/availability pattern matches.
         if not sev:
@@ -547,6 +556,11 @@ def detect_infrastructure_alerts(records):
         # Avoid turning ordinary success/up/recovery lines into alerts.
         if sev == "low" and not any(x in text.lower() for x in ("warning", "threshold", "expir", "drift", "retry", "certificate", "license")):
             continue
+        # Only records that will actually emit pay for device/host resolution —
+        # both are pure lookups used solely in the emitted anomaly below, so
+        # computing them after the guards cannot change which records emit.
+        host = _entity_host(r)
+        dtype = _device_type(r, text)
         action = {
             "critical": "Immediately validate the event, preserve evidence, identify the actor/source and assess service or security impact.",
             "high": "Validate the event against an approved change/security action and investigate the source, affected asset and surrounding events.",
@@ -590,12 +604,54 @@ IOC_IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 IOC_DOMAIN_RE = re.compile(r"\b(?:[a-z0-9-]+\.)+(?:com|net|org|ru|cn|top|xyz|info|biz|io|cc)\b", re.I)
 IOC_HASH_RE = re.compile(r"\b[a-f0-9]{32}\b|\b[a-f0-9]{40}\b|\b[a-f0-9]{64}\b", re.I)
 
+# The "security-relevant context" vocabulary detect_iocs requires before an
+# IP/domain/hash counts as an indicator candidate. Module-level so the gate
+# reorder below uses the identical pattern the inline search used.
+IOC_CONTEXT_RE = re.compile(
+    r"\b(c2|malware|trojan|ransomware|blocked|denied|indicator|ioc|threat|exploit|attack)\b",
+    re.I)
 
-def detect_threats(records):
+
+# ---------------------------------------------------------------------------
+# Mechanically derived union gates (latency only — matching is unchanged)
+# ---------------------------------------------------------------------------
+# A union of the SAME compiled patterns matches a text if and only if some
+# member matches it, so using the union as a boolean gate (or, for the
+# severity families, as the family's boolean itself) cannot change what any
+# rule matches. Derived from the tables above — never hand-written — and the
+# parity test asserts gate(text) == any(member(text)) over the whole corpus.
+
+def _union(patterns):
+    return re.compile("|".join(f"(?:{p.pattern})" for p in patterns), re.I)
+
+
+_DEVICE_ANY = _union(DEVICE_PATTERNS.values())
+_SEVERITY_UNIONS = (
+    ("critical", _union(CRITICAL_PATTERNS)),
+    ("high", _union(HIGH_PATTERNS)),
+    ("medium", _union(MEDIUM_PATTERNS)),
+    ("low", _union(LOW_PATTERNS)),
+)
+_THREAT_ANY = _union([rx for _, _, rx in THREAT_PATTERNS])
+
+
+def _threat_text(record):
+    """The text composition detect_threats/detect_iocs sweep — built once per
+    record by detect_extra and shared, instead of twice per record."""
+    return " ".join(str(record.get(k, ""))
+                    for k in ("raw", "msg", "original_msg", "message")
+                    if record.get(k))
+
+
+def detect_threats(records, _texts=None):
     out = []
-    for r in records:
-        text = " ".join(str(r.get(k, "")) for k in ("raw", "msg", "original_msg", "message") if r.get(k))
+    for i, r in enumerate(records):
+        text = _texts[i] if _texts is not None else _threat_text(r)
         if not text.strip():
+            continue
+        # Union gate over the same 11 patterns; only matching records pay for
+        # the ordered per-pattern loop (which decides type/severity).
+        if not _THREAT_ANY.search(text):
             continue
         for sev, atype, rx in THREAT_PATTERNS:
             if not rx.search(text):
@@ -616,18 +672,20 @@ def detect_threats(records):
     return out
 
 
-def detect_iocs(records):
+def detect_iocs(records, _texts=None):
     """Surface explicit IP/domain/hash indicators without declaring them malicious."""
     out = []
-    for r in records:
-        text = " ".join(str(r.get(k, "")) for k in ("raw", "msg", "original_msg", "message") if r.get(k))
+    for i, r in enumerate(records):
+        text = _texts[i] if _texts is not None else _threat_text(r)
+        # A finding requires BOTH an indicator and security context; checking
+        # the single cheap context regex first skips the three findall sweeps
+        # on ordinary lines. Pure conjunction — the emitted set is unchanged.
+        if not IOC_CONTEXT_RE.search(text):
+            continue
         ips = sorted(set(IOC_IP_RE.findall(text)))
         domains = sorted(set(IOC_DOMAIN_RE.findall(text)))
         hashes = sorted(set(IOC_HASH_RE.findall(text)))
         if not (ips or domains or hashes):
-            continue
-        suspicious_context = re.search(r"\b(c2|malware|trojan|ransomware|blocked|denied|indicator|ioc|threat|exploit|attack)\b", text, re.I)
-        if not suspicious_context:
             continue
         out.append(_anomaly(
             "medium", "ioc_observed", f"Potential IOC observed on {_entity_host(r)}", r,
@@ -644,6 +702,8 @@ def detect_extra(records):
     anomalies.extend(detect_break_in_attempts(records))
     anomalies.extend(detect_windows_extra(records))
     anomalies.extend(detect_infrastructure_alerts(records))
-    anomalies.extend(detect_threats(records))
-    anomalies.extend(detect_iocs(records))
+    # The threat and IOC sweeps read the same text composition — build it once.
+    texts = [_threat_text(r) for r in records]
+    anomalies.extend(detect_threats(records, _texts=texts))
+    anomalies.extend(detect_iocs(records, _texts=texts))
     return anomalies
