@@ -3,6 +3,11 @@
 
 - Concurrent listeners on multiple UDP ports.
 - RFC3164 and RFC5424 PRI parsing when present.
+- RFC3164/RFC5424 envelope hostname parsing (RFC3164 via the SAME regex the
+  file pipeline uses — normalize.RFC3164_RE). `host` is the origin host the
+  envelope asserts; the sender address is used ONLY when the envelope names
+  none, and `host_source` records which one it was ("envelope" / "sender-ip"),
+  so a relay's address is never silently presented as the origin.
 - Preserves the original message verbatim.
 - Stores events through console.store.insert_event when available.
 - Bounded in-memory counters; no unbounded message list.
@@ -12,8 +17,13 @@ from __future__ import annotations
 
 import re
 import socket
+import sys
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from normalize import RFC3164_RE  # noqa: E402  # the file pipeline's envelope regex
 
 DEFAULT_PORTS = (513, 514, 1514)
 MAX_DATAGRAM = 65535
@@ -29,6 +39,7 @@ _FAC = {
     22:"local6",23:"local7"
 }
 _PRI = re.compile(r"^<(\d{1,3})>(.*)$", re.S)
+# RFC5424 header: VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID SD MSG
 _RFC5424 = re.compile(r"^(?:\d)\s+([^\s]+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+|-)\s*(.*)$", re.S)
 
 
@@ -56,13 +67,22 @@ def parse_syslog(data: bytes, src_ip: str, src_port: int, listen_port: int) -> d
     app = ""
     msgid = ""
     message = body
-    # RFC5424: VERSION HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
     r = _RFC5424.match(body)
     if r:
-        host, app, _procid, msgid, _sd, message = r.groups()
+        _ts, host, app, _procid, msgid, _sd, message = r.groups()
         if host == "-": host = ""
         if app == "-": app = ""
         if msgid == "-": msgid = ""
+    else:
+        # RFC3164: "Mmm dd HH:MM:SS HOSTNAME TAG: msg". On a relayed stream the
+        # envelope hostname is the ORIGIN; the sender address is only the last
+        # hop. A hostname-less line puts the process tag where the hostname
+        # would be ("su:", "sshd[123]:") — a tag is never claimed as the host.
+        m3 = RFC3164_RE.match(body)
+        if m3:
+            cand = m3.group("host")
+            if cand != "-" and not (cand.endswith(":") or "[" in cand or "(" in cand):
+                host = cand
 
     return {
         "ts": _now(),
@@ -70,6 +90,9 @@ def parse_syslog(data: bytes, src_ip: str, src_port: int, listen_port: int) -> d
         "source_type": "syslog:udp",
         "category": "syslog",
         "host": host or src_ip,
+        # Honest fallback provenance: "sender-ip" means the envelope named no
+        # origin, so host above is the sending address (possibly a relay).
+        "host_source": "envelope" if host else "sender-ip",
         "src_ip": src_ip,
         "src_port": str(src_port),
         "dst_port": str(listen_port),
