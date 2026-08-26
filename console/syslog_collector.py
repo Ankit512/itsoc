@@ -168,6 +168,9 @@ class SyslogCollector:
         self._lock = threading.RLock()
         self._listeners = {}
         self._last_error = ""
+        self._last_bind = "127.0.0.1"
+        self._last_port = 1514
+        self._started_at = None
 
     @property
     def supported_ports(self):
@@ -186,6 +189,8 @@ class SyslogCollector:
             return {"running": False, "error": 'bind must be "127.0.0.1" or "0.0.0.0"'}
         bind = "127.0.0.1" if bind == "localhost" else bind
         with self._lock:
+            self._last_bind = bind
+            self._last_port = ports[0] if ports else 1514
             # Idempotent for the same configuration.
             active = set(self._listeners)
             if active == set(ports) and all(l.thread and l.thread.is_alive() for l in self._listeners.values()):
@@ -201,8 +206,10 @@ class SyslogCollector:
                 for l in started.values(): l.stop()
                 self._listeners = {}
                 self._last_error = self._bind_error(exc, p, bind)
+                self._started_at = None
                 return self.status()
             self._listeners = started
+            self._started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
             self._last_error = ""
             return self.status()
 
@@ -216,6 +223,7 @@ class SyslogCollector:
     def _stop_locked(self):
         listeners = list(self._listeners.values())
         self._listeners = {}
+        self._started_at = None
         for l in listeners: l.stop()
 
     def stop(self):
@@ -252,9 +260,25 @@ class SyslogCollector:
                     "lastSource": l.last_source,
                     "lastMessageAt": l.last_message_at,
                 })
+            running = any(x["running"] for x in listeners)
+            first_l = listeners[0] if listeners else None
+            bind_val = first_l["bind"] if first_l else self._last_bind
+            port_val = first_l["port"] if first_l else self._last_port
+            started_at = self._started_at if running else None
+            last_events = [x["lastMessageAt"] for x in listeners if x["lastMessageAt"]]
+            last_event_at = max(last_events) if last_events else None
+
             return {
-                "running": any(x["running"] for x in listeners),
+                "running": running,
+                "bind": bind_val,
+                "port": port_val,
                 "protocol": "UDP",
+                "protocols": ["udp"],
+                "exposed": any(x["bind"] == "0.0.0.0" for x in listeners),
+                "receivedCount": sum(x["received"] for x in listeners),
+                "storedCount": sum(x["stored"] for x in listeners),
+                "startedAt": started_at,
+                "lastEventAt": last_event_at,
                 "supportedPorts": list(DEFAULT_PORTS),
                 "ports": [x["port"] for x in listeners],
                 "listeners": listeners,
