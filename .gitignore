@@ -29,3 +29,12 @@ itsoc_mcp/_tmp_ti/
 itsoc_mcp/dist/
 itsoc_mcp/build/
 itsoc_mcp/*.egg-info/
+
+# --- housekeeping (cruft cleanup) ---
+__pycache__/
+*.pyc
+*Zone.Identifier
+*.backup*
+report.json
+report.md
+state.json
