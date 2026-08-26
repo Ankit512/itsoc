@@ -13,50 +13,74 @@
    only signal: severity names and counts always render as text beside it.
    ========================================================================== */
 @layer base {
-  :root {
-    --background: 228 22% 96%;        /* #f4f5f8 */
-    --foreground: 225 33% 15%;        /* #1a2033 */
-    --card: 0 0% 100%;
+  :root,
+  [data-theme="light"] {
+    --background: 228 22% 96%;        /* #f4f5f8 / #f6f7f9 */
+    --foreground: 225 33% 15%;        /* #1a2033 / #12141a */
+    --card: 0 0% 100%;                /* #ffffff */
     --card-foreground: 225 33% 15%;
-    --muted: 228 18% 92%;
-    --muted-foreground: 227 10% 43%;  /* #5a6172-ish */
-    --primary: 243 75% 59%;           /* #4f46e5 */
+    --muted: 228 18% 92%;             /* #fbfbfd / #eef0fd */
+    --muted-foreground: 227 10% 43%;  /* #5a6172 / #6a7385 */
+    --primary: 246.9 83.1% 65.1%;     /* #6d5cf0 — THE accent (light), spec §2 */
     --primary-foreground: 0 0% 100%;
-    --accent: 235 84% 96%;            /* #eef0fd */
-    --accent-foreground: 243 75% 45%;
-    --border: 231 24% 91%;            /* #e4e6ee */
+    --accent: 247 84% 96%;            /* accent tint */
+    --accent-foreground: 247 75% 45%; /* accent shade */
+    --border: 231 24% 91%;            /* #e4e6ee / #e7e9ef */
     --input: 231 24% 91%;
-    --ring: 243 75% 59%;
+    --ring: 246.9 83.1% 65.1%;
 
-    --sev-critical: #991b1b;
-    --sev-high: #ea580c;
-    --sev-medium: #caa204;
-    --sev-low: #166534;
+    --sev-critical: #df4650;
+    --sev-high: #d98600;
+    --sev-medium: #b08a00;
+    --sev-low: #12a37e;
+
+    --crit: #df4650;
+    --high: #d98600;
+    --med: #b08a00;
+    --low: #12a37e;
 
     --shadow: 0 1px 2px rgba(26, 32, 51, 0.06), 0 4px 14px rgba(26, 32, 51, 0.06);
   }
 
-  .dark {
-    --background: 233 26% 12%;        /* #161826 */
-    --foreground: 240 9% 92%;         /* #e9e9ed */
-    --card: 232 17% 17%;              /* #232532 */
+  .dark,
+  [data-theme="dark"] {
+    --background: 233 26% 12%;        /* #161826 / #0d0e12 */
+    --foreground: 240 9% 92%;         /* #e9e9ed / #e9ebf1 */
+    --card: 232 17% 17%;              /* #232532 / #14161d */
     --card-foreground: 240 9% 92%;
-    --muted: 231 14% 22%;
-    --muted-foreground: 229 15% 72%;  /* #b2b6ca-ish */
-    --primary: 249 57% 71%;           /* #968ae0 */
+    --muted: 231 14% 22%;             /* #101218 */
+    --muted-foreground: 229 15% 72%;  /* #b2b6ca / #828b9c */
+    --primary: 246.5 100% 71.2%;      /* #7c6cff — THE accent (dark), spec §2 */
     --primary-foreground: 233 26% 12%;
-    --accent: 250 28% 28%;
-    --accent-foreground: 248 91% 83%; /* #b5abfc */
-    --border: 240 9% 92% / 0.14;
+    --accent: 247 28% 28%;            /* accent tint */
+    --accent-foreground: 248 91% 83%; /* accent shade */
+    --border: 240 9% 92% / 0.14;      /* #1d212b */
     --input: 240 9% 92% / 0.14;
-    --ring: 249 57% 71%;
+    --ring: 246.5 100% 71.2%;
 
-    --sev-critical: #b25353;
-    --sev-high: #cd8036;
-    --sev-medium: #827208;
-    --sev-low: #3f9f83;
+    --sev-critical: #f0616d;
+    --sev-high: #f2a33c;
+    --sev-medium: #d6b02e;
+    --sev-low: #33c895;
+
+    --crit: #f0616d;
+    --high: #f2a33c;
+    --med: #d6b02e;
+    --low: #33c895;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.3);
+  }
+
+  /* §2 redesign tokens — the names every component imports going forward.
+     Aliases substitute where USED, so this one block serves both themes. */
+  :root {
+    --bg: hsl(var(--background));     /* app background */
+    --pan: hsl(var(--card));          /* panel / card surface */
+    --pan2: hsl(var(--muted));        /* nested / secondary surface */
+    --bd: hsl(var(--border));         /* hairline borders */
+    --ink: hsl(var(--foreground));    /* primary text */
+    --mut: hsl(var(--muted-foreground)); /* secondary text */
+    --acc: hsl(var(--primary));       /* THE one accent violet */
   }
 
   * { @apply border-border; }
