@@ -35,7 +35,9 @@ RAW_IP = "198.51.100.20"
 RAW_USER = "'admin'"
 RAW_HOST = "server-01"
 
-FROZEN_DETECTOR_SHA = "43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05"
+# The 2026-08-25 pivot baseline (owner-authorized hardening edit; previously
+# 43f0560f…8312d05).
+FROZEN_DETECTOR_SHA = "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876"
 
 
 def _no_network(*args, **kwargs):

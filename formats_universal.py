@@ -14,7 +14,7 @@ Guardrails (why this module exists as a sibling, and what it must never do):
     adapted to the detector's record contract `{n, ts, level, host, msg, raw}`
     (see `_adapt`), so `anomaly_detector.detect()` consumes them WITHOUT the
     KeyError crash that raw universal records caused. detect() itself is imported
-    unchanged and never edited (sha 43f0560f…312d05).
+    unchanged (current baseline sha 364577c5…a4a876) — this module never edits it.
   * Severity stays SOURCE-REPORTED. `_normalize_record` reads a level ONLY from
     the record's own fields (level/Level/severity/Severity/priority/Priority),
     defaulting to INFO when absent. It NEVER guesses severity from message text.

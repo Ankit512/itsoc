@@ -23,6 +23,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route index element={<Overview />} />
         <Route path="alerts" element={<Alerts />} />
+        <Route path="findings" element={<Alerts />} />
         <Route path="incidents" element={<Incidents />} />
         <Route path="threat-intel" element={<ThreatIntel />} />
         <Route path="assets" element={<Assets />} />
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="cases" element={<Cases />} />
         <Route path="settings" element={<Settings />} />
         <Route path="collectors" element={<Collectors />} />
+        <Route path="sources" element={<Collectors />} />
         <Route path="logout" element={<Logout />} />
         <Route path="*" element={<Placeholder title="Not found" />} />
       </Route>

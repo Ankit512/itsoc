@@ -27,7 +27,7 @@ from itsoc_mcp import tools, redaction
 from itsoc_mcp import threat_intel_offline as tio
 from itsoc_mcp.client import ItsocError
 
-FROZEN_SHA = "43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05"
+FROZEN_SHA = "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876"
 
 _PASS = 0
 _FAIL = 0

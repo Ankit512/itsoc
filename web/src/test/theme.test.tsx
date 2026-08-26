@@ -28,4 +28,17 @@ describe("theme toggle", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(false);
     expect(localStorage.getItem("itsoc-theme")).toBe("light");
   });
+
+  it("stamps data-theme in sync with the dark class (design-token contract, spec §2)", async () => {
+    renderApp(<ThemeToggle />);
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+
+    await userEvent.click(screen.getByRole("button", { name: /switch to dark mode/i }));
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+
+    await userEvent.click(screen.getByRole("button", { name: /switch to light mode/i }));
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+  });
 });
