@@ -353,7 +353,7 @@ export function Incidents() {
                         <td className="px-3 py-2.5 font-mono text-[11.5px] font-medium">
                           {inc.entity}
                           {inc.isRollup && (
-                            <span className="ml-1.5 rounded border border-border px-1 py-0.5 text-[9.5px] uppercase tracking-wide text-muted-foreground">
+                            <span className="ml-1.5 rounded border px-1 py-0.5 text-[9.5px] uppercase tracking-wide text-muted-foreground">
                               rollup
                             </span>
                           )}
