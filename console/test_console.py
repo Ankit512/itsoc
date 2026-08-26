@@ -44,7 +44,7 @@ LIVE_STATE = {
     "generatedAt": "2026-08-15T02:20:00+00:00",
     "manifest": {
         "input_sha256": "7e8b3dfd9c3293ca166bb2fe8aedda86fe0e4fcb32ee906ad5b238add4648049",
-        "detector_sha256": "43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05",
+        "detector_sha256": "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876",
         "model": "llama3.1:8b", "temperature": 0, "ruleset": "v1",
     },
     "compareRun": True, "underratedCount": 2,

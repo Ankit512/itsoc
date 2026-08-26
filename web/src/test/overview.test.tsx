@@ -10,7 +10,7 @@ describe("Overview page (v6)", () => {
     "/console_state.json": consoleState([], {
       sourceLabel: "samples/auth.log", runHosts: "combo",
       runWindow: "02:14–02:20 UTC", generatedAt: "2026-08-18 14:00 UTC",
-      manifest: { detector_sha256: "43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05", ruleset: "v1" },
+      manifest: { detector_sha256: "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876", ruleset: "v1" },
     }),
   }));
 
@@ -45,7 +45,7 @@ describe("Overview page (v6)", () => {
     expect(await screen.findByTitle("samples/auth.log")).toHaveTextContent("auth.log");
     expect(screen.getByText(/host combo/)).toBeInTheDocument();
     expect(screen.getByText(/2,000 lines parsed · 0 unparsed/)).toBeInTheDocument();
-    expect(screen.getByText(/detector 43f0560f…312d05/)).toBeInTheDocument();
+    expect(screen.getByText(/detector 364577c5…a4a876/)).toBeInTheDocument();
   });
 
   it("shows a real delta ONLY where a prior period exists", async () => {

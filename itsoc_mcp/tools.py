@@ -21,10 +21,11 @@ from .client import ItsocError
 from . import redaction
 from . import threat_intel_offline as tio
 
-# The frozen detector's known-good hash (CLAUDE.md non-negotiable #1 / #7). We
-# surface whatever the backend reports; this constant lets a tool FLAG a mismatch
-# honestly rather than silently trusting an unexpected build.
-EXPECTED_DETECTOR_SHA = "43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05"
+# The frozen detector's known-good hash (CLAUDE.md non-negotiable #1 / #7):
+# the 2026-08-25 pivot baseline. We surface whatever the backend reports; this
+# constant lets a tool FLAG a mismatch honestly rather than silently trusting
+# an unexpected build.
+EXPECTED_DETECTOR_SHA = "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876"
 
 
 # ---------------------------------------------------------------------------

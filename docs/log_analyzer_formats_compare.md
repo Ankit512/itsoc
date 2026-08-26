@@ -4,7 +4,7 @@ The broadened multi-format ingestion (JSON / JSONL / CSV / XML / HTML / Windows
 text export / EVTX auto-detect + encoding detection) is landed in
 `formats_universal.py`, native-first (the existing `normalize.py` still parses
 the formats it already knows), feeding the **frozen** detector unchanged
-(`anomaly_detector.py`, sha256 `43f0560f…312d05`).
+(`anomaly_detector.py`, current baseline sha256 `364577c5…a4a876`).
 
 The one open design question — **what to do with a genuinely-unrecognized
 input** — is implemented **behind a switch** so you can see both behaviours and

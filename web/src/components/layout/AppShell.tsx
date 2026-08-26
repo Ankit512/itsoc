@@ -51,8 +51,13 @@ const TITLES: Record<string, string> = {
 function Sidebar() {
   return (
     <aside className="flex w-[172px] flex-none flex-col border-r bg-card px-3 py-[18px]">
-      <div className="px-2.5 pb-[22px]">
-        <ShieldCheck className="h-[34px] w-[34px] text-primary" strokeWidth={1.8} role="img" aria-label="itsoc" />
+      <div className="flex items-center gap-2 px-2.5 pb-[22px]">
+        <ShieldCheck className="h-[30px] w-[30px] flex-none text-primary" strokeWidth={1.8} aria-hidden />
+        {/* The brand wordmark: "itsoc" with the accent dot (redesign spec §3
+            Phase 0). The dot carries the single accent color. */}
+        <span className="text-[17px] font-semibold leading-none tracking-tight" data-testid="wordmark">
+          itsoc<span className="text-primary">.</span>
+        </span>
       </div>
       <nav aria-label="Main" className="flex flex-col gap-[3px]">
         {NAV.map(({ to, label, icon: Icon, ready }) => (
@@ -232,7 +237,7 @@ function Header() {
     <div className="flex flex-wrap items-center gap-3">
       <div>
         <h1 className="text-[26px] font-bold leading-tight tracking-[-0.015em]">
-          {TITLES[pathname] ?? "itsoc"}
+          {TITLES[pathname] ?? "itsoc."}
         </h1>
         <div className="mt-px text-sm font-medium text-accent-foreground">Security Overview</div>
       </div>
