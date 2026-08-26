@@ -157,10 +157,12 @@ Feature commits, in order:
 | `5f71a90` | UI | **Standalone HTML export** (`console/export.py`, "Download standalone") — one self-contained file, opens anywhere with **zero network requests**, no install. |
 | `ac2e7db` | UI wiring | `console/serve.py` + `console/adapter.py`: one command runs the analyzer, adapts `report.json` → console state, and serves the reviewed run at `127.0.0.1`. `report.json` made **self-describing** (input + detector sha256, parsed/unparsed counts, ruleset). Integrity manifest (recomputable hashes, **not** a signature); target host derived from the log line; honest compare-not-run / partial / all-clear states. |
 
-**Detector integrity:** current `anomaly_detector.py` sha256 `43f0560f…8312d05` (after the
-one sliding-window edit). Pristine import `d1b2ae80…b96d936` in `archive/`. All UI, compare,
-and threat-intel work is **additive** — the detector stays byte-identical through every commit
-above.
+**Detector integrity:** current `anomaly_detector.py` sha256
+`364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876` (the 2026-08-25 pivot
+baseline, after an owner-authorized defensive-hardening edit; the prior freeze was
+`43f0560f…8312d05`, and before that the pristine import `d1b2ae80…b96d936` in `archive/`).
+All UI, compare, and threat-intel work is **additive** — the detector stays byte-identical
+through every commit above.
 
 ### Since the handoff (Aug 2026) — the SOC platform
 
@@ -364,7 +366,8 @@ code, `.env`, or logs sent to any model.
 > de-duplicated severities and a `tests/eval/` regression harness (17/17). On top sits the SOC
 > subsystem layer (`console/soc.py`: incidents, assets/users, cases, reports, threat-intel,
 > metrics) and two front-ends — the vanilla-JS review console and the React SOC platform
-> (`web/`). The detector is frozen except one sliding-window edit (sha256 `43f0560f…8312d05`);
+> (`web/`). The detector is frozen at the pivot baseline (sha256 `364577c5…a4a876`, after
+> two owner-authorized edits — sliding-window, then defensive hardening);
 > pristine copy in `archive/`. Next I want to [e.g. add RFC 5424/JSON parsing / live tail input
 > / RCA narratives / validate on my real logs]. No Claude in the runtime, no training,
 > read-only; rules own severity, the LLM only explains."

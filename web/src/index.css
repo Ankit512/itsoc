@@ -3,30 +3,50 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   Design tokens — defined ONCE, inherited by every page through the shell.
-   shadcn-style hsl triplets for surfaces/ink, plus the severity status
-   palette as raw values (charts read them via style="fill:var(--sev-*)";
-   CSS var() is invalid in SVG presentation attributes, so never fill="var()").
+   Design tokens — the SINGLE SOURCE OF TRUTH for the itsoc. design system
+   (ITSOC_REDESIGN_SPEC.md §2, "Grafana × Vercel"). Defined once, inherited
+   by every page through the shell. Flat colors only — no gradients.
 
-   Both severity quartets were validated with the dataviz six-checks script
-   against their surface (light #f4f5f8 · dark #232532). Color is never the
-   only signal: severity names and counts always render as text beside it.
+   Two layers, one definition per color per theme:
+
+   1. shadcn-style hsl TRIPLETS (--background, --card, …) hold the raw values
+      and feed tailwind (`hsl(var(--x))`) — the plumbing components already
+      import. Each block answers to BOTH the `dark` class (tailwind
+      darkMode:"class") and the `data-theme` attribute; the theme store and
+      the pre-paint script stamp the two in sync, and `[data-theme="light"]`
+      overrides per §2.
+   2. The §2 REDESIGN TOKENS (--bg/--pan/--pan2/--bd/--ink/--mut/--acc) are
+      lazy aliases of those triplets: custom properties substitute at the
+      element that USES them, so a single alias block tracks both themes with
+      zero duplicated values. New/reskinned components should consume THESE.
+
+   ONE accent (§2): violet #6d5cf0 (light) / #7c6cff (dark) — carried by
+   --primary/--ring/--acc; --accent(-foreground) are its tint/shade for
+   active-nav fill and accessible text on the tint.
+
+   The severity status palette stays as raw values (charts read them via
+   style="fill:var(--sev-*)"; CSS var() is invalid in SVG presentation
+   attributes, so never fill="var()"). Both severity quartets were validated
+   with the dataviz six-checks script against their surface (light #f4f5f8 ·
+   dark #232532). Color is never the only signal: severity names and counts
+   always render as text beside it.
    ========================================================================== */
 @layer base {
-  :root {
+  :root,
+  [data-theme="light"] {
     --background: 228 22% 96%;        /* #f4f5f8 */
     --foreground: 225 33% 15%;        /* #1a2033 */
     --card: 0 0% 100%;
     --card-foreground: 225 33% 15%;
     --muted: 228 18% 92%;
     --muted-foreground: 227 10% 43%;  /* #5a6172-ish */
-    --primary: 243 75% 59%;           /* #4f46e5 */
+    --primary: 246.9 83.1% 65.1%;     /* #6d5cf0 — THE accent (light), spec §2 */
     --primary-foreground: 0 0% 100%;
-    --accent: 235 84% 96%;            /* #eef0fd */
-    --accent-foreground: 243 75% 45%;
+    --accent: 247 84% 96%;            /* accent tint for active nav */
+    --accent-foreground: 247 75% 45%; /* accent shade, readable on the tint */
     --border: 231 24% 91%;            /* #e4e6ee */
     --input: 231 24% 91%;
-    --ring: 243 75% 59%;
+    --ring: 246.9 83.1% 65.1%;
 
     --sev-critical: #991b1b;
     --sev-high: #ea580c;
@@ -36,20 +56,21 @@
     --shadow: 0 1px 2px rgba(26, 32, 51, 0.06), 0 4px 14px rgba(26, 32, 51, 0.06);
   }
 
-  .dark {
+  .dark,
+  [data-theme="dark"] {
     --background: 233 26% 12%;        /* #161826 */
     --foreground: 240 9% 92%;         /* #e9e9ed */
     --card: 232 17% 17%;              /* #232532 */
     --card-foreground: 240 9% 92%;
     --muted: 231 14% 22%;
     --muted-foreground: 229 15% 72%;  /* #b2b6ca-ish */
-    --primary: 249 57% 71%;           /* #968ae0 */
+    --primary: 246.5 100% 71.2%;      /* #7c6cff — THE accent (dark), spec §2 */
     --primary-foreground: 233 26% 12%;
-    --accent: 250 28% 28%;
-    --accent-foreground: 248 91% 83%; /* #b5abfc */
+    --accent: 247 28% 28%;            /* accent tint for active nav */
+    --accent-foreground: 247 91% 83%; /* accent shade, readable on the tint */
     --border: 240 9% 92% / 0.14;
     --input: 240 9% 92% / 0.14;
-    --ring: 249 57% 71%;
+    --ring: 246.5 100% 71.2%;
 
     --sev-critical: #b25353;
     --sev-high: #cd8036;
@@ -57,6 +78,22 @@
     --sev-low: #3f9f83;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.3);
+  }
+
+  /* §2 redesign tokens — the names every component imports going forward.
+     Aliases substitute where USED, so this one block serves both themes. */
+  :root {
+    --bg: hsl(var(--background));     /* app background */
+    --pan: hsl(var(--card));          /* panel / card surface */
+    --pan2: hsl(var(--muted));        /* nested / secondary surface */
+    --bd: hsl(var(--border));         /* hairline borders */
+    --ink: hsl(var(--foreground));    /* primary text */
+    --mut: hsl(var(--muted-foreground)); /* secondary text */
+    --acc: hsl(var(--primary));       /* THE one accent violet */
+    --crit: var(--sev-critical);      /* critical severity */
+    --high: var(--sev-high);          /* high severity */
+    --med: var(--sev-medium);         /* medium severity */
+    --low: var(--sev-low);            /* low severity */
   }
 
   * { @apply border-border; }

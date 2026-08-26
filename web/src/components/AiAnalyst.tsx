@@ -99,7 +99,7 @@ export function AiAnalyst({ model }: { model?: string }) {
           className="flex max-h-[min(560px,calc(100vh-120px))] w-[340px] flex-col gap-[11px] rounded-lg bg-card p-4 px-[18px] shadow-[0_12px_32px_-8px_rgba(26,32,51,0.28)]"
         >
           <div className="flex items-center gap-2">
-            <div className="text-sm font-semibold">AI Analyst (Ollama)</div>
+            <div className="text-sm font-semibold">AI Analyst{model ? ` (${model})` : ""}</div>
             <button
               onClick={() => setOpen(false)} aria-label="Close analyst"
               className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-background"

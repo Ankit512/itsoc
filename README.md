@@ -1,21 +1,82 @@
-# SOC MITRE + UDP Collector Final Merge
+# itsoc — Local AI-Assisted SOC Console
 
-This bundle merges the updated MITRE adapter with the enhanced analyzer and universal UDP syslog collector.
+A **local, rules-first security operations console**. Deterministic rules detect anomalies and
+**own every severity verdict**; a local LLM (via Ollama) only **explains** findings in plain
+language — it can never set, change, or escalate a verdict. Everything runs on your machine;
+no logs leave it by default.
 
-## MITRE fix
-`console/adapter.py` adds safe fallback ATT&CK mappings for deterministic rules that are not yet present in `threat_intel/rule_mitre_map.py`. MITRE is derived metadata only and does not change severity.
+> **Design principle — honesty by construction.** Every number shown is derived from real data
+> or reported as `n/a`. Severity comes only from the rules. MITRE tags are *derived context, not
+> a verdict*. Unrecognized log formats are reported as "unparsed", never a false all-clear.
 
-## Test
-Use:
-`python3 console/adapter.py zookeeper_integrated.json -o state.json`
+---
 
-The test report should contain a non-empty `mitreFrequency`, including Impact / T1499.002 for the ZooKeeper findings.
+## What it does
 
-## Analyzer
-The analyzer/support files are included at the project root. The analyzer imports `normalize.py`, `rule_context.py`, `rules_syslog.py`, and `anomaly_detector.py` from the same directory.
+- **Log anomaly detection** — deterministic rules (brute-force, failure→success compromise,
+  error-burst, suspicious-port, disk pressure) over a wide range of formats: canonical
+  `timestamp LEVEL host msg`, RFC 3164 syslog, ManageEngine Log360 (CSV + forwarded syslog),
+  Android logcat, Windows EVTX, and more via the universal format layer.
+- **Plain-language explanations** — the local model narrates each rule-caught finding with its
+  evidence, rule predicate, and timeline. Advisory only.
+- **SOC subsystems** — correlated incidents with an analyst lifecycle, observed assets/users,
+  analyst cases, generated/exported reports, an offline threat-intel summary, and honest metrics.
+- **Live ingestion** — a UDP/TCP syslog collector streams real events into a persistent store.
+- **Enrichment & connectors** — offline MITRE ATT&CK mapping; optional threat-intel provider
+  lookups and vendor (OEM) API connectors, all with user-supplied, write-only credentials.
+- **MCP server** — a read-only Model Context Protocol server exposes the analysis to MCP clients
+  (Claude Desktop / Claude Code); it computes no verdicts.
 
-## UDP collector
-`console/syslog_collector.py` supports concurrent UDP listeners on 513, 514, and 1514 when the OS permissions allow binding those ports.
+### Active-scanning modules (opt-in, use with authorization)
 
-## Dashboard server
-The supplied `console/serve.py` is the existing SOC server with the collector integration. It also imports other existing SOC console modules (`export.py`, `redact.py`, `soc.py`, etc.); those modules are intentionally not fabricated in this bundle because they were not available as current source files in the working set.
+The Discovery and Vulnerabilities modules run **real nmap scans** (host discovery + NSE vuln
+scripts) against **private/loopback targets you own**. These are **active network operations**,
+not read-only — every scan is user-initiated, public targets are refused, and results are stored
+verbatim with source-reported severity.
+
+---
+
+## Quick start
+
+**Requirements:** Python 3.9+, and [Ollama](https://ollama.com/download) for local explanations.
+
+```bash
+# 1. (once) pull the local model
+ollama pull qwen3:8b
+
+# 2. run the console
+python3 console/serve.py
+# -> opens the SOC dashboard at http://127.0.0.1:8765/
+```
+
+Upload a log (or pick a bundled sample) and you're analyzing. The rules run in under a second;
+explanations fill in behind them. **The rules engine runs even without a model** — you get
+verdicts and evidence, with explanations honestly skipped and marked as such.
+
+Developing the React frontend (optional):
+```bash
+python3 console/serve.py --no-open      # API on :8765
+cd web && npm install && npm run dev     # dashboard on :5173, proxies /api → :8765
+```
+
+---
+
+## Tests
+
+```bash
+python3 tests/eval/run_eval.py        # labeled detection eval
+python3 console/test_console.py       # backend + subsystems
+cd web && npm test                    # React dashboard (vitest)
+```
+
+---
+
+## Design constraints
+
+Data stays local (Ollama) · no model training · rules own severity, the LLM only explains ·
+`raw` is always the real log line, never a rewrite · secrets are stored write-only and never
+returned to the browser · the UI never claims more than it can prove.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

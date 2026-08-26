@@ -11,7 +11,7 @@ Placeholders in <ANGLE BRACKETS>.
 - **Log file:** `<path/to/log>`
 - **Labels:** ground-truth `expected` findings, hand-labeled
 - **Label note:** <who labeled it, when, and how ground truth was decided>
-- **Detector:** frozen `anomaly_detector.py` (sha256 43f0560f…312d05); severity is rule-owned, never guessed here
+- **Detector:** frozen `anomaly_detector.py` (sha256 364577c5…a4a876); severity is rule-owned, never guessed here
 
 ## Parse coverage
 

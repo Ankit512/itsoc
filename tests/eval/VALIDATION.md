@@ -113,7 +113,8 @@ tested.
 - **No fabricated metrics.** A value that cannot be computed prints `n/a`, not a
   guess. Every precision/recall/F1 number comes from a real label comparison.
 - **Frozen detector.** `shasum -a 256 anomaly_detector.py` must equal
-  `43f0560f2a81d52a9b8909d4c0f3a537ef2059b343ea48acc7dba59b38312d05`.
+  `364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876`
+  (the 2026-08-25 pivot baseline; the pre-pivot freeze was `43f0560f…8312d05`).
 
 ## Files
 

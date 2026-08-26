@@ -214,7 +214,7 @@ def render_report(log_path, labels_obj, meta, sc):
     if labels_obj.get("note"):
         L.append(f"- **Label note:** {labels_obj['note']}")
     L.append(f"- **Detector:** frozen `anomaly_detector.py` "
-             f"(sha256 43f0560f…312d05); severity is rule-owned, never guessed here")
+             f"(sha256 364577c5…a4a876); severity is rule-owned, never guessed here")
     L.append("")
     L.append("## Parse coverage")
     L.append("")

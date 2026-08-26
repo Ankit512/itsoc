@@ -1,0 +1,145 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>itsoc. — Incident / RCA (design reference)</title>
+<style>body{margin:0;background:#06070a;padding:20px;font-family:-apple-system,system-ui,sans-serif}</style></head><body>
+<!-- DESIGN REFERENCE — incident + RCA + verbatim log evidence + in-context copilot. Phase 2 core screen.
+     Same tokens as design_itsoc_overview.html. Toggle theme via the ☾/☀ button. -->
+<div class="app" data-theme="dark" id="app">
+  <aside class="side">
+    <div class="brand">itsoc<span>.</span></div>
+    <div class="srch">⌘K  Search or ask…</div>
+    <nav>
+      <a class="nav">▦ Overview</a><a class="nav">◈ Findings</a><a class="nav on">◇ Incidents</a><a class="nav">≋ Sources</a><a class="nav">⚙ Settings</a>
+    </nav>
+    <div class="grp">Recent incidents</div>
+    <a class="inc on">● 203.0.113.44 <em>crit</em></a><a class="inc">● server-03 <em>crit</em></a><a class="inc">● 45.153.160.2 <em>high</em></a>
+    <div class="foot">rules v7 · qwen3:8b · local</div>
+  </aside>
+  <main class="main">
+    <div class="crumb">Incidents<span>/</span>INC-4a7f<button class="tgl" id="tgl">☾</button></div>
+    <div class="hd"><span class="sev crit">CRITICAL</span><h1>Brute-force → successful compromise</h1><button class="state">◇ New ▾</button></div>
+    <div class="meta">203.0.113.44 → <b>server-01</b> · detected 02:16:41 · span 2m 29s · 3 correlated findings <span class="ro">severity is rule-owned</span></div>
+    <section class="card">
+      <div class="ch"><h3>Attack timeline</h3><span class="mut">02:16:41 – 02:19:10</span></div>
+      <svg viewBox="0 0 700 96" class="tl" id="tl"></svg>
+      <div class="tl-leg"><i class="c-crit">●</i>14 failed logins <i class="c-high">●</i>successful login <i class="c-med">●</i>blocked outbound</div>
+    </section>
+    <section class="card">
+      <div class="ch"><h3>Root cause</h3><span class="chip adv">advisory · hypothesis · not a verdict</span></div>
+      <p class="rca">A sustained brute-force from <b>203.0.113.44</b> (14 failed attempts, 02:16:41–52) <b>succeeded</b> against <code>admin</code> at 02:16:52, immediately followed by a blocked C2 callback to 45.153.160.2:4444. Likely root cause: a weak or already-compromised <code>admin</code> credential.</p>
+      <div class="rca-src">
+        <div class="src"><span class="k">Runbook</span> matched <code>auth_bruteforce.md</code> — "rotate the credential, force session logout, block the source IP" <em>· score 4.1 · coverage 100%</em></div>
+        <div class="src"><span class="k">Chain</span> <span class="tid">T1110</span> Brute Force → <span class="tid">T1078</span> Valid Accounts → <span class="tid">T1571</span> Non-Standard Port</div>
+        <div class="src"><span class="k">Rules</span> <code>auth_bruteforce_success</code>, <code>suspicious_outbound</code></div>
+      </div>
+    </section>
+    <section class="card">
+      <div class="ch"><h3>Evidence <span class="mut">— verbatim log lines</span></h3><span class="mut">server-01 · /var/log/auth.log</span></div>
+      <pre class="ev"><span class="ln">02:16:41</span> sshd[2211]: <b class="r">Failed password</b> for admin from 203.0.113.44 port 51110 ssh2
+<span class="ln">02:16:43</span> sshd[2211]: <b class="r">Failed password</b> for admin from 203.0.113.44 port 51122 ssh2
+<span class="dim">           … 11 more failed attempts, 02:16:43–52 …</span>
+<span class="ln">02:16:52</span> sshd[2213]: <b class="g">Accepted password</b> for admin from 203.0.113.44 port 51140 ssh2
+<span class="ln">02:19:10</span> kernel: <b class="a">OUTBOUND BLOCK</b> src=server-01 dst=45.153.160.2:4444 proto=tcp</pre>
+    </section>
+  </main>
+  <aside class="rail">
+    <div class="props">
+      <div class="pr"><span>Severity</span><b><span class="sev crit sm">CRITICAL</span></b></div>
+      <div class="pr"><span>State</span><b>◇ New</b></div>
+      <div class="pr"><span>Entity</span><b>203.0.113.44</b></div>
+      <div class="pr"><span>Findings</span><b>3</b></div>
+      <div class="pr"><span>Techniques</span><b class="tids"><i>T1110</i><i>T1078</i><i>T1571</i></b></div>
+      <div class="pr"><span>First seen</span><b>02:16:41</b></div>
+      <div class="pr"><span>Last seen</span><b>02:19:10</b></div>
+    </div>
+    <div class="spark">
+      <div class="sh">Brute-force on server-01 <span class="mut">· last 7 runs</span></div>
+      <svg viewBox="0 0 240 56" id="sp"></svg>
+      <div class="sh-b"><span class="up">▲ trending up</span><span class="mut">forecast: elevated</span></div>
+    </div>
+    <div class="cop">
+      <div class="cop-h">itsoc analyst <span class="chip adv">advisory</span></div>
+      <div class="q">What's the root cause here?</div>
+      <div class="a">A sustained brute-force from <b>203.0.113.44</b> succeeded against <code>admin</code> at 02:16:52 after 14 failures, then a C2 callback to 45.153.160.2:4444 was blocked. Root cause: a compromised <code>admin</code> credential.
+        <div class="a-src">from 3 findings + <code>auth_bruteforce.md</code></div>
+      </div>
+      <div class="chips"><button>Summarize for handoff</button><button>admin used elsewhere?</button></div>
+      <div class="ask"><input placeholder="Ask about this incident…"><button>↑</button></div>
+      <div class="cop-f">Rules set severity. I interpret &amp; explain — I don't decide.</div>
+    </div>
+  </aside>
+</div>
+<style>
+  .app{--bg:#0d0e12;--pan:#14161d;--pan2:#101218;--bd:#1d212b;--ink:#e9ebf1;--mut:#828b9c;--acc:#7c6cff;--crit:#f0616d;--high:#f2a33c;--med:#d6b02e;--low:#33c895;
+    display:grid;grid-template-columns:210px 1fr 288px;background:var(--bg);color:var(--ink);border:1px solid var(--bd);border-radius:14px;overflow:hidden;max-width:1240px;margin:0 auto;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;font-size:13px;min-height:640px}
+  .app[data-theme="light"]{--bg:#f6f7f9;--pan:#ffffff;--pan2:#fbfbfd;--bd:#e7e9ef;--ink:#12141a;--mut:#6a7385;--acc:#6d5cf0;--crit:#df4650;--high:#d98600;--med:#b08a00;--low:#12a37e}
+  .app *{box-sizing:border-box}.app code{font-family:ui-monospace,Menlo,monospace;font-size:.92em}
+  .side{background:var(--pan2);border-right:1px solid var(--bd);padding:15px 11px;display:flex;flex-direction:column;gap:5px}
+  .brand{font-weight:750;font-size:18px;letter-spacing:-.02em;padding:2px 7px 10px}.brand span{color:var(--acc)}
+  .srch{font-size:11.5px;color:var(--mut);border:1px solid var(--bd);border-radius:8px;padding:7px 10px;margin-bottom:8px}
+  nav{display:flex;flex-direction:column;gap:1px}
+  .nav{padding:7px 10px;border-radius:7px;color:var(--mut);cursor:pointer;font-weight:500}
+  .nav:hover{background:var(--pan);color:var(--ink)}.nav.on{background:color-mix(in srgb,var(--acc) 15%,transparent);color:var(--acc);font-weight:600}
+  .grp{margin:14px 8px 5px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+  .inc{display:flex;align-items:center;gap:7px;padding:6px 9px;border-radius:7px;color:var(--mut);cursor:pointer;font-size:12px;font-family:ui-monospace,monospace}
+  .inc:hover{background:var(--pan)}.inc.on{background:var(--pan);color:var(--ink)}.inc em{margin-left:auto;font-style:normal;font-size:9px;color:var(--crit)}
+  .foot{margin-top:auto;padding:6px 8px;color:var(--mut);font-size:10px;font-family:ui-monospace,monospace}
+  .main{padding:14px 20px 22px;display:flex;flex-direction:column;gap:13px;min-width:0;overflow:auto}
+  .crumb{display:flex;align-items:center;gap:7px;color:var(--mut);font-size:11.5px}.crumb span{opacity:.5}
+  .tgl{margin-left:auto;width:28px;height:28px;border:1px solid var(--bd);background:var(--pan);color:var(--ink);border-radius:8px;cursor:pointer}
+  .hd{display:flex;align-items:center;gap:11px}.hd h1{font-size:18px;font-weight:650;margin:0;letter-spacing:-.01em}
+  .state{margin-left:auto;background:var(--pan);border:1px solid var(--bd);color:var(--ink);padding:6px 11px;border-radius:8px;cursor:pointer;font-size:12px}
+  .sev{font-size:9.5px;font-weight:750;letter-spacing:.04em;padding:3px 8px;border-radius:5px}
+  .sev.crit{background:color-mix(in srgb,var(--crit) 17%,transparent);color:var(--crit)}.sev.sm{padding:2px 6px}
+  .meta{color:var(--mut);font-size:12px}.meta b{color:var(--ink);font-weight:600}
+  .ro{margin-left:8px;font-size:10px;border:1px solid var(--bd);border-radius:20px;padding:2px 8px}
+  .card{background:var(--pan);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
+  .ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+  .ch h3{font-size:13px;font-weight:650;margin:0}.ch .mut{font-weight:400}.mut{color:var(--mut);font-size:11.5px}
+  .chip{font-size:10px;border:1px solid var(--bd);border-radius:20px;padding:2px 9px;color:var(--mut)}
+  .chip.adv{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 38%,transparent)}
+  .tl{width:100%;height:88px;display:block}
+  .tl-leg{font-size:10.5px;color:var(--mut);margin-top:6px}.tl-leg i{font-style:normal;margin:0 3px 0 10px}
+  .c-crit{color:var(--crit)}.c-high{color:var(--high)}.c-med{color:var(--med)}
+  .rca{margin:0 0 12px;line-height:1.6;font-size:13px}.rca b{font-weight:650}.rca code{color:var(--acc)}
+  .rca-src{display:flex;flex-direction:column;gap:7px;border-top:1px solid var(--bd);padding-top:11px}
+  .src{font-size:11.5px;color:var(--mut);line-height:1.5}.src .k{display:inline-block;width:66px;color:var(--ink);font-weight:600}
+  .src code{color:var(--ink)}.src em{font-style:normal;opacity:.75}
+  .tid{display:inline-block;background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc);border-radius:4px;padding:1px 5px;font-family:ui-monospace,monospace;font-size:10.5px;margin:0 1px}
+  .ev{margin:0;background:var(--pan2);border:1px solid var(--bd);border-radius:9px;padding:12px 13px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.75;overflow-x:auto;white-space:pre}
+  .ev .ln{color:var(--mut);margin-right:8px}.ev .r{color:var(--crit);font-weight:600}.ev .g{color:var(--low);font-weight:600}.ev .a{color:var(--high);font-weight:600}.ev .dim{color:var(--mut);font-style:italic}
+  .rail{background:var(--pan2);border-left:1px solid var(--bd);padding:16px 15px;display:flex;flex-direction:column;gap:16px;overflow:auto}
+  .props{display:flex;flex-direction:column;gap:1px}
+  .pr{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;font-size:12px}.pr span{color:var(--mut)}.pr b{font-weight:550}
+  .tids i{font-style:normal;font-family:ui-monospace,monospace;font-size:10px;color:var(--acc);margin-left:4px}
+  .spark{border:1px solid var(--bd);border-radius:11px;padding:12px}.sh{font-size:11.5px;margin-bottom:8px}.sh .mut{font-weight:400}
+  .spark svg{width:100%;height:52px;display:block}.sh-b{display:flex;justify-content:space-between;font-size:10.5px;margin-top:6px}.up{color:var(--crit)}
+  .cop{border:1px solid var(--bd);border-radius:11px;padding:13px;display:flex;flex-direction:column;gap:9px;background:var(--pan)}
+  .cop-h{font-weight:650;font-size:12.5px;display:flex;align-items:center;justify-content:space-between}
+  .q{align-self:flex-end;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--ink);border-radius:10px 10px 3px 10px;padding:7px 10px;font-size:12px;max-width:88%}
+  .a{background:var(--pan2);border:1px solid var(--bd);border-radius:10px 10px 10px 3px;padding:9px 11px;font-size:12px;line-height:1.5}.a code{color:var(--acc)}
+  .a-src{color:var(--mut);font-size:10px;border-top:1px solid var(--bd);margin-top:7px;padding-top:6px}
+  .chips{display:flex;flex-direction:column;gap:6px}
+  .chips button{text-align:left;background:var(--pan2);border:1px solid var(--bd);color:var(--ink);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:11.5px}
+  .chips button:hover{border-color:var(--acc);color:var(--acc)}
+  .ask{display:flex;gap:6px}.ask input{flex:1;background:var(--pan2);border:1px solid var(--bd);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:12px;outline:none}
+  .ask input:focus{border-color:var(--acc)}.ask button{width:32px;background:var(--acc);color:#fff;border:0;border-radius:8px;cursor:pointer}
+  .cop-f{color:var(--mut);font-size:10px;line-height:1.5}
+</style>
+<script>
+  (function(){
+    var app=document.getElementById('app'),tgl=document.getElementById('tgl');
+    tgl.onclick=function(){var d=app.getAttribute('data-theme')==='dark'?'light':'dark';app.setAttribute('data-theme',d);tgl.textContent=d==='dark'?'☾':'☀';};
+    var cs=getComputedStyle(app);function C(n){return cs.getPropertyValue(n).trim();}
+    var tl=document.getElementById('tl'),base=58,s='';
+    s+='<line x1="10" y1="'+base+'" x2="690" y2="'+base+'" stroke="'+C('--bd')+'" stroke-width="1"/>';
+    for(var i=0;i<14;i++){var x=20+i*20;s+='<line x1="'+x+'" y1="'+(base-16)+'" x2="'+x+'" y2="'+base+'" stroke="'+C('--crit')+'" stroke-width="2"/>';}
+    s+='<circle cx="308" cy="'+base+'" r="6" fill="'+C('--low')+'"/><text x="308" y="'+(base-14)+'" fill="'+C('--low')+'" font-size="10" text-anchor="middle">login OK</text>';
+    s+='<circle cx="668" cy="'+base+'" r="6" fill="'+C('--high')+'"/><text x="668" y="'+(base-14)+'" fill="'+C('--high')+'" font-size="10" text-anchor="middle">C2 blocked</text>';
+    s+='<text x="20" y="'+(base+18)+'" fill="'+C('--mut')+'" font-size="9">02:16:41</text><text x="308" y="'+(base+18)+'" fill="'+C('--mut')+'" font-size="9" text-anchor="middle">02:16:52</text><text x="668" y="'+(base+18)+'" fill="'+C('--mut')+'" font-size="9" text-anchor="end">02:19:10</text>';
+    tl.innerHTML=s;
+    var sp=document.getElementById('sp'),d=[3,4,2,6,9,11,14],w=240,h=56,mx=14,pts=d.map(function(v,i){return [8+i*(w-16)/(d.length-1),h-6-(v/mx)*(h-14)];});
+    var line=pts.map(function(p,i){return (i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1);}).join(' ');
+    var area=line+' L'+pts[pts.length-1][0].toFixed(1)+' '+(h-2)+' L8 '+(h-2)+' Z';
+    sp.innerHTML='<path d="'+area+'" fill="'+C('--acc')+'" opacity="0.14"/><path d="'+line+'" fill="none" stroke="'+C('--acc')+'" stroke-width="2"/><circle cx="'+pts[pts.length-1][0].toFixed(1)+'" cy="'+pts[pts.length-1][1].toFixed(1)+'" r="3" fill="'+C('--acc')+'"/>';
+  })();
+</script></body></html>
