@@ -2739,13 +2739,34 @@ def check_syslog():
                                 "203.0.113.9", 51514, 514)
             check("PRI severity is source-reported (34 & 7 == 2 -> CRITICAL)",
                   e["severity"] == "CRITICAL", e["severity"])
-            # The rewritten collector parses the RFC5424 header but NOT the
-            # RFC3164 envelope hostname: host falls back to the sender address.
-            # (Behavioral change vs the old collector — flagged in the
-            # stabilize-rollback report; for a relayed RFC3164 stream this
-            # shows the relay, not the origin host.)
-            check("host falls back to the sender address for RFC3164 lines",
-                  e["host"] == "203.0.113.9", e["host"])
+            # RFC3164 envelope hostname is the ORIGIN host — on a relayed
+            # stream the sender address is only the last hop, so `host` must
+            # come from the envelope whenever it names one.
+            check("RFC3164 envelope hostname is parsed as host (not the sender)",
+                  e["host"] == "mymachine" and e["host_source"] == "envelope",
+                  f"{e['host']}/{e.get('host_source')}")
+            # A hostname-less RFC3164 line has the process tag where the
+            # hostname would be — the tag must NOT be claimed as the host; the
+            # fallback to the sender address is labeled, never silent.
+            e3 = sc.parse_syslog(b"<34>Oct 11 22:14:15 su: 'su root' failed",
+                                 "203.0.113.9", 51514, 514)
+            check("no envelope hostname -> sender-address fallback, labeled",
+                  e3["host"] == "203.0.113.9" and e3["host_source"] == "sender-ip",
+                  f"{e3['host']}/{e3.get('host_source')}")
+            e4 = sc.parse_syslog(b"<34>Oct 11 22:14:15 host7 sshd[123]: accepted",
+                                 "203.0.113.9", 51514, 514)
+            check("RFC3164 host parsed when the tag carries a pid",
+                  e4["host"] == "host7", e4["host"])
+            # RFC5424 has 7 header fields (VERSION TIMESTAMP HOSTNAME APP
+            # PROCID MSGID SD) — a 6-way unpack used to raise ValueError here,
+            # so every RFC5424 datagram was dropped as a listener error.
+            e5 = sc.parse_syslog(
+                b"<34>1 2003-10-11T22:14:15.003Z mach5424 su - ID47 - BOM app event",
+                "203.0.113.9", 51514, 514)
+            check("RFC5424 header parses (host is the hostname, not the timestamp)",
+                  e5["host"] == "mach5424" and e5["application"] == "su"
+                  and e5["message"] == "BOM app event",
+                  f"{e5['host']}/{e5['application']}/{e5['message']}")
             check("raw is the verbatim received line",
                   e["raw"] == "<34>Oct 11 22:14:15 mymachine su: failed for lonvick")
             check("sender IP is recorded as src_ip", e["src_ip"] == "203.0.113.9")
@@ -2791,6 +2812,9 @@ def check_syslog():
             check("stored severity is the source PRI level (13->NOTICE, 11->ERROR)",
                   sevs.get("<13>Aug 19 10:00:00 host1 app: hello over udp") == "NOTICE"
                   and sevs.get("<11>Aug 19 10:00:01 host2 svc: disk error") == "ERROR", str(sevs))
+            hosts = {i["host"] for i in q["items"]}
+            check("stored host is the envelope origin, not 127.0.0.1",
+                  hosts == {"host1", "host2"}, str(hosts))
 
             stopped = collector.stop()
             check("stop() leaves the listener honestly not-running", stopped["running"] is False)
