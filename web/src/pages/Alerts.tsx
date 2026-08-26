@@ -61,10 +61,10 @@ const VIRTUALIZE_AT = 100;
 function LiveTail({ stream }: { stream: LogStream }) {
   const recent = stream.rows.slice(-200);
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <Card className="rounded-xl border border-border bg-card shadow-sm">
+      <CardHeader className="p-4 pb-2">
         <div className="flex flex-wrap items-center gap-2.5">
-          <CardTitle className="text-[14px]">Live tail</CardTitle>
+          <CardTitle className="text-[13.5px] font-semibold">Live tail</CardTitle>
           {stream.connected ? (
             <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
                   data-testid="stream-status">
@@ -92,30 +92,30 @@ function LiveTail({ stream }: { stream: LogStream }) {
           )}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4 pt-2">
         {recent.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             No new lines yet — the tail starts at the end of the current log and
             shows only what arrives after connecting.
           </p>
         ) : (
-          <div className="max-h-[30vh] overflow-auto rounded-md border bg-muted/50 font-mono text-[11.5px]"
+          <div className="max-h-[30vh] overflow-auto rounded-lg border border-border bg-muted/40 font-mono text-[11.5px]"
                data-testid="live-tail">
             {recent.map((row, i) =>
               row.kind === "gap" ? (
                 <div key={`gap-${i}`} data-testid="gap-row"
-                     className="border-b px-3 py-1 text-[11px] font-semibold last:border-0"
+                     className="border-b border-border px-3 py-1 text-[11px] font-semibold last:border-0"
                      style={{ background: "color-mix(in srgb, var(--sev-high) 12%, transparent)" }}>
                   {row.dropped} event(s) dropped here (stream backpressure) — the log
                   itself is intact; a reconnect resumes from the last delivered line
                 </div>
               ) : (
                 <div key={row.event.n} data-testid="tail-row"
-                     className="flex gap-3 border-b px-3 py-1 last:border-0">
-                  <span className="w-12 flex-none text-right text-muted-foreground">
+                     className="flex gap-3 border-b border-border px-3 py-1 last:border-0 hover:bg-muted/30">
+                  <span className="w-12 flex-none text-right tabular-nums text-muted-foreground">
                     {row.event.n}
                   </span>
-                  <span className="w-[72px] flex-none text-muted-foreground">
+                  <span className="w-[72px] flex-none tabular-nums text-muted-foreground">
                     {row.event.ts ? row.event.ts.slice(11, 19) : "n/a"}
                   </span>
                   <span className="w-[72px] flex-none font-semibold"
@@ -134,25 +134,25 @@ function LiveTail({ stream }: { stream: LogStream }) {
 
 function FindingDetail({ f }: { f: Finding }) {
   return (
-    <Card>
-      <CardHeader>
+    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden sticky top-4">
+      <CardHeader className="p-4 pb-3 border-b border-border">
         <div className="flex flex-wrap items-center gap-2">
           <SeverityBadge severity={f.sev} />
           <span className="font-mono text-[11px] text-muted-foreground">{f.type}</span>
           <span className="ml-auto font-mono text-[11px] text-muted-foreground">{f.stamp}</span>
         </div>
-        <CardTitle className="text-[16px] leading-snug">{f.title}</CardTitle>
+        <CardTitle className="text-[15px] font-bold leading-snug mt-1.5">{f.title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="p-4 space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-md border p-3">
-            <div className="text-[9.5px] uppercase tracking-wide text-muted-foreground">Rule verdict · authoritative</div>
-            <div className="mt-0.5 font-semibold" style={{ color: sevVar(f.sev) }}>{f.ruleSev}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{f.ruleWhy}</p>
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className="text-[9.5px] uppercase font-semibold tracking-wider text-muted-foreground">Rule verdict · authoritative</div>
+            <div className="mt-0.5 font-bold" style={{ color: sevVar(f.sev) }}>{f.ruleSev}</div>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{f.ruleWhy}</p>
           </div>
-          <div className="rounded-md border p-3">
-            <div className="text-[9.5px] uppercase tracking-wide text-muted-foreground">Plain-language explanation · advisory</div>
-            <p className="mt-1 text-xs text-muted-foreground">
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className="text-[9.5px] uppercase font-semibold tracking-wider text-muted-foreground">Plain-language explanation · advisory</div>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
               {f.explanation || "Explanation pending — the deterministic verdict above is already final."}
             </p>
           </div>
@@ -160,21 +160,21 @@ function FindingDetail({ f }: { f: Finding }) {
 
         {f.lines.length > 0 && (
           <div>
-            <div className="mb-1 flex items-baseline gap-2">
-              <h4 className="text-[13px] font-semibold">Evidence</h4>
-              <span className="text-[11px] text-muted-foreground">
+            <div className="mb-1.5 flex items-baseline gap-2">
+              <h4 className="text-[12.5px] font-semibold">Evidence</h4>
+              <span className="text-[10.5px] text-muted-foreground">
                 {f.linesNote ?? "verbatim from the source log — nothing generated"}
               </span>
             </div>
-            <div className="overflow-x-auto rounded-md border bg-muted/50 font-mono text-[11.5px]">
+            <div className="overflow-x-auto rounded-lg border border-border bg-muted/40 font-mono text-[11.5px] p-1">
               {f.lines.map((l, i) => (
-                <div key={i} className="flex gap-3 px-3 py-1"
-                     style={l.crit ? { background: "color-mix(in srgb, var(--sev-critical) 10%, transparent)" } : undefined}>
-                  <span className="w-10 flex-none text-right text-muted-foreground">{l.n}</span>
-                  <span className="whitespace-pre-wrap break-all">
+                <div key={i} className="flex gap-3 px-2.5 py-1 rounded"
+                     style={l.crit ? { background: "color-mix(in srgb, var(--sev-critical) 12%, transparent)" } : undefined}>
+                  <span className="w-9 flex-none text-right tabular-nums text-muted-foreground">{l.n}</span>
+                  <span className="whitespace-pre-wrap break-all leading-relaxed">
                     {l.a}
                     {l.hit && (
-                      <mark className="rounded-sm px-0.5" style={{ background: "color-mix(in srgb, var(--sev-high) 35%, transparent)" }}>
+                      <mark className="rounded px-1 py-0.5 font-semibold" style={{ background: "color-mix(in srgb, var(--sev-high) 30%, transparent)", color: "inherit" }}>
                         {l.hit}
                       </mark>
                     )}
@@ -188,21 +188,23 @@ function FindingDetail({ f }: { f: Finding }) {
 
         <div className="grid gap-3 md:grid-cols-2">
           {f.predicate && (
-            <div className="rounded-md border p-3">
-              <div className="text-[9.5px] uppercase tracking-wide text-muted-foreground">Rule predicate that fired</div>
-              <pre className="mt-1 whitespace-pre-wrap font-mono text-[11.5px] text-accent-foreground">{f.predicate}</pre>
-              <div className="mt-1.5 font-mono text-[10.5px] text-muted-foreground">{f.ruleRef}</div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="text-[9.5px] uppercase font-semibold tracking-wider text-muted-foreground">Rule predicate that fired</div>
+              <pre className="mt-1 whitespace-pre-wrap font-mono text-[11px] text-primary leading-relaxed">{f.predicate}</pre>
+              <div className="mt-1.5 font-mono text-[10px] text-muted-foreground">{f.ruleRef}</div>
             </div>
           )}
           {f.timeline.length > 0 && (
-            <div className="rounded-md border p-3">
-              <div className="mb-1 text-[9.5px] uppercase tracking-wide text-muted-foreground">Event sequence</div>
-              {f.timeline.map((t, i) => (
-                <div key={i} className="flex gap-2.5 py-0.5 text-xs">
-                  <span className="w-16 flex-none font-mono text-[10.5px] text-muted-foreground">{t.t}</span>
-                  <span>{t.label}</span>
-                </div>
-              ))}
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="mb-1 text-[9.5px] uppercase font-semibold tracking-wider text-muted-foreground">Event sequence</div>
+              <div className="space-y-1">
+                {f.timeline.map((t, i) => (
+                  <div key={i} className="flex gap-2 py-0.5 text-xs">
+                    <span className="w-14 flex-none font-mono text-[10.5px] tabular-nums text-muted-foreground">{t.t}</span>
+                    <span className="text-foreground">{t.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -300,14 +302,14 @@ export function Alerts() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          className="w-72"
+          className="w-72 rounded-lg border-border bg-card text-xs"
           placeholder="Filter findings…"
           aria-label="Filter findings"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
         <select
-          className="h-9 rounded-md border border-input bg-card px-2 text-sm"
+          className="h-9 rounded-lg border border-border bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           aria-label="Severity filter"
           value={sevFilter}
           onChange={(e) => setSevFilter(e.target.value)}
@@ -320,54 +322,62 @@ export function Alerts() {
         </span>
       </div>
 
-      <Card>
-        <div ref={scrollRef} className="max-h-[52vh] overflow-auto" data-testid="alerts-scroll">
-          <table className="w-full">
-            <thead className="sticky top-0 bg-card">
-              {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id} className="border-b text-left text-[10.5px] uppercase tracking-wide text-muted-foreground">
-                  {hg.headers.map((h) => (
-                    <th key={h.id} className="cursor-pointer px-2 py-2 select-none"
-                        onClick={h.column.getToggleSortingHandler()}>
-                      {flexRender(h.column.columnDef.header, h.getContext())}
-                      {{ asc: " ▲", desc: " ▼" }[h.column.getIsSorted() as string] ?? null}
-                    </th>
+      <div className={cn("grid gap-4 items-start", selected ? "grid-cols-1 lg:grid-cols-12" : "grid-cols-1")}>
+        <div className={selected ? "lg:col-span-7" : "w-full"}>
+          <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+            <div ref={scrollRef} className="max-h-[56vh] overflow-auto" data-testid="alerts-scroll">
+              <table className="w-full border-collapse text-[12.5px]">
+                <thead className="sticky top-0 z-10 bg-card border-b border-border">
+                  {table.getHeaderGroups().map((hg) => (
+                    <tr key={hg.id} className="text-left text-[10.5px] uppercase font-semibold tracking-wider text-muted-foreground">
+                      {hg.headers.map((h) => (
+                        <th key={h.id} className="cursor-pointer px-3 py-2.5 select-none hover:text-foreground transition-colors"
+                            onClick={h.column.getToggleSortingHandler()}>
+                          {flexRender(h.column.columnDef.header, h.getContext())}
+                          {{ asc: " ▲", desc: " ▼" }[h.column.getIsSorted() as string] ?? null}
+                        </th>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {virtual ? (
-                <>
-                  {virtualizer.getVirtualItems().length > 0 && (
-                    <tr style={{ height: virtualizer.getVirtualItems()[0].start }} aria-hidden />
+                </thead>
+                <tbody>
+                  {virtual ? (
+                    <>
+                      {virtualizer.getVirtualItems().length > 0 && (
+                        <tr style={{ height: virtualizer.getVirtualItems()[0].start }} aria-hidden />
+                      )}
+                      {virtualizer.getVirtualItems().map((vi) => renderRow(rows[vi.index]))}
+                      {virtualizer.getVirtualItems().length > 0 && (
+                        <tr aria-hidden style={{
+                          height: virtualizer.getTotalSize()
+                            - (virtualizer.getVirtualItems().at(-1)!.end),
+                        }} />
+                      )}
+                    </>
+                  ) : (
+                    rows.map(renderRow)
                   )}
-                  {virtualizer.getVirtualItems().map((vi) => renderRow(rows[vi.index]))}
-                  {virtualizer.getVirtualItems().length > 0 && (
-                    <tr aria-hidden style={{
-                      height: virtualizer.getTotalSize()
-                        - (virtualizer.getVirtualItems().at(-1)!.end),
-                    }} />
+                  {rows.length === 0 && (
+                    <tr><td colSpan={columns.length} className="px-3 py-6 text-center text-muted-foreground">
+                      {data.findings.length === 0
+                        ? (data.unrecognized || data.emptyInput
+                           ? "Nothing was analyzed, so there are no findings to show."
+                           : "All clear — 0 anomalies. Every rule evaluated; nothing crossed a threshold.")
+                        : "Nothing matches this filter."}
+                    </td></tr>
                   )}
-                </>
-              ) : (
-                rows.map(renderRow)
-              )}
-              {rows.length === 0 && (
-                <tr><td colSpan={columns.length} className="px-3 py-5 text-muted-foreground">
-                  {data.findings.length === 0
-                    ? (data.unrecognized || data.emptyInput
-                       ? "Nothing was analyzed, so there are no findings to show."
-                       : "All clear — 0 anomalies. Every rule evaluated; nothing crossed a threshold.")
-                    : "Nothing matches this filter."}
-                </td></tr>
-              )}
-            </tbody>
-          </table>
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
-      </Card>
 
-      {selected && <FindingDetail f={selected} />}
+        {selected && (
+          <div className="lg:col-span-5">
+            <FindingDetail f={selected} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
