@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { applyThemeClass, useUi } from "@/store/ui";
 import "./index.css";
+// itsoc. design system (DESIGN_HANDOFF golden rule): the authoritative style
+// source. Imported AFTER index.css and unlayered, so its is-* classes and
+// tokens win over the Tailwind @layer base plumbing where they overlap.
+import "./styles/itsoc.css";
 
 // index.html applies the class pre-paint; re-apply from the store so React
 // state and the DOM can never disagree.

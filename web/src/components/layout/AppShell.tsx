@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
-  Antenna, Bell, Cable, Database, FileText, Filter, Folder, House, Link as LinkIcon, LogOut, Monitor,
+  Antenna, Bell, Cable, Database, FileText, Folder, House, Link as LinkIcon, LogOut, Monitor,
   Radar, RefreshCw, Search, Settings, Shield, ShieldAlert, ShieldCheck, TriangleAlert, Upload,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +19,7 @@ import { isBlobPageUrl, rawFileUrl } from "@/lib/rawUrl";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
-/** Core navigation per SPEC §3 (Overview · Findings · Incidents · Sources · Settings) */
+/** Core navigation per DESIGN_HANDOFF §2 (Overview · Findings · Incidents · Sources · Settings) */
 export const CORE_NAV = [
   { to: "/", label: "Overview", icon: House, ready: true },
   { to: "/alerts", label: "Findings", icon: Bell, ready: true },
@@ -28,15 +28,17 @@ export const CORE_NAV = [
   { to: "/settings", label: "Settings", icon: Settings, ready: true },
 ] as const;
 
-/** Experimental navigation group (off by default via flag per SPEC §3) */
+/** Experimental group (off by default). Leads with the handoff's named five
+ *  (Assets · Threat Intel · Discovery · Vulnerabilities · History), then the
+ *  remaining real experimental pages so none is orphaned. */
 export const EXPERIMENTAL_NAV = [
+  { to: "/assets", label: "Assets", icon: Monitor, ready: true },
+  { to: "/threat-intel", label: "Threat Intel", icon: Shield, ready: true },
   { to: "/discovery", label: "Discovery", icon: Radar, ready: true },
   { to: "/vulnerabilities", label: "Vulnerabilities", icon: ShieldAlert, ready: true },
+  { to: "/history", label: "History", icon: Database, ready: true },
   { to: "/enrichment", label: "Enrichment", icon: Search, ready: true },
   { to: "/oem", label: "OEM Engine", icon: Cable, ready: true },
-  { to: "/history", label: "History", icon: Database, ready: true },
-  { to: "/threat-intel", label: "Threat Intel", icon: Shield, ready: true },
-  { to: "/assets", label: "Assets", icon: Monitor, ready: true },
   { to: "/reports", label: "Reports", icon: FileText, ready: true },
   { to: "/cases", label: "Cases", icon: Folder, ready: true },
 ] as const;
@@ -44,9 +46,9 @@ export const EXPERIMENTAL_NAV = [
 export const NAV = [...CORE_NAV, ...EXPERIMENTAL_NAV];
 
 const TITLES: Record<string, { title: string; subtitle: string }> = {
-  "/": { title: "Overview", subtitle: "security posture" },
-  "/alerts": { title: "Findings", subtitle: "Detections & evidence" },
-  "/findings": { title: "Findings", subtitle: "Detections & evidence" },
+  "/": { title: "Overview", subtitle: "Security Overview" },
+  "/alerts": { title: "Findings", subtitle: "Alerts & Detections" },
+  "/findings": { title: "Findings", subtitle: "Alerts & Detections" },
   "/incidents": { title: "Incidents", subtitle: "Incident Management & RCA" },
   "/collectors": { title: "Sources", subtitle: "Live Collectors & Syslog" },
   "/sources": { title: "Sources", subtitle: "Live Collectors & Syslog" },
@@ -70,121 +72,84 @@ function Sidebar() {
   const model = ov && !("error" in ov) ? ov.model : "qwen3:8b";
 
   return (
-    <aside className="flex w-[200px] flex-none flex-col border-r border-border bg-card px-3 py-4">
-      {/* Brand wordmark with accent dot */}
-      <div className="flex items-center gap-2 px-2 pb-3">
-        <ShieldCheck className="h-[28px] w-[28px] flex-none text-primary" strokeWidth={1.8} aria-hidden />
-        <span className="text-[19px] font-bold leading-none tracking-tight" data-testid="wordmark">
-          itsoc<span className="text-primary">.</span>
-        </span>
+    <aside className="is-side">
+      {/* Brand wordmark: 'itsoc.' with the dot in --acc (DESIGN_HANDOFF §1) */}
+      <div className="is-brand">
+        <span className="mark"><ShieldCheck className="h-4 w-4" strokeWidth={1.9} aria-hidden /></span>
+        <span data-testid="wordmark">itsoc<span className="dot">.</span></span>
       </div>
 
-      {/* Quick ⌘K button in sidebar */}
-      <button
-        onClick={() => setCommandPaletteOpen(true)}
-        className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
-      >
-        <kbd className="rounded border border-border bg-muted px-1 font-mono text-[10px]">⌘K</kbd>
+      {/* ⌘K search pill */}
+      <button className="is-side-search" onClick={() => setCommandPaletteOpen(true)}>
+        <kbd>⌘K</kbd>
         <span className="truncate">Search or ask…</span>
       </button>
 
-      {/* Core navigation */}
-      <nav aria-label="Main" className="flex flex-col gap-0.5">
+      {/* Primary nav */}
+      <nav className="is-nav" aria-label="Main">
         {CORE_NAV.map(({ to, label, icon: Icon, ready }) => (
           <NavLink
             key={to}
             to={to}
             end={to === "/"}
             title={ready ? undefined : "Not built yet — the page says so honestly"}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground",
-                isActive && "bg-primary/15 font-semibold text-primary hover:bg-primary/20 hover:text-primary",
-              )
-            }
+            className={({ isActive }) => cn(isActive && "active")}
           >
-            <Icon className="h-4 w-4 flex-none" strokeWidth={1.8} aria-hidden />
+            <Icon className="ic" strokeWidth={1.8} aria-hidden />
             {label}
           </NavLink>
         ))}
       </nav>
 
-      {/* Experimental group per SPEC §3 */}
-      <div className="mt-4 flex flex-col gap-1 border-t border-border pt-3">
+      {/* Experimental group with ON/OFF badge (DESIGN_HANDOFF §2) */}
+      <div className="is-nav-group">
+        <span>Experimental</span>
         <button
+          className={cn("badge", experimentalEnabled && "on")}
           onClick={toggleExperimental}
-          className="flex items-center justify-between rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+          aria-pressed={experimentalEnabled}
+          aria-label="Toggle experimental group"
         >
-          <span>Experimental</span>
-          <span
-            className={cn(
-              "rounded px-1.5 py-0.5 text-[9.5px] font-medium",
-              experimentalEnabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
-            )}
-          >
-            {experimentalEnabled ? "on" : "off"}
-          </span>
+          {experimentalEnabled ? "ON" : "OFF"}
         </button>
-
-        {experimentalEnabled ? (
-          <div className="flex flex-col gap-0.5 pl-1">
-            {EXPERIMENTAL_NAV.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-background hover:text-foreground",
-                    isActive && "bg-primary/15 font-medium text-primary",
-                  )
-                }
-              >
-                <Icon className="h-3.5 w-3.5 flex-none" strokeWidth={1.8} aria-hidden />
-                {label}
-              </NavLink>
-            ))}
-          </div>
-        ) : (
-          <div
-            onClick={toggleExperimental}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && toggleExperimental()}
-            className="cursor-pointer rounded-lg border border-dashed border-border p-2 text-[11px] leading-relaxed text-muted-foreground hover:border-primary/50"
-          >
-            Command Center · <span className="opacity-70">off</span>
-          </div>
-        )}
       </div>
+      {experimentalEnabled ? (
+        <nav className="is-nav" aria-label="Experimental">
+          {EXPERIMENTAL_NAV.map(({ to, label, icon: Icon }) => (
+            <NavLink key={to} to={to} className={({ isActive }) => cn(isActive && "active")}>
+              <Icon className="ic" strokeWidth={1.8} aria-hidden />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      ) : (
+        <div
+          className="is-exp-empty"
+          role="button"
+          tabIndex={0}
+          onClick={toggleExperimental}
+          onKeyDown={(e) => e.key === "Enter" && toggleExperimental()}
+        >
+          Command Center · <span className="is-mut2">off</span>
+        </div>
+      )}
 
-      {/* Footer / Logout */}
-      <div className="mt-auto border-t border-border pt-3">
+      {/* Footer: user + role, Logout, rules · model · local meta */}
+      <div className="is-side-foot">
         {user && (
-          <div className="mb-2 px-2.5 text-[11.5px] text-muted-foreground">
-            <div className="flex items-center gap-1.5 font-medium text-foreground">
-              <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+          <>
+            <div className="is-side-user">
+              <span className="dot" />
               <span className="truncate">{user.username}</span>
             </div>
-            <div className="text-[10.5px] uppercase tracking-wider">{user.role}</div>
-          </div>
+            <div className="role" style={{ paddingLeft: 14, marginBottom: 8 }}>{user.role}</div>
+          </>
         )}
-        <NavLink
-          to="/logout"
-          title="Sign out of this local demo session"
-          className={({ isActive }) =>
-            cn(
-              "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-muted-foreground transition-colors hover:bg-background hover:text-foreground",
-              isActive && "bg-primary/15 font-semibold text-primary hover:bg-primary/20",
-            )
-          }
-        >
-          <LogOut className="h-4 w-4 flex-none" strokeWidth={1.8} aria-hidden />
+        <NavLink to="/logout" className="is-side-logout" title="Sign out of this local demo session">
+          <LogOut className="h-4 w-4" strokeWidth={1.8} aria-hidden />
           Logout
         </NavLink>
-        <div
-          className="mt-2 truncate px-2.5 text-[10.5px] font-mono text-muted-foreground"
-          title={`rules v1 · ${model} · local`}
-        >
+        <div className="is-side-meta" title={`rules v1 · ${model} · local`}>
           rules v1 · {model} · local
         </div>
       </div>
@@ -284,7 +249,7 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
             />
           </label>
           {isBlob && (
-            <p className="text-[11px]" style={{ color: "var(--sev-medium)" }}>
+            <p className="text-[11px]" style={{ color: "var(--high)" }}>
               That’s a web-page link, not the raw file — we’ll fetch the raw version instead:{" "}
               <span className="break-all font-mono">{rawFileUrl(url)}</span>
             </p>
@@ -294,11 +259,7 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
             same analysis. A page that isn’t a text log is rejected honestly.
           </p>
           <div>
-            <button
-              type="submit"
-              disabled={!url.trim()}
-              className="inline-flex items-center gap-2 rounded-md border border-primary bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
-            >
+            <button type="submit" disabled={!url.trim()} className="is-btn is-btn--primary">
               <LinkIcon className="h-4 w-4" strokeWidth={1.8} aria-hidden /> Fetch &amp; analyze
             </button>
           </div>
@@ -315,19 +276,13 @@ function UploadButton({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       title={ACCEPTED_TITLE}
-      className={cn(
-        "inline-flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-[10px] border border-primary bg-primary px-3.5 py-2 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90",
-        busy && "cursor-progress opacity-70",
-      )}
+      className={cn("is-btn is-btn--primary", busy && "cursor-progress opacity-70")}
     >
       <Upload className="h-4 w-4" strokeWidth={1.8} aria-hidden />
       {busy ? "Analyzing…" : "Upload Logs"}
     </button>
   );
 }
-
-const chip =
-  "inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] border border-border bg-card px-3 py-2 text-[13px] transition-colors";
 
 function Header({ onOpenUpload }: { onOpenUpload: () => void }) {
   const { pathname } = useLocation();
@@ -336,42 +291,25 @@ function Header({ onOpenUpload }: { onOpenUpload: () => void }) {
   const info = TITLES[pathname] ?? { title: "itsoc.", subtitle: "Security Overview" };
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div>
-        <h1 className="text-[24px] font-bold leading-tight tracking-[-0.015em] text-foreground">
-          {info.title}
-        </h1>
-        <div className="mt-0.5 text-xs font-medium text-muted-foreground">{info.subtitle}</div>
+    <div className="is-top">
+      <div className="is-title">
+        <h1>{info.title}</h1>
+        <div className="sub">{info.subtitle}</div>
       </div>
 
-      {/* Top ⌘K command bar */}
-      <button
-        onClick={() => setCommandPaletteOpen(true)}
-        className="mx-auto hidden md:flex max-w-[280px] flex-1 items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-[12.5px] text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-foreground"
-        aria-label="Open command palette"
-      >
-        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+      {/* Centered ⌘K search */}
+      <button className="is-top-search" onClick={() => setCommandPaletteOpen(true)} aria-label="Open command palette">
+        <kbd>⌘K</kbd>
         <span className="truncate">Search or ask itsoc…</span>
       </button>
 
-      <div className="ml-auto flex flex-wrap items-center gap-2">
+      <div className="is-top-actions">
         <UploadButton onClick={onOpenUpload} />
         <RunSwitcher />
         <RunHistory />
-        <button
-          className={cn(chip, "cursor-pointer hover:border-primary hover:bg-background")}
-          onClick={() => queryClient.invalidateQueries()}
-        >
-          <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} aria-hidden />
+        <button className="is-btn" onClick={() => queryClient.invalidateQueries()}>
+          <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
           Refresh
-        </button>
-        <button
-          disabled
-          title="Filtering is not built yet — finding filters live on the Findings page"
-          className={cn(chip, "cursor-not-allowed opacity-50")}
-        >
-          <Filter className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-          Filters
         </button>
         <ThemeToggle />
       </div>
@@ -423,28 +361,42 @@ function RunFacts() {
 export function AppShell() {
   const { pathname } = useLocation();
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
 
-  // The copilot is a docked right rail (reference §2 three-column shape:
-  // nav · content · analyst rail), rendered on wide screens. It is hidden on
-  // the logout screen. One instance only — no duplicate floating launcher.
+  // Copilot is a slide-in drawer (.is-rail) launched by the floating
+  // .is-cop-fab (DESIGN_HANDOFF §2 / §4). Hidden on the logout screen.
   const showCopilot = pathname !== "/logout";
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="itsoc is-app">
       <Sidebar />
-      <main className="flex min-w-0 flex-1 flex-col gap-4 px-[22px] py-5">
+      <main className="is-main">
         <Header onOpenUpload={() => setUploadOpen(true)} />
-        {pathname === "/" && <RunFacts />}
-        <Outlet />
+        <div className="is-content">
+          {pathname === "/" && <RunFacts />}
+          <Outlet />
+        </div>
       </main>
 
       {showCopilot && (
-        <aside
-          data-testid="copilot-dock"
-          className="hidden xl:flex w-[300px] flex-none flex-col border-l border-border bg-muted/40 p-3.5"
-        >
-          <CopilotRail docked />
-        </aside>
+        <>
+          <aside
+            data-testid="copilot-rail-drawer"
+            className={cn("is-rail-drawer", railOpen && "open")}
+            aria-hidden={!railOpen}
+          >
+            <CopilotRail docked />
+          </aside>
+          <button
+            className="is-cop-fab"
+            data-testid="copilot-fab"
+            onClick={() => setRailOpen((o) => !o)}
+            aria-label={railOpen ? "Close AI Analyst" : "Open AI Analyst"}
+          >
+            <b className="n">◆ AI Analyst</b>
+            <span className="adv">advisory</span>
+          </button>
+        </>
       )}
 
       <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} />

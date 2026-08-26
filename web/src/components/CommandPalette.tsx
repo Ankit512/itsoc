@@ -164,17 +164,12 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center bg-black/60 p-4 pt-[14vh] backdrop-blur-[2px]"
+      className="is-palette-overlay itsoc"
       onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command Palette"
-        className="w-full max-w-[560px] overflow-hidden rounded-xl border border-border bg-card shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] outline-none animate-in fade-in zoom-in-95 duration-100"
-      >
-        <div className="flex items-center gap-2.5 border-b border-border px-3.5 py-3">
-          <Search className="h-4 w-4 flex-none text-muted-foreground" aria-hidden />
+      <div role="dialog" aria-modal="true" aria-label="Command Palette" className="is-palette">
+        <div className="is-palette__in">
+          <Search className="ic h-4 w-4 flex-none" aria-hidden />
           <input
             ref={inputRef}
             value={query}
@@ -182,20 +177,13 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
             onKeyDown={handleKeyDown}
             placeholder="Search screens, actions, or ask itsoc..."
             aria-label="Search command palette"
-            className="flex-1 bg-transparent text-[14px] text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <kbd className="flex h-5 items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] text-muted-foreground">
-            ESC
-          </kbd>
+          <kbd>ESC</kbd>
         </div>
 
-        <ul
-          ref={listRef}
-          aria-label="Command options"
-          className="max-h-[340px] overflow-y-auto p-1.5"
-        >
+        <ul ref={listRef} aria-label="Command options" className="is-palette__list">
           {displayItems.length === 0 ? (
-            <li className="px-3 py-6 text-center text-xs text-muted-foreground">
+            <li className="px-3 py-6 text-center text-xs is-mut">
               No results found for &ldquo;{query}&rdquo;
             </li>
           ) : (
@@ -207,29 +195,17 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
                   <button
                     onClick={item.onSelect}
                     onMouseEnter={() => setSelectedIndex(idx)}
-                    className={cn(
-                      "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] transition-colors",
-                      isSelected
-                        ? "bg-accent font-medium text-accent-foreground"
-                        : "text-foreground hover:bg-muted/50"
-                    )}
+                    className={cn("is-palette__item w-full", isSelected && "active")}
                   >
-                    <Icon
-                      className={cn(
-                        "h-4 w-4 flex-none",
-                        isSelected ? "text-primary" : "text-muted-foreground"
-                      )}
-                      strokeWidth={1.8}
-                      aria-hidden
-                    />
+                    <Icon className="ic h-4 w-4 flex-none" strokeWidth={1.8} aria-hidden />
                     <span className="flex-1 truncate">{item.label}</span>
                     {item.group === "Ask" && (
-                      <span className="flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10.5px] font-medium text-primary">
+                      <span className="is-chip is-chip--adv">
                         Ask AI <Sparkles className="h-3 w-3" />
                       </span>
                     )}
                     {isSelected && (
-                      <CornerDownLeft className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                      <CornerDownLeft className="enter h-3.5 w-3.5" aria-hidden />
                     )}
                   </button>
                 </li>
@@ -238,15 +214,9 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
           )}
         </ul>
 
-        <div className="flex items-center justify-between border-t border-border bg-muted/30 px-3.5 py-2 text-[11px] text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span><kbd className="font-mono">↑↓</kbd> navigate</span>
-            <span><kbd className="font-mono">↵</kbd> select</span>
-            <span><kbd className="font-mono">esc</kbd> close</span>
-          </div>
-          <div className="font-mono text-[10px]">
-            itsoc. command palette
-          </div>
+        <div className="is-palette__foot">
+          <span>↑↓ navigate · ↵ select · esc close</span>
+          <span className="is-mono">itsoc. command palette</span>
         </div>
       </div>
     </div>

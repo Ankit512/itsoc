@@ -45,7 +45,7 @@ export function RunHistory() {
         aria-label={open ? "Close run history" : "Open run history"}
         aria-expanded={open}
         title="Previous analysis runs — open one to switch the dashboard to it"
-        className="inline-flex cursor-pointer items-center gap-[9px] whitespace-nowrap rounded-[10px] border bg-card px-3.5 py-2.5 text-[13.5px] hover:bg-background"
+        className="is-btn"
       >
         <History className="h-4 w-4" strokeWidth={1.8} aria-hidden />
         Runs

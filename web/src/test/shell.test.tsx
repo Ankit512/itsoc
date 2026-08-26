@@ -33,9 +33,10 @@ describe("itsoc. Phase 1 App Shell", () => {
     expect(screen.getByText(/Command Center/)).toBeInTheDocument();
     expect(screen.getAllByText("off").length).toBeGreaterThan(0);
 
-    // Toggle experimental on
-    await userEvent.click(screen.getByRole("button", { name: /experimental/i }));
-    expect(screen.getByText("on")).toBeInTheDocument();
+    // Toggle experimental on (badge reads OFF → ON, per the prototype)
+    const expToggle = screen.getByRole("button", { name: /experimental/i });
+    await userEvent.click(expToggle);
+    expect(expToggle).toHaveTextContent("ON");
 
     // Experimental items are now visible
     for (const { label } of EXPERIMENTAL_NAV) {
@@ -49,7 +50,6 @@ describe("itsoc. Phase 1 App Shell", () => {
     expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
     expect(screen.getByText("Upload Logs")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /filters/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /switch to dark mode/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /open command palette/i })).toBeInTheDocument();
   });

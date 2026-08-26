@@ -70,7 +70,7 @@ export function RunSwitcher() {
   if (list.length === 0) {
     return (
       <span
-        className="inline-flex items-center gap-[9px] whitespace-nowrap rounded-[10px] border bg-card px-3.5 py-2 text-[13px] text-muted-foreground"
+        className="is-btn is-mut"
         title="No saved runs yet — analyze a log to start the history"
       >
         <Calendar className="h-4 w-4" strokeWidth={1.8} aria-hidden />
@@ -142,38 +142,30 @@ export function RunSwitcher() {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-label="Switch run"
-        className={cn(
-          "inline-flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-[10px] border border-border bg-card px-3 py-2 text-[13px] font-medium text-foreground transition-colors hover:border-primary",
-          open && "border-primary ring-1 ring-primary/30",
-          switching && "opacity-60 cursor-progress"
-        )}
+        className={cn("is-btn", switching && "opacity-60 cursor-progress")}
       >
-        <Calendar className="h-4 w-4 text-muted-foreground flex-none" strokeWidth={1.8} aria-hidden />
-        <span className="max-w-[180px] truncate font-mono">{currentLabel}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-0.5" strokeWidth={2} />
+        <Calendar className="h-4 w-4 flex-none" strokeWidth={1.8} aria-hidden />
+        <span className="max-w-[180px] truncate is-mono">{currentLabel}</span>
+        <ChevronDown className="h-3.5 w-3.5 ml-0.5" strokeWidth={2} />
       </button>
 
       {open && (
         <div
           role="region"
           aria-label="Run switcher panel"
-          className="absolute right-0 top-full z-50 mt-2 w-[340px] max-w-[calc(100vw-32px)] rounded-xl border border-border bg-card p-2 shadow-[0_16px_40px_-10px_rgba(0,0,0,0.35)] animate-in fade-in zoom-in-95 duration-100"
+          className="is-runs absolute right-0 top-full z-50 mt-2 max-w-[calc(100vw-32px)]"
         >
-          <div className="flex items-center gap-2 border-b border-border px-2.5 pb-2 pt-1">
-            <Search className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+          <div className="is-runs__search">
+            <Search className="h-3.5 w-3.5" aria-hidden />
             <input
               ref={searchInputRef}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Search runs..."
               aria-label="Filter runs"
-              className="flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-muted-foreground"
             />
             {filter && (
-              <button
-                onClick={() => setFilter("")}
-                className="text-[11px] text-muted-foreground hover:text-foreground"
-              >
+              <button onClick={() => setFilter("")} className="text-[11px] is-mut">
                 Clear
               </button>
             )}
@@ -181,63 +173,44 @@ export function RunSwitcher() {
 
           <div className="max-h-[280px] overflow-y-auto pt-1">
             {groups.length === 0 ? (
-              <div className="py-4 text-center text-xs text-muted-foreground">
+              <div className="py-4 text-center text-xs is-mut">
                 No matching runs found
               </div>
             ) : (
               groups.map((group) => (
                 <div key={group.label} className="mb-1.5 last:mb-0">
-                  <div className="px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {group.label}
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    {group.runs.map((r) => {
-                      const isCurrent = r.file === currentFile;
-                      const sInfo = summaryMap.get(r.file);
-                      const fCount = sInfo?.findingCount ?? r.findings ?? 0;
-                      const name = (r.label || r.file).split("/").pop() ?? r.file;
-                      const when = (r.generatedAt || "").slice(0, 16).replace("T", " ");
+                  <div className="is-runs__group">{group.label}</div>
+                  {group.runs.map((r) => {
+                    const isCurrent = r.file === currentFile;
+                    const sInfo = summaryMap.get(r.file);
+                    const fCount = sInfo?.findingCount ?? r.findings ?? 0;
+                    const name = (r.label || r.file).split("/").pop() ?? r.file;
+                    const when = (r.generatedAt || "").slice(0, 16).replace("T", " ");
 
-                      return (
-                        <button
-                          key={r.file}
-                          onClick={() => selectRun(r.file)}
-                          disabled={switching !== null}
-                          className={cn(
-                            "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] transition-colors",
-                            isCurrent
-                              ? "bg-accent font-medium text-accent-foreground"
-                              : "hover:bg-muted/60 text-foreground"
-                          )}
-                        >
-                          <FileText className="h-3.5 w-3.5 flex-none text-muted-foreground" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate font-mono font-medium">{name}</span>
-                              {isCurrent && (
-                                <span className="rounded bg-primary/15 px-1 py-0.2 text-[9px] font-semibold uppercase tracking-wider text-primary">
-                                  current
-                                </span>
-                              )}
-                              {r.unrecognized && (
-                                <span className="rounded border border-border px-1 py-0.2 text-[9px] uppercase tracking-wider text-muted-foreground">
-                                  unparsed
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                              <span>{when || "No date"}</span>
-                              <span>·</span>
-                              <span className="tabular-nums font-medium">{fCount} findings</span>
-                            </div>
+                    return (
+                      <button
+                        key={r.file}
+                        onClick={() => selectRun(r.file)}
+                        disabled={switching !== null}
+                        className={cn("is-runs__item w-full text-left", isCurrent && "current")}
+                      >
+                        <FileText className="h-3.5 w-3.5 flex-none" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="name truncate">{name}</span>
+                            {isCurrent && <span className="is-badge-current">CURRENT</span>}
+                            {r.unrecognized && <span className="is-runs__unparsed">unparsed</span>}
                           </div>
-                          {isCurrent && (
-                            <Check className="h-4 w-4 flex-none text-primary" strokeWidth={2.5} />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                          <div className="meta flex items-center gap-2">
+                            <span>{when || "No date"}</span>
+                            <span>·</span>
+                            <span className="tabular-nums">{fCount} findings</span>
+                          </div>
+                        </div>
+                        {isCurrent && <Check className="check h-4 w-4 flex-none" strokeWidth={2.5} />}
+                      </button>
+                    );
+                  })}
                 </div>
               ))
             )}

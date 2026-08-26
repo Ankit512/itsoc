@@ -68,12 +68,13 @@ describe("Overview page (v6)", () => {
     expect(screen.getByText(/derived, never invented/)).toBeInTheDocument();
   });
 
-  it("docks the AI analyst as an advisory rail (reference §2 three-column shape)", async () => {
+  it("mounts the AI analyst as an advisory slide-in rail with a launcher (handoff §2/§4)", async () => {
     renderApp(<App />);
     await screen.findByText("Total");
-    // The analyst is a docked rail, always present and advisory-labeled — it
-    // reads verdicts, never sets them, and says so in its footer verbatim.
-    expect(screen.getByTestId("copilot-dock")).toBeInTheDocument();
+    // The analyst is a slide-in .is-rail drawer launched by the floating fab;
+    // it reads verdicts, never sets them, and says so in its footer verbatim.
+    expect(screen.getByTestId("copilot-rail-drawer")).toBeInTheDocument();
+    expect(screen.getByTestId("copilot-fab")).toBeInTheDocument();
     expect(screen.getByText(/never changed here/)).toBeInTheDocument();
     expect(screen.getByTestId("copilot-footer")).toHaveTextContent(
       "Rules set the severity. I explain & prioritize — I don't decide.",

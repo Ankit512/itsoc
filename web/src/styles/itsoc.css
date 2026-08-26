@@ -1,0 +1,270 @@
+/* ============================================================================
+   itsoc. — Design System (drop-in)
+   Grafana density × Vercel/Linear restraint. Dark + light.
+
+   HOW TO USE (Claude Code):
+   1. Import this file once, globally (e.g. web/src/styles/itsoc.css imported in main.tsx).
+   2. Put data-theme="dark" (default) or "light" on the app root; the theme toggle flips it.
+   3. Apply the `is-*` classes below to elements. They are plain CSS classes — they coexist
+      with Tailwind/shadcn; where a screen already uses Tailwind, replace ad-hoc styling with
+      these so every page is identical.
+   4. Numbers use tabular figures; colors come ONLY from tokens (never hard-code a hex).
+   5. Do not change severity meanings — crit/high/med/low map to the rule verdicts.
+   ============================================================================ */
+
+/* ---- 1. TOKENS ------------------------------------------------------------ */
+:root, [data-theme="dark"] {
+  --bg:#0b0d12; --pan:#14161d; --pan2:#0f1218; --bd:#1e222c; --bd2:#272c38;
+  --ink:#e7eaf1; --ink2:#c7ccd8; --mut:#828b9c; --mut2:#5c6474;
+  --acc:#7c6cff; --acc-ink:#ffffff; --acc-weak:color-mix(in srgb,var(--acc) 16%,transparent);
+  --crit:#f0616d; --high:#f2a33c; --med:#d6b02e; --low:#33c895; --info:#7c8598;
+  --ok:#33c895; --warn:#f2a33c; --danger:#f0616d;
+  --radius:12px; --radius-sm:8px; --radius-xs:6px;
+  --shadow:0 8px 30px rgba(0,0,0,.35);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;
+}
+[data-theme="light"] {
+  --bg:#f6f7f9; --pan:#ffffff; --pan2:#fbfbfd; --bd:#e7e9ef; --bd2:#dde0e8;
+  --ink:#12141a; --ink2:#33384a; --mut:#6a7385; --mut2:#8b93a3;
+  --acc:#6d5cf0; --acc-ink:#ffffff; --acc-weak:color-mix(in srgb,var(--acc) 12%,transparent);
+  --crit:#df4650; --high:#d98600; --med:#b08a00; --low:#12a37e; --info:#6a7385;
+  --shadow:0 8px 30px rgba(20,24,40,.12);
+}
+
+/* ---- 2. BASE ------------------------------------------------------------- */
+.itsoc, .itsoc *{ box-sizing:border-box; }
+.itsoc{ background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:13px; }
+.itsoc code, .is-mono{ font-family:var(--mono); }
+.is-tnum{ font-variant-numeric:tabular-nums; }
+.is-mut{ color:var(--mut); } .is-mut2{ color:var(--mut2); }
+
+/* ---- 3. APP SHELL (grid) ------------------------------------------------- */
+/* Two-col with an optional right rail. Add .has-rail for the copilot/detail rail. */
+.is-app{ display:grid; grid-template-columns:220px 1fr; height:100vh; background:var(--bg); color:var(--ink); }
+.is-app.has-rail{ grid-template-columns:220px 1fr 300px; }
+.is-main{ display:flex; flex-direction:column; min-width:0; overflow:auto; }
+
+/* ---- 4. SIDEBAR --------------------------------------------------------- */
+.is-side{ background:var(--pan2); border-right:1px solid var(--bd); padding:14px 11px; display:flex; flex-direction:column; gap:4px; }
+.is-brand{ display:flex; align-items:center; gap:9px; font-weight:750; font-size:18px; letter-spacing:-.02em; padding:2px 7px 10px; }
+.is-brand .dot{ color:var(--acc); }
+.is-brand .mark{ width:26px;height:26px;border-radius:8px;background:var(--acc-weak);display:grid;place-items:center;color:var(--acc); }
+.is-side-search{ display:flex; align-items:center; gap:8px; color:var(--mut); border:1px solid var(--bd); border-radius:var(--radius-sm); padding:7px 10px; margin-bottom:8px; font-size:12px; cursor:pointer; background:var(--pan); }
+.is-side-search kbd{ font-family:var(--mono); font-size:10.5px; border:1px solid var(--bd); border-radius:5px; padding:1px 5px; }
+.is-nav{ display:flex; flex-direction:column; gap:1px; }
+.is-nav a{ display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:var(--radius-sm); color:var(--mut); font-weight:500; text-decoration:none; cursor:pointer; }
+.is-nav a svg,.is-nav a .ic{ width:16px; height:16px; opacity:.9; flex:0 0 auto; }
+.is-nav a:hover{ background:var(--pan); color:var(--ink); }
+.is-nav a.active{ background:var(--acc-weak); color:var(--acc); font-weight:600; }
+.is-nav-group{ display:flex; align-items:center; justify-content:space-between; margin:14px 8px 5px; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); }
+.is-nav-group .badge{ font-size:9px; font-weight:700; padding:2px 6px; border-radius:5px; background:var(--bd); color:var(--mut); }
+.is-nav-group .badge.on{ background:var(--acc-weak); color:var(--acc); }
+.is-exp-empty{ margin:2px 6px; padding:10px; border:1px dashed var(--bd); border-radius:var(--radius-sm); color:var(--mut); font-size:11px; }
+.is-side-foot{ margin-top:auto; padding-top:10px; display:flex; flex-direction:column; gap:2px; }
+.is-side-user{ display:flex; align-items:center; gap:7px; font-size:12.5px; }
+.is-side-user .dot{ width:7px;height:7px;border-radius:50%;background:var(--low); }
+.is-side-user .role{ color:var(--mut); font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
+.is-side-logout{ display:flex; align-items:center; gap:9px; padding:7px 8px; color:var(--mut); cursor:pointer; }
+.is-side-meta{ padding:4px 8px; color:var(--mut); font-size:10px; font-family:var(--mono); }
+
+/* ---- 5. TOP BAR --------------------------------------------------------- */
+.is-top{ display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--bd); }
+.is-title h1{ font-size:20px; font-weight:650; margin:0; letter-spacing:-.01em; }
+.is-title .sub{ color:var(--acc); font-size:11.5px; margin-top:1px; }
+.is-top-search{ flex:1; max-width:360px; margin:0 auto; display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--bd); border-radius:var(--radius-sm); background:var(--pan); color:var(--mut); cursor:text; font-size:12.5px; }
+.is-top-search kbd{ font-family:var(--mono); font-size:10.5px; border:1px solid var(--bd); border-radius:5px; padding:1px 5px; }
+.is-top-actions{ display:flex; align-items:center; gap:8px; }
+
+/* ---- 6. BUTTONS / INPUTS ------------------------------------------------ */
+.is-btn{ display:inline-flex; align-items:center; gap:7px; background:var(--pan); border:1px solid var(--bd); color:var(--ink); padding:8px 12px; border-radius:var(--radius-sm); font-size:12.5px; font-weight:500; cursor:pointer; }
+.is-btn:hover{ border-color:var(--acc); }
+.is-btn--primary{ background:var(--acc); border-color:var(--acc); color:var(--acc-ink); font-weight:600; }
+.is-btn--primary:hover{ filter:brightness(1.08); border-color:var(--acc); }
+.is-btn--ghost{ background:transparent; }
+.is-btn:disabled{ opacity:.5; cursor:not-allowed; }
+.is-icobtn{ width:34px; height:34px; display:grid; place-items:center; background:var(--pan); border:1px solid var(--bd); color:var(--ink); border-radius:var(--radius-sm); cursor:pointer; }
+.is-icobtn:hover{ border-color:var(--acc); }
+.is-input, .is-select{ background:var(--pan); border:1px solid var(--bd); color:var(--ink); border-radius:var(--radius-sm); padding:9px 12px; font-size:13px; outline:none; width:100%; }
+.is-input:focus, .is-select:focus{ border-color:var(--acc); }
+.is-input::placeholder{ color:var(--mut2); }
+.is-field{ display:flex; flex-direction:column; gap:6px; }
+.is-field label{ font-size:11.5px; color:var(--mut); font-weight:500; }
+
+/* ---- 7. CONTENT / PANELS ------------------------------------------------ */
+.is-content{ padding:16px 20px 24px; display:flex; flex-direction:column; gap:14px; }
+.is-panel{ background:var(--pan); border:1px solid var(--bd); border-radius:var(--radius); padding:14px 16px; }
+.is-panel__h{ display:flex; align-items:center; justify-content:space-between; margin-bottom:11px; }
+.is-panel__h h3{ font-size:13px; font-weight:650; margin:0; }
+.is-panel__sub{ color:var(--mut); font-size:11.5px; }
+.is-grid-2{ display:grid; grid-template-columns:1.5fr 1fr; gap:12px; }
+.is-grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.is-note{ border:1px dashed var(--bd); border-radius:var(--radius-sm); padding:11px 14px; color:var(--mut); font-size:12px; line-height:1.5; }
+.is-note b{ color:var(--ink); }
+
+/* ---- 8. KPI TILES ------------------------------------------------------- */
+.is-kpis{ display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
+.is-kpi{ background:var(--pan); border:1px solid var(--bd); border-radius:var(--radius); padding:12px 14px; display:flex; flex-direction:column; gap:4px; }
+.is-kpi .lbl{ color:var(--mut); font-size:11px; display:flex; align-items:center; justify-content:space-between; }
+.is-kpi .val{ font-size:26px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.is-kpi .delta{ font-size:10.5px; font-weight:600; }
+.is-kpi .delta.up{ color:var(--low); } .is-kpi .delta.dn{ color:var(--crit); } .is-kpi .delta.na{ color:var(--mut); font-weight:400; }
+.is-kpi.val-crit .val{ color:var(--crit); } .is-kpi.val-high .val{ color:var(--high); }
+.is-kpi.val-med .val{ color:var(--med); } .is-kpi.val-low .val{ color:var(--low); }
+
+/* ---- 9. SEVERITY TAGS / CHIPS ------------------------------------------- */
+.is-tag{ display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.03em; padding:3px 8px; border-radius:var(--radius-xs); }
+.is-tag--crit{ background:color-mix(in srgb,var(--crit) 17%,transparent); color:var(--crit); }
+.is-tag--high{ background:color-mix(in srgb,var(--high) 18%,transparent); color:var(--high); }
+.is-tag--med{ background:color-mix(in srgb,var(--med) 20%,transparent); color:var(--med); }
+.is-tag--low{ background:color-mix(in srgb,var(--low) 18%,transparent); color:var(--low); }
+.is-tag--info{ background:var(--bd); color:var(--mut); }
+.is-chip{ display:inline-flex; align-items:center; gap:5px; font-size:10px; color:var(--mut); border:1px solid var(--bd); border-radius:20px; padding:2px 9px; }
+.is-chip--adv{ color:var(--acc); border-color:color-mix(in srgb,var(--acc) 40%,transparent); }
+.is-chip--ok{ color:var(--low); border-color:color-mix(in srgb,var(--low) 40%,transparent); }
+.is-tid{ display:inline-block; background:var(--acc-weak); color:var(--acc); border-radius:var(--radius-xs); padding:1px 6px; font-family:var(--mono); font-size:10.5px; }
+.is-state{ display:inline-flex; align-items:center; gap:6px; border:1px solid var(--bd); border-radius:20px; padding:3px 10px; font-size:11px; color:var(--ink); }
+
+/* ---- 10. TABLES --------------------------------------------------------- */
+.is-table{ width:100%; border-collapse:collapse; }
+.is-table th{ text-align:left; color:var(--mut); font-weight:500; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; padding:0 12px 9px; }
+.is-table td{ padding:11px 12px; border-top:1px solid var(--bd); font-size:12.5px; vertical-align:middle; }
+.is-table tbody tr{ cursor:pointer; }
+.is-table tbody tr:hover{ background:var(--pan2); }
+.is-table tbody tr.active{ background:var(--acc-weak); }
+.is-table .col-mono{ font-family:var(--mono); font-size:11px; color:var(--mut); }
+.is-table-wrap{ background:var(--pan); border:1px solid var(--bd); border-radius:var(--radius); overflow:hidden; }
+
+/* ---- 11. MASTER-DETAIL (Findings, Incidents) --------------------------- */
+.is-md{ display:grid; grid-template-columns:minmax(360px,1fr) 1.2fr; gap:14px; align-items:start; }
+.is-md__list{ background:var(--pan); border:1px solid var(--bd); border-radius:var(--radius); overflow:hidden; }
+.is-md__detail{ background:var(--pan); border:1px solid var(--bd); border-radius:var(--radius); padding:16px 18px; display:flex; flex-direction:column; gap:14px; }
+.is-detail-head{ display:flex; align-items:center; gap:10px; }
+.is-detail-head h2{ font-size:16px; font-weight:650; margin:0; }
+.is-detail-head .id{ margin-left:auto; color:var(--mut); font-family:var(--mono); font-size:11px; }
+.is-detail-meta{ color:var(--mut); font-size:12px; }
+.is-detail-meta b{ color:var(--ink); font-weight:600; }
+.is-ro{ margin-left:8px; font-size:10px; border:1px solid var(--bd); border-radius:20px; padding:2px 8px; color:var(--mut); }
+
+/* ---- 12. VERDICT / ADVISORY / EVIDENCE (Finding detail) ---------------- */
+.is-vgrid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.is-block{ background:var(--pan2); border:1px solid var(--bd); border-radius:var(--radius-sm); padding:12px 13px; }
+.is-block .cap{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin-bottom:7px; }
+.is-block .cap.authoritative{ color:var(--ink); }
+.is-block .verdict{ font-size:15px; font-weight:700; margin-bottom:5px; }
+.is-block.crit .verdict{ color:var(--crit); } .is-block.high .verdict{ color:var(--high); }
+.is-block.med .verdict{ color:var(--med); } .is-block.low .verdict{ color:var(--low); }
+.is-block p{ margin:0; font-size:12.5px; line-height:1.55; color:var(--ink2); }
+.is-evidence{ margin:0; background:var(--pan2); border:1px solid var(--bd); border-left:3px solid var(--acc); border-radius:var(--radius-sm); padding:11px 13px; font-family:var(--mono); font-size:11.5px; line-height:1.7; overflow-x:auto; white-space:pre-wrap; word-break:break-word; }
+.is-evidence .ln{ color:var(--mut); margin-right:10px; }
+.is-evidence mark{ background:var(--acc-weak); color:var(--acc); padding:0 2px; border-radius:3px; }
+.is-predicate{ font-family:var(--mono); font-size:11px; line-height:1.6; color:var(--ink2); white-space:pre-wrap; }
+.is-predicate .kw{ color:var(--acc); }
+
+/* ---- 13. INCIDENT DETAIL (lifecycle, timestamps, RCA) ------------------ */
+.is-lifecycle .cap, .is-facts .cap{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin-bottom:9px; }
+.is-lifecycle .steps{ display:flex; gap:8px; }
+.is-lifecycle .step{ padding:7px 14px; border:1px solid var(--bd); border-radius:var(--radius-sm); background:var(--pan2); color:var(--mut); font-size:12px; cursor:pointer; }
+.is-lifecycle .step.on{ background:var(--acc-weak); color:var(--acc); border-color:transparent; font-weight:600; }
+.is-facts-row{ display:flex; justify-content:space-between; padding:6px 0; font-size:12px; }
+.is-facts-row span{ color:var(--mut); } .is-facts-row b{ font-weight:550; font-variant-numeric:tabular-nums; }
+.is-facts-row .na{ color:var(--mut); font-weight:400; }
+.is-rca{ border:1px solid var(--bd); border-radius:var(--radius-sm); padding:12px 14px; }
+.is-rca .h{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.is-rca .h b{ font-size:13px; }
+.is-rca p{ margin:0; font-size:12.5px; line-height:1.55; }
+.is-rca .src{ font-size:10.5px; color:var(--mut); border-top:1px solid var(--bd); margin-top:9px; padding-top:8px; }
+
+/* ---- 14. CHARTS (frame; draw bars/lines with token colors) ------------- */
+.is-chart{ width:100%; display:block; }
+.is-chart-legend{ display:flex; gap:14px; font-size:10.5px; color:var(--mut); margin-top:8px; }
+.is-chart-legend .k{ display:inline-flex; align-items:center; gap:5px; }
+.is-chart-legend .k .sw{ width:8px; height:8px; border-radius:2px; display:inline-block; }
+.sw-crit{ background:var(--crit); } .sw-high{ background:var(--high); } .sw-med{ background:var(--med); } .sw-low{ background:var(--low); }
+/* horizontal bar (tactics) */
+.is-hbar{ display:grid; grid-template-columns:130px 1fr 28px; align-items:center; gap:10px; font-size:12px; padding:5px 0; }
+.is-hbar .lbl{ color:var(--mut); }
+.is-hbar .track{ height:8px; background:var(--pan2); border-radius:6px; overflow:hidden; }
+.is-hbar .fill{ height:100%; background:var(--acc); border-radius:6px; }
+.is-hbar .n{ text-align:right; font-variant-numeric:tabular-nums; }
+/* donut helper: use SVG with stroke; center label */
+.is-donut-wrap{ display:flex; align-items:center; gap:18px; }
+.is-donut-center{ font-size:22px; font-weight:700; }
+
+/* ---- 15. COMMAND PALETTE (⌘K) ------------------------------------------ */
+.is-palette-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:grid; place-items:start center; padding-top:12vh; z-index:60; }
+.is-palette{ width:640px; max-width:92vw; background:var(--pan); border:1px solid var(--bd2); border-radius:14px; box-shadow:var(--shadow); overflow:hidden; }
+.is-palette__in{ display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--bd); }
+.is-palette__in input{ flex:1; background:transparent; border:0; color:var(--ink); font-size:15px; outline:none; }
+.is-palette__in kbd{ font-family:var(--mono); font-size:10px; border:1px solid var(--bd); border-radius:5px; padding:2px 6px; color:var(--mut); }
+.is-palette__list{ max-height:52vh; overflow:auto; padding:6px; }
+.is-palette__item{ display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:var(--radius-sm); color:var(--ink); cursor:pointer; font-size:13px; }
+.is-palette__item .ic{ color:var(--mut); }
+.is-palette__item.active{ background:var(--acc-weak); color:var(--acc); }
+.is-palette__item.active .ic{ color:var(--acc); }
+.is-palette__item .enter{ margin-left:auto; color:var(--mut); }
+.is-palette__foot{ display:flex; justify-content:space-between; padding:9px 14px; border-top:1px solid var(--bd); color:var(--mut); font-size:10.5px; }
+
+/* ---- 16. RUN SWITCHER (dropdown) --------------------------------------- */
+.is-runs{ width:340px; background:var(--pan); border:1px solid var(--bd2); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
+.is-runs__search{ display:flex; align-items:center; gap:8px; padding:11px 13px; border-bottom:1px solid var(--bd); color:var(--mut); }
+.is-runs__search input{ flex:1; background:transparent; border:0; color:var(--ink); outline:none; font-size:13px; }
+.is-runs__group{ padding:9px 13px 5px; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); }
+.is-runs__item{ display:flex; align-items:center; gap:10px; padding:9px 13px; cursor:pointer; }
+.is-runs__item:hover{ background:var(--pan2); }
+.is-runs__item.current{ background:var(--acc-weak); }
+.is-runs__item .name{ font-family:var(--mono); font-size:12.5px; }
+.is-runs__item .meta{ color:var(--mut); font-size:11px; }
+.is-runs__item .findings{ margin-left:auto; color:var(--mut); font-size:11px; font-variant-numeric:tabular-nums; }
+.is-runs__item .check{ color:var(--acc); }
+.is-badge-current{ font-size:8.5px; font-weight:700; letter-spacing:.05em; background:var(--acc-weak); color:var(--acc); border-radius:4px; padding:2px 5px; }
+.is-runs__unparsed{ color:var(--warn); font-size:10px; }
+
+/* ---- 17. COPILOT RAIL + AI ANALYST BUTTON ------------------------------ */
+.is-rail{ background:var(--pan2); border-left:1px solid var(--bd); padding:16px 14px; display:flex; flex-direction:column; gap:14px; overflow:auto; }
+.is-cop-h{ display:flex; align-items:center; justify-content:space-between; font-weight:650; font-size:13px; }
+.is-rec{ background:var(--pan); border:1px solid var(--bd); border-radius:var(--radius-sm); padding:12px; }
+.is-rec .t{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--acc); font-weight:700; margin-bottom:6px; }
+.is-rec p{ margin:0 0 8px; font-size:12.5px; line-height:1.5; }
+.is-rec .cited{ font-size:10.5px; color:var(--mut); border-top:1px solid var(--bd); padding-top:7px; margin-bottom:9px; }
+.is-msg-q{ align-self:flex-end; background:var(--acc-weak); border-radius:10px 10px 3px 10px; padding:7px 10px; font-size:12px; max-width:88%; }
+.is-msg-a{ background:var(--pan); border:1px solid var(--bd); border-radius:10px 10px 10px 3px; padding:9px 11px; font-size:12px; line-height:1.5; }
+.is-sugg button{ display:block; width:100%; text-align:left; background:var(--pan); border:1px solid var(--bd); color:var(--ink); padding:8px 10px; border-radius:var(--radius-sm); cursor:pointer; font-size:12px; margin-bottom:6px; }
+.is-sugg button:hover{ border-color:var(--acc); color:var(--acc); }
+.is-ask{ display:flex; gap:6px; }
+.is-ask input{ flex:1; background:var(--pan); border:1px solid var(--bd); color:var(--ink); border-radius:var(--radius-sm); padding:9px 11px; font-size:12.5px; outline:none; }
+.is-ask input:focus{ border-color:var(--acc); }
+.is-ask .send{ width:36px; background:var(--acc); color:var(--acc-ink); border:0; border-radius:var(--radius-sm); cursor:pointer; }
+.is-cop-foot{ color:var(--mut); font-size:10.5px; line-height:1.5; margin-top:auto; }
+/* slide-in drawer that carries the rail (DESIGN_HANDOFF §2/§4: ".is-rail —
+   slide-in drawer + floating .is-cop-fab"). The launcher toggles .open. */
+.is-rail-drawer{ position:fixed; top:0; right:-340px; width:320px; height:100vh; background:var(--pan2); border-left:1px solid var(--bd); z-index:45; transition:right .22s ease; overflow:auto; }
+.is-rail-drawer.open{ right:0; }
+/* floating AI Analyst launcher (when the rail is collapsed) */
+.is-cop-fab{ position:fixed; right:22px; bottom:22px; display:inline-flex; align-items:center; gap:8px; background:var(--pan); border:1px solid var(--bd2); box-shadow:var(--shadow); border-radius:22px; padding:9px 14px; cursor:pointer; z-index:40; color:var(--ink); }
+.is-cop-fab .n{ font-weight:600; font-size:12.5px; }
+.is-cop-fab .adv{ font-size:9px; color:var(--acc); text-transform:uppercase; letter-spacing:.05em; }
+
+/* ---- 18. TOAST / PROGRESS ---------------------------------------------- */
+.is-toast{ position:fixed; left:20px; bottom:20px; background:var(--pan); border:1px solid var(--bd2); box-shadow:var(--shadow); border-radius:var(--radius-sm); padding:12px 14px; min-width:220px; z-index:50; }
+.is-toast .name{ font-family:var(--mono); font-size:12px; font-weight:600; }
+.is-progress{ height:4px; background:var(--pan2); border-radius:3px; overflow:hidden; margin-top:8px; }
+.is-progress .bar{ height:100%; background:var(--acc); }
+
+/* ---- 19. LOGIN --------------------------------------------------------- */
+.is-auth{ display:grid; grid-template-columns:1.05fr 1fr; height:100vh; background:var(--bg); color:var(--ink); }
+.is-auth__brand{ padding:44px 40px; background:var(--pan2); border-right:1px solid var(--bd); display:flex; flex-direction:column; gap:22px; }
+.is-auth__brand .tag{ font-size:26px; font-weight:600; line-height:1.25; letter-spacing:-.02em; }
+.is-auth__brand .pts{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:11px; }
+.is-auth__brand .pts li{ color:var(--mut); padding-left:20px; position:relative; }
+.is-auth__brand .pts li:before{ content:"✓"; position:absolute; left:0; color:var(--acc); font-weight:700; }
+.is-auth__honest{ margin-top:auto; font-size:11.5px; color:var(--mut); border:1px dashed var(--bd); border-radius:var(--radius-sm); padding:11px 13px; line-height:1.5; }
+.is-auth__form{ display:flex; flex-direction:column; justify-content:center; padding:44px; }
+.is-auth__card{ width:100%; max-width:360px; margin:0 auto; display:flex; flex-direction:column; gap:13px; }
+.is-tabs{ display:flex; background:var(--pan2); border:1px solid var(--bd); border-radius:var(--radius-sm); padding:3px; gap:3px; }
+.is-tabs button{ flex:1; padding:8px; border:0; background:transparent; color:var(--mut); border-radius:var(--radius-xs); cursor:pointer; font-weight:600; font-size:12.5px; }
+.is-tabs button.on{ background:var(--pan); color:var(--ink); }
+
+/* ---- 20. RESPONSIVE ---------------------------------------------------- */
+@media(max-width:1080px){ .is-app.has-rail{ grid-template-columns:220px 1fr; } .is-rail{ display:none; } .is-md{ grid-template-columns:1fr; } }
+@media(max-width:820px){ .is-app{ grid-template-columns:1fr; } .is-side{ display:none; } .is-auth{ grid-template-columns:1fr; } .is-auth__brand{ display:none; } .is-kpis,.is-grid-2,.is-grid-3{ grid-template-columns:1fr 1fr; } }

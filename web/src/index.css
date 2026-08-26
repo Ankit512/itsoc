@@ -3,100 +3,78 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   Design tokens — the SINGLE SOURCE OF TRUTH for the itsoc. design system
-   (ITSOC_REDESIGN_SPEC.md §2, "Grafana × Vercel"). Defined once, inherited
-   by every page through the shell. Flat colors only — no gradients.
+   Tailwind/shadcn plumbing ONLY. The AUTHORITATIVE design tokens live in
+   src/styles/itsoc.css (DESIGN_HANDOFF golden rule) — it owns --bg/--pan/
+   --pan2/--bd/--ink/--mut/--acc/--crit/--high/--med/--low for both themes,
+   and every is-* component reads them. This file must NOT redefine those
+   names (no competing/dead token block).
 
-   Two layers, one definition per color per theme:
+   What stays here: the shadcn-style hsl TRIPLETS (--background, --card,
+   --primary, --border, …) that Tailwind utilities compile to `hsl(var(--x))`.
+   Not-yet-rebuilt page interiors still use those utilities, so their VALUES
+   are kept in lock-step with the itsoc.css palette (both themes) — the two
+   render identically until each page is migrated to is-* classes. Each block
+   answers to BOTH the `dark` class (tailwind darkMode:"class") and the
+   `data-theme` attribute; the theme store stamps the two in sync.
 
-   1. shadcn-style hsl TRIPLETS (--background, --card, …) hold the raw values
-      and feed tailwind (`hsl(var(--x))`) — the plumbing components already
-      import. Each block answers to BOTH the `dark` class (tailwind
-      darkMode:"class") and the `data-theme` attribute; the theme store and
-      the pre-paint script stamp the two in sync, and `[data-theme="light"]`
-      overrides per §2.
-   2. The §2 REDESIGN TOKENS (--bg/--pan/--pan2/--bd/--ink/--mut/--acc) are
-      lazy aliases of those triplets: custom properties substitute at the
-      element that USES them, so a single alias block tracks both themes with
-      zero duplicated values. New/reskinned components should consume THESE.
-      This is the ONLY definition of these names — no competing literal block.
-
-   Palette VALUES track the authoritative visual reference
-   docs/design/reference/design_itsoc_overview.html (both themes).
-   ONE accent (§2): violet #6d5cf0 (light) / #7c6cff (dark) — carried by
-   --primary/--ring/--acc; --accent(-foreground) are its tint/shade for
-   active-nav fill and accessible text on the tint.
-
-   The severity status palette stays as raw values (charts read them via
+   Severity stays as raw --sev-* values (charts read them via
    style="fill:var(--sev-*)"; CSS var() is invalid in SVG presentation
-   attributes, so never fill="var()"). Color is never the only signal:
-   severity names and counts always render as text beside it.
+   attributes, so never fill="var()"), matched to itsoc.css --crit/high/med/low.
+   Color is never the only signal: severity names/counts render as text too.
    ========================================================================== */
 @layer base {
   :root,
   [data-theme="light"] {
-    /* Reference palette (docs/design/reference/design_itsoc_overview.html), light. */
-    --background: 220 23.1% 97.5%;    /* bg  #f7f8fa */
-    --foreground: 222 23.8% 8.2%;     /* ink #10131a */
-    --card: 0 0% 100%;                /* panel  #ffffff */
-    --card-foreground: 222 23.8% 8.2%;
-    --muted: 240 33.3% 98.8%;         /* panel2 #fbfbfd */
-    --muted-foreground: 220.6 13.2% 46.1%; /* mut #667085 */
-    --primary: 246.9 83.1% 65.1%;     /* acc #6d5cf0 — THE accent (light), spec §2 */
+    /* shadcn hsl plumbing that Tailwind utilities need — VALUES track the
+       authoritative itsoc-design-system.css palette (light) so Tailwind-styled
+       page interiors match the is-* shell exactly. The §2 --bg/--pan/--acc/
+       --crit tokens themselves are owned by itsoc.css (single source). */
+    --background: 220 20% 97.1%;      /* bg  #f6f7f9 */
+    --foreground: 225 18.2% 8.6%;     /* ink #12141a */
+    --card: 0 0% 100%;                /* pan  #ffffff */
+    --card-foreground: 225 18.2% 8.6%;
+    --muted: 240 33.3% 98.8%;         /* pan2 #fbfbfd */
+    --muted-foreground: 220 11.3% 46.9%;  /* mut #6a7385 */
+    --primary: 246.9 83.1% 65.1%;     /* acc #6d5cf0 */
     --primary-foreground: 0 0% 100%;
     --accent: 247 84% 96%;            /* accent tint for active nav */
     --accent-foreground: 247 75% 45%; /* accent shade, readable on the tint */
-    --border: 225 19% 91.8%;          /* bd  #e6e8ee */
-    --input: 225 19% 91.8%;
+    --border: 225 20% 92.2%;          /* bd  #e7e9ef */
+    --input: 225 20% 92.2%;
     --ring: 246.9 83.1% 65.1%;
 
-    --sev-critical: #e5484d;
-    --sev-high: #e08600;
-    --sev-medium: #b08900;
-    --sev-low: #12a382;
+    /* charts read severity via style="fill:var(--sev-*)"; match itsoc.css. */
+    --sev-critical: #df4650;
+    --sev-high: #d98600;
+    --sev-medium: #b08a00;
+    --sev-low: #12a37e;
 
     --shadow: 0 1px 2px rgba(26, 32, 51, 0.06), 0 4px 14px rgba(26, 32, 51, 0.06);
   }
 
   .dark,
   [data-theme="dark"] {
-    /* Reference palette (docs/design/reference/design_itsoc_overview.html), dark. */
+    /* Dark plumbing — VALUES track itsoc-design-system.css (dark). */
     --background: 222.9 24.1% 5.7%;   /* bg  #0b0d12 */
-    --foreground: 220 23.1% 92.4%;    /* ink #e7eaf0 */
-    --card: 222 21.7% 9%;             /* panel  #12151c */
-    --card-foreground: 220 23.1% 92.4%;
-    --muted: 220 24.3% 7.3%;          /* panel2 #0e1117 */
-    --muted-foreground: 220 12.6% 57.8%;   /* mut #868fa1 */
-    --primary: 246.5 100% 71.2%;      /* acc #7c6cff — THE accent (dark), spec §2 */
+    --foreground: 222 26.3% 92.5%;    /* ink #e7eaf1 */
+    --card: 226.7 18.4% 9.6%;         /* pan  #14161d */
+    --card-foreground: 222 26.3% 92.5%;
+    --muted: 220 23.1% 7.6%;          /* pan2 #0f1218 */
+    --muted-foreground: 219.2 11.6% 56.1%; /* mut #828b9c */
+    --primary: 246.5 100% 71.2%;      /* acc #7c6cff */
     --primary-foreground: 0 0% 100%;
     --accent: 247 28% 28%;            /* accent tint for active nav */
     --accent-foreground: 247 91% 83%; /* accent shade, readable on the tint */
-    --border: 222.4 21.5% 15.5%;      /* bd  #1f2430 */
-    --input: 222.4 21.5% 15.5%;
+    --border: 222.9 18.9% 14.5%;      /* bd  #1e222c */
+    --input: 222.9 18.9% 14.5%;
     --ring: 246.5 100% 71.2%;
 
-    --sev-critical: #f4525f;
-    --sev-high: #f5a524;
-    --sev-medium: #d9b310;
-    --sev-low: #2bd4a4;
+    --sev-critical: #f0616d;
+    --sev-high: #f2a33c;
+    --sev-medium: #d6b02e;
+    --sev-low: #33c895;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.3);
-  }
-
-  /* §2 redesign tokens — the names every component imports going forward.
-     Aliases substitute where USED, so this one block serves both themes. */
-  :root {
-    --bg: hsl(var(--background));     /* app background */
-    --pan: hsl(var(--card));          /* panel / card surface */
-    --pan2: hsl(var(--muted));        /* nested / secondary surface */
-    --bd: hsl(var(--border));         /* hairline borders */
-    --ink: hsl(var(--foreground));    /* primary text */
-    --mut: hsl(var(--muted-foreground)); /* secondary text */
-    --acc: hsl(var(--primary));       /* THE one accent violet */
-    --crit: var(--sev-critical);      /* critical severity */
-    --high: var(--sev-high);          /* high severity */
-    --med: var(--sev-medium);         /* medium severity */
-    --low: var(--sev-low);            /* low severity */
   }
 
   * { @apply border-border; }
