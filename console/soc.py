@@ -731,3 +731,148 @@ def metrics(state, run_labels=()):
             1 for u in derive_users(state) if u["atRisk"]),
         "dataSources": len({label for label in run_labels if label}),
     }
+
+
+# ---------------------------------------------------------------------------
+# AI copilot Showcase (design-v2 P3 / handoff §4)
+#
+# build_view is the copilot's SHOWCASE selector: given an analyst question, it
+# chooses WHAT real data to surface (which view + which entity) and returns a
+# structured directive the rail renders as is-* cards. It is a DISPLAY
+# aggregation like everything else in this module — it NEVER creates or changes
+# a verdict/severity. Every value in a view is real backend data: severities are
+# the rule-owned levels already on the findings/incidents, titles are the
+# detector/rule text (no model naming), and citedFindings is a real count. The
+# selection is deterministic keyword intent — no LLM decides what is surfaced.
+# Prose still comes from ask_analyst/askStream (advisory), guarded separately.
+# ---------------------------------------------------------------------------
+
+_SEV_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+
+
+def _sev_rank(sev):
+    return _SEV_ORDER.get(str(sev or "").upper(), 9)
+
+
+def _finding_sev(f):
+    return (f.get("sev") or f.get("ruleSev") or "").upper()
+
+
+def _view_sev_filter(q):
+    for s in ("critical", "high", "medium", "low"):
+        if s in q:
+            return s.upper()
+    return None
+
+
+def _view_entities(findings):
+    """Real entity tokens observed in the run: finding hosts + line hits (IPs)."""
+    ents = set()
+    for f in findings:
+        if f.get("host"):
+            ents.add(f["host"])
+        for ln in f.get("lines") or []:
+            if ln.get("hit"):
+                ents.add(ln["hit"])
+    return ents
+
+
+def _match_entity(q, findings):
+    ql = (q or "").lower()
+    matches = [e for e in _view_entities(findings) if e and e.lower() in ql]
+    return max(matches, key=len) if matches else None
+
+
+def _finding_item(f):
+    return {
+        "id": f.get("id"),
+        "severity": _finding_sev(f),
+        "rule": f.get("type", ""),
+        "host": f.get("host", ""),
+        "title": f.get("title", ""),
+        "deeplink": f"/findings?sel={f.get('id')}",
+    }
+
+
+def _findings_view(findings, sevf, limit=5):
+    fs = [f for f in findings if not sevf or _finding_sev(f) == sevf]
+    fs = sorted(fs, key=lambda f: _sev_rank(_finding_sev(f)))
+    title = f"Top {sevf.title() + ' ' if sevf else ''}findings"
+    return {
+        "type": "findings", "title": title, "filter": sevf or "all",
+        "items": [_finding_item(f) for f in fs[:limit]],
+        "deeplink": "/findings", "citedFindings": len(fs),
+    }
+
+
+def _incidents_view(state, sevf, limit=8):
+    incs = list_incidents(state)
+    if sevf:
+        incs = [i for i in incs if str(i.get("severity", "")).upper() == sevf]
+    incs = sorted(incs, key=lambda i: (_sev_rank(i.get("severity")), i.get("createdAt") or ""))
+    items = [{
+        "id": i.get("id"),
+        "severity": str(i.get("severity", "")).upper(),
+        "entity": i.get("entity", ""),
+        "findingCount": i.get("findingCount", 0),
+        "deeplink": f"/incidents?sel={i.get('id')}",
+    } for i in incs[:limit]]
+    title = f"{sevf.title() + ' ' if sevf else 'Top '}incidents"
+    return {
+        "type": "incidents", "title": title, "filter": sevf or "all",
+        "items": items, "deeplink": "/incidents",
+        "citedFindings": sum(int(i.get("findingCount", 0)) for i in incs),
+    }
+
+
+def _entity_view(entity, findings, limit=6):
+    ef = [f for f in findings
+          if f.get("host") == entity
+          or any(ln.get("hit") == entity for ln in (f.get("lines") or []))]
+    ef = sorted(ef, key=lambda f: _sev_rank(_finding_sev(f)))
+    return {
+        "type": "entity", "title": f"{entity} — {len(ef)} finding(s)", "filter": entity,
+        "items": [_finding_item(f) for f in ef[:limit]],
+        "deeplink": f"/findings?q={entity}", "citedFindings": len(ef),
+    }
+
+
+def _dashboard_view(state):
+    findings = state.get("findings") or []
+    sev = {b: sum(1 for f in findings if _finding_sev(f) == b)
+           for b in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
+    m = metrics(state)
+    kpis = [
+        {"label": "Findings", "value": len(findings)},
+        {"label": "Critical", "value": sev["CRITICAL"]},
+        {"label": "High", "value": sev["HIGH"]},
+        {"label": "Open incidents", "value": m["openIncidents"]},
+        {"label": "Assets at risk", "value": m["assetsAtRisk"], "note": "per-run"},
+        {"label": "Users at risk", "value": m["usersAtRisk"], "note": "per-run"},
+    ]
+    return {
+        "type": "dashboard", "title": "Current run — dashboard summary", "filter": "current",
+        "kpis": kpis, "deeplink": "/", "citedFindings": len(findings),
+    }
+
+
+def build_view(question, state):
+    """Deterministic showcase selector. Returns a view directive dict, or None
+    when the question is not a showcase request (prose-only). Never a verdict."""
+    if not state or state.get("idle"):
+        return None
+    q = (question or "").lower().strip()
+    if not q:
+        return None
+    findings = state.get("findings") or []
+
+    entity = _match_entity(q, findings)
+    if entity:
+        return _entity_view(entity, findings)
+    if any(w in q for w in ("dashboard", "summar", "overview", "posture", "big picture")):
+        return _dashboard_view(state)
+    if "incident" in q:
+        return _incidents_view(state, _view_sev_filter(q))
+    if any(w in q for w in ("finding", "alert", "detection", "top ")):
+        return _findings_view(findings, _view_sev_filter(q))
+    return None

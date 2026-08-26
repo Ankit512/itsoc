@@ -5,19 +5,109 @@ import {
   ChevronRight, Activity
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { api, Finding, RunsSummaryEntry } from "@/lib/api";
+import { api, Finding, RunsSummaryEntry, AskView } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { sevVar } from "@/lib/severity";
 
 interface Msg {
   who: "q" | "a" | "err";
   text: string;
   source?: string;
+  view?: AskView | null;
+}
+
+/** Severity tag (is-tag) coloured by the rule-owned level. Never recomputes a
+ *  severity — it renders the level the backend already put on the row. */
+function SevTag({ sev }: { sev?: string }) {
+  const s = (sev || "").toUpperCase();
+  if (!s) return <span className="is-tag is-tag--info">n/a</span>;
+  return (
+    <span className="is-tag" style={{ background: `color-mix(in srgb, ${sevVar(s)} 17%, transparent)`, color: sevVar(s) }}>
+      {s}
+    </span>
+  );
+}
+
+/** Showcase result card (design-v2 §4): renders the backend's {view} directive
+ *  as REAL is-* cards inside the rail. The AI chose WHAT to surface; every row
+ *  is real data and carries an advisory chip + a "cited: N findings" line.
+ *  Empty items → honest "nothing matches", never invented rows. Each row/card
+ *  deep-links to the full page. */
+function ShowcaseCard({ view }: { view: AskView }) {
+  const items = view.items ?? [];
+  const kpis = view.kpis ?? [];
+  const empty = view.type === "dashboard" ? kpis.length === 0 : items.length === 0;
+  return (
+    <div className="is-panel" data-testid="copilot-showcase-card" style={{ padding: "11px 12px", marginBottom: 6 }}>
+      <div className="is-panel__h" style={{ marginBottom: 8 }}>
+        <h3 style={{ fontSize: 12 }}>{view.title}</h3>
+        <span className="is-chip is-chip--adv">advisory</span>
+      </div>
+
+      {empty ? (
+        <p className="is-mut" style={{ fontSize: 11.5, margin: 0 }}>Nothing matches — no real data to surface for this request.</p>
+      ) : view.type === "dashboard" ? (
+        <div className="is-kpis" style={{ gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+          {kpis.map((k) => (
+            <div key={k.label} className="is-kpi" style={{ padding: "8px 10px" }}>
+              <div className="lbl" style={{ fontSize: 10 }}>{k.label}</div>
+              <div className="val is-tnum" style={{ fontSize: 18 }}>{k.value ?? "n/a"}</div>
+              {k.note && <div className="delta na">{k.note}</div>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="is-table">
+            <tbody>
+              {items.map((it, i) => (
+                <tr key={it.id ?? i}>
+                  <td style={{ padding: "7px 8px" }}><SevTag sev={it.severity} /></td>
+                  <td style={{ padding: "7px 8px" }}>
+                    {view.type === "incidents" ? (
+                      <>
+                        <span className="is-mono" style={{ color: "var(--ink)" }}>{it.entity || "—"}</span>
+                        <span className="is-mut" style={{ marginLeft: 6 }}>{it.findingCount} finding(s)</span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ color: "var(--ink)" }}>{it.title || it.rule || it.id}</span>
+                        {it.host && <span className="is-mono is-mut" style={{ marginLeft: 6, fontSize: 10.5 }}>{it.host}</span>}
+                      </>
+                    )}
+                  </td>
+                  <td style={{ padding: "7px 8px", textAlign: "right" }}>
+                    {it.deeplink && (
+                      <Link to={it.deeplink} style={{ color: "var(--acc)", fontSize: 11 }} aria-label="Open in full view">view →</Link>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="is-mono is-mut" style={{ fontSize: 10.5, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>cited: {view.citedFindings ?? 0} finding(s)</span>
+        {view.deeplink && <Link to={view.deeplink} style={{ color: "var(--acc)" }}>open {view.type} →</Link>}
+      </div>
+    </div>
+  );
 }
 
 const DEFAULT_EXAMPLES = [
   "Show me top 5 critical alerts",
   "What are the recent attack patterns?",
   "Summarize today's threats",
+];
+
+/** Showcase triggers (design-v2 §4): each pulls a REAL is-* result card into
+ *  the rail (incidents / dashboard / findings). */
+const SHOWCASE_CHIPS = [
+  "Show me the critical incidents",
+  "Summarize the dashboard",
+  "Top 5 findings",
 ];
 
 const CONTEXTUAL_PROMPTS: Record<string, string[]> = {
@@ -145,6 +235,20 @@ export function CopilotRail({
     setElapsed(0);
     setGotFirstToken(false);
     setStreaming(true);
+
+    // Showcase (design-v2 §4): fetch the real {view} directive in parallel —
+    // deterministic + model-free, so the card appears even if the LLM is slow
+    // or offline. Attaching it to the answer message renders an is-* card.
+    // A null view (not a showcase question) simply leaves prose-only.
+    api.askView(question).then((view) => {
+      if (!view) return;
+      setLog((l) => {
+        const next = [...l];
+        const cur = next[answerIndex];
+        if (cur && cur.who === "a") next[answerIndex] = { ...cur, view };
+        return next;
+      });
+    }).catch(() => { /* honest: no card rather than an invented one */ });
 
     let first = false;
     const timeout = setTimeout(() => {
@@ -319,25 +423,43 @@ export function CopilotRail({
             {log.map((m, i) => {
               const isStreamingAnswer = streaming && m.who === "a" && i === log.length - 1;
               return (
-                <div
-                  key={i}
-                  className={cn(
-                    "max-w-[95%] whitespace-pre-wrap rounded-lg px-2.5 py-2",
-                    m.who === "q" && "self-end bg-accent text-accent-foreground font-medium",
-                    m.who === "a" && "bg-background text-foreground",
-                    m.who === "err" && "border border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
+                <div key={i} className="flex flex-col gap-1.5">
+                  {m.who === "a" && m.view && <ShowcaseCard view={m.view} />}
+                  {(m.text || m.who !== "a" || isStreamingAnswer) && (
+                    <div
+                      className={cn(
+                        "max-w-[95%] whitespace-pre-wrap rounded-lg px-2.5 py-2",
+                        m.who === "q" && "self-end bg-accent text-accent-foreground font-medium",
+                        m.who === "a" && "bg-background text-foreground",
+                        m.who === "err" && "border border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
+                      )}
+                    >
+                      {m.text}
+                      {isStreamingAnswer && !m.text && (
+                        <span className="text-muted-foreground">
+                          {gotFirstToken ? "" : `waiting for the model… ${elapsed}s`}
+                        </span>
+                      )}
+                      {isStreamingAnswer && m.text && <span className="animate-pulse">▍</span>}
+                    </div>
                   )}
-                >
-                  {m.text}
-                  {isStreamingAnswer && !m.text && (
-                    <span className="text-muted-foreground">
-                      {gotFirstToken ? "" : `waiting for the model… ${elapsed}s`}
-                    </span>
-                  )}
-                  {isStreamingAnswer && m.text && <span className="animate-pulse">▍</span>}
                 </div>
               );
             })}
+          </div>
+
+          {/* Showcase chips — pull a real is-* result card into the rail */}
+          <div className="flex flex-wrap gap-1.5 pt-1" data-testid="copilot-showcase-chips">
+            {SHOWCASE_CHIPS.map((p) => (
+              <button
+                key={p}
+                onClick={() => ask(p)}
+                disabled={streaming}
+                className="rounded-full border border-primary/40 bg-background px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-accent disabled:opacity-50"
+              >
+                {p}
+              </button>
+            ))}
           </div>
 
           {/* Contextual Chips */}

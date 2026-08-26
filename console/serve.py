@@ -1883,6 +1883,12 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         if STATE.get("idle"):
             return self._json({"error": "no run yet — analyze a log first, "
                                         "then ask about its findings"}, 409)
+        # Showcase directive (design-v2 §4): a deterministic view over REAL
+        # backend-selected data — the AI chooses WHAT to surface, never a
+        # verdict. No model call, so it is fast and works even when the LLM is
+        # offline. `view` is null when the question is not a showcase request.
+        if payload.get("view"):
+            return self._json({"view": soc.build_view(question, STATE)})
         if payload.get("stream"):
             return self._ask_stream(question)
         try:
@@ -1891,7 +1897,7 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             # An unreachable model is an honest error, never a made-up answer.
             return self._json({"error": f"the analyst model is not reachable: {e}"}, 502)
         print(f"  analyst asked: {question[:60]!r}", flush=True)
-        return self._json({"answer": answer})
+        return self._json({"answer": answer, "view": soc.build_view(question, STATE)})
 
     def _api_stream(self):
         """GET /api/stream?source=… — live SSE tail (Phase D contract in

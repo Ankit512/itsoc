@@ -19,6 +19,32 @@ const fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
 
 export interface Delta { pct: number; dir: "up" | "down" }
 
+/** AI copilot Showcase directive (design-v2 §4). The backend picks WHAT real
+ *  data to surface; the rail renders it as is-* cards. Every value is real
+ *  backend data (rule-owned severities, detector/rule titles) — never a
+ *  verdict. `citedFindings` is a real count; empty items → honest "nothing
+ *  matches". */
+export interface ViewItem {
+  id?: string;
+  severity?: string;
+  entity?: string;
+  rule?: string;
+  host?: string;
+  title?: string;
+  findingCount?: number;
+  deeplink?: string;
+}
+export interface ViewKpi { label: string; value: number | null; note?: string }
+export interface AskView {
+  type: "incidents" | "findings" | "dashboard" | "entity";
+  title: string;
+  filter?: string;
+  items?: ViewItem[];
+  kpis?: ViewKpi[];
+  deeplink?: string;
+  citedFindings?: number;
+}
+
 export interface OverviewData {
   generatedAt: string;
   timeWindowLabel: string;
@@ -523,13 +549,33 @@ export const api = {
     return { ok: false, error: body.error ?? `HTTP ${res.status}` };
   },
 
-  ask: async (question: string): Promise<{ answer?: string; error?: string }> => {
+  ask: async (question: string): Promise<{ answer?: string; view?: AskView | null; error?: string }> => {
     const res = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
     });
     return res.json();
+  },
+
+  /** Showcase directive (design-v2 §4): ask the backend which REAL view to
+   *  surface for this question. Deterministic + model-free, so it is fast and
+   *  works even when the LLM is offline. Returns null when the question is not
+   *  a showcase request, or on any non-OK response (the rail then shows prose
+   *  only — never an invented card). */
+  askView: async (question: string): Promise<AskView | null> => {
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, view: true }),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json().catch(() => ({}))) as { view?: AskView | null };
+      return body.view ?? null;
+    } catch {
+      return null;
+    }
   },
 
   /** Stream the analyst reply token-by-token over SSE. `onDelta` fires per

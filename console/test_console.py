@@ -1877,8 +1877,9 @@ def check_soc_overview():
                 la.chat_completion = fake_chat
                 before = json.dumps(serve.STATE, sort_keys=True, default=str)
                 status, out = post("/api/ask", {"question": "what happened?"})
-                check("/api/ask answers via the LLM path",
-                      status == 200 and out == {"answer": "advisory answer"}, str(out))
+                check("/api/ask answers via the LLM path (prose + honest null view)",
+                      status == 200 and out.get("answer") == "advisory answer"
+                      and out.get("view") is None, str(out))
                 check("prompt carries the findings summary, not the raw log",
                       "auth_bruteforce_success" in captured[-1]["user"]
                       and "what happened?" in captured[-1]["user"]
@@ -4328,6 +4329,84 @@ def check_auth():
     return 0 if all(results) else 1
 
 
+def check_ask_view():
+    """Design-v2 P3 — AI copilot Showcase: the /api/ask {view} directive.
+    soc.build_view chooses WHAT real data to surface; it never invents rows or
+    changes a verdict. Every item's severity is the rule-owned level already on
+    the finding/incident; citedFindings is a real count; an intent with no data
+    is an honest empty card; a non-showcase question is prose-only (None)."""
+    print("\nAI copilot Showcase ({view} directive — real data, never a verdict):")
+    import inspect
+    sys.path.insert(0, str(HERE))
+    import soc
+    import serve
+    results = []
+
+    def check(label, cond, detail=""):
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + (f"  ({detail})" if detail and not cond else ""))
+        results.append(bool(cond))
+
+    S = LIVE_STATE  # 4 findings: d0 CRIT/server-01/203.0.113.44, d1 HIGH, d2 CRIT/server-03, l0 LOW
+
+    fv = soc.build_view("Top 5 findings", S)
+    check("findings intent -> type 'findings'", fv and fv["type"] == "findings", str(fv and fv["type"]))
+    check("findings sorted rule-severity first (CRITICAL leads)",
+          fv["items"][0]["severity"] == "CRITICAL", str(fv["items"][0]["severity"]))
+    check("findings cite the real count (4)", fv["citedFindings"] == 4, str(fv["citedFindings"]))
+    check("every findings item severity is a rule-owned level from the run",
+          all(it["severity"] in {"CRITICAL", "HIGH", "MEDIUM", "LOW"} for it in fv["items"]))
+    check("findings items deep-link to the full page",
+          all(it["deeplink"].startswith("/findings?sel=") for it in fv["items"]))
+    check("no invented rows: items count <= real findings", len(fv["items"]) <= 4)
+
+    cv = soc.build_view("show me critical alerts", S)
+    check("severity-filtered findings keep only CRITICAL",
+          cv and all(it["severity"] == "CRITICAL" for it in cv["items"]) and cv["citedFindings"] == 2,
+          str(cv and cv["citedFindings"]))
+
+    ev = soc.build_view("medium findings", S)  # no MEDIUM finding exists in the run
+    check("honest empty: matched intent, zero real rows -> empty items (not fabricated)",
+          ev is not None and ev["items"] == [] and ev["citedFindings"] == 0)
+
+    dv = soc.build_view("summarize the dashboard", S)
+    kpi = {k["label"]: k["value"] for k in (dv["kpis"] if dv else [])}
+    check("dashboard intent -> type 'dashboard' with real KPIs",
+          dv and dv["type"] == "dashboard" and kpi.get("Findings") == 4 and kpi.get("Critical") == 2 and kpi.get("High") == 1,
+          str(kpi))
+
+    iv = soc.build_view("show me the incidents", S)
+    check("incidents intent -> type 'incidents' from derived clusters",
+          iv and iv["type"] == "incidents" and len(iv["items"]) >= 1
+          and all(it["severity"] == it["severity"].upper() for it in iv["items"]))
+    check("incident items deep-link to the incident",
+          iv and all(it["deeplink"].startswith("/incidents?sel=") for it in iv["items"]))
+
+    nv = soc.build_view("what is on server-01", S)
+    check("entity intent (host) -> only that entity's real findings",
+          nv and nv["type"] == "entity" and nv["filter"] == "server-01"
+          and nv["citedFindings"] >= 1
+          and all(it["deeplink"].startswith("/findings?sel=") for it in nv["items"]))
+    ipv = soc.build_view("tell me about 203.0.113.44", S)
+    check("entity intent (IP from a line hit) is matched", ipv and ipv["type"] == "entity")
+
+    check("a non-showcase question is prose-only (None)", soc.build_view("hello, how are you?", S) is None)
+    check("idle backend surfaces no view (honest — no run yet)",
+          soc.build_view("top findings", {"idle": True}) is None)
+    check("empty question -> None", soc.build_view("", S) is None)
+
+    # Wiring + honesty guardrails at the endpoint.
+    src = inspect.getsource(serve.ConsoleHandler._ask)
+    check("/api/ask serves the {view} directive via soc.build_view",
+          'payload.get("view")' in src and "soc.build_view" in src)
+    check("view mode is model-free (no ask_analyst call in the view branch)",
+          src.index('soc.build_view(question, STATE)') < src.index("ask_analyst("))
+    post_src = inspect.getsource(serve.ConsoleHandler.do_POST)
+    check("/api/ask stays behind the fail-closed auth gate",
+          "_api_authorized" in post_src)
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -4388,16 +4467,19 @@ def main():
     structured_ = check_structured_output()
     phase4_ = check_redesign_phase4()
     auth_ = check_auth()
+    askview_ = check_ask_view()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
-            or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_):
+            or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
+            or askview_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
-          "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth checks green")
+          "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
+          "+ ask-view checks green")
     return 0
 
 
