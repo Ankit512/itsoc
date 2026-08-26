@@ -317,47 +317,6 @@ function Header({ onOpenUpload }: { onOpenUpload: () => void }) {
   );
 }
 
-function RunFacts() {
-  const { data: state } = useQuery({ queryKey: ["consoleState"], queryFn: api.consoleState });
-  const { data: ov } = useQuery({ queryKey: ["overview"], queryFn: api.overview });
-
-  if (!state || state.idle || !state.findings) return null;
-  const sha = state.manifest?.detector_sha256;
-  const model = ov && !("error" in ov) ? ov.model : null;
-  const meta = [
-    state.runWindow,
-    state.manifest?.ruleset && `ruleset ${state.manifest.ruleset}`,
-    model,
-    state.generatedAt && `generated ${state.generatedAt}`,
-  ].filter(Boolean);
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-[18px] gap-y-1.5 text-[11.5px] text-muted-foreground">
-      {state.sourceLabel && (
-        <span
-          title={state.sourceLabel}
-          className="cursor-help border-b border-dotted font-mono text-[12.5px] font-semibold text-foreground"
-        >
-          {state.sourceLabel.split("/").pop()}
-        </span>
-      )}
-      {state.runHosts && <span>host {state.runHosts}</span>}
-      {state.runParsed && <span className="tabular-nums">{state.runParsed}</span>}
-      {meta.length > 0 && (
-        <span className="font-mono text-[10.5px]">
-          {meta.map(String).join(" · ")}
-          {sha && <span title={`detector_sha256 ${sha}`}> · detector {sha.slice(0, 8)}…{sha.slice(-6)}</span>}
-        </span>
-      )}
-      {state.llmNote && (
-        <span title={state.llmNote} className="cursor-help border-b border-dotted">
-          rules-only run — explanations skipped (model offline)
-        </span>
-      )}
-    </div>
-  );
-}
-
 export function AppShell() {
   const { pathname } = useLocation();
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -373,7 +332,6 @@ export function AppShell() {
       <main className="is-main">
         <Header onOpenUpload={() => setUploadOpen(true)} />
         <div className="is-content">
-          {pathname === "/" && <RunFacts />}
           <Outlet />
         </div>
       </main>

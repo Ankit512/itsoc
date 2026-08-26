@@ -106,13 +106,17 @@ describe("Alerts live stream (/api/stream SSE)", () => {
     });
     act(() => es.emit("finding", streamed));
 
-    expect(await screen.findByText("Live burst from 198.51.100.9")).toBeInTheDocument();
-    expect(screen.getByText(/2 of 2 finding\(s\)/)).toBeInTheDocument();
+    // The streamed finding surfaces as a new row — the count grows from 1 to 2.
+    // (Titles show in the detail pane, not the list; §3 list is Sev/Time/Rule/
+    // Host/ATT&CK.) Its rule name is visible in the Rule column.
+    expect(await screen.findByText(/2 of 2 finding\(s\)/)).toBeInTheDocument();
+    expect(screen.getAllByText("auth_bruteforce").length).toBeGreaterThanOrEqual(1);
 
-    // The burst grew server-side: same rule + same summary re-emitted.
+    // The burst grew server-side: same rule + same summary re-emitted → replaced,
+    // never duplicated — the count stays at 2.
     act(() => es.emit("finding", { ...streamed, id: "stream-1", occurrences: 11 }));
-    expect(screen.getAllByText("Live burst from 198.51.100.9").length).toBe(1);
     expect(screen.getByText(/2 of 2 finding\(s\)/)).toBeInTheDocument();
+    expect(screen.getAllByTestId("alert-row").length).toBe(2);
   });
 
   it("renders event: gap as a visible dropped-events marker — never hidden", async () => {

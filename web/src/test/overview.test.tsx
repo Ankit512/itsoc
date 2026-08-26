@@ -16,13 +16,13 @@ describe("Overview page (v6)", () => {
   it("renders KPIs, charts, tactics and latest alerts from /api/overview", async () => {
     renderApp(<App />);
 
-    expect(await screen.findByText("Total")).toBeInTheDocument();
-    // The severity mix reads from the five KPI tiles; the reference has no donut.
+    // "Total" appears on the KPI tile AND the donut center label — both valid.
+    expect((await screen.findAllByText("Total")).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("31").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("22").length).toBeGreaterThanOrEqual(1);
 
-    // Reference §2: "Findings over time" + "Top ATT&CK tactics" panels, no donut.
-    expect(screen.queryByTestId("chart-donut")).not.toBeInTheDocument();
+    // Handoff §3: donut + over-time + top-tactics all present (donut restored).
+    expect(screen.getByTestId("chart-donut")).toBeInTheDocument();
     expect(screen.getByTestId("chart-overtime")).toBeInTheDocument();
     expect(screen.getAllByTestId("chart-tactic").length).toBe(2);
 
@@ -50,27 +50,20 @@ describe("Overview page (v6)", () => {
 
   it("shows a real delta ONLY where a prior period exists", async () => {
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
     expect(screen.getAllByText(/vs previous/).length).toBe(1);
     expect(screen.getByText(/12% vs previous/)).toBeInTheDocument();
     // The four KPIs without a prior period say so instead of showing nothing.
     expect(screen.getAllByText("no prior run — no delta").length).toBe(4);
   });
 
-  it("wires the ops footer to /api/metrics with honest n/a states", async () => {
-    renderApp(<App />);
-    await screen.findByText("Open Incidents");
-    expect(screen.getByText("Open Incidents").nextElementSibling).toHaveTextContent("2");
-    // No acknowledge/resolve lifecycle in the fixture -> n/a, never a number.
-    expect(screen.getAllByText("n/a").length).toBe(2);
-    expect(screen.getByText("Assets at Risk").nextElementSibling).toHaveTextContent("3");
-    expect(screen.getByText("Data Sources").nextElementSibling).toHaveTextContent("4");
-    expect(screen.getByText(/derived, never invented/)).toBeInTheDocument();
-  });
+  // Ops footer removed in the design-v2 core reskin: the prototype's Overview
+  // (DESIGN_HANDOFF §3) ends at the Latest-alerts table — no MTTD/MTTR footer.
+  // The metrics still exist via /api/metrics and the History page KPIs.
 
   it("mounts the AI analyst as an advisory slide-in rail with a launcher (handoff §2/§4)", async () => {
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
     // The analyst is a slide-in .is-rail drawer launched by the floating fab;
     // it reads verdicts, never sets them, and says so in its footer verbatim.
     expect(screen.getByTestId("copilot-rail-drawer")).toBeInTheDocument();

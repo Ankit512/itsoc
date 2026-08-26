@@ -12,7 +12,7 @@ describe("upload dialog: local file or attach a link", () => {
   it("opens a dialog offering both ingest modes", async () => {
     mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS });
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     const dialog = screen.getByRole("dialog", { name: /add logs to analyze/i });
@@ -41,7 +41,7 @@ describe("upload dialog: local file or attach a link", () => {
     }));
 
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.click(screen.getByRole("button", { name: /attach a link/i }));
 
@@ -61,7 +61,7 @@ describe("upload dialog: local file or attach a link", () => {
       "/api/analyze": { __status: 400, error: "that URL points at a private, loopback, or link-local address — only public log URLs can be fetched" },
     });
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.click(screen.getByRole("button", { name: /attach a link/i }));
     await userEvent.type(screen.getByLabelText("Log file URL"), "http://localhost/x.log");

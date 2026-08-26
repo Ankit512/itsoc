@@ -27,7 +27,7 @@ describe("upload runs as a persistent background job", () => {
       "/api/progress": { status: "running", phase: "rules", done: 0, total: 0 },
     });
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
@@ -61,7 +61,7 @@ describe("upload runs as a persistent background job", () => {
       String(u).includes("/api/open") ? open() : realFetch(u, init)));
 
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
 

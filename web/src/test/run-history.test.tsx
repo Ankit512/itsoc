@@ -38,7 +38,7 @@ describe("run history + switcher", () => {
       "/api/runs-summary": SUMMARY, "/api/runs": RUNS,
     });
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
 
     await userEvent.click(screen.getByRole("button", { name: "Open run history" }));
     const panel = screen.getByRole("region", { name: "Run history" });
@@ -67,7 +67,7 @@ describe("run history + switcher", () => {
     }));
 
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
     await userEvent.click(screen.getByRole("button", { name: "Open run history" }));
     const panel = screen.getByRole("region", { name: "Run history" });
 
@@ -87,7 +87,7 @@ describe("run history + switcher", () => {
       "/api/runs": { current: "run-b", runs: [RUNS.runs[0]] },
     });
     renderApp(<App />);
-    await screen.findByText("Total");
+    await screen.findByTestId("chart-overtime");
     await userEvent.click(screen.getByRole("button", { name: "Open run history" }));
     expect(await screen.findByText(/Only one run so far/)).toBeInTheDocument();
   });

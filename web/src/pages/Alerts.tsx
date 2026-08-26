@@ -9,207 +9,184 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { api, type Finding } from "@/lib/api";
 import { useLogStream, type LogStream } from "@/lib/useLogStream";
 import { sevVar, SEV_ORDER } from "@/lib/severity";
-import { SeverityBadge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { UnrecognizedBanner } from "@/components/UnrecognizedBanner";
 import { cn } from "@/lib/utils";
+
+/** Map a rule severity ("CRITICAL"…) to the design-system short token used by
+ *  .is-tag--<sev> and .is-block.<sev>. */
+function sevShort(sev: string): "crit" | "high" | "med" | "low" {
+  const s = (sev || "").toUpperCase();
+  if (s.startsWith("CRIT")) return "crit";
+  if (s.startsWith("HIGH")) return "high";
+  if (s.startsWith("MED")) return "med";
+  return "low";
+}
+function SevTag({ sev }: { sev: string }) {
+  return <span className={`is-tag is-tag--${sevShort(sev)}`}>{(sev || "").toUpperCase()}</span>;
+}
 
 const col = createColumnHelper<Finding>();
 
 const columns = [
   col.accessor("sev", {
-    header: "Severity",
-    cell: (c) => <SeverityBadge severity={c.getValue()} />,
+    header: "Sev",
+    cell: (c) => <SevTag sev={c.getValue()} />,
     sortingFn: (a, b) =>
       SEV_ORDER.indexOf(b.original.sev as never) - SEV_ORDER.indexOf(a.original.sev as never),
   }),
   col.accessor("time", {
     header: "Time",
-    cell: (c) => <span className="font-mono text-[11.5px] text-muted-foreground">{c.getValue() || "—"}</span>,
+    cell: (c) => <span className="col-mono">{c.getValue() || "—"}</span>,
   }),
   col.accessor("type", {
     header: "Rule",
-    cell: (c) => <span className="font-mono text-[11.5px]">{c.getValue()}</span>,
+    cell: (c) => <span className="col-mono">{c.getValue()}</span>,
   }),
-  col.accessor("host", { header: "Host" }),
+  col.accessor("host", { header: "Host", cell: (c) => <span className="is-mono">{c.getValue()}</span> }),
   col.accessor((f) => (f.mitre ?? []).map((m) => m.id).join(" "), {
     id: "mitre",
     header: "ATT&CK",
     cell: (c) =>
       c.row.original.mitre?.length
         ? c.row.original.mitre.map((m) => (
-            <span key={m.id} className="mr-1 rounded bg-accent px-1.5 py-0.5 text-[10.5px] text-accent-foreground"
+            <span key={m.id} className="is-tid" style={{ marginRight: 3 }}
                   title={`${m.id} · ${m.name} · ${m.tactic} — derived, does not affect severity`}>
               {m.id}
             </span>
           ))
         : null,
   }),
-  col.accessor("title", { header: "Finding" }),
+  // Title is shown in the detail pane, not the list (prototype §3 columns are
+  // Sev/Time/Rule/Host/ATT&CK). Kept as a hidden column so the filter box can
+  // still match a finding by its text.
+  col.accessor("title", { id: "title", header: "Finding" }),
 ];
 
-/** Virtualize only past this row count: below it, plain rendering is simpler,
- *  and a small list should never depend on measured viewport height. */
+/** Virtualize only past this row count. */
 const VIRTUALIZE_AT = 100;
 
-/** Live tail of the current run's log via GET /api/stream (SSE). Streaming
- *  AUGMENTS the 5s polling — when the stream is down the panel says so and
- *  polling carries on; nothing is interpolated client-side. A gap marker is
- *  rendered wherever the server dropped events under backpressure: hiding it
- *  would fake a quiet log. */
+/** Live tail of the current run's log via GET /api/stream (SSE) — augments the
+ *  5s polling; a gap marker shows wherever events were dropped under
+ *  backpressure. Honest by construction: real lines, verbatim raw. */
 function LiveTail({ stream }: { stream: LogStream }) {
   const recent = stream.rows.slice(-200);
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm">
-      <CardHeader className="p-4 pb-2">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <CardTitle className="text-[13.5px] font-semibold">Live tail</CardTitle>
-          {stream.connected ? (
-            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
-                  data-testid="stream-status">
-              <span aria-hidden className="h-2 w-2 rounded-full"
-                    style={{ background: "var(--sev-low)" }} />
-              streaming — lines appear as the log grows
-            </span>
-          ) : (
-            <span className="text-[11px] text-muted-foreground" data-testid="stream-status">
-              {stream.unsupported
-                ? "streaming unavailable in this browser — "
-                : "stream disconnected — "}
-              5s polling fallback active
-            </span>
-          )}
-          {stream.dropped > 0 && (
-            <span className="ml-auto rounded-md border px-2 py-0.5 text-[11px] font-semibold"
-                  style={{
-                    borderColor: "var(--sev-high)",
-                    background: "color-mix(in srgb, var(--sev-high) 14%, transparent)",
-                  }}
-                  data-testid="stream-dropped">
-              {stream.dropped} event(s) dropped under backpressure
-            </span>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 pt-2">
-        {recent.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            No new lines yet — the tail starts at the end of the current log and
-            shows only what arrives after connecting.
-          </p>
+    <div className="is-panel">
+      <div className="is-panel__h">
+        <h3>Live tail</h3>
+        {stream.connected ? (
+          <span className="is-panel__sub inline-flex items-center gap-1.5" data-testid="stream-status">
+            <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: "var(--low)" }} />
+            streaming — lines appear as the log grows
+          </span>
         ) : (
-          <div className="max-h-[30vh] overflow-auto rounded-lg border border-border bg-muted/40 font-mono text-[11.5px]"
-               data-testid="live-tail">
-            {recent.map((row, i) =>
-              row.kind === "gap" ? (
-                <div key={`gap-${i}`} data-testid="gap-row"
-                     className="border-b border-border px-3 py-1 text-[11px] font-semibold last:border-0"
-                     style={{ background: "color-mix(in srgb, var(--sev-high) 12%, transparent)" }}>
-                  {row.dropped} event(s) dropped here (stream backpressure) — the log
-                  itself is intact; a reconnect resumes from the last delivered line
-                </div>
-              ) : (
-                <div key={row.event.n} data-testid="tail-row"
-                     className="flex gap-3 border-b border-border px-3 py-1 last:border-0 hover:bg-muted/30">
-                  <span className="w-12 flex-none text-right tabular-nums text-muted-foreground">
-                    {row.event.n}
-                  </span>
-                  <span className="w-[72px] flex-none tabular-nums text-muted-foreground">
-                    {row.event.ts ? row.event.ts.slice(11, 19) : "n/a"}
-                  </span>
-                  <span className="w-[72px] flex-none font-semibold"
-                        style={{ color: sevVar(row.event.bucket) }}>
-                    {row.event.bucket}
-                  </span>
-                  <span className="flex-1 whitespace-pre-wrap break-all">{row.event.raw}</span>
-                </div>
-              ))}
-          </div>
+          <span className="is-panel__sub" data-testid="stream-status">
+            {stream.unsupported ? "streaming unavailable in this browser — " : "stream disconnected — "}
+            5s polling fallback active
+          </span>
         )}
-      </CardContent>
-    </Card>
+        {stream.dropped > 0 && (
+          <span className="is-runs__unparsed" data-testid="stream-dropped">
+            {stream.dropped} event(s) dropped under backpressure
+          </span>
+        )}
+      </div>
+      {recent.length === 0 ? (
+        <p className="is-panel__sub">
+          No new lines yet — the tail starts at the end of the current log and shows only what
+          arrives after connecting.
+        </p>
+      ) : (
+        <pre className="is-evidence" style={{ maxHeight: "30vh" }} data-testid="live-tail">
+          {recent.map((row, i) =>
+            row.kind === "gap" ? (
+              <div key={`gap-${i}`} data-testid="gap-row" style={{ color: "var(--high)", fontWeight: 600 }}>
+                {row.dropped} event(s) dropped here (stream backpressure) — the log itself is intact;
+                a reconnect resumes from the last delivered line
+              </div>
+            ) : (
+              <div key={row.event.n} data-testid="tail-row" className="flex gap-3">
+                <span className="ln" style={{ minWidth: 40, textAlign: "right" }}>{row.event.n}</span>
+                <span style={{ minWidth: 64 }} className="is-mut">{row.event.ts ? row.event.ts.slice(11, 19) : "n/a"}</span>
+                <span style={{ minWidth: 64, color: sevVar(row.event.bucket), fontWeight: 600 }}>{row.event.bucket}</span>
+                <span className="flex-1 whitespace-pre-wrap break-all">{row.event.raw}</span>
+              </div>
+            ))}
+        </pre>
+      )}
+    </div>
   );
 }
 
+/** Master-detail right pane (DESIGN_HANDOFF §3). */
 function FindingDetail({ f }: { f: Finding }) {
+  const s = sevShort(f.sev);
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden sticky top-4">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <div className="flex flex-wrap items-center gap-2">
-          <SeverityBadge severity={f.sev} />
-          <span className="font-mono text-[11px] text-muted-foreground">{f.type}</span>
-          <span className="ml-auto font-mono text-[11px] text-muted-foreground">{f.stamp}</span>
-        </div>
-        <CardTitle className="text-[15px] font-bold leading-snug mt-1.5">{f.title}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 space-y-4">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-lg border border-border bg-muted/20 p-3">
-            <div className="text-[9.5px] uppercase font-semibold tracking-wider text-muted-foreground">Rule verdict · authoritative</div>
-            <div className="mt-0.5 font-bold" style={{ color: sevVar(f.sev) }}>{f.ruleSev}</div>
-            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{f.ruleWhy}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-muted/20 p-3">
-            <div className="text-[9.5px] uppercase font-semibold tracking-wider text-muted-foreground">Plain-language explanation · advisory</div>
-            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-              {f.explanation || "Explanation pending — the deterministic verdict above is already final."}
-            </p>
-          </div>
-        </div>
+    <div className="is-md__detail">
+      <div className="is-detail-head">
+        <SevTag sev={f.sev} />
+        <span className="is-mono is-mut">{f.type}</span>
+        <span className="id">{f.stamp}</span>
+      </div>
+      <h2>{f.title}</h2>
 
-        {f.lines.length > 0 && (
+      <div className="is-vgrid">
+        <div className={`is-block ${s}`}>
+          <div className="cap authoritative">Rule verdict · authoritative</div>
+          <div className="verdict">{f.ruleSev}</div>
+          <p>{f.ruleWhy}</p>
+        </div>
+        <div className="is-block">
+          <div className="cap">Plain-language explanation · advisory</div>
+          <p className="is-mut">
+            {f.explanation || "Explanation pending — the deterministic verdict above is already final."}
+          </p>
+        </div>
+      </div>
+
+      {f.lines.length > 0 && (
+        <div>
+          <div className="cap" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--mut)", marginBottom: 6 }}>
+            Evidence <span style={{ fontWeight: 400 }}>— {f.linesNote ?? "verbatim from the source log — nothing generated"}</span>
+          </div>
+          <pre className="is-evidence" data-testid="evidence">
+            {f.lines.map((l, i) => (
+              <div key={i}>
+                <span className="ln">{l.n}</span>
+                {l.a}
+                {l.hit && <mark>{l.hit}</mark>}
+                {l.b}
+              </div>
+            ))}
+          </pre>
+        </div>
+      )}
+
+      <div className="is-vgrid">
+        {f.predicate && (
           <div>
-            <div className="mb-1.5 flex items-baseline gap-2">
-              <h4 className="text-[12.5px] font-semibold">Evidence</h4>
-              <span className="text-[10.5px] text-muted-foreground">
-                {f.linesNote ?? "verbatim from the source log — nothing generated"}
-              </span>
+            <div className="cap" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--mut)", marginBottom: 6 }}>
+              Rule predicate that fired
             </div>
-            <div className="overflow-x-auto rounded-lg border border-border bg-muted/40 font-mono text-[11.5px] p-1">
-              {f.lines.map((l, i) => (
-                <div key={i} className="flex gap-3 px-2.5 py-1 rounded"
-                     style={l.crit ? { background: "color-mix(in srgb, var(--sev-critical) 12%, transparent)" } : undefined}>
-                  <span className="w-9 flex-none text-right tabular-nums text-muted-foreground">{l.n}</span>
-                  <span className="whitespace-pre-wrap break-all leading-relaxed">
-                    {l.a}
-                    {l.hit && (
-                      <mark className="rounded px-1 py-0.5 font-semibold" style={{ background: "color-mix(in srgb, var(--sev-high) 30%, transparent)", color: "inherit" }}>
-                        {l.hit}
-                      </mark>
-                    )}
-                    {l.b}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <div className="is-predicate">{f.predicate}</div>
+            <div className="is-mono is-mut" style={{ marginTop: 6, fontSize: 10 }}>{f.ruleRef}</div>
           </div>
         )}
-
-        <div className="grid gap-3 md:grid-cols-2">
-          {f.predicate && (
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <div className="text-[9.5px] uppercase font-semibold tracking-wider text-muted-foreground">Rule predicate that fired</div>
-              <pre className="mt-1 whitespace-pre-wrap font-mono text-[11px] text-primary leading-relaxed">{f.predicate}</pre>
-              <div className="mt-1.5 font-mono text-[10px] text-muted-foreground">{f.ruleRef}</div>
+        {f.timeline.length > 0 && (
+          <div>
+            <div className="cap" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--mut)", marginBottom: 6 }}>
+              Event sequence
             </div>
-          )}
-          {f.timeline.length > 0 && (
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <div className="mb-1 text-[9.5px] uppercase font-semibold tracking-wider text-muted-foreground">Event sequence</div>
-              <div className="space-y-1">
-                {f.timeline.map((t, i) => (
-                  <div key={i} className="flex gap-2 py-0.5 text-xs">
-                    <span className="w-14 flex-none font-mono text-[10.5px] tabular-nums text-muted-foreground">{t.t}</span>
-                    <span className="text-foreground">{t.label}</span>
-                  </div>
-                ))}
+            {f.timeline.map((t, i) => (
+              <div key={i} className="flex gap-2" style={{ fontSize: 12, padding: "2px 0" }}>
+                <span className="is-mono is-mut" style={{ minWidth: 56 }}>{t.t}</span>
+                <span>{t.label}</span>
               </div>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -223,14 +200,10 @@ export function Alerts() {
   const [filter, setFilter] = useState("");
   const [sevFilter, setSevFilter] = useState("");
 
-  // Live SSE tail of the run's log. Streams only when the state names its
-  // source file; otherwise the hook is inert and 5s polling stands alone.
   const stream = useLogStream(data && !data.idle ? data.logPath : undefined);
 
   const allFindings = useMemo(() => {
     const base = data?.findings ?? [];
-    // Streamed findings the loaded run does not already show. Same rule +
-    // same summary = the same detector verdict, so those are not repeated.
     const live = stream.findings.filter(
       (f) => !base.some((b) => b.type === f.type && b.title === f.title));
     return [...base, ...live];
@@ -244,6 +217,7 @@ export function Alerts() {
     data: findings,
     columns,
     state: { globalFilter: filter },
+    initialState: { columnVisibility: { title: false } },
     onGlobalFilterChange: setFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -252,7 +226,10 @@ export function Alerts() {
 
   const rows = table.getRowModel().rows;
   const selId = params.get("sel");
-  const selected = findings.find((f) => f.id === selId) ?? null;
+  // Master-detail always shows a detail (prototype selF(0)): the URL selection
+  // if present, else the first row in the current (filtered/sorted) view.
+  const selected =
+    findings.find((f) => f.id === selId) ?? (rows[0]?.original ?? findings[0] ?? null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtual = rows.length > VIRTUALIZE_AT;
@@ -263,16 +240,14 @@ export function Alerts() {
     overscan: 12,
   });
 
-  if (isLoading) return <p className="text-muted-foreground">Loading the current run…</p>;
+  if (isLoading) return <p className="is-mut">Loading the current run…</p>;
 
   if (!data || data.idle) {
     return (
-      <Card className="border-dashed">
-        <CardContent className="p-6 text-[12.5px] text-muted-foreground">
-          No run yet — analyze a log from the Overview's ingestion panel (or the
-          legacy console). Findings will appear here.
-        </CardContent>
-      </Card>
+      <div className="is-note">
+        No run yet — analyze a log from the Overview's ingestion panel (or the legacy console).
+        Findings will appear here.
+      </div>
     );
   }
 
@@ -280,36 +255,34 @@ export function Alerts() {
     <tr
       key={row.id}
       onClick={() => setParams({ sel: row.original.id })}
-      className={cn(
-        "cursor-pointer border-b last:border-0 hover:bg-muted/60 align-top",
-        selected?.id === row.original.id && "bg-accent/60",
-      )}
+      className={cn(selected?.id === row.original.id && "active")}
       data-testid="alert-row"
     >
       {row.getVisibleCells().map((cell) => (
-        <td key={cell.id} className="px-2 py-2 text-[12.5px]">
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </td>
+        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
       ))}
     </tr>
   );
 
   return (
-    <div className="space-y-4">
+    <>
       <UnrecognizedBanner state={data} />
 
       {data.logPath && <LiveTail stream={stream} />}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-72 rounded-lg border-border bg-card text-xs"
+      {/* Filter row (DESIGN_HANDOFF §3) */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <input
+          className="is-input"
+          style={{ maxWidth: 340 }}
           placeholder="Filter findings…"
           aria-label="Filter findings"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
         <select
-          className="h-9 rounded-lg border border-border bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          className="is-select"
+          style={{ maxWidth: 160 }}
           aria-label="Severity filter"
           value={sevFilter}
           onChange={(e) => setSevFilter(e.target.value)}
@@ -317,67 +290,59 @@ export function Alerts() {
           <option value="">All severities</option>
           {SEV_ORDER.map((s) => <option key={s}>{s}</option>)}
         </select>
-        <span className="text-xs text-muted-foreground">
+        <span className="is-panel__sub">
           {rows.length} of {allFindings.length} finding(s) · {data.runParsed ?? ""}
         </span>
       </div>
 
-      <div className={cn("grid gap-4 items-start", selected ? "grid-cols-1 lg:grid-cols-12" : "grid-cols-1")}>
-        <div className={selected ? "lg:col-span-7" : "w-full"}>
-          <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-            <div ref={scrollRef} className="max-h-[56vh] overflow-auto" data-testid="alerts-scroll">
-              <table className="w-full border-collapse text-[12.5px]">
-                <thead className="sticky top-0 z-10 bg-card border-b border-border">
-                  {table.getHeaderGroups().map((hg) => (
-                    <tr key={hg.id} className="text-left text-[10.5px] uppercase font-semibold tracking-wider text-muted-foreground">
-                      {hg.headers.map((h) => (
-                        <th key={h.id} className="cursor-pointer px-3 py-2.5 select-none hover:text-foreground transition-colors"
-                            onClick={h.column.getToggleSortingHandler()}>
-                          {flexRender(h.column.columnDef.header, h.getContext())}
-                          {{ asc: " ▲", desc: " ▼" }[h.column.getIsSorted() as string] ?? null}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {virtual ? (
-                    <>
-                      {virtualizer.getVirtualItems().length > 0 && (
-                        <tr style={{ height: virtualizer.getVirtualItems()[0].start }} aria-hidden />
-                      )}
-                      {virtualizer.getVirtualItems().map((vi) => renderRow(rows[vi.index]))}
-                      {virtualizer.getVirtualItems().length > 0 && (
-                        <tr aria-hidden style={{
-                          height: virtualizer.getTotalSize()
-                            - (virtualizer.getVirtualItems().at(-1)!.end),
-                        }} />
-                      )}
-                    </>
-                  ) : (
-                    rows.map(renderRow)
-                  )}
-                  {rows.length === 0 && (
-                    <tr><td colSpan={columns.length} className="px-3 py-6 text-center text-muted-foreground">
-                      {data.findings.length === 0
-                        ? (data.unrecognized || data.emptyInput
-                           ? "Nothing was analyzed, so there are no findings to show."
-                           : "All clear — 0 anomalies. Every rule evaluated; nothing crossed a threshold.")
-                        : "Nothing matches this filter."}
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+      <div className={cn("is-md", !selected && "!grid-cols-1")}>
+        <div className="is-md__list">
+          <div ref={scrollRef} className="max-h-[56vh] overflow-auto" data-testid="alerts-scroll">
+            <table className="is-table">
+              <thead>
+                {table.getHeaderGroups().map((hg) => (
+                  <tr key={hg.id}>
+                    {hg.headers.map((h) => (
+                      <th key={h.id} className="cursor-pointer select-none" onClick={h.column.getToggleSortingHandler()}>
+                        {flexRender(h.column.columnDef.header, h.getContext())}
+                        {{ asc: " ▲", desc: " ▼" }[h.column.getIsSorted() as string] ?? null}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody>
+                {virtual ? (
+                  <>
+                    {virtualizer.getVirtualItems().length > 0 && (
+                      <tr style={{ height: virtualizer.getVirtualItems()[0].start }} aria-hidden />
+                    )}
+                    {virtualizer.getVirtualItems().map((vi) => renderRow(rows[vi.index]))}
+                    {virtualizer.getVirtualItems().length > 0 && (
+                      <tr aria-hidden style={{
+                        height: virtualizer.getTotalSize() - (virtualizer.getVirtualItems().at(-1)!.end),
+                      }} />
+                    )}
+                  </>
+                ) : (
+                  rows.map(renderRow)
+                )}
+                {rows.length === 0 && (
+                  <tr><td colSpan={table.getVisibleLeafColumns().length} className="is-mut" style={{ textAlign: "center", padding: "24px 12px" }}>
+                    {data.findings.length === 0
+                      ? (data.unrecognized || data.emptyInput
+                         ? "Nothing was analyzed, so there are no findings to show."
+                         : "All clear — 0 anomalies. Every rule evaluated; nothing crossed a threshold.")
+                      : "Nothing matches this filter."}
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        {selected && (
-          <div className="lg:col-span-5">
-            <FindingDetail f={selected} />
-          </div>
-        )}
+        {selected && <FindingDetail f={selected} />}
       </div>
-    </div>
+    </>
   );
 }
