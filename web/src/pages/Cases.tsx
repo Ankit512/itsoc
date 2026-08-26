@@ -9,24 +9,24 @@ import { Card, CardContent } from "@/components/ui/card";
  *  honestly stored because the analyst types it. No derivation, no invented
  *  rows — an empty store shows an honest empty state. */
 
-const STATUS_STYLE: Record<CaseStatus, { label: string; color: string }> = {
-  open: { label: "Open", color: "hsl(var(--primary))" },
-  investigating: { label: "Investigating", color: "var(--sev-medium)" },
-  closed: { label: "Closed", color: "hsl(var(--muted-foreground))" },
+const STATUS_STYLE: Record<CaseStatus, { label: string; color: string; bg: string }> = {
+  open: { label: "Open", color: "var(--primary)", bg: "color-mix(in srgb, var(--primary) 12%, transparent)" },
+  investigating: { label: "Investigating", color: "var(--sev-medium)", bg: "color-mix(in srgb, var(--sev-medium) 12%, transparent)" },
+  closed: { label: "Closed", color: "hsl(var(--muted-foreground))", bg: "hsl(var(--muted))" },
 };
 
 function StatusPill({ status }: { status: CaseStatus }) {
   const s = STATUS_STYLE[status];
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium"
-          style={{ color: s.color, borderColor: s.color }}>
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+          style={{ color: s.color, borderColor: s.color, backgroundColor: s.bg }}>
       <i className="h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />
       {s.label}
     </span>
   );
 }
 
-const field = "w-full rounded-md border bg-card px-2.5 py-2 text-[13px] outline-none focus:border-primary";
+const field = "w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary";
 
 function CreateCase() {
   const queryClient = useQueryClient();
@@ -48,43 +48,43 @@ function CreateCase() {
   if (!open) {
     return (
       <button onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-[10px] border border-primary bg-primary px-[15px] py-2.5 text-[13.5px] font-semibold text-primary-foreground hover:opacity-90">
-        <Plus className="h-4 w-4" strokeWidth={1.8} aria-hidden /> New case
+        className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity shadow-xs">
+        <Plus className="h-3.5 w-3.5" strokeWidth={2} aria-hidden /> New case
       </button>
     );
   }
 
   return (
-    <Card>
+    <Card className="rounded-xl border border-border bg-card shadow-sm">
       <CardContent className="p-4">
         <form
-          className="flex flex-col gap-2.5"
+          className="flex flex-col gap-3"
           onSubmit={(e) => { e.preventDefault(); if (title.trim()) create.mutate(); }}
         >
           <div className="flex items-center gap-2">
-            <span className="text-[13px] font-semibold">New case</span>
+            <span className="text-[13.5px] font-semibold text-foreground">New case</span>
             <button type="button" onClick={() => { setOpen(false); setErr(""); }}
                     aria-label="Cancel new case"
-                    className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-background">
-              <X className="h-[15px] w-[15px]" aria-hidden />
+                    className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
+              <X className="h-3.5 w-3.5" aria-hidden />
             </button>
           </div>
-          <label className="text-[11.5px] text-muted-foreground">Title (required)
-            <input className={field} value={title} onChange={(e) => setTitle(e.target.value)}
+          <label className="text-[11px] font-medium text-muted-foreground">Title (required)
+            <input className={`mt-1 ${field}`} value={title} onChange={(e) => setTitle(e.target.value)}
                    aria-label="Case title" placeholder="e.g. Investigate brute-force from 203.0.113.44" />
           </label>
-          <label className="text-[11.5px] text-muted-foreground">Assignee
-            <input className={field} value={assignee} onChange={(e) => setAssignee(e.target.value)}
+          <label className="text-[11px] font-medium text-muted-foreground">Assignee
+            <input className={`mt-1 ${field}`} value={assignee} onChange={(e) => setAssignee(e.target.value)}
                    aria-label="Case assignee" placeholder="who is looking at this" />
           </label>
-          <label className="text-[11.5px] text-muted-foreground">Notes
-            <textarea className={`${field} min-h-[64px] resize-y`} value={notes}
+          <label className="text-[11px] font-medium text-muted-foreground">Notes
+            <textarea className={`mt-1 ${field} min-h-[64px] resize-y`} value={notes}
                       onChange={(e) => setNotes(e.target.value)} aria-label="Case notes" />
           </label>
-          {err && <p className="text-[12px]" style={{ color: "var(--sev-critical)" }}>{err}</p>}
-          <div className="flex items-center gap-2">
+          {err && <p className="text-[11.5px]" style={{ color: "var(--sev-critical)" }}>{err}</p>}
+          <div className="flex items-center gap-2 pt-1">
             <button type="submit" disabled={!title.trim() || create.isPending}
-              className="rounded-md border border-primary bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">
+              className="rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-opacity">
               {create.isPending ? "Creating…" : "Create case"}
             </button>
             <span className="text-[11px] text-muted-foreground">Status starts as “open”.</span>
@@ -116,7 +116,7 @@ function CaseRow({ c }: { c: Case }) {
   const links = [...c.links.findings, ...c.links.incidents];
 
   return (
-    <Card>
+    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
@@ -124,9 +124,9 @@ function CaseRow({ c }: { c: Case }) {
               <input className={field} value={title} onChange={(e) => setTitle(e.target.value)}
                      aria-label={`Edit title of ${c.id}`} />
             ) : (
-              <div className="text-[14px] font-semibold">{c.title}</div>
+              <div className="text-[14px] font-semibold text-foreground">{c.title}</div>
             )}
-            <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{c.id}</div>
+            <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground">{c.id}</div>
           </div>
           {/* Status is a live select — changing it PATCHes immediately. */}
           <label className="flex items-center gap-2">
@@ -137,55 +137,55 @@ function CaseRow({ c }: { c: Case }) {
               value={c.status}
               disabled={patch.isPending}
               onChange={(e) => patch.mutate({ status: e.target.value as CaseStatus })}
-              className="rounded-md border bg-card px-1.5 py-1 text-[12px] outline-none"
+              className="rounded-lg border border-border bg-card px-2 py-1 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
             >
               {CASE_STATUSES.map((s) => <option key={s} value={s}>{STATUS_STYLE[s].label}</option>)}
             </select>
           </label>
           {!editing && (
             <button onClick={() => setEditing(true)} aria-label={`Edit ${c.id}`}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground hover:border-primary">
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               <Pencil className="h-3.5 w-3.5" aria-hidden />
             </button>
           )}
         </div>
 
         {editing ? (
-          <div className="mt-3 flex flex-col gap-2">
-            <label className="text-[11.5px] text-muted-foreground">Assignee
-              <input className={field} value={assignee} onChange={(e) => setAssignee(e.target.value)}
+          <div className="mt-3 flex flex-col gap-2.5">
+            <label className="text-[11px] font-medium text-muted-foreground">Assignee
+              <input className={`mt-1 ${field}`} value={assignee} onChange={(e) => setAssignee(e.target.value)}
                      aria-label={`Edit assignee of ${c.id}`} />
             </label>
-            <label className="text-[11.5px] text-muted-foreground">Notes
-              <textarea className={`${field} min-h-[64px] resize-y`} value={notes}
+            <label className="text-[11px] font-medium text-muted-foreground">Notes
+              <textarea className={`mt-1 ${field} min-h-[64px] resize-y`} value={notes}
                         onChange={(e) => setNotes(e.target.value)} aria-label={`Edit notes of ${c.id}`} />
             </label>
-            {err && <p className="text-[12px]" style={{ color: "var(--sev-critical)" }}>{err}</p>}
-            <div className="flex items-center gap-2">
+            {err && <p className="text-[11.5px]" style={{ color: "var(--sev-critical)" }}>{err}</p>}
+            <div className="flex items-center gap-2 pt-1">
               <button
                 onClick={() => title.trim() && patch.mutate({ title, assignee, notes })}
                 disabled={!title.trim() || patch.isPending}
-                className="rounded-md border border-primary bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">
+                className="rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-opacity">
                 {patch.isPending ? "Saving…" : "Save"}
               </button>
               <button onClick={() => { setEditing(false); setTitle(c.title); setAssignee(c.assignee); setNotes(c.notes); setErr(""); }}
-                      className="rounded-md border px-3 py-1.5 text-[12.5px] hover:border-primary">
+                      className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 Cancel
               </button>
             </div>
           </div>
         ) : (
           <>
-            {c.notes && <p className="mt-2 whitespace-pre-wrap text-[12.5px] text-muted-foreground">{c.notes}</p>}
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-              {c.assignee && <span>Assignee: <span className="text-foreground">{c.assignee}</span></span>}
+            {c.notes && <p className="mt-2.5 whitespace-pre-wrap text-[12.5px] text-muted-foreground leading-relaxed">{c.notes}</p>}
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-2.5 text-[11px] text-muted-foreground">
+              {c.assignee && <span>Assignee: <span className="text-foreground font-medium">{c.assignee}</span></span>}
               <span>Created {c.createdAt.slice(0, 16).replace("T", " ")}</span>
               <span>Updated {c.updatedAt.slice(0, 16).replace("T", " ")}</span>
               {links.length > 0 && (
                 <span className="flex flex-wrap items-center gap-1">
                   Linked:
                   {links.map((l) => (
-                    <span key={l} className="rounded border px-1.5 py-px font-mono text-[10.5px]">{l}</span>
+                    <span key={l} className="rounded border border-border bg-muted/40 px-1.5 py-px font-mono text-[10px]">{l}</span>
                   ))}
                 </span>
               )}
@@ -205,7 +205,7 @@ export function Cases() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-[12.5px] text-muted-foreground">
-          Investigation cases you create — stored locally in <span className="font-mono">cases.json</span>.
+          Investigation cases you create — stored locally in <span className="font-mono text-foreground font-medium">cases.json</span>.
           This is analyst-entered data, not derived from findings.
         </p>
         <div className="ml-auto"><CreateCase /></div>
@@ -213,20 +213,24 @@ export function Cases() {
 
       {isLoading && <p className="text-muted-foreground">Loading cases…</p>}
       {error && (
-        <Card className="border-dashed"><CardContent className="p-6 text-[12.5px] text-muted-foreground">
-          The console backend is not reachable — start it with
-          <code className="mx-1 rounded bg-muted px-1.5 py-0.5 font-mono">python3 console/serve.py</code>.
-        </CardContent></Card>
+        <Card className="rounded-xl border border-dashed border-border bg-card">
+          <CardContent className="p-6 text-[12.5px] text-muted-foreground">
+            The console backend is not reachable — start it with
+            <code className="mx-1 rounded bg-muted px-1.5 py-0.5 font-mono">python3 console/serve.py</code>.
+          </CardContent>
+        </Card>
       )}
       {!isLoading && !error && cases.length === 0 && (
-        <Card className="border-dashed"><CardContent className="p-8 text-center">
-          <FolderKanban className="mx-auto mb-2 h-6 w-6 text-muted-foreground" strokeWidth={1.6} aria-hidden />
-          <div className="text-[15px] font-semibold">No cases yet</div>
-          <p className="mx-auto mt-1 max-w-md text-[12.5px] text-muted-foreground">
-            Create a case to track an investigation. Nothing is shown here until
-            you add one — no sample cases are invented.
-          </p>
-        </CardContent></Card>
+        <Card className="rounded-xl border border-dashed border-border bg-card">
+          <CardContent className="p-8 text-center">
+            <FolderKanban className="mx-auto mb-2 h-6 w-6 text-muted-foreground" strokeWidth={1.6} aria-hidden />
+            <div className="text-[14px] font-semibold text-foreground">No cases yet</div>
+            <p className="mx-auto mt-1 max-w-md text-[12px] text-muted-foreground">
+              Create a case to track an investigation. Nothing is shown here until
+              you add one — no sample cases are invented.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       <div className="flex flex-col gap-3">

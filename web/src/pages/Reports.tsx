@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Download, FileText } from "lucide-react";
 
-const th = "px-2 py-2 text-left text-[10.5px] uppercase tracking-wide text-muted-foreground";
+const th = "border-b border-border px-3 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground";
+const td = "border-b border-border px-3 py-2.5 align-middle text-[12.5px]";
 
 function kb(bytes: number) {
   return bytes >= 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${bytes} B`;
@@ -18,14 +19,14 @@ function kb(bytes: number) {
  *  409); we never offer a download that would produce an empty file. */
 function DownloadPanel({ hasRun }: { hasRun: boolean }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-[15px]">Download the current run</CardTitle>
+    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      <CardHeader className="p-4 pb-3 border-b border-border">
+        <CardTitle className="text-[14px] font-semibold">Download the current run</CardTitle>
         <p className="text-[11.5px] text-muted-foreground">
           The real findings, severities and MITRE tags this run produced — no fabricated rows.
         </p>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className="p-4 pt-3">
         <div className="flex flex-wrap items-center gap-2" data-testid="download-panel">
           {EXPORT_FORMATS.map(({ format, label }) =>
             hasRun ? (
@@ -35,12 +36,12 @@ function DownloadPanel({ hasRun }: { hasRun: boolean }) {
                 download
                 data-testid={`download-${format}`}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md border bg-card px-3 py-2",
-                  "text-[12.5px] font-medium hover:bg-muted",
+                  "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2",
+                  "text-[12px] font-medium text-foreground hover:bg-muted transition-colors shadow-xs",
                 )}
                 title={`Download this run as ${label} (${format})`}
               >
-                <Download className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                <Download className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} aria-hidden />
                 {label}
               </a>
             ) : (
@@ -49,19 +50,19 @@ function DownloadPanel({ hasRun }: { hasRun: boolean }) {
                 data-testid={`download-${format}`}
                 aria-disabled="true"
                 className={cn(
-                  "inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border bg-card px-3 py-2",
-                  "text-[12.5px] font-medium opacity-50",
+                  "inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2",
+                  "text-[12px] font-medium text-muted-foreground opacity-50",
                 )}
                 title="No run loaded — analyze a log first, then export"
               >
-                <Download className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                <Download className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
                 {label}
               </span>
             ),
           )}
         </div>
         {!hasRun && (
-          <p className="mt-2 text-[11.5px] text-muted-foreground">
+          <p className="mt-2.5 text-[11.5px] text-muted-foreground">
             No run loaded — analyze a log from the Overview, then download it here.
           </p>
         )}
@@ -88,11 +89,11 @@ export function Reports() {
 
   return (
     <div className="space-y-4">
-      <Card className="border-dashed">
+      <Card className="rounded-xl border border-dashed border-border bg-card">
         <CardContent className="flex flex-wrap items-center gap-3 p-4 text-[12.5px] text-muted-foreground">
-          <span>
+          <span className="max-w-2xl leading-relaxed">
             <b className="text-foreground">Real files only.</b>{" "}
-            Every row is a report that exists on disk in <code className="font-mono">console/.soc/reports/</code>.
+            Every row is a report that exists on disk in <code className="font-mono text-primary text-[11.5px]">console/.soc/reports/</code>.
             Generating renders the <b>current run</b> through the standalone exporter — nothing is listed that wasn't produced.
           </span>
           <div className="ml-auto flex flex-col items-end gap-1">
@@ -100,8 +101,9 @@ export function Reports() {
               onClick={() => generate.mutate()}
               disabled={generate.isPending}
               title="Render the currently loaded run into a saved HTML report"
+              className="text-xs h-8.5 rounded-lg"
             >
-              <FileText className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+              <FileText className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
               {generate.isPending ? "Generating…" : "Generate report"}
             </Button>
             {generate.isError && (
@@ -122,11 +124,11 @@ export function Reports() {
 
       <DownloadPanel hasRun={hasRun} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-[15px]">Saved reports ({reports.length})</CardTitle>
+      <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <CardHeader className="p-4 pb-3 border-b border-border">
+          <CardTitle className="text-[14px] font-semibold">Saved reports ({reports.length})</CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="p-4 pt-3">
           {isLoading ? (
             <p className="text-[12.5px] text-muted-foreground">Loading reports…</p>
           ) : isError ? (
@@ -138,10 +140,10 @@ export function Reports() {
               No reports generated yet — use “Generate report” above to render the current run.
             </p>
           ) : (
-            <div className="overflow-auto rounded-md border">
-              <table className="w-full">
-                <thead className="bg-card">
-                  <tr className="border-b">
+            <div className="overflow-auto rounded-lg border border-border">
+              <table className="w-full border-collapse text-[12.5px]">
+                <thead className="sticky top-0 z-10 bg-card border-b border-border">
+                  <tr>
                     <th className={th}>Report</th>
                     <th className={th}>Size</th>
                     <th className={th}>Created</th>
@@ -149,10 +151,10 @@ export function Reports() {
                 </thead>
                 <tbody>
                   {reports.map((r) => (
-                    <tr key={r.name} data-testid="report-row" className="border-b last:border-0 align-top hover:bg-muted/60">
-                      <td className="px-2 py-2 font-mono text-[11.5px] break-all">{r.name}</td>
-                      <td className="px-2 py-2 tabular-nums text-[12.5px]">{kb(r.bytes)}</td>
-                      <td className="px-2 py-2 font-mono text-[11px] text-muted-foreground">{r.createdAt}</td>
+                    <tr key={r.name} data-testid="report-row" className="hover:bg-muted/40 transition-colors">
+                      <td className={`${td} font-mono text-[11.5px] break-all font-medium text-foreground`}>{r.name}</td>
+                      <td className={`${td} tabular-nums`}>{kb(r.bytes)}</td>
+                      <td className={`${td} font-mono text-[11px] tabular-nums text-muted-foreground`}>{r.createdAt}</td>
                     </tr>
                   ))}
                 </tbody>
