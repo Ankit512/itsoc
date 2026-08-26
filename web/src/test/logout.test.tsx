@@ -4,26 +4,29 @@ import App from "@/App";
 import { useUi } from "@/store/ui";
 import { renderApp, mockFetch, OVERVIEW, METRICS } from "./helpers";
 
-describe("Logout page (honest, no fake auth)", () => {
-  beforeEach(() => mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS }));
+describe("Logout page (honest local demo sign out)", () => {
+  beforeEach(() => mockFetch({
+    "/api/overview": OVERVIEW,
+    "/api/metrics": METRICS,
+    "/api/auth/logout": { ok: true },
+  }));
 
-  it("states there is no session and does not fake an auth flow", async () => {
+  it("states this is a local demo session and signs out", async () => {
     renderApp(<App />, { route: "/logout" });
     expect(await screen.findByRole("heading", { name: /sign out/i })).toBeInTheDocument();
-    expect(screen.getByText(/no account, no login, and no server session/i)).toBeInTheDocument();
-    // No password/credential inputs — it is not an auth screen.
-    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/local demo session/i)).toBeInTheDocument();
   });
 
-  it("clears local UI state (theme back to light) on demand", async () => {
+  it("clears local UI state and local demo session on sign out", async () => {
     useUi.setState({ theme: "dark", search: "leftover" });
     renderApp(<App />, { route: "/logout" });
 
-    await userEvent.click(await screen.findByRole("button", { name: /clear local ui state/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /sign out of local session/i }));
 
     expect(useUi.getState().theme).toBe("light");
     expect(useUi.getState().search).toBe("");
-    expect(screen.getByText(/there was no session to end/i)).toBeInTheDocument();
+    expect(await screen.findByText(/signed out of local demo session/i)).toBeInTheDocument();
     expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 });
+

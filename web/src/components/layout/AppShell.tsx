@@ -15,6 +15,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useJobs } from "@/store/jobs";
 import { useUi } from "@/store/ui";
 import { isBlobPageUrl, rawFileUrl } from "@/lib/rawUrl";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 /** Core navigation per SPEC §3 (Overview · Findings · Incidents · Sources · Settings) */
@@ -63,6 +64,7 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
 
 function Sidebar() {
   const { experimentalEnabled, toggleExperimental, setCommandPaletteOpen } = useUi();
+  const { user } = useAuth();
   const { data: ov } = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   const model = ov && !("error" in ov) ? ov.model : "qwen3:8b";
 
@@ -156,9 +158,18 @@ function Sidebar() {
 
       {/* Footer / Logout */}
       <div className="mt-auto border-t border-border pt-3">
+        {user && (
+          <div className="mb-2 px-2.5 text-[11.5px] text-muted-foreground">
+            <div className="flex items-center gap-1.5 font-medium text-foreground">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+              <span className="truncate">{user.username}</span>
+            </div>
+            <div className="text-[10.5px] uppercase tracking-wider">{user.role}</div>
+          </div>
+        )}
         <NavLink
           to="/logout"
-          title="Local single-user tool — no server session; clears local UI state"
+          title="Sign out of this local demo session"
           className={({ isActive }) =>
             cn(
               "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-muted-foreground transition-colors hover:bg-background hover:text-foreground",

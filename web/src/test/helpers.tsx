@@ -5,7 +5,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi } from "vitest";
 import type { ConsoleState, Finding, Metrics, OverviewData } from "@/lib/api";
 
-export function renderApp(ui: ReactElement, { route = "/" } = {}) {
+export function renderApp(ui: ReactElement, { route = "/", token = "test-token" } = {}) {
+  if (token) {
+    try {
+      localStorage.setItem("itsoc_auth_token", token);
+    } catch {
+      // ignore
+    }
+  }
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchInterval: false } },
   });
@@ -16,15 +23,28 @@ export function renderApp(ui: ReactElement, { route = "/" } = {}) {
   );
 }
 
+export const DEFAULT_AUTH_ME = { user: { username: "analyst", role: "analyst" } };
+export const DEFAULT_AUTH_STATUS = { hasProfile: true, authType: "local_demo", provider: "LocalDemoAuth" };
+
 /** Route fetch by substring match; anything unrouted 404s. Routes are tried
  *  in insertion order, so list more specific paths first ("/api/runs-summary"
  *  before "/api/runs"). A route value with `__status` responds with that HTTP
  *  status (non-2xx => ok: false); a function value is called per request, so
  *  a route can change its answer across polls. */
 export function mockFetch(routes: Record<string, unknown>) {
+  const allRoutes = {
+    ...routes,
+  };
+  if (!Object.keys(routes).some(k => k.includes("/api/auth/me"))) {
+    allRoutes["/api/auth/me"] = DEFAULT_AUTH_ME;
+  }
+  if (!Object.keys(routes).some(k => k.includes("/api/auth/status"))) {
+    allRoutes["/api/auth/status"] = DEFAULT_AUTH_STATUS;
+  }
+
   vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL) => {
     const u = String(url);
-    for (const [k, v] of Object.entries(routes)) {
+    for (const [k, v] of Object.entries(allRoutes)) {
       if (u.includes(k)) {
         const value = typeof v === "function" ? (v as () => unknown)() : v;
         const { __status, ...body } = (value ?? {}) as Record<string, unknown>;
