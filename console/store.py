@@ -123,10 +123,21 @@ def _connect():
     return conn
 
 
+_INIT_DONE = set()   # str(DB_PATH) values whose schema this process already ran
+
+
 def init_db():
-    """Create tables/indexes if absent. Idempotent — safe to call every start."""
+    """Create tables/indexes if absent. Idempotent — safe to call every start,
+    and cheap when repeated: the DDL runs once per DB path per process (callers
+    invoke this per request in serve.py and per datagram in the syslog
+    collector). A test that repoints DB_PATH gets a fresh init; a DB file that
+    vanished (temp dir cleanup) is re-created rather than trusted from memory."""
+    key = str(DB_PATH)
+    if key in _INIT_DONE and Path(key).exists():
+        return
     with _LOCK, _connect() as c:
         c.executescript(_SCHEMA)
+    _INIT_DONE.add(key)
 
 
 def event_hash(ts, source, raw):
