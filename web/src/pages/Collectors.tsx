@@ -26,7 +26,7 @@ function LiveStatus({ status }: { status?: SyslogStatus }) {
   const bindPort = status?.bind && status?.port ? `${status.bind}:${status.port}` : null;
   return (
     <div className="is-panel">
-      <div className="is-panel__h"><h3>◉ Listener status</h3></div>
+      <div className="is-panel__h"><h3>Listener status</h3></div>
       <Fact label="State">
         <span style={{ color: running ? "var(--low)" : "var(--mut)" }}>{running ? "Running" : "Stopped"}</span>
       </Fact>

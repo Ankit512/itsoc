@@ -43,7 +43,7 @@ function ComputeSettings() {
 
   return (
     <div className="is-panel" style={CARD}>
-      <div className="is-panel__h"><h3>⚙ Compute location</h3></div>
+      <div className="is-panel__h"><h3>Compute location</h3></div>
       {isLoading && <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>Loading current config…</p>}
       {error && <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>Backend not reachable — start the console server.</p>}
       {compute && (
@@ -155,10 +155,14 @@ function ThemeSetting() {
         <span style={{ fontSize: 12 }}>
           Theme: <b style={{ color: "var(--ink)" }}>{dark ? "Dark" : "Light"}</b> — saved for your next visit.
         </span>
-        <button className="is-btn" onClick={toggleTheme}
-                aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}>
-          {dark ? "☀ Switch" : "☾ Switch"}
-        </button>
+        {/* Segmented Dark | Light control (v3 dc Appearance). Only toggleTheme is
+            exposed, so each button flips only when it isn't already active. */}
+        <div className="is-seg" role="group" aria-label="Theme">
+          <button className={"is-btn" + (dark ? " is-btn--primary" : "")} aria-pressed={dark}
+                  aria-label="Switch to dark mode" onClick={() => { if (!dark) toggleTheme(); }}>Dark</button>
+          <button className={"is-btn" + (!dark ? " is-btn--primary" : "")} aria-pressed={!dark}
+                  aria-label="Switch to light mode" onClick={() => { if (dark) toggleTheme(); }}>Light</button>
+        </div>
       </div>
     </div>
   );

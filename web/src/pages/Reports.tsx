@@ -26,11 +26,11 @@ function DownloadPanel({ hasRun }: { hasRun: boolean }) {
           const cls = "is-btn" + (PRIMARY.has(format) ? " is-btn--primary" : "");
           return hasRun ? (
             <a key={format} href={api.exportUrl(format)} download data-testid={`download-${format}`}
-               className={cls} title={`Download this run as ${label} (${format})`}>↓ {label}</a>
+               className={cls} title={`Download this run as ${label} (${format})`}>{label}</a>
           ) : (
             <span key={format} data-testid={`download-${format}`} aria-disabled="true"
                   className={cls} style={{ opacity: 0.5, cursor: "not-allowed" }}
-                  title="No run loaded — analyze a log first, then export">↓ {label}</span>
+                  title="No run loaded — analyze a log first, then export">{label}</span>
           );
         })}
       </div>
