@@ -2,10 +2,11 @@ import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Antenna, Bell, Cable, Database, FileText, Folder, House, Link as LinkIcon, LogOut, Monitor,
-  Radar, RefreshCw, Search, Settings, Shield, ShieldAlert, ShieldCheck, TriangleAlert, Upload,
+  Radar, RefreshCw, Search, Settings, Shield, ShieldAlert, ShieldCheck, Sparkles, TriangleAlert, Upload,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { sevVar } from "@/lib/severity";
 import { Dialog } from "@/components/ui/dialog";
 import { RunHistory } from "@/components/RunHistory";
 import { RunSwitcher } from "@/components/RunSwitcher";
@@ -65,11 +66,27 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/logout": { title: "Logout", subtitle: "Local Session Reset" },
 };
 
+/** crit/high/med/low map to the tiny severity word in the recent-incidents list. */
+const sevWord = (s: string) =>
+  ({ critical: "CRIT", high: "HIGH", medium: "MED", low: "LOW" } as Record<string, string>)[
+    s.toLowerCase()
+  ] ?? s.toUpperCase();
+
 function Sidebar() {
   const { experimentalEnabled, toggleExperimental, setCommandPaletteOpen } = useUi();
   const { user } = useAuth();
+  const { pathname } = useLocation();
+  const onIncidents = pathname.startsWith("/incidents");
   const { data: ov } = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   const model = ov && !("error" in ov) ? ov.model : "qwen3:8b";
+  // Contextual "RECENT INCIDENTS" list — only fetched/shown on the Incidents
+  // route (DESIGN_HANDOFF §sidebar). Real incidents, honest-empty otherwise.
+  const { data: incData } = useQuery({
+    queryKey: ["incidents"],
+    queryFn: () => api.incidents(),
+    enabled: onIncidents,
+  });
+  const recent = (incData?.incidents ?? []).slice(0, 5);
 
   return (
     <aside className="is-side">
@@ -100,6 +117,24 @@ function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Contextual recent-incidents list — Incidents route only */}
+      {onIncidents && (
+        <div className="is-recent" aria-label="recent incidents">
+          <div className="is-recent__h">RECENT INCIDENTS</div>
+          {recent.length ? (
+            recent.map((inc) => (
+              <NavLink key={inc.id} to={`/incidents?sel=${inc.id}`} className="is-recent__row">
+                <span className="rdot" style={{ background: sevVar(inc.severity) }} />
+                <span className="ent">{inc.entity}</span>
+                <span className="sev" style={{ color: sevVar(inc.severity) }}>{sevWord(inc.severity)}</span>
+              </NavLink>
+            ))
+          ) : (
+            <div className="is-recent__empty">No incidents in this run.</div>
+          )}
+        </div>
+      )}
 
       {/* Experimental group with ON/OFF badge (DESIGN_HANDOFF §2) */}
       <div className="is-nav-group">
@@ -351,7 +386,7 @@ export function AppShell() {
             onClick={() => setRailOpen((o) => !o)}
             aria-label={railOpen ? "Close AI Analyst" : "Open AI Analyst"}
           >
-            <b className="n">◆ AI Analyst</b>
+            <b className="n"><Sparkles className="ic" size={13} aria-hidden /> AI Analyst</b>
             <span className="adv">advisory</span>
           </button>
         </>

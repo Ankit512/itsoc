@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Antenna } from "lucide-react";
 import { api, type SyslogStatus } from "@/lib/api";
 
 /** Sources — the control panel for the live syslog listener (UDP + TCP), in the
@@ -90,7 +91,7 @@ function Controls({ status }: { status?: SyslogStatus }) {
 
   return (
     <div className="is-panel">
-      <div className="is-panel__h"><h3>≋ Syslog collector (UDP + TCP)</h3></div>
+      <div className="is-panel__h"><h3 style={{ display: "flex", alignItems: "center", gap: 7 }}><Antenna size={15} aria-hidden /> Syslog collector (UDP + TCP)</h3></div>
       <p className="is-mut" style={{ fontSize: 12, lineHeight: 1.5, margin: "0 0 8px" }}>
         Receives syslog messages on the port below and records each one in the persistent store,
         verbatim. Severity comes from the syslog PRI the sender chose — the collector never invents a level.

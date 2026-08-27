@@ -29,25 +29,26 @@
        authoritative itsoc-design-system.css palette (light) so Tailwind-styled
        page interiors match the is-* shell exactly. The §2 --bg/--pan/--acc/
        --crit tokens themselves are owned by itsoc.css (single source). */
-    --background: 220 20% 97.1%;      /* bg  #f6f7f9 */
-    --foreground: 225 18.2% 8.6%;     /* ink #12141a */
+    --background: 240 20% 98.6%;      /* bg  #fbfbfc */
+    --foreground: 240 6% 10%;         /* ink #18181b */
     --card: 0 0% 100%;                /* pan  #ffffff */
-    --card-foreground: 225 18.2% 8.6%;
-    --muted: 240 33.3% 98.8%;         /* pan2 #fbfbfd */
-    --muted-foreground: 220 11.3% 46.9%;  /* mut #6a7385 */
-    --primary: 246.9 83.1% 65.1%;     /* acc #6d5cf0 */
+    --card-foreground: 240 6% 10%;
+    --muted: 240 12% 95.1%;           /* pan2 #f1f1f4 */
+    --muted-foreground: 240 3.8% 46.1%;  /* mut #71717a */
+    --primary: 249 84% 65.1%;         /* acc #6d5cf0 */
     --primary-foreground: 0 0% 100%;
-    --accent: 247 84% 96%;            /* accent tint for active nav */
-    --accent-foreground: 247 75% 45%; /* accent shade, readable on the tint */
-    --border: 225 20% 92.2%;          /* bd  #e7e9ef */
-    --input: 225 20% 92.2%;
-    --ring: 246.9 83.1% 65.1%;
+    --accent: 249 84% 96%;            /* accent tint for active nav */
+    --accent-foreground: 249 75% 45%; /* accent shade, readable on the tint */
+    --border: 240 8% 93.1%;           /* bd  #ececef */
+    --input: 240 8% 93.1%;
+    --ring: 249 84% 65.1%;
 
-    /* charts read severity via style="fill:var(--sev-*)"; match itsoc.css. */
-    --sev-critical: #df4650;
-    --sev-high: #d98600;
-    --sev-medium: #b08a00;
-    --sev-low: #12a37e;
+    /* charts read severity via style="fill:var(--sev-*)"; match itsoc.css.
+       v3 uses one severity set across BOTH themes. */
+    --sev-critical: #f26d78;
+    --sev-high: #f0a54a;
+    --sev-medium: #d3b23a;
+    --sev-low: #3ecf8e;
 
     --shadow: 0 1px 2px rgba(26, 32, 51, 0.06), 0 4px 14px rgba(26, 32, 51, 0.06);
   }
@@ -55,24 +56,24 @@
   .dark,
   [data-theme="dark"] {
     /* Dark plumbing — VALUES track itsoc-design-system.css (dark). */
-    --background: 222.9 24.1% 5.7%;   /* bg  #0b0d12 */
-    --foreground: 222 26.3% 92.5%;    /* ink #e7eaf1 */
-    --card: 226.7 18.4% 9.6%;         /* pan  #14161d */
-    --card-foreground: 222 26.3% 92.5%;
-    --muted: 220 23.1% 7.6%;          /* pan2 #0f1218 */
-    --muted-foreground: 219.2 11.6% 56.1%; /* mut #828b9c */
-    --primary: 246.5 100% 71.2%;      /* acc #7c6cff */
+    --background: 240 10% 3.9%;       /* bg  #09090b */
+    --foreground: 240 9% 93.5%;       /* ink #ededf0 */
+    --card: 240 13% 6.3%;             /* pan  #0e0e12 */
+    --card-foreground: 240 9% 93.5%;
+    --muted: 240 10% 10%;             /* pan2 #17171c */
+    --muted-foreground: 240 5% 57.8%; /* mut #8f8f98 */
+    --primary: 249 100% 74.3%;        /* acc #8b7cff */
     --primary-foreground: 0 0% 100%;
-    --accent: 247 28% 28%;            /* accent tint for active nav */
-    --accent-foreground: 247 91% 83%; /* accent shade, readable on the tint */
-    --border: 222.9 18.9% 14.5%;      /* bd  #1e222c */
-    --input: 222.9 18.9% 14.5%;
-    --ring: 246.5 100% 71.2%;
+    --accent: 249 28% 28%;            /* accent tint for active nav */
+    --accent-foreground: 249 91% 83%; /* accent shade, readable on the tint */
+    --border: 240 9% 12.9%;           /* bd  #1e1e24 */
+    --input: 240 9% 12.9%;
+    --ring: 249 100% 74.3%;
 
-    --sev-critical: #f0616d;
-    --sev-high: #f2a33c;
-    --sev-medium: #d6b02e;
-    --sev-low: #33c895;
+    --sev-critical: #f26d78;
+    --sev-high: #f0a54a;
+    --sev-medium: #d3b23a;
+    --sev-low: #3ecf8e;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.3);
   }

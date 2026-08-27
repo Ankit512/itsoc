@@ -6,6 +6,7 @@ import {
   getSortedRowModel, useReactTable, type Row,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { api, type Finding } from "@/lib/api";
 import { useLogStream, type LogStream } from "@/lib/useLogStream";
 import { sevVar, SEV_ORDER } from "@/lib/severity";
@@ -305,7 +306,10 @@ export function Alerts() {
                     {hg.headers.map((h) => (
                       <th key={h.id} className="cursor-pointer select-none" onClick={h.column.getToggleSortingHandler()}>
                         {flexRender(h.column.columnDef.header, h.getContext())}
-                        {{ asc: " ▲", desc: " ▼" }[h.column.getIsSorted() as string] ?? null}
+                        {{
+                          asc: <ChevronUp size={12} className="inline align-middle ml-0.5" aria-hidden />,
+                          desc: <ChevronDown size={12} className="inline align-middle ml-0.5" aria-hidden />,
+                        }[h.column.getIsSorted() as string] ?? null}
                       </th>
                     ))}
                   </tr>

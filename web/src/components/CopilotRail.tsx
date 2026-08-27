@@ -584,7 +584,7 @@ export function CopilotRail({
                   ))}
                   {hasComparableTechniqueHistory ? risingTechniques.map((t) => (
                     <li key={`rising-${t.id}`} className="rounded bg-accent/50 p-1.5 text-[11px] text-accent-foreground">
-                      ▲ <b>{t.name || t.id}:</b> {t.count - (previousTechniques.get(t.id)?.count ?? 0)} more hit(s) than the previous run.
+                      <TrendingUp className="mr-1 inline h-3 w-3 align-middle" aria-hidden /><b>{t.name || t.id}:</b> {t.count - (previousTechniques.get(t.id)?.count ?? 0)} more hit(s) than the previous run.
                     </li>
                   )) : (
                     <li className="rounded bg-muted/40 p-1.5 text-[11px] text-muted-foreground">

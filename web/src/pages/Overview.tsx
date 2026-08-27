@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { api, type Delta, type OverviewData } from "@/lib/api";
 import { sevVar } from "@/lib/severity";
 import { SeverityDonut } from "@/components/charts/SeverityDonut";
@@ -15,8 +16,8 @@ function DeltaLine({ delta }: { delta: Delta | null }) {
   if (!delta) return <div className="delta na">no prior run — no delta</div>;
   const up = delta.dir === "up";
   return (
-    <div className={`delta ${up ? "up" : "dn"}`}>
-      {up ? "▲" : "▼"} {delta.pct}% vs previous
+    <div className={`delta ${up ? "up" : "dn"}`} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+      {up ? <ArrowUp size={11} aria-hidden /> : <ArrowDown size={11} aria-hidden />} {delta.pct}% vs previous
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import App from "@/App";
@@ -24,8 +24,11 @@ describe("Incidents page", () => {
     renderApp(<App />, { route: "/incidents" });
 
     expect(await screen.findByText(/2 incident\(s\)/)).toBeInTheDocument();
-    expect(screen.getAllByTestId("incident-row").length).toBe(2);
-    expect(screen.getByText("203.0.113.44")).toBeInTheDocument();
+    const rows = screen.getAllByTestId("incident-row");
+    expect(rows.length).toBe(2);
+    // The entity also appears in the sidebar's contextual RECENT INCIDENTS list
+    // on this route, so scope the table assertion to the incident row itself.
+    expect(within(rows[0]).getByText("203.0.113.44")).toBeInTheDocument();
   });
 
   it("shows an honest empty state when there are no incidents", async () => {
