@@ -6,20 +6,21 @@ import { renderApp, mockFetch, OVERVIEW, METRICS } from "./helpers";
 
 /** The Upload button opens a two-mode dialog (local file OR a pasted URL).
  *  Both feed the same background job — only the source differs. */
-describe("upload dialog: local file or attach a link", () => {
+describe("upload dialog: files and a link, side by side (v3)", () => {
   beforeEach(() => useJobs.getState()._reset());
 
-  it("opens a dialog offering both ingest modes", async () => {
+  it("opens a dialog offering both ingest modes at once", async () => {
     mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS });
     renderApp(<App />);
     await screen.findByTestId("chart-overtime");
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
-    const dialog = screen.getByRole("dialog", { name: /add logs to analyze/i });
-    expect(within(dialog).getByRole("button", { name: /upload from this computer/i })).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /attach a link/i })).toBeInTheDocument();
-    // File mode is the default; its hidden file input is present.
+    const dialog = screen.getByRole("dialog", { name: /upload logs/i });
+    // v3 shows UPLOAD FILES and PASTE A LOG LINK side by side — no mode switch.
+    expect(within(dialog).getByText("UPLOAD FILES")).toBeInTheDocument();
+    expect(within(dialog).getByText("PASTE A LOG LINK")).toBeInTheDocument();
     expect(within(dialog).getByTestId("ingest-file")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Log file URL")).toBeInTheDocument();
   });
 
   it("submitting a URL starts a job via POST /api/analyze {url}", async () => {
@@ -43,11 +44,10 @@ describe("upload dialog: local file or attach a link", () => {
     renderApp(<App />);
     await screen.findByTestId("chart-overtime");
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
-    await userEvent.click(screen.getByRole("button", { name: /attach a link/i }));
 
     const url = "https://raw.githubusercontent.com/org/repo/main/app.log";
     await userEvent.type(screen.getByLabelText("Log file URL"), url);
-    await userEvent.click(screen.getByRole("button", { name: /fetch & analyze/i }));
+    await userEvent.click(screen.getByRole("button", { name: /fetch & parse/i }));
 
     // The URL was posted as {url}, and the job completes via the notifier.
     await waitFor(() => expect(postBody).toEqual({ url }));
@@ -63,9 +63,8 @@ describe("upload dialog: local file or attach a link", () => {
     renderApp(<App />);
     await screen.findByTestId("chart-overtime");
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
-    await userEvent.click(screen.getByRole("button", { name: /attach a link/i }));
     await userEvent.type(screen.getByLabelText("Log file URL"), "http://localhost/x.log");
-    await userEvent.click(screen.getByRole("button", { name: /fetch & analyze/i }));
+    await userEvent.click(screen.getByRole("button", { name: /fetch & parse/i }));
 
     expect(await screen.findByText(/private, loopback, or link-local address/)).toBeInTheDocument();
   });

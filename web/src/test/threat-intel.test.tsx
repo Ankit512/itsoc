@@ -22,7 +22,8 @@ describe("Threat Intel page", () => {
     expect(await screen.findByText("Known brute-force source IP")).toBeInTheDocument();
     expect(screen.getByTestId("ioc-row")).toBeInTheDocument();
     expect(screen.getByText("auth_bruteforce")).toBeInTheDocument();
-    expect(screen.getByText(/derived tags — not verdicts/)).toBeInTheDocument();
+    // v3 shows this both as the page note and as the top-bar subtitle.
+    expect(screen.getAllByText(/derived tags — not verdicts/).length).toBeGreaterThan(0);
     expect(screen.getByText(/cold — technique names/)).toBeInTheDocument();
   });
 

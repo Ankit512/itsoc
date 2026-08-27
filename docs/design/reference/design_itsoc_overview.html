@@ -1,0 +1,159 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>itsoc. — Overview (design reference)</title>
+<style>html,body{margin:0;height:100%}body{background:#06070a;padding:0;font-family:-apple-system,system-ui,sans-serif}</style></head><body>
+<!-- DESIGN REFERENCE for the itsoc. redesign — Grafana×Vercel, both themes. Toggle theme top-right (☾/☀).
+     This is the authoritative component + token reference for Phase 0/1/2. Tokens live on .app[data-theme]. -->
+<div class="app" data-theme="dark" id="itsocApp">
+  <aside class="side">
+    <div class="brand">itsoc<span>.</span></div>
+    <nav>
+      <a class="nav on"><i>▦</i>Overview</a>
+      <a class="nav"><i>◈</i>Findings</a>
+      <a class="nav"><i>◇</i>Incidents</a>
+      <a class="nav"><i>≋</i>Sources</a>
+      <a class="nav"><i>⚙</i>Settings</a>
+    </nav>
+    <div class="side-exp">Experimental<br><span>Command Center · off</span></div>
+    <div class="side-foot">rules v7 · qwen3:8b · local</div>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="ttl">Overview <em>· security posture</em></div>
+      <div class="cmd"><span>⌘K</span> Search or ask itsoc…</div>
+      <div class="tools">
+        <button class="pill">Linux_2k · today ▾</button>
+        <button class="ico" id="tgl" title="Toggle theme">☾</button>
+        <button class="ico" title="Refresh">⟳</button>
+      </div>
+    </header>
+    <section class="kpis">
+      <div class="kpi"><label>Total</label><b>24</b><span class="d up">▲ 12% vs last run</span></div>
+      <div class="kpi"><label>Critical</label><b class="c-crit">2</b><span class="d up">▲ 1</span></div>
+      <div class="kpi"><label>High</label><b class="c-high">17</b><span class="d up">▲ 9%</span></div>
+      <div class="kpi"><label>Medium</label><b class="c-med">4</b><span class="d dn">▼ 2</span></div>
+      <div class="kpi"><label>Low</label><b class="c-low">1</b><span class="d na">first run · n/a</span></div>
+    </section>
+    <section class="grid2">
+      <div class="panel">
+        <div class="ph"><h3>Findings over time</h3><span class="leg"><i class="c-crit">■</i>crit <i class="c-high">■</i>high <i class="c-med">■</i>med <i class="c-low">■</i>low</span></div>
+        <svg viewBox="0 0 640 190" class="chart" preserveAspectRatio="none" id="bars"></svg>
+        <div class="axis"><span>00:00</span><span>peak 02:00</span><span>23:00</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><h3>Top ATT&CK tactics</h3><span class="chip">derived · not a verdict</span></div>
+        <div class="bars">
+          <div class="row"><span>Credential Access</span><div class="track"><i style="width:92%"></i></div><b>23</b></div>
+          <div class="row"><span>Persistence</span><div class="track"><i style="width:40%"></i></div><b>10</b></div>
+          <div class="row"><span>Command &amp; Control</span><div class="track"><i style="width:24%"></i></div><b>6</b></div>
+          <div class="row"><span>Discovery</span><div class="track"><i style="width:12%"></i></div><b>3</b></div>
+        </div>
+      </div>
+    </section>
+    <section class="panel tbl">
+      <div class="ph"><h3>Latest findings</h3><span class="sub">2,000 lines parsed · 0 unparsed</span></div>
+      <table>
+        <tr><th>Sev</th><th>Rule</th><th>Host</th><th>Finding</th></tr>
+        <tr><td><span class="tag crit">CRITICAL</span></td><td>auth_bruteforce_success</td><td>server-01</td><td>Brute-force → successful login for 'admin' from 203.0.113.44</td></tr>
+        <tr><td><span class="tag crit">CRITICAL</span></td><td>critical_service_event</td><td>server-03</td><td>DB connection pool exhausted (0/50)</td></tr>
+        <tr><td><span class="tag high">HIGH</span></td><td>suspicious_outbound</td><td>firewall-01</td><td>Outbound to 45.153.160.2:4444 (blocked)</td></tr>
+        <tr><td><span class="tag med">MEDIUM</span></td><td>error_rate_spike</td><td>server-01</td><td>7 ERROR/CRIT within 60s</td></tr>
+      </table>
+    </section>
+  </main>
+  <aside class="copilot">
+    <div class="cop-h"><b>itsoc analyst</b><span class="chip adv">advisory</span></div>
+    <div class="rec">
+      <div class="rec-t">Start here</div>
+      <p><b>203.0.113.44 → server-01.</b> The only chain with a <em>successful</em> login after brute-force (T1110 → T1078). 3 correlated findings, spanning 4 min.</p>
+      <div class="cited">cited: 3 findings · rule <code>auth_bruteforce_success</code></div>
+      <div class="acts"><button>Open incident</button><button class="ghost">Summarize</button></div>
+    </div>
+    <div class="sugg">
+      <button>What changed since last run?</button>
+      <button>Which host first?</button>
+      <button>Is brute-force trending up?</button>
+    </div>
+    <div class="ask"><input placeholder="Ask itsoc…"><button class="send">↑</button></div>
+    <div class="cop-f">Rules set the severity. I explain &amp; prioritize — I don't decide.</div>
+  </aside>
+</div>
+<style>
+  .app{--bg:#0b0d12;--panel:#12151c;--panel2:#0e1117;--bd:#1f2430;--ink:#e7eaf0;--mut:#868fa1;--acc:#7c6cff;--crit:#f4525f;--high:#f5a524;--med:#d9b310;--low:#2bd4a4;
+    display:grid;grid-template-columns:200px 1fr 300px;background:var(--bg);color:var(--ink);
+    border:0;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;font-size:13px;height:100vh}
+  .app[data-theme="light"]{--bg:#f7f8fa;--panel:#ffffff;--panel2:#fbfbfd;--bd:#e6e8ee;--ink:#10131a;--mut:#667085;--acc:#6d5cf0;--crit:#e5484d;--high:#e08600;--med:#b08900;--low:#12a382}
+  .app *{box-sizing:border-box}
+  .side{background:var(--panel2);border-right:1px solid var(--bd);padding:16px 12px;display:flex;flex-direction:column;gap:6px}
+  .brand{font-weight:750;font-size:19px;letter-spacing:-.02em;padding:4px 8px 12px}.brand span{color:var(--acc)}
+  nav{display:flex;flex-direction:column;gap:2px}
+  .nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--mut);cursor:pointer;font-weight:500}
+  .nav i{font-style:normal;width:16px;text-align:center}
+  .nav:hover{background:var(--panel);color:var(--ink)}
+  .nav.on{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc);font-weight:600}
+  .side-exp{margin-top:auto;padding:10px;border:1px dashed var(--bd);border-radius:8px;color:var(--mut);font-size:11px;line-height:1.5}.side-exp span{opacity:.7}
+  .side-foot{padding:6px 8px;color:var(--mut);font-size:10.5px;font-family:ui-monospace,monospace}
+  .main{padding:16px 18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+  .top{display:flex;align-items:center;gap:12px}
+  .ttl{font-weight:650;font-size:15px}.ttl em{color:var(--mut);font-style:normal;font-weight:400}
+  .cmd{flex:1;max-width:320px;margin:0 auto 0 8px;display:flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid var(--bd);border-radius:9px;color:var(--mut);background:var(--panel)}
+  .cmd span{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--bd);border-radius:5px;padding:1px 5px}
+  .tools{display:flex;gap:8px;align-items:center}
+  .pill{background:var(--panel);border:1px solid var(--bd);color:var(--ink);padding:7px 11px;border-radius:9px;cursor:pointer;font-size:12.5px}
+  .ico{width:32px;height:32px;border:1px solid var(--bd);background:var(--panel);color:var(--ink);border-radius:9px;cursor:pointer;font-size:14px}
+  .pill:hover,.ico:hover{border-color:var(--acc)}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .kpi{background:var(--panel);border:1px solid var(--bd);border-radius:11px;padding:12px 13px;display:flex;flex-direction:column;gap:3px}
+  .kpi label{color:var(--mut);font-size:11px}.kpi b{font-size:24px;font-weight:700;letter-spacing:-.02em}
+  .d{font-size:10.5px;font-weight:600}.d.up{color:var(--low)}.d.dn{color:var(--crit)}.d.na{color:var(--mut);font-weight:400}
+  .c-crit{color:var(--crit)}.c-high{color:var(--high)}.c-med{color:var(--med)}.c-low{color:var(--low)}
+  .panel{background:var(--panel);border:1px solid var(--bd);border-radius:12px;padding:13px 15px}
+  .grid2{display:grid;grid-template-columns:1.5fr 1fr;gap:12px}
+  .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .ph h3{font-size:13px;font-weight:650;margin:0}
+  .sub{color:var(--mut);font-size:11px}
+  .chip{font-size:10px;color:var(--mut);border:1px solid var(--bd);border-radius:20px;padding:2px 8px}
+  .chip.adv{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 40%,transparent)}
+  .leg{font-size:10px;color:var(--mut)}.leg i{font-style:normal;margin:0 1px 0 6px}
+  .chart{width:100%;height:170px;display:block}
+  .axis{display:flex;justify-content:space-between;color:var(--mut);font-size:10px;margin-top:4px}
+  .bars{display:flex;flex-direction:column;gap:11px;padding-top:2px}
+  .row{display:grid;grid-template-columns:120px 1fr 24px;align-items:center;gap:10px;font-size:12px}
+  .row span{color:var(--mut)}
+  .track{height:8px;background:var(--panel2);border-radius:6px;overflow:hidden}.track i{display:block;height:100%;background:var(--acc);border-radius:6px}
+  .row b{text-align:right;font-variant-numeric:tabular-nums}
+  .tbl table{width:100%;border-collapse:collapse}
+  .tbl th{text-align:left;color:var(--mut);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:0 8px 8px}
+  .tbl td{padding:9px 8px;border-top:1px solid var(--bd);font-size:12px}
+  .tbl td:nth-child(2){font-family:ui-monospace,monospace;font-size:11px;color:var(--mut)}
+  .tag{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;letter-spacing:.03em}
+  .tag.crit{background:color-mix(in srgb,var(--crit) 18%,transparent);color:var(--crit)}
+  .tag.high{background:color-mix(in srgb,var(--high) 18%,transparent);color:var(--high)}
+  .tag.med{background:color-mix(in srgb,var(--med) 20%,transparent);color:var(--med)}
+  .copilot{background:var(--panel2);border-left:1px solid var(--bd);padding:16px 14px;display:flex;flex-direction:column;gap:12px}
+  .cop-h{display:flex;align-items:center;justify-content:space-between}.cop-h b{font-size:13.5px}
+  .rec{background:var(--panel);border:1px solid var(--bd);border-radius:11px;padding:12px}
+  .rec-t{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);font-weight:700;margin-bottom:6px}
+  .rec p{margin:0 0 8px;line-height:1.5;font-size:12.5px}.rec em{font-style:normal;color:var(--acc)}
+  .cited{font-size:10.5px;color:var(--mut);border-top:1px solid var(--bd);padding-top:7px;margin-bottom:9px}.cited code{font-family:ui-monospace,monospace}
+  .acts{display:flex;gap:7px}
+  .acts button{flex:1;background:var(--acc);color:#fff;border:0;padding:7px;border-radius:8px;cursor:pointer;font-weight:600;font-size:11.5px}
+  .acts .ghost{background:transparent;color:var(--ink);border:1px solid var(--bd)}
+  .sugg{display:flex;flex-direction:column;gap:6px}
+  .sugg button{text-align:left;background:var(--panel);border:1px solid var(--bd);color:var(--ink);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:12px}
+  .sugg button:hover{border-color:var(--acc);color:var(--acc)}
+  .ask{display:flex;gap:6px;margin-top:2px}
+  .ask input{flex:1;background:var(--panel);border:1px solid var(--bd);color:var(--ink);border-radius:9px;padding:9px 11px;font-size:12.5px;outline:none}
+  .ask input:focus{border-color:var(--acc)}
+  .send{width:36px;background:var(--acc);color:#fff;border:0;border-radius:9px;cursor:pointer;font-size:14px}
+  .cop-f{color:var(--mut);font-size:10.5px;line-height:1.5;margin-top:auto}
+</style>
+<script>
+  (function(){
+    var app=document.getElementById('itsocApp'),tgl=document.getElementById('tgl');
+    tgl.onclick=function(){var d=app.getAttribute('data-theme')==='dark'?'light':'dark';app.setAttribute('data-theme',d);tgl.textContent=d==='dark'?'☾':'☀';};
+    var data=[[0,3,1,0],[0,4,0,1],[2,11,2,0],[0,2,0,0],[0,1,1,0],[0,0,0,1],[0,2,0,0],[0,3,1,0],[0,1,0,0],[0,4,1,0],[0,2,0,1],[0,5,2,0],[0,3,0,0],[0,1,1,0],[0,2,0,0],[0,1,0,1]];
+    var cs=getComputedStyle(app),cols={0:cs.getPropertyValue('--crit'),1:cs.getPropertyValue('--high'),2:cs.getPropertyValue('--med'),3:cs.getPropertyValue('--low')};
+    var svg=document.getElementById('bars'),W=640,H=190,n=data.length,gap=W/n,bw=gap*0.62,max=14,s='';
+    data.forEach(function(col,i){var x=i*gap+(gap-bw)/2,y=H;col.forEach(function(v,si){var h=v/max*(H-14);y-=h;s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+cols[si].trim()+'" rx="1.5"/>';});});
+    svg.innerHTML=s;
+  })();
+</script></body></html>

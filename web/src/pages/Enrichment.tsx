@@ -88,8 +88,8 @@ function EnrichPanel({ anyKey }: { anyKey: boolean }) {
       {!anyKey && (
         <div className="is-note" style={{ display: "flex", alignItems: "flex-start", gap: 8, borderColor: "var(--high)", color: "var(--high)" }}>
           <TriangleAlert size={15} aria-hidden style={{ flex: "none", marginTop: 1 }} />
-          <span>No provider key is configured yet. Add an OTX or AbuseIPDB key above — until then a lookup
-            honestly reports every provider as not-configured.</span>
+          <span>No provider key is configured — lookups will fail until one is saved. Add an OTX or
+            AbuseIPDB key above; until then a lookup honestly reports every provider as not-configured.</span>
         </div>
       )}
       <form style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}
@@ -149,7 +149,7 @@ function IocHistory() {
       <div className="is-panel__h"><h3>Recent IOC lookups</h3></div>
       {items.length === 0 ? (
         <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
-          No IOC lookups recorded yet. Enrich an IP above — real provider results appear here and in the IOC store.
+          No lookups yet — results here are real provider responses only. Enrich an IP above.
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>

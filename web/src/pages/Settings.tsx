@@ -59,8 +59,8 @@ function ComputeSettings() {
               <span className="dot" aria-hidden />
               <span style={{ color: "var(--ink)" }}>{m === "local" ? "Local" : "Remote"}</span>
               <small>
-                {m === "local" ? "— nothing leaves this machine"
-                  : "— explanations call an OpenAI-compatible endpoint (redacted first)"}
+                {m === "local" ? "— nothing leaves this machine."
+                  : "— calls an OpenAI-compatible endpoint — outbound text is redacted first."}
               </small>
             </label>
           ))}
@@ -137,8 +137,7 @@ function AnalystModel() {
           : <> · Endpoint: <b style={{ color: "var(--ink)" }}>local</b></>}
       </p>
       <p className="is-mut" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
-        The model only explains findings in plain language. It never sets or changes a severity or
-        verdict — those are the deterministic rules.
+        The model only explains — it never sets a severity. Verdicts are the deterministic rules'.
       </p>
     </div>
   );
@@ -150,11 +149,13 @@ function ThemeSetting() {
   const dark = theme === "dark";
   return (
     <div className="is-panel" style={CARD}>
-      <div className="is-panel__h"><h3>Appearance</h3></div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 12 }}>
-          Theme: <b style={{ color: "var(--ink)" }}>{dark ? "Dark" : "Light"}</b> — saved for your next visit.
-        </span>
+        <div>
+          <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Appearance</h3>
+          <div className="is-mut" style={{ fontSize: 12, marginTop: 4 }}>
+            Saved for next visit. Currently <b style={{ color: "var(--ink)" }}>{dark ? "Dark" : "Light"}</b>.
+          </div>
+        </div>
         {/* Segmented Dark | Light control (v3 dc Appearance). Only toggleTheme is
             exposed, so each button flips only when it isn't already active. */}
         <div className="is-seg" role="group" aria-label="Theme">

@@ -20,9 +20,9 @@ describe("Enrichment — TI panel (masked keys, honest states)", () => {
     renderApp(<App />, { route: "/enrichment" });
 
     expect(await screen.findAllByText(/no key configured/i)).not.toHaveLength(0);
-    expect(screen.getByText(/No provider key is configured yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No provider key is configured — lookups will fail until one is saved/i)).toBeInTheDocument();
     // Honest empty IOC history.
-    expect(screen.getByText(/No IOC lookups recorded yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No lookups yet — results here are real provider responses only/i)).toBeInTheDocument();
   });
 
   it("enrich posts the IP and renders provider verdicts from the real response", async () => {
@@ -68,7 +68,7 @@ describe("OEM Engine — connectors (masked creds, real poll outcome)", () => {
     mockFetch({ "/api/oem/connectors": NO_CONNECTORS });
     renderApp(<App />, { route: "/oem" });
 
-    expect(await screen.findByText(/No OEM connectors yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No connectors yet — add one on the left/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/API token/i)).toHaveAttribute("type", "password");
     expect(screen.getByRole("button", { name: /save connector/i })).toBeInTheDocument();
   });

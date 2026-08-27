@@ -2546,6 +2546,28 @@ def check_serve_react():
                   status == 200 and "javascript" in headers.get("Content-Type", ""),
                   f"{status} {headers.get('Content-Type')}")
 
+        # A STALE hashed asset is a real 404 — never the SPA shell. Serving
+        # index.html for `/assets/index-<oldhash>.js` makes the browser parse
+        # HTML as a module script: blank page, 200 status, no server-side clue.
+        # This bites for real every rebuild, when a client holds old index.html.
+        try:
+            status, headers, _ = get("/assets/index-staleHASH0.js")
+            check("stale /assets/*.js is 404, not the SPA shell",
+                  False, f"got {status} {headers.get('Content-Type')}")
+        except urllib.error.HTTPError as e:
+            check("stale /assets/*.js is 404, not the SPA shell", e.code == 404,
+                  str(e.code))
+        try:
+            get("/fonts/not-a-real-font.woff2")
+            check("missing /fonts/* is 404, not the SPA shell", False, "got 200")
+        except urllib.error.HTTPError as e:
+            check("missing /fonts/* is 404, not the SPA shell", e.code == 404,
+                  str(e.code))
+        # ...while an extension-less client route still gets the shell.
+        _, _, deep = get("/incidents/INC-1")
+        check("nested client route still falls back to the app shell",
+              'id="root"' in deep)
+
         # Every API surface still works, unchanged.
         status, headers, body = get("/api/metrics")
         check("/api/metrics still returns JSON",
@@ -4266,8 +4288,13 @@ def check_auth():
         test_auth.logout(token)
         check("logout revokes session token", test_auth.authenticate_token(token) is None)
 
-        # 6. HTTP Server /api/auth/* endpoint contracts
+        # 6. HTTP Server /api/auth/* endpoint contracts.
+        # These assert the FAIL-CLOSED gate, so pin AUTH_REQUIRED on regardless
+        # of the shipped default (the owner runs with the login gate off — the
+        # gate-off contract is asserted separately in section 7 below).
         orig_provider = auth.AUTH_PROVIDER
+        orig_required = serve.AUTH_REQUIRED
+        serve.AUTH_REQUIRED = True
         auth.AUTH_PROVIDER = test_auth
         srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
         srv.daemon_threads = True
@@ -4325,6 +4352,49 @@ def check_auth():
             srv.shutdown()
             srv.server_close()
             auth.AUTH_PROVIDER = orig_provider
+            serve.AUTH_REQUIRED = orig_required
+
+        # 7. LOGIN GATE OFF (serve.AUTH_REQUIRED False) — the owner's decision,
+        # 2026-08-27. Data endpoints must open, /api/auth/me must report the
+        # local profile WITHOUT claiming an authenticated session, and flipping
+        # the switch back must restore the 401s.
+        orig_provider = auth.AUTH_PROVIDER
+        orig_required = serve.AUTH_REQUIRED
+        serve.AUTH_REQUIRED = False
+        auth.AUTH_PROVIDER = test_auth
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+        srv.daemon_threads = True
+        oport = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        def open_get(path):
+            req = urllib.request.Request(f"http://127.0.0.1:{oport}{path}",
+                                         headers={"Connection": "close"})
+            try:
+                with urllib.request.urlopen(req) as r:
+                    return r.status, json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read())
+
+        try:
+            code, _ = open_get("/api/metrics")
+            check("gate off: data endpoint opens without a token", code == 200)
+            code, body = open_get("/api/auth/me")
+            check("gate off: /api/auth/me returns 200 with the local profile",
+                  code == 200 and bool(body.get("user", {}).get("username")))
+            check("gate off: it does NOT claim an authenticated session",
+                  body.get("authenticated") is False and body.get("authDisabled") is True)
+            check("gate off: the response says so in plain words",
+                  "login gate is off" in (body.get("note") or ""))
+            # Flipping the switch back re-closes the gate on the SAME server.
+            serve.AUTH_REQUIRED = True
+            code, _ = open_get("/api/metrics")
+            check("switch flips back: data endpoint is 401 again", code == 401)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+            auth.AUTH_PROVIDER = orig_provider
+            serve.AUTH_REQUIRED = orig_required
 
     return 0 if all(results) else 1
 

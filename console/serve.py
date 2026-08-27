@@ -48,7 +48,7 @@ import urllib.request
 import webbrowser
 from email import policy
 from email.parser import BytesParser
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -100,6 +100,22 @@ STATE_FILE = HERE / "console_state.json"        # gitignored; handy for debuggin
 # silently lost work that took minutes to produce.
 RUNS_DIR = HERE / ".runs"
 MAX_RUNS = 25
+
+# ---------------------------------------------------------------------------
+# LOGIN GATE — DISABLED BY OWNER DECISION (2026-08-27).
+#
+# The console was fail-closed: every /api/* call needed a bearer token. The
+# owner asked for it off so the app is usable without a login while the design
+# work lands. This is the ONE switch; nothing else in the file checks auth.
+#
+#   AUTH_REQUIRED = True     -> restore the fail-closed gate
+#   ITSOC_AUTH=1 in the env  -> restore it for a single run
+#
+# Mitigation, not a justification: bind() listens on 127.0.0.1 only, so the API
+# is reachable from this machine alone — it is not exposed to the network.
+# console/test_console.py exercises BOTH modes, so flipping this back is safe.
+# ---------------------------------------------------------------------------
+AUTH_REQUIRED = os.environ.get("ITSOC_AUTH", "").strip() == "1"
 
 MAX_UPLOAD_BYTES = 64 * 1024 * 1024
 MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024
@@ -550,6 +566,11 @@ def overview_state(window=None):
             "attackerStatus": phase_for_tactics(tactics),
             "tactics": tactics,
             "name": f.get("title", ""),
+            # Design v3 Latest-alerts columns are TIME · sev · RULE · HOST ·
+            # FINDING. Both are display projections of the finding the rules
+            # already produced — no new verdict, no derivation.
+            "rule": f.get("type", ""),
+            "host": f.get("host", "") if f.get("hostDerived") else "",
             "source": STATE.get("sourceLabel", ""),
         })
 
@@ -1328,7 +1349,13 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         self._send(json.dumps(obj).encode(), "application/json; charset=utf-8", status)
 
     def _api_authorized(self, path):
-        """Fail-closed gate for backend data/actions; only bootstrap auth is public."""
+        """Gate for backend data/actions; only bootstrap auth is public.
+
+        Fail-closed when AUTH_REQUIRED; open when the owner has switched the
+        login gate off (see AUTH_REQUIRED above).
+        """
+        if not AUTH_REQUIRED:
+            return True
         if path in ("/api/auth/status", "/api/auth/signup", "/api/auth/login"):
             return True
         token = self._get_auth_token()
@@ -1464,10 +1491,18 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         """Serve the built React SOC app from web/dist.
 
         A GET path that maps to an existing dist file is served with the right
-        Content-Type; anything else returns dist/index.html (SPA fallback), so a
-        deep-link or refresh on a client route still loads the app. When the
-        build is absent the API keeps working and this returns an honest build
-        hint rather than crashing or faking a page.
+        Content-Type; a CLIENT ROUTE returns dist/index.html (SPA fallback), so a
+        deep-link or refresh still loads the app. When the build is absent the
+        API keeps working and this returns an honest build hint rather than
+        crashing or faking a page.
+
+        A missing STATIC ASSET is a 404, never the SPA shell. Handing index.html
+        back for `/assets/index-<oldhash>.js` makes the browser parse HTML as a
+        module script: the page goes blank with only a console error, and the
+        server looks like it succeeded. That happens for real whenever a rebuild
+        changes the content hashes and a client still holds the old index.html.
+        Same honesty rule as the rest of the surface — say "not here", never
+        serve the wrong thing with a 200.
         """
         index = WEB_DIST / "index.html"
         if not index.exists():
@@ -1498,6 +1533,20 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             if candidate and candidate.is_file():
                 ctype = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
                 return self._send(candidate.read_bytes(), ctype)
+
+        # A path that names a build artefact (has a file extension, or sits
+        # under the hashed asset dirs) is a static miss -> 404. Only extension-
+        # less paths are client routes eligible for the SPA shell.
+        looks_static = (rel.startswith(("assets/", "fonts/"))
+                        or bool(PurePosixPath(rel).suffix))
+        if looks_static:
+            # NOTE: the reason phrase goes on the status line and is encoded
+            # latin-1 by http.server — keep it plain ASCII. Detail belongs in
+            # the explain body.
+            return self.send_error(
+                404, "No such build asset",
+                "The web build may be stale. Rebuild with "
+                "`cd web && npm run build`, then hard-reload the page.")
 
         # SPA fallback: hand the app shell to the client router.
         self._send(index.read_bytes(), "text/html; charset=utf-8")
@@ -2238,9 +2287,19 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         token = self._get_auth_token()
         user = auth.AUTH_PROVIDER.authenticate_token(token)
         if user:
-            self._json({"user": user, "authenticated": True})
-        else:
-            self._json({"user": None, "authenticated": False, "error": "unauthenticated"}, 401)
+            return self._json({"user": user, "authenticated": True})
+        if not AUTH_REQUIRED:
+            # Gate off: report the machine's stored profile (or a plain local
+            # operator when none exists) and say plainly that this is NOT an
+            # authenticated session — the UI must never imply a login happened.
+            stored = auth.AUTH_PROVIDER.get_status().get("activeUsername")
+            return self._json({
+                "user": {"username": stored or "local", "role": "analyst"},
+                "authenticated": False,
+                "authDisabled": True,
+                "note": "login gate is off — this is the local profile, not a session",
+            })
+        self._json({"user": None, "authenticated": False, "error": "unauthenticated"}, 401)
 
     def _auth_signup(self):
         length = int(self.headers.get("Content-Length") or 0)

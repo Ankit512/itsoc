@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#09090b;--panel:#0e0e12;--panel2:#17171c;--border:#1e1e24;--ink:#ededf0;--mut:#8f8f98;--mut2:#5c5c66;--accent:#8b7cff;--inset:#0b0b0f;--track:#1a1a20;--fill:#3f3f4a}
+[data-theme="light"]{--bg:#fbfbfc;--panel:#ffffff;--panel2:#f1f1f4;--border:#ececef;--ink:#18181b;--mut:#71717a;--mut2:#a1a1aa;--accent:#6d5cf0;--inset:#f7f7f9;--track:#ececef;--fill:#c4c4cd}
+html,body{background:#09090b}
+a{color:var(--accent);text-decoration:none}a:hover{color:var(--accent);text-decoration:underline}
+[data-theme] *{transition:background-color .2s ease,border-color .2s ease,color .2s ease}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes pal{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes growx{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+input,select,button,textarea{font:inherit;color:inherit;background:transparent;border:none;outline:none}
+input::placeholder,textarea::placeholder{color:var(--mut2)}
+select option{background:var(--panel);color:var(--ink)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px}::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="height:100vh;background:var(--bg);color:var(--ink);font-family:'Geist',system-ui,sans-serif;font-size:13px;overflow-x:auto;overflow-y:hidden;position:relative"><div style="min-width:1280px;height:100%">
+<sc-if value="{{isLogin}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Login" style="display:flex;height:100%;animation:rise .15s ease">
+  <div style="flex:1;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;padding:64px;gap:28px">
+    <div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:7px;background:color-mix(in oklab, var(--accent) 18%, transparent);border:1px solid color-mix(in oklab, var(--accent) 35%, transparent);display:flex;align-items:center;justify-content:center;color:var(--accent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 7.7-8 9-4.6-1.3-8-4.5-8-9V6l8-3Z"></path></svg></div><div style="font-size:17px;font-weight:600;letter-spacing:-0.01em">itsoc<span style="color:var(--accent)">.</span></div></div>
+    <div style="font-size:32px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;max-width:420px;text-wrap:pretty">Local, honest, rules-first security operations.</div>
+    <div style="display:flex;flex-direction:column;gap:12px;color:var(--mut);font-size:13.5px">
+      <div style="display:flex;gap:10px;align-items:center"><span style="color:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>Rules set severity — deterministic, inspectable, versioned.</div>
+      <div style="display:flex;gap:10px;align-items:center"><span style="color:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>The AI only explains — it never decides a verdict.</div>
+      <div style="display:flex;gap:10px;align-items:center"><span style="color:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>Nothing leaves this machine unless you say so.</div>
+    </div>
+    <div style="border:1px dashed var(--border);border-radius:8px;padding:12px 14px;color:var(--mut);font-size:12px;max-width:420px">Local demo — a single profile on this machine.</div>
+  </div>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative">
+    <button onClick="{{toggleTheme}}" style="position:absolute;top:20px;right:20px;width:30px;height:30px;border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)"><sc-if value="{{isDark}}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"></path></svg></sc-if><sc-if value="{{isLight}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10Z"></path></svg></sc-if></button>
+    <div style="width:360px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;background:var(--inset);border:1px solid var(--border);border-radius:7px;padding:3px;gap:3px">
+        <button onClick="{{authIn}}" style="{{tabInS}}">Log in</button>
+        <button onClick="{{authUp}}" style="{{tabUpS}}">Sign up</button>
+      </div>
+      <sc-if value="{{isSignup}}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Name</div><input placeholder="Analyst name" style="border:1px solid var(--border);border-radius:7px;padding:8px 10px;background:var(--inset)" style-focus="border-color:var(--accent)"></div>
+      </sc-if>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Username</div><input placeholder="ankit" style="border:1px solid var(--border);border-radius:7px;padding:8px 10px;background:var(--inset)" style-focus="border-color:var(--accent)"></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Passphrase</div><input type="password" placeholder="••••••••••" style="border:1px solid var(--border);border-radius:7px;padding:8px 10px;background:var(--inset)" style-focus="border-color:var(--accent)"></div>
+      <button onClick="{{go.overview}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:9px;font-weight:600;cursor:pointer">Sign in to session →</button>
+      <div style="font-size:11.5px;color:var(--mut2);line-height:1.5">Passphrase is scrypt-hashed locally; auth routes through one swap-seam module ready for future token/passkey.</div>
+    </div>
+  </div>
+</div>
+</sc-if>
+<sc-if value="{{isApp}}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;height:100%">
+  <div style="width:212px;flex:none;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 10px;gap:12px">
+    <div style="display:flex;align-items:center;gap:9px;padding:2px 6px"><div style="font-size:15px;font-weight:600;letter-spacing:-0.01em;width:53px;height:23px">itsoc<span style="color:var(--accent)">.</span></div></div>
+    <button onClick="{{openPal}}" style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:7px;padding:6px 9px;color:var(--mut2);cursor:pointer;font-size:12px" style-hover="color:var(--mut);border-color:var(--mut2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg><span style="flex:1;text-align:left">Search…</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px">⌘K</span></button>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="{{ns.overview}}" onClick="{{go.overview}}"><span style="{{ni.overview}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg></span><span>Overview</span></div>
+      <div style="{{ns.findings}}" onClick="{{go.findings}}"><span style="{{ni.findings}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h9M4 18h7"></path><circle cx="17" cy="16" r="3.5"></circle><path d="M19.6 18.6 22 21"></path></svg></span><span>Findings</span></div>
+      <div style="{{ns.incidents}}" onClick="{{go.incidents}}"><span style="{{ni.incidents}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.2 2.9 17a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z"></path><path d="M12 9v4M12 16.5h.01"></path></svg></span><span>Incidents</span></div>
+      <div style="{{ns.sources}}" onClick="{{go.sources}}"><span style="{{ni.sources}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"></circle><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"></path></svg></span><span>Sources</span></div>
+      <div style="{{ns.settings}}" onClick="{{go.settings}}"><span style="{{ni.settings}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h10M17 6h4M3 12h4M11 12h10M3 18h12M19 18h2"></path><circle cx="15" cy="6" r="2"></circle><circle cx="9" cy="12" r="2"></circle><circle cx="17" cy="18" r="2"></circle></svg></span><span>Settings</span></div>
+    </div>
+    <sc-if value="{{isIncidents}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:5px;padding:0 6px">
+        <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut2);margin-bottom:2px">RECENT INCIDENTS</div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer"><span style="width:6px;height:6px;border-radius:50%;background:#f26d78;flex:none"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">server-01</span><span style="font-size:10px;letter-spacing:.05em;color:#f26d78">CRIT</span></div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mut);cursor:pointer"><span style="width:6px;height:6px;border-radius:50%;background:#f0a54a;flex:none"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">db-02</span><span style="font-size:10px;letter-spacing:.05em;color:#f0a54a">HIGH</span></div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mut);cursor:pointer"><span style="width:6px;height:6px;border-radius:50%;background:#d3b23a;flex:none"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">edge-fw</span><span style="font-size:10px;letter-spacing:.05em;color:#d3b23a">MED</span></div>
+      </div>
+    </sc-if>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 6px;margin-top:4px">
+      <span style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut2)">EXPERIMENTAL</span>
+      <button onClick="{{toggleExp}}" style="{{expPillS}}">{{expLabel}}</button>
+    </div>
+    <div style="{{expWrapS}}">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="{{ns.assets}}" onClick="{{go.assets}}"><span style="{{ni.assets}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"></path><path d="M3 8l9 5 9-5M12 13v8"></path></svg></span><span>Assets</span></div>
+        <div style="{{ns.intel}}" onClick="{{go.intel}}"><span style="{{ni.intel}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a13 13 0 0 1 0 18 13 13 0 0 1 0-18Z"></path></svg></span><span>Threat Intel</span></div>
+        <div style="{{ns.discovery}}" onClick="{{go.discovery}}"><span style="{{ni.discovery}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle><path d="M12 12l6-6"></path></svg></span><span>Discovery</span></div>
+        <div style="{{ns.vulns}}" onClick="{{go.vulns}}"><span style="{{ni.vulns}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 7.7-8 9-4.6-1.3-8-4.5-8-9V6l8-3Z"></path><path d="M12 8v4M12 15.5h.01"></path></svg></span><span>Vulnerabilities</span></div>
+        <div style="{{ns.enrich}}" onClick="{{go.enrich}}"><span style="{{ni.enrich}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L9.5 22 19 9.5h-6.5L13 2Z"></path></svg></span><span>Enrichment</span></div>
+        <div style="{{ns.oem}}" onClick="{{go.oem}}"><span style="{{ni.oem}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M8 7h8v5a4 4 0 0 1-8 0V7ZM12 16v5"></path></svg></span><span>OEM Engine</span></div>
+        <div style="{{ns.history}}" onClick="{{go.history}}"><span style="{{ni.history}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span><span>History</span></div>
+        <div style="{{ns.reports}}" onClick="{{go.reports}}"><span style="{{ni.reports}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"></path><path d="M14 3v6h6"></path></svg></span><span>Reports</span></div>
+        <div style="{{ns.cases}}" onClick="{{go.cases}}"><span style="{{ni.cases}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path></svg></span><span>Cases</span></div>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding:10px 6px 2px;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:7px;height:7px;border-radius:50%;background:#3ecf8e"></span><div style="flex:1"><div style="font-size:12.5px;font-weight:500">Ankit K.</div><div style="font-size:9.5px;letter-spacing:.09em;color:var(--mut2)">ANALYST</div></div></div>
+      <div onClick="{{go.logout}}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"></path></svg>Log out</div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:var(--mut2)">rules v7 · qwen3:8b · local</div>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--border);gap:16px">
+      <div style="min-width:0"><div style="font-size:16px;font-weight:600;letter-spacing:-0.01em">{{pageTitle}}</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--mut2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{pageSub}}</div></div>
+      <div style="display:flex;align-items:center;gap:8px;flex:none">
+        <button onClick="{{openUp}}" style="display:flex;align-items:center;gap:7px;background:var(--ink);color:var(--bg);border-radius:7px;padding:6px 12px;font-weight:600;font-size:12.5px;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5M6 9l6-6 6 6M4 21h16"></path></svg>Upload logs</button>
+        <div style="position:relative">
+          <button onClick="{{toggleRun}}" style="display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:11.5px;color:var(--mut);cursor:pointer;font-family:'Geist Mono',ui-monospace,monospace" style-hover="color:var(--ink)">{{run}}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+          <sc-if value="{{runOpen}}" hint-placeholder-val="{{ false }}">
+            <div style="position:fixed;inset:0;z-index:40" onClick="{{closeRun}}"></div>
+            <div style="position:absolute;top:calc(100% + 6px);right:0;width:320px;background:var(--panel);border:1px solid var(--border);border-radius:9px;box-shadow:0 12px 32px rgba(0,0,0,.35);z-index:41;animation:pal .15s ease;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);color:var(--mut2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg><input placeholder="Search runs…" style="flex:1;font-size:12px"></div>
+              <div style="padding:8px 12px 4px;font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut2)">TODAY</div>
+              <div onClick="{{pickRun1}}" style="{{runRow1S}}" style-hover="background:var(--panel2)"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;flex:1">auth-2026-08-27.log</span><span style="font-size:10.5px;color:var(--mut2)">02:14 · 27 findings</span><sc-if value="{{isRun1}}" hint-placeholder-val="{{ true }}"><span style="color:var(--accent)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span></sc-if></div>
+              <div style="padding:8px 12px 4px;font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut2)">PREVIOUS RUNS</div>
+              <div onClick="{{pickRun2}}" style="{{runRow2S}}" style-hover="background:var(--panel2)"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;flex:1">web-2026-08-25.log</span><span style="font-size:10.5px;color:var(--mut2)">Aug 25 · 41 findings</span><sc-if value="{{isRun2}}" hint-placeholder-val="{{ false }}"><span style="color:var(--accent)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span></sc-if></div>
+              <div onClick="{{pickRun3}}" style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;margin-bottom:6px" style-hover="background:var(--panel2)"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;flex:1">fw-2026-08-24.log</span><span style="font-size:10.5px;color:#f0a54a">not parsed</span></div>
+            </div>
+          </sc-if>
+        </div>
+        <button onClick="{{refreshToast}}" style="display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12.5px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"></path></svg>Refresh</button>
+        <button onClick="{{toggleTheme}}" style="width:30px;height:30px;border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)"><sc-if value="{{isDark}}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"></path></svg></sc-if><sc-if value="{{isLight}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10Z"></path></svg></sc-if></button>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;min-height:0">
+      <div style="flex:1;overflow-y:auto;min-width:0">
+
+<sc-if value="{{isOverview}}" hint-placeholder-val="{{ true }}">
+<div data-screen-label="Overview" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--mut);border:1px solid var(--border);background:var(--panel);border-radius:8px;padding:9px 14px;display:flex;gap:6px;flex-wrap:wrap"><span>{{run}}</span><span style="color:var(--mut2)">·</span><span>4 hosts</span><span style="color:var(--mut2)">·</span><span>18,204 lines parsed</span><span style="color:var(--mut2)">·</span><span>312 unparsed</span><span style="color:var(--mut2)">·</span><span>rules v7</span><span style="color:var(--mut2)">·</span><span>qwen3:8b</span><span style="color:var(--mut2)">·</span><span>detector 9f3c1a2</span></div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+    <sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)">{{k.label}}</div>
+        <div style="{{k.vS}}">{{k.v}}</div>
+        <div style="font-size:11px;color:var(--mut2);font-family:'Geist Mono',ui-monospace,monospace">{{k.d}}</div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display:grid;grid-template-columns:1.9fr 1fr;gap:12px">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:13px;font-weight:600">Findings over time</div><div style="display:flex;gap:12px;font-size:10.5px;color:var(--mut)"><span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:2px;background:#f26d78"></span>crit</span><span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:2px;background:#f0a54a"></span>high</span><span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:2px;background:#d3b23a"></span>med</span><span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:2px;background:#3ecf8e"></span>low</span></div></div>
+      <div style="display:flex;align-items:flex-end;gap:6px;height:140px;border-bottom:1px solid var(--border);padding-bottom:1px">
+        <sc-for list="{{cols}}" as="c" hint-placeholder-count="14">
+          <div style="{{c.s}}">
+            <sc-for list="{{c.segs}}" as="g" hint-placeholder-count="2"><div style="{{g.s}}"></div></sc-for>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:var(--mut2)"><span>01:00</span><span>02:00</span><span>03:00</span><span>04:00</span><span>05:00</span><span>06:00</span><span>07:00</span></div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:13px;font-weight:600">Top ATT&amp;CK tactics</div><span style="font-size:10px;letter-spacing:.06em;color:var(--mut);border:1px solid var(--border);border-radius:20px;padding:2px 8px">derived</span></div>
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <sc-for list="{{tactics}}" as="t" hint-placeholder-count="5">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;justify-content:space-between;font-size:11.5px"><span style="color:var(--mut)">{{t.label}}</span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut2)">{{t.n}}</span></div>
+            <div style="height:4px;background:var(--track);border-radius:2px;overflow:hidden"><div style="{{t.fS}}"></div></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Latest alerts</div>
+    <div style="display:grid;grid-template-columns:90px 24px 200px 110px 1fr;gap:0 14px;padding:8px 20px;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--mut2);border-bottom:1px solid var(--border)"><span>TIME</span><span></span><span>RULE</span><span>HOST</span><span>FINDING</span></div>
+    <sc-for list="{{latest}}" as="a" hint-placeholder-count="6">
+      <div onClick="{{a.pick}}" style="display:grid;grid-template-columns:90px 24px 200px 110px 1fr;gap:0 14px;padding:10px 20px;font-size:12px;border-bottom:1px solid var(--border);cursor:pointer;align-items:center" style-hover="background:var(--panel2)">
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">{{a.t}}</span>
+        <span style="{{a.dotS}}"></span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">{{a.rule}}</span>
+        <span style="color:var(--mut)">{{a.host}}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{a.title}}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isFindings}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Findings" style="display:flex;flex-direction:column;height:100%;animation:rise .15s ease">
+  <div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 24px;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:7px;padding:6px 10px;width:260px;color:var(--mut2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg><input value="{{ffilter}}" onChange="{{setFF}}" placeholder="Filter findings…" style="flex:1;font-size:12px;color:var(--ink)"></div>
+    <select value="{{fsev}}" onChange="{{setFsev}}" style="border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:12px;color:var(--mut);cursor:pointer"><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+    <div style="font-size:11.5px;color:var(--mut2)">{{fCount}} · 18,204 lines parsed · 312 unparsed</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="flex:0 0 44%;border-right:1px solid var(--border);overflow-y:auto">
+      <div style="display:grid;grid-template-columns:64px 68px 1fr 76px 56px;gap:0 10px;padding:9px 18px;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--mut2);border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg)"><span>SEV</span><span>TIME</span><span>RULE</span><span>HOST</span><span>ATT&amp;CK</span></div>
+      <sc-for list="{{fRows}}" as="f" hint-placeholder-count="8">
+        <div onClick="{{f.pick}}" style="{{f.rs}}" style-hover="background:var(--panel2)">
+          <span style="{{f.tagS}}">{{f.sevShort}}</span>
+          <span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">{{f.t}}</span>
+          <span style="font-family:'Geist Mono',ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut)">{{f.rule}}</span>
+          <span style="color:var(--mut)">{{f.host}}</span>
+          <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);border-radius:4px;padding:1px 5px;text-align:center">{{f.tech}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="{{fd.tagS}}">{{fd.sevShort}}</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:var(--mut)">{{fd.rule}}</span></div>
+      <div style="font-size:18px;font-weight:600;letter-spacing:-0.01em;text-wrap:pretty">{{fd.title}}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">RULE VERDICT · AUTHORITATIVE</div>
+          <div style="{{fd.vS}}">{{fd.verdict}}</div>
+          <div style="font-size:12px;color:var(--mut);line-height:1.55">{{fd.reason}}</div>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">PLAIN-LANGUAGE EXPLANATION · ADVISORY</div>
+          <div style="font-size:12px;color:var(--ink);line-height:1.55">{{fd.expl}}</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">EVIDENCE</div>
+        <div style="background:var(--inset);border:1px solid var(--border);border-left:2px solid var(--accent);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:5px;overflow-x:auto">
+          <sc-for list="{{fd.ev}}" as="l" hint-placeholder-count="3"><div style="{{l.s}}">{{l.t}}</div></sc-for>
+        </div>
+        <div style="font-size:10.5px;color:var(--mut2);font-family:'Geist Mono',ui-monospace,monospace">verbatim — nothing generated</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">RULE PREDICATE THAT FIRED</div>
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;line-height:1.6;color:var(--ink)"><span style="color:var(--accent)">→ </span>{{fd.pred}}</div>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">EVENT SEQUENCE</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <sc-for list="{{fd.seq}}" as="sq" hint-placeholder-count="2"><div style="font-size:11.5px;color:var(--mut);font-family:'Geist Mono',ui-monospace,monospace">{{sq.t}}</div></sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isIncidents}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Incidents — RCA" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="font-size:12px;color:var(--mut2)"><a href="#" onClick="{{noop}}">Incidents</a><span style="margin:0 6px">/</span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">INC-4a7f</span></div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="font-size:10px;font-weight:700;letter-spacing:.09em;color:#f26d78;border:1px solid color-mix(in oklab, #f26d78 40%, transparent);background:color-mix(in oklab, #f26d78 10%, transparent);border-radius:4px;padding:3px 8px">CRITICAL</span>
+    <div style="font-size:20px;font-weight:600;letter-spacing:-0.015em;flex:1">Brute-force → successful compromise</div>
+    <button style="display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:7px;padding:6px 12px;font-size:12.5px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)">New<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--mut);flex-wrap:wrap"><span style="font-family:'Geist Mono',ui-monospace,monospace">203.0.113.44 → <span style="color:var(--ink);font-weight:600">server-01</span></span><span style="color:var(--mut2)">·</span><span>detected 02:16:41</span><span style="color:var(--mut2)">·</span><span>span 2m 29s</span><span style="color:var(--mut2)">·</span><span>3 correlated findings</span><span style="font-size:10px;letter-spacing:.06em;color:var(--mut2);border:1px solid var(--border);border-radius:20px;padding:2px 8px">severity is rule-owned</span></div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:13px;font-weight:600">Attack timeline</div>
+    <div style="position:relative;height:72px">
+      <div style="position:absolute;left:0;right:0;bottom:24px;height:1px;background:var(--border)"></div>
+      <sc-for list="{{bfTicks}}" as="tk" hint-placeholder-count="14"><div style="{{tk.s}}"></div></sc-for>
+      <div style="position:absolute;left:48%;bottom:19px;width:11px;height:11px;border-radius:50%;background:#3ecf8e;border:2px solid var(--panel)"></div>
+      <div style="position:absolute;left:47%;bottom:40px;font-size:10.5px;color:#3ecf8e;white-space:nowrap">login OK</div>
+      <div style="position:absolute;left:88%;bottom:19px;width:11px;height:11px;border-radius:50%;background:#f0a54a;border:2px solid var(--panel)"></div>
+      <div style="position:absolute;left:86.4%;bottom:40px;font-size:10.5px;color:#f0a54a;white-space:nowrap">C2 blocked</div>
+      <div style="position:absolute;left:8%;bottom:2px;font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:var(--mut2)">02:16:41</div>
+      <div style="position:absolute;left:46.4%;bottom:2px;font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:var(--mut2)">02:16:52</div>
+      <div style="position:absolute;left:86.4%;bottom:2px;font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:var(--mut2)">02:19:10</div>
+    </div>
+    <div style="display:flex;gap:14px;font-size:10.5px;color:var(--mut)"><span style="display:flex;align-items:center;gap:5px"><span style="width:2px;height:9px;background:#f26d78"></span>failed login</span><span style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#3ecf8e"></span>login OK</span><span style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#f0a54a"></span>C2 blocked</span></div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:13px;font-weight:600">Root cause</div><span style="font-size:10px;letter-spacing:.06em;color:var(--mut);border:1px solid var(--border);border-radius:20px;padding:2px 8px">advisory · hypothesis · not a verdict</span></div>
+    <div style="font-size:13px;line-height:1.65;color:var(--ink);text-wrap:pretty">The <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:var(--accent)">admin</span> credential on <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:var(--accent)">server-01</span> was most likely brute-forced and then used successfully: 14 failed SSH logins from <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:var(--accent)">203.0.113.44</span> inside 90 seconds, followed 11 seconds later by an accepted password for the same account. The host then attempted an outbound connection on a known C2 port, which the firewall blocked — consistent with a post-compromise callback.</div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:12px;font-size:12px"><span style="width:64px;flex:none;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--mut2);padding-top:2px">RUNBOOK</span><span style="color:var(--mut);line-height:1.5">matched <span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--accent)">auth_bruteforce.md</span> — rotate the credential, review authorized_keys, keep the egress block · score 4.1 · coverage 100%</span></div>
+      <div style="display:flex;gap:12px;align-items:center;font-size:12px"><span style="width:64px;flex:none;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--mut2)">CHAIN</span><span style="display:flex;align-items:center;gap:6px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);background:color-mix(in oklab, var(--accent) 8%, transparent);border-radius:4px;padding:2px 7px">T1110</span><span style="color:var(--mut2)">→</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);background:color-mix(in oklab, var(--accent) 8%, transparent);border-radius:4px;padding:2px 7px">T1078</span><span style="color:var(--mut2)">→</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);background:color-mix(in oklab, var(--accent) 8%, transparent);border-radius:4px;padding:2px 7px">T1571</span></span></div>
+      <div style="display:flex;gap:12px;align-items:center;font-size:12px"><span style="width:64px;flex:none;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--mut2)">RULES</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;color:var(--mut)">auth_bruteforce · auth_success_after_fail · c2_outbound_block</span></div>
+    </div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:13px;font-weight:600">Evidence — verbatim log lines</div>
+    <div style="background:var(--inset);border:1px solid var(--border);border-left:2px solid var(--accent);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:5px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;overflow-x:auto">
+      <div style="color:#f26d78;white-space:pre">Aug 27 02:16:41 server-01 sshd[2214]: Failed password for admin from 203.0.113.44 port 51122 ssh2</div>
+      <div style="color:#f26d78;white-space:pre">Aug 27 02:16:44 server-01 sshd[2214]: Failed password for admin from 203.0.113.44 port 51138 ssh2</div>
+      <div style="color:var(--mut2);white-space:pre">… 11 more failed attempts (02:16:45 – 02:16:51) …</div>
+      <div style="color:#3ecf8e;white-space:pre">Aug 27 02:16:52 server-01 sshd[2214]: Accepted password for admin from 203.0.113.44 port 51204 ssh2</div>
+      <div style="color:#f0a54a;white-space:pre">Aug 27 02:19:10 server-01 kernel: OUTBOUND BLOCK TCP 10.0.0.11:49812 → 198.51.100.7:4444</div>
+    </div>
+    <div style="font-size:10.5px;color:var(--mut2);font-family:'Geist Mono',ui-monospace,monospace">verbatim from the source log — nothing generated</div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isSources}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Sources" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut)">Real listener state — never a fake running.</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+      <div style="font-size:13px;font-weight:600">Syslog collector</div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Listen port</div><input value="{{port}}" onChange="{{setPort}}" style="border:1px solid var(--border);border-radius:7px;padding:7px 10px;background:var(--inset);font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;width:120px" style-focus="border-color:var(--accent)"></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div onClick="{{setLo}}" style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12.5px"><span style="{{rLoS}}"></span>Loopback <span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">127.0.0.1</span></div>
+        <div onClick="{{setAll}}" style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12.5px"><span style="{{rAllS}}"></span>All interfaces <span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">0.0.0.0</span></div>
+        <sc-if value="{{isAllIface}}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px;color:#f0a54a;display:flex;align-items:center;gap:7px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.2 2.9 17a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z"></path><path d="M12 9v4M12 16.5h.01"></path></svg>Binding to 0.0.0.0 exposes the listener to the network.</div></sc-if>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onClick="{{startLis}}" style="{{startBtnS}}">Start</button>
+        <button onClick="{{stopLis}}" style="{{stopBtnS}}">Stop</button>
+        <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mut)"><span style="{{lisDotS}}"></span>{{lisState}}</div>
+      </div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">Listener status</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:8px"><span style="color:var(--mut)">State</span><span style="font-family:'Geist Mono',ui-monospace,monospace">{{lisState}}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:8px"><span style="color:var(--mut)">Bind</span><span style="font-family:'Geist Mono',ui-monospace,monospace">{{bindVal}}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:8px"><span style="color:var(--mut)">Protocols</span><span style="font-family:'Geist Mono',ui-monospace,monospace">UDP + TCP</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:8px"><span style="color:var(--mut)">Messages received</span><span style="font-family:'Geist Mono',ui-monospace,monospace">0</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--mut)">Last message</span><span style="font-family:'Geist Mono',ui-monospace,monospace">—</span></div>
+    </div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Recent received events</div>
+    <div style="padding:36px 20px;text-align:center;color:var(--mut2);font-size:12px">No events received yet — the listener reports real traffic only.</div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isSettings}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Settings" style="padding:20px 24px;display:flex;flex-direction:column;gap:14px;animation:rise .15s ease;max-width:600px">
+  <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut)">Only settings that genuinely do something are shown.</div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:13px;font-weight:600">Compute location</div>
+    <div onClick="{{setLocal}}" style="display:flex;gap:10px;cursor:pointer"><span style="{{rLocalS}}"></span><div><div style="font-size:12.5px;font-weight:500">Local</div><div style="font-size:11.5px;color:var(--mut)">Nothing leaves this machine.</div></div></div>
+    <div onClick="{{setRemote}}" style="display:flex;gap:10px;cursor:pointer"><span style="{{rRemoteS}}"></span><div><div style="font-size:12.5px;font-weight:500">Remote</div><div style="font-size:11.5px;color:var(--mut)">Calls an OpenAI-compatible endpoint — outbound text is redacted first.</div></div></div>
+    <sc-if value="{{isRemote}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border);padding-top:14px;animation:rise .15s ease">
+        <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Base URL</div><input placeholder="https://api.example.com/v1" style="border:1px solid var(--border);border-radius:7px;padding:7px 10px;background:var(--inset);font-family:'Geist Mono',ui-monospace,monospace;font-size:12px" style-focus="border-color:var(--accent)"></div>
+        <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Model</div><input placeholder="gpt-4o-mini" style="border:1px solid var(--border);border-radius:7px;padding:7px 10px;background:var(--inset);font-family:'Geist Mono',ui-monospace,monospace;font-size:12px" style-focus="border-color:var(--accent)"></div>
+        <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">API key</div><input type="password" placeholder="sk-…" style="border:1px solid var(--border);border-radius:7px;padding:7px 10px;background:var(--inset);font-family:'Geist Mono',ui-monospace,monospace;font-size:12px" style-focus="border-color:var(--accent)"></div>
+      </div>
+    </sc-if>
+    <div><button onClick="{{saveCompute}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:7px 14px;font-weight:600;font-size:12.5px;cursor:pointer">Save compute settings</button></div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:13px;font-weight:600">Outbound redaction</div>
+    <div style="font-size:12px;color:var(--mut);line-height:1.55">Redaction is a consequence of compute location. <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px">{{redactNote}}</span></div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:13px;font-weight:600">Analyst model</div>
+    <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;color:var(--mut)">Model: qwen3:8b · Endpoint: local</div>
+    <div style="font-size:12px;color:var(--mut)">The model only explains — it never sets a severity.</div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;align-items:center;justify-content:space-between">
+    <div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:12px;color:var(--mut);margin-top:4px">Saved for next visit.</div></div>
+    <div style="display:flex;background:var(--inset);border:1px solid var(--border);border-radius:7px;padding:3px;gap:3px">
+      <button onClick="{{setDark}}" style="{{darkBtnS}}">Dark</button>
+      <button onClick="{{setLight}}" style="{{lightBtnS}}">Light</button>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isAssets}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Assets" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut)">Observed entities only — nothing inventoried, nothing assumed.</div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Assets</div>
+    <div style="display:grid;grid-template-columns:140px 70px 80px 80px 90px 1fr;gap:0 14px;padding:8px 20px;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--mut2);border-bottom:1px solid var(--border)"><span>ASSET</span><span>KIND</span><span>EVENTS</span><span>FINDINGS</span><span>RISK</span><span>LAST SEEN</span></div>
+    <div style="display:grid;grid-template-columns:140px 70px 80px 80px 90px 1fr;gap:0 14px;padding:10px 20px;font-size:12px;border-bottom:1px solid var(--border);align-items:center"><span style="font-family:'Geist Mono',ui-monospace,monospace">server-01</span><span style="color:var(--mut)">HOST</span><span style="font-family:'Geist Mono',ui-monospace,monospace">8,412</span><span style="font-family:'Geist Mono',ui-monospace,monospace">11</span><span><span style="font-size:10px;letter-spacing:.05em;color:#f26d78;border:1px solid color-mix(in oklab, #f26d78 40%, transparent);border-radius:20px;padding:2px 8px">ELEVATED</span></span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">07:03:19</span></div>
+    <div style="display:grid;grid-template-columns:140px 70px 80px 80px 90px 1fr;gap:0 14px;padding:10px 20px;font-size:12px;border-bottom:1px solid var(--border);align-items:center"><span style="font-family:'Geist Mono',ui-monospace,monospace">db-02</span><span style="color:var(--mut)">HOST</span><span style="font-family:'Geist Mono',ui-monospace,monospace">4,977</span><span style="font-family:'Geist Mono',ui-monospace,monospace">6</span><span><span style="font-size:10px;letter-spacing:.05em;color:#f0a54a;border:1px solid color-mix(in oklab, #f0a54a 40%, transparent);border-radius:20px;padding:2px 8px">WATCH</span></span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">06:12:45</span></div>
+    <div style="display:grid;grid-template-columns:140px 70px 80px 80px 90px 1fr;gap:0 14px;padding:10px 20px;font-size:12px;border-bottom:1px solid var(--border);align-items:center"><span style="font-family:'Geist Mono',ui-monospace,monospace">edge-fw</span><span style="color:var(--mut)">HOST</span><span style="font-family:'Geist Mono',ui-monospace,monospace">3,208</span><span style="font-family:'Geist Mono',ui-monospace,monospace">4</span><span><span style="font-size:10px;letter-spacing:.05em;color:var(--mut);border:1px solid var(--border);border-radius:20px;padding:2px 8px">CLEAN</span></span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">04:17:33</span></div>
+    <div style="display:grid;grid-template-columns:140px 70px 80px 80px 90px 1fr;gap:0 14px;padding:10px 20px;font-size:12px;align-items:center"><span style="font-family:'Geist Mono',ui-monospace,monospace">203.0.113.44</span><span style="color:var(--mut)">IP</span><span style="font-family:'Geist Mono',ui-monospace,monospace">1,607</span><span style="font-family:'Geist Mono',ui-monospace,monospace">6</span><span><span style="font-size:10px;letter-spacing:.05em;color:#f26d78;border:1px solid color-mix(in oklab, #f26d78 40%, transparent);border-radius:20px;padding:2px 8px">ELEVATED</span></span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">02:19:10</span></div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Users at risk</div>
+    <div style="display:grid;grid-template-columns:140px 80px 80px 1fr;gap:0 14px;padding:8px 20px;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--mut2);border-bottom:1px solid var(--border)"><span>USER</span><span>EVENTS</span><span>FINDINGS</span><span>RISK</span></div>
+    <div style="display:grid;grid-template-columns:140px 80px 80px 1fr;gap:0 14px;padding:10px 20px;font-size:12px;border-bottom:1px solid var(--border);align-items:center"><span style="font-family:'Geist Mono',ui-monospace,monospace">admin</span><span style="font-family:'Geist Mono',ui-monospace,monospace">214</span><span style="font-family:'Geist Mono',ui-monospace,monospace">3</span><span><span style="font-size:10px;letter-spacing:.05em;color:#f26d78;border:1px solid color-mix(in oklab, #f26d78 40%, transparent);border-radius:20px;padding:2px 8px">AT RISK</span></span></div>
+    <div style="display:grid;grid-template-columns:140px 80px 80px 1fr;gap:0 14px;padding:10px 20px;font-size:12px;align-items:center"><span style="font-family:'Geist Mono',ui-monospace,monospace">svc-backup</span><span style="font-family:'Geist Mono',ui-monospace,monospace">96</span><span style="font-family:'Geist Mono',ui-monospace,monospace">1</span><span><span style="font-size:10px;letter-spacing:.05em;color:var(--mut);border:1px solid var(--border);border-radius:20px;padding:2px 8px">CLEAN</span></span></div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isIntel}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Threat Intel" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut)">Surfaced, not generated — derived tags, not verdicts.</div>
+  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:12px">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Indicators of Compromise</div>
+      <div style="display:grid;grid-template-columns:1fr 1.2fr 80px 90px;gap:0 12px;padding:8px 20px;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--mut2);border-bottom:1px solid var(--border)"><span>NAME</span><span>PATTERN</span><span>TYPES</span><span>VALID FROM</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1.2fr 80px 90px;gap:0 12px;padding:10px 20px;font-size:12px;border-bottom:1px solid var(--border);align-items:center"><span>Known scanner net</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--mut)">203.0.113.0/24</span><span style="color:var(--mut)">ipv4</span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">2026-06-02</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1.2fr 80px 90px;gap:0 12px;padding:10px 20px;font-size:12px;border-bottom:1px solid var(--border);align-items:center"><span>C2 staging host</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--mut)">198.51.100.7</span><span style="color:var(--mut)">ipv4</span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">2026-07-15</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1.2fr 80px 90px;gap:0 12px;padding:10px 20px;font-size:12px;align-items:center"><span>Sync beacon domain</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--mut)">cdn-sync-*.example.net</span><span style="color:var(--mut)">domain</span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">2026-08-01</span></div>
+      <div style="padding:10px 20px;font-size:11px;color:var(--mut2);font-family:'Geist Mono',ui-monospace,monospace;border-top:1px solid var(--border)">offline STIX bundle · 3 indicators</div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Rule → MITRE map</div>
+      <div style="display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;border-bottom:1px solid var(--border)"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;color:var(--mut)">auth_bruteforce</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);border-radius:4px;padding:2px 7px">T1110</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;border-bottom:1px solid var(--border)"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;color:var(--mut)">auth_success_after_fail</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);border-radius:4px;padding:2px 7px">T1078</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;border-bottom:1px solid var(--border)"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;color:var(--mut)">c2_outbound_block</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);border-radius:4px;padding:2px 7px">T1571</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;border-bottom:1px solid var(--border)"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;color:var(--mut)">port_scan_inbound</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);border-radius:4px;padding:2px 7px">T1046</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;color:var(--mut)">cron_modification</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);border-radius:4px;padding:2px 7px">T1053</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isDiscovery}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Discovery" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="border:1px dashed color-mix(in oklab, #f0a54a 40%, transparent);border-radius:8px;padding:10px 14px;font-size:12px;color:#f0a54a">Active scan — private/loopback targets only · user-initiated · this is an active network operation, not read-only.</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:13px;font-weight:600">Scan</div>
+      <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Target host / CIDR</div><input placeholder="10.0.0.0/24" style="border:1px solid var(--border);border-radius:7px;padding:7px 10px;background:var(--inset);font-family:'Geist Mono',ui-monospace,monospace;font-size:12px" style-focus="border-color:var(--accent)"></div>
+      <div style="display:flex;gap:8px"><button onClick="{{scanToast}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:7px 12px;font-weight:600;font-size:12px;cursor:pointer">Discover live nodes</button><button onClick="{{scanToast}}" style="border:1px solid var(--border);border-radius:7px;padding:7px 12px;font-size:12px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)">Service + vulnerability scan</button></div>
+      <div style="font-size:11.5px;color:var(--mut2)">Scanning sends packets to the target. Only scan networks you own.</div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">Scan status</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:8px"><span style="color:var(--mut)">State</span><span style="font-family:'Geist Mono',ui-monospace,monospace">idle</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:8px"><span style="color:var(--mut)">Target</span><span style="font-family:'Geist Mono',ui-monospace,monospace">—</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:8px"><span style="color:var(--mut)">Mode</span><span style="font-family:'Geist Mono',ui-monospace,monospace">—</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:8px"><span style="color:var(--mut)">Hosts found</span><span style="font-family:'Geist Mono',ui-monospace,monospace">0</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--mut)">Started / finished</span><span style="font-family:'Geist Mono',ui-monospace,monospace">— / —</span></div>
+    </div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Discovered assets</div>
+    <div style="padding:36px 20px;text-align:center;color:var(--mut2);font-size:12px">No scans have run — results appear here after a user-initiated scan.</div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isVulns}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Vulnerabilities" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut)">Severity is the CVSS band NSE reported; empty = unknown, shown honestly.</div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Vulnerabilities</div>
+    <div style="padding:36px 20px;text-align:center;color:var(--mut2);font-size:12px;line-height:1.7">No vulnerability data yet.<br>Run a service + vulnerability scan from <a href="#" onClick="{{go.discovery}}">Discovery</a> to populate this table.</div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isEnrich}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Enrichment" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut)">Real provider responses — never fabricated.</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:13px;font-weight:600">Provider keys</div>
+      <div style="display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding-bottom:12px"><div style="flex:1"><div style="font-size:12.5px;font-weight:500">AlienVault OTX</div><div style="font-size:11px;color:var(--mut2)">no key configured</div></div><input type="password" placeholder="••••" style="border:1px solid var(--border);border-radius:7px;padding:6px 9px;background:var(--inset);width:110px;font-size:12px" style-focus="border-color:var(--accent)"><button onClick="{{keyToast}}" style="border:1px solid var(--border);border-radius:7px;padding:6px 11px;font-size:12px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)">Save</button></div>
+      <div style="display:flex;align-items:center;gap:10px"><div style="flex:1"><div style="font-size:12.5px;font-weight:500">AbuseIPDB</div><div style="font-size:11px;color:var(--mut2)">no key configured</div></div><input type="password" placeholder="••••" style="border:1px solid var(--border);border-radius:7px;padding:6px 9px;background:var(--inset);width:110px;font-size:12px" style-focus="border-color:var(--accent)"><button onClick="{{keyToast}}" style="border:1px solid var(--border);border-radius:7px;padding:6px 11px;font-size:12px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)">Save</button></div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:13px;font-weight:600">Enrich an IP</div>
+      <div style="display:flex;gap:8px"><input placeholder="203.0.113.44" style="flex:1;border:1px solid var(--border);border-radius:7px;padding:7px 10px;background:var(--inset);font-family:'Geist Mono',ui-monospace,monospace;font-size:12px" style-focus="border-color:var(--accent)"><button onClick="{{enrichToast}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer">Enrich</button></div>
+      <div style="font-size:11.5px;color:#f0a54a">No provider key is configured — lookups will fail until one is saved.</div>
+    </div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Recent IOC lookups</div>
+    <div style="padding:36px 20px;text-align:center;color:var(--mut2);font-size:12px">No lookups yet — results here are real provider responses only.</div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isOem}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="OEM Engine" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut)">Read-only OEM/API connectors · credentials stored masked · last-run is the real outcome.</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:11px">
+      <div style="font-size:13px;font-weight:600">Add / update a connector</div>
+      <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Template</div><select style="border:1px solid var(--border);border-radius:7px;padding:7px 9px;font-size:12px;color:var(--mut);background:var(--inset)"><option>Cisco Firepower</option><option>Palo Alto PAN-OS</option><option>Fortinet FortiGate</option><option>Custom REST</option></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Connector name</div><input placeholder="fw-core" style="border:1px solid var(--border);border-radius:7px;padding:7px 9px;background:var(--inset);font-size:12px" style-focus="border-color:var(--accent)"></div>
+        <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Poll interval</div><input placeholder="300s" style="border:1px solid var(--border);border-radius:7px;padding:7px 9px;background:var(--inset);font-size:12px" style-focus="border-color:var(--accent)"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">Base URL</div><input placeholder="https://fmc.local/api" style="border:1px solid var(--border);border-radius:7px;padding:7px 9px;background:var(--inset);font-family:'Geist Mono',ui-monospace,monospace;font-size:12px" style-focus="border-color:var(--accent)"></div>
+      <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">API token</div><input type="password" placeholder="stored masked, never returned" style="border:1px solid var(--border);border-radius:7px;padding:7px 9px;background:var(--inset);font-size:12px" style-focus="border-color:var(--accent)"></div>
+      <div><button onClick="{{oemToast}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:7px 14px;font-weight:600;font-size:12.5px;cursor:pointer">Save connector</button></div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;align-self:start">
+      <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Connectors</div>
+      <div style="padding:36px 20px;text-align:center;color:var(--mut2);font-size:12px">No connectors yet — add one on the left.</div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isHistory}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="History" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut)">Persistent event store · counts are real totals · severity is source-reported.</div>
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px">
+    <sc-for list="{{histKpis}}" as="h" hint-placeholder-count="6">
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)">{{h.label}}</div><div style="font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:4px">{{h.v}}</div></div>
+    </sc-for>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;font-weight:600">Ingest Windows Event Log</div>
+      <div style="font-size:12px;color:var(--mut)">Parse an .evtx file into the persistent store.</div>
+      <div><button onClick="{{evtxToast}}" style="border:1px solid var(--border);border-radius:7px;padding:7px 12px;font-size:12px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)">Choose .evtx</button></div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:13px;font-weight:600">Retention &amp; cleanup</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut)">Keep<input value="90" style="border:1px solid var(--border);border-radius:7px;padding:5px 8px;background:var(--inset);width:56px;font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;text-align:center" style-focus="border-color:var(--accent)">days<button onClick="{{cleanupToast}}" style="border:1px solid var(--border);border-radius:7px;padding:6px 11px;font-size:12px;color:var(--mut);cursor:pointer;margin-left:auto" style-hover="color:var(--ink)">Run cleanup</button></div>
+      <div style="border:1px solid color-mix(in oklab, #f26d78 35%, transparent);border-radius:7px;padding:12px;display:flex;flex-direction:column;gap:9px">
+        <div style="font-size:12px;font-weight:600;color:#f26d78">Danger — purge all history</div>
+        <div style="font-size:11.5px;color:var(--mut)">Type <span style="font-family:'Geist Mono',ui-monospace,monospace">PURGE</span> to confirm. This deletes every stored event.</div>
+        <div style="display:flex;gap:8px"><input value="{{purge}}" onChange="{{setPurge}}" placeholder="PURGE" style="flex:1;border:1px solid var(--border);border-radius:7px;padding:6px 9px;background:var(--inset);font-family:'Geist Mono',ui-monospace,monospace;font-size:12px" style-focus="border-color:#f26d78"><button onClick="{{doPurge}}" style="{{purgeBtnS}}">Purge</button></div>
+      </div>
+    </div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Events</div>
+    <sc-if value="{{notPurged}}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:130px 90px 90px 70px 70px 1fr;gap:0 12px;padding:8px 20px;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--mut2);border-bottom:1px solid var(--border)"><span>TIME</span><span>SOURCE</span><span>HOST</span><span>EVENT ID</span><span>SEV</span><span>MESSAGE</span></div>
+      <sc-for list="{{histRows}}" as="e" hint-placeholder-count="5">
+        <div style="display:grid;grid-template-columns:130px 90px 90px 70px 70px 1fr;gap:0 12px;padding:10px 20px;font-size:12px;border-bottom:1px solid var(--border);align-items:center"><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">{{e.t}}</span><span style="color:var(--mut)">{{e.src}}</span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">{{e.host}}</span><span style="font-family:'Geist Mono',ui-monospace,monospace;color:var(--mut)">{{e.eid}}</span><span style="{{e.sevS}}">{{e.sev}}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut)">{{e.msg}}</span></div>
+      </sc-for>
+    </sc-if>
+    <sc-if value="{{purged}}" hint-placeholder-val="{{ false }}">
+      <div style="padding:36px 20px;text-align:center;color:var(--mut2);font-size:12px">History purged — 0 events retained.</div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isReports}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Reports" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="display:flex;align-items:center;justify-content:space-between"><div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut);flex:1;margin-right:12px">Real files only — a report exists when it is on disk.</div><button onClick="{{reportToast}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:7px 14px;font-weight:600;font-size:12.5px;cursor:pointer;flex:none">Generate report</button></div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:13px;font-weight:600">Download the current run</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onClick="{{reportToast}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer">HTML</button>
+      <button onClick="{{reportToast}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer">JSON</button>
+      <button onClick="{{reportToast}}" style="border:1px solid var(--border);border-radius:7px;padding:7px 12px;font-size:12px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)">CSV</button>
+      <button onClick="{{reportToast}}" style="border:1px solid var(--border);border-radius:7px;padding:7px 12px;font-size:12px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)">XML</button>
+      <button onClick="{{reportToast}}" style="border:1px solid var(--border);border-radius:7px;padding:7px 12px;font-size:12px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)">Markdown</button>
+    </div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="padding:14px 20px;font-size:13px;font-weight:600;border-bottom:1px solid var(--border)">Saved reports</div>
+    <div style="padding:36px 20px;text-align:center;color:var(--mut2);font-size:12px">No saved reports — generate one to see it here.</div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isCases}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Cases" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;animation:rise .15s ease">
+  <div style="display:flex;align-items:center;justify-content:space-between"><div style="border:1px dashed var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--mut);flex:1;margin-right:12px">Analyst-entered, stored locally, not derived — no sample cases invented.</div><button onClick="{{caseToast}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:7px 14px;font-weight:600;font-size:12.5px;cursor:pointer;flex:none">+ New case</button></div>
+  <div style="border:1px dashed var(--border);border-radius:8px;padding:48px 20px;text-align:center;color:var(--mut2);font-size:12.5px">No cases yet.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isLogout}}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Log out" style="padding:48px 24px;display:flex;justify-content:center;animation:rise .15s ease">
+  <div style="max-width:480px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:26px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:15px;font-weight:600">There is nothing to sign out of</div>
+    <div style="font-size:12.5px;color:var(--mut);line-height:1.65;text-wrap:pretty">itsoc. is a local, single-user tool — there is no account, no login, no server session. What it <em>can</em> do is clear local UI state: your theme, dismissed notifications, and the current search.</div>
+    <div style="display:flex;gap:8px">
+      <button onClick="{{clearUi}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:8px 14px;font-weight:600;font-size:12.5px;cursor:pointer">Clear local UI state</button>
+      <button onClick="{{go.overview}}" style="border:1px solid var(--border);border-radius:7px;padding:8px 14px;font-size:12.5px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)">Cancel</button>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+      </div>
+      <sc-if value="{{hasRail}}" hint-placeholder-val="{{ true }}">
+        <div style="width:300px;flex:none;border-left:1px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px">
+          <sc-if value="{{isIncidents}}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:7px">
+              <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">PROPERTIES</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><span style="color:var(--mut)">Severity</span><span style="font-size:9.5px;font-weight:700;letter-spacing:.08em;color:#f26d78;border:1px solid color-mix(in oklab, #f26d78 40%, transparent);border-radius:4px;padding:2px 7px">CRITICAL</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--mut)">State</span><span style="font-family:'Geist Mono',ui-monospace,monospace">new</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--mut)">Entity</span><span style="font-family:'Geist Mono',ui-monospace,monospace">server-01</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--mut)">Findings</span><span style="font-family:'Geist Mono',ui-monospace,monospace">3</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><span style="color:var(--mut)">Techniques</span><span style="display:flex;gap:4px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);border-radius:3px;padding:1px 5px">T1110</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);border-radius:3px;padding:1px 5px">T1078</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 30%, transparent);border-radius:3px;padding:1px 5px">T1571</span></span></div>
+              <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--mut)">First seen</span><span style="font-family:'Geist Mono',ui-monospace,monospace">02:16:41</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--mut)">Last seen</span><span style="font-family:'Geist Mono',ui-monospace,monospace">02:19:10</span></div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:12px;font-weight:600">Brute-force on server-01</div><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:var(--mut2)">last 7 runs</span></div>
+              <svg viewBox="0 0 120 52" style="width:100%;height:54px;display:block" preserveAspectRatio="none">
+                <line x1="0" y1="13" x2="120" y2="13" stroke="var(--border)" stroke-width="0.5"></line>
+                <line x1="0" y1="30" x2="120" y2="30" stroke="var(--border)" stroke-width="0.5"></line>
+                <line x1="0" y1="47" x2="120" y2="47" stroke="var(--border)" stroke-width="0.5"></line>
+                <polygon points="2,41 21,37 40,38 59,32 78,27 97,17 118,9 118,47 2,47" fill="var(--accent)" opacity="0.12"></polygon>
+                <polyline points="2,41 21,37 40,38 59,32 78,27 97,17 118,9" fill="none" stroke="var(--accent)" stroke-width="1.5"></polyline>
+                <circle cx="2" cy="41" r="1.6" fill="var(--accent)"></circle><circle cx="21" cy="37" r="1.6" fill="var(--accent)"></circle><circle cx="40" cy="38" r="1.6" fill="var(--accent)"></circle><circle cx="59" cy="32" r="1.6" fill="var(--accent)"></circle><circle cx="78" cy="27" r="1.6" fill="var(--accent)"></circle><circle cx="97" cy="17" r="1.6" fill="var(--accent)"></circle>
+                <circle cx="118" cy="9" r="2.4" fill="var(--accent)"></circle><circle cx="118" cy="9" r="4.5" fill="var(--accent)" opacity="0.25"></circle>
+              </svg>
+              <div style="display:flex;justify-content:space-between;font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;color:var(--mut2)"><span>Aug 21</span><span>Aug 24</span><span>Aug 27</span></div>
+              <div style="display:flex;border-top:1px solid var(--border);padding-top:9px">
+                <div style="flex:1"><div style="font-size:9px;font-weight:600;letter-spacing:.08em;color:var(--mut2)">THIS RUN</div><div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)">14</div><div style="font-size:9.5px;color:var(--mut2)">attempts</div></div>
+                <div style="flex:1"><div style="font-size:9px;font-weight:600;letter-spacing:.08em;color:var(--mut2)">7-RUN AVG</div><div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">6.3</div><div style="font-size:9.5px;color:var(--mut2)">attempts</div></div>
+                <div style="flex:1"><div style="font-size:9px;font-weight:600;letter-spacing:.08em;color:var(--mut2)">CHANGE</div><div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:#f0a54a">+122%</div><div style="font-size:9.5px;color:var(--mut2)">vs prior run</div></div>
+              </div>
+              <div style="font-size:10.5px;color:var(--mut)">↑ trending up · forecast: elevated — not a verdict</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:7px">
+              <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">CORRELATED FINDINGS</div>
+              <sc-for list="{{incFindings}}" as="cf" hint-placeholder-count="3">
+                <div onClick="{{cf.pick}}" style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;cursor:pointer" style-hover="border-color:var(--mut2)">
+                  <span style="{{cf.dotS}}"></span>
+                  <div style="flex:1;min-width:0"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{cf.rule}}</div><div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{cf.title}}</div></div>
+                  <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;color:var(--mut2)">{{cf.t}}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">RESPONSE CHECKLIST</div><span style="font-size:9.5px;letter-spacing:.06em;color:var(--mut2);border:1px solid var(--border);border-radius:20px;padding:2px 7px">from runbook</span></div>
+              <sc-for list="{{incChecks}}" as="ck" hint-placeholder-count="4">
+                <div onClick="{{ck.on}}" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:11.5px;line-height:1.45">
+                  <span style="{{ck.boxS}}"><sc-if value="{{ck.done}}" hint-placeholder-val="{{ false }}"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></sc-if></span>
+                  <span style="{{ck.txtS}}">{{ck.t}}</span>
+                </div>
+              </sc-for>
+              <div style="font-size:10px;color:var(--mut2);font-family:'Geist Mono',ui-monospace,monospace">{{ckCount}} · auth_bruteforce.md</div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+<sc-if value="{{showAiBtn}}" hint-placeholder-val="{{ true }}">
+  <button onClick="{{toggleAi}}" style="{{aiBtnS}}" style-hover="transform:translateY(-1px)"><sc-if value="{{aiClosed}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"></path></svg></sc-if><sc-if value="{{aiOpen}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></sc-if></button>
+</sc-if>
+<sc-if value="{{aiOpen}}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:72px;right:20px;width:330px;z-index:56;background:var(--panel);border:1px solid var(--border);border-radius:11px;box-shadow:0 20px 56px rgba(0,0,0,.4);animation:pal .16s ease;display:flex;flex-direction:column;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600"><span style="color:var(--accent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"></path></svg></span>itsoc analyst</div>
+              <span style="font-size:9.5px;letter-spacing:.06em;color:var(--mut2);border:1px solid var(--border);border-radius:20px;padding:2px 7px">advisory</span>
+            </div>
+            <div style="padding:12px 14px;display:flex;flex-direction:column;gap:12px;max-height:380px;overflow-y:auto">
+              <sc-for list="{{chat}}" as="c" hint-placeholder-count="1">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="align-self:flex-end;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:11.5px;max-width:88%">{{c.q}}</div>
+                  <div style="background:var(--inset);border:1px solid var(--border);border-radius:8px;padding:10px 11px;font-size:11.5px;line-height:1.55">
+                    <sc-if value="{{c.isTable}}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+                        <sc-for list="{{c.rows}}" as="r" hint-placeholder-count="1">
+                          <div onClick="{{go.incidents}}" style="display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:6px;padding:6px 8px;cursor:pointer" style-hover="border-color:var(--mut2)"><span style="{{r.dotS}}"></span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--mut)">{{r.id}}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">{{r.title}}</span></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{c.isKpi}}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;gap:10px;margin-bottom:8px">
+                        <sc-for list="{{c.k}}" as="kv" hint-placeholder-count="5">
+                          <div style="flex:1;text-align:center"><div style="{{kv.s}}">{{kv.v}}</div><div style="font-size:9px;letter-spacing:.06em;color:var(--mut2)">{{kv.l}}</div></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{c.isEntity}}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
+                        <sc-for list="{{c.eRows}}" as="er" hint-placeholder-count="4">
+                          <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--mut)">{{er.l}}</span><span style="font-family:'Geist Mono',ui-monospace,monospace">{{er.v}}</span></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{c.isSteps}}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
+                        <sc-for list="{{c.steps}}" as="st" hint-placeholder-count="3">
+                          <div style="display:flex;gap:7px;font-size:11px;line-height:1.5"><span style="color:var(--accent)">→</span><span>{{st.t}}</span></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{c.hasText}}" hint-placeholder-val="{{ true }}"><div>{{c.text}}</div></sc-if>
+                    <div style="margin-top:7px;font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;color:var(--mut2)">{{c.cite}}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border)">
+              <sc-for list="{{chips}}" as="ch" hint-placeholder-count="2">
+                <button onClick="{{ch.on}}" style="border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:10.5px;color:var(--mut);cursor:pointer" style-hover="color:var(--ink);border-color:var(--mut2)">{{ch.label}}</button>
+              </sc-for>
+            </div>
+            <div style="padding:10px 14px;border-top:1px solid var(--border)">
+              <input value="{{draft}}" onChange="{{setDraft}}" onKeyDown="{{draftKey}}" placeholder="Ask about this run…" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:7px 10px;background:var(--inset);font-size:11.5px" style-focus="border-color:var(--accent)">
+              <div style="font-size:9.5px;color:var(--mut2);margin-top:7px;line-height:1.5">Rules set severity. I interpret &amp; explain — I don't decide.</div>
+            </div>
+  </div>
+</sc-if>
+</sc-if>
+<sc-if value="{{pal}}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{closePal}}" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:flex;justify-content:center;padding-top:14vh">
+    <div onClick="{{stop}}" style="width:560px;height:fit-content;background:var(--panel);border:1px solid var(--border);border-radius:11px;box-shadow:0 24px 64px rgba(0,0,0,.45);animation:pal .16s ease;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border)">
+        <span style="color:var(--mut2)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg></span>
+        <input value="{{pq}}" onChange="{{setPq}}" autoFocus="{{ true }}" placeholder="Search screens, actions — or ask itsoc…" style="flex:1;font-size:13.5px">
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:var(--mut2);border:1px solid var(--border);border-radius:4px;padding:2px 6px">ESC</span>
+      </div>
+      <div style="max-height:360px;overflow-y:auto;padding:6px">
+        <sc-if value="{{hasPScreens}}" hint-placeholder-val="{{ true }}"><div style="padding:8px 10px 4px;font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut2)">SCREENS</div></sc-if>
+        <sc-for list="{{pScreens}}" as="p" hint-placeholder-count="5">
+          <div onClick="{{p.run}}" style="{{p.s}}"><span style="{{p.icS}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18M8 4v5"></path></svg></span><span style="flex:1">{{p.label}}</span><sc-if value="{{p.active}}" hint-placeholder-val="{{ false }}"><span style="color:var(--mut2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4v7a4 4 0 0 1-4 4H4M8 11l-4 4 4 4"></path></svg></span></sc-if></div>
+        </sc-for>
+        <sc-if value="{{hasPActions}}" hint-placeholder-val="{{ true }}"><div style="padding:8px 10px 4px;font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut2)">ACTIONS</div></sc-if>
+        <sc-for list="{{pActions}}" as="p" hint-placeholder-count="4">
+          <div onClick="{{p.run}}" style="{{p.s}}"><span style="{{p.icS}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L9.5 22 19 9.5h-6.5L13 2Z"></path></svg></span><span style="flex:1">{{p.label}}</span><sc-if value="{{p.active}}" hint-placeholder-val="{{ false }}"><span style="color:var(--mut2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4v7a4 4 0 0 1-4 4H4M8 11l-4 4 4 4"></path></svg></span></sc-if></div>
+        </sc-for>
+        <sc-if value="{{hasAsk}}" hint-placeholder-val="{{ false }}">
+          <div style="padding:8px 10px 4px;font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut2)">ASK ITSOC</div>
+          <div onClick="{{askFromPal}}" style="{{askRowS}}"><span style="color:var(--accent);display:flex"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"></path></svg></span><span style="flex:1">Ask itsoc: "{{pq}}"</span><span style="color:var(--mut2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4v7a4 4 0 0 1-4 4H4M8 11l-4 4 4 4"></path></svg></span></div>
+        </sc-if>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:9px 16px;border-top:1px solid var(--border);font-size:10px;color:var(--mut2)"><span>↑↓ navigate · ↵ select · esc close</span><span>itsoc. command palette</span></div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{upOpen}}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{closeUp}}" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:flex;justify-content:center;padding-top:12vh">
+    <div onClick="{{stop}}" style="width:680px;height:fit-content;background:var(--panel);border:1px solid var(--border);border-radius:11px;box-shadow:0 24px 64px rgba(0,0,0,.45);animation:pal .16s ease;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)">
+        <div><div style="font-size:14px;font-weight:600">Upload logs</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--mut2);margin-top:2px">parsed locally · nothing leaves this machine</div></div>
+        <button onClick="{{closeUp}}" style="width:26px;height:26px;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--mut);cursor:pointer" style-hover="color:var(--ink)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:18px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">UPLOAD FILES</div>
+          <div onClick="{{browseUp}}" style="border:1px dashed var(--border);border-radius:8px;padding:26px 16px;display:flex;flex-direction:column;align-items:center;gap:9px;cursor:pointer;text-align:center" style-hover="border-color:var(--accent)">
+            <span style="color:var(--mut2)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5M6 9l6-6 6 6M4 21h16"></path></svg></span>
+            <div style="font-size:12.5px">Drop log files here or <span style="color:var(--accent)">browse</span></div>
+            <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:var(--mut2)">.log · .txt · .gz · .evtx — max 500 MB</div>
+          </div>
+          <div style="font-size:11px;color:var(--mut2);line-height:1.5">Files are parsed by rules v7 on this machine and become a new run.</div>
+          <button onClick="{{browseUp}}" style="background:var(--ink);color:var(--bg);border-radius:7px;padding:8px;font-weight:600;font-size:12.5px;cursor:pointer;margin-top:auto">Choose files…</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;border-left:1px solid var(--border);padding-left:14px">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.09em;color:var(--mut)">PASTE A LOG LINK</div>
+          <div style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)">URL</div><input value="{{upUrl}}" onChange="{{setUpUrl}}" placeholder="https://host.local/var/log/auth.log" style="border:1px solid var(--border);border-radius:7px;padding:8px 10px;background:var(--inset);font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px" style-focus="border-color:var(--accent)"></div>
+          <div style="font-size:11px;color:var(--mut2);line-height:1.5">The file is fetched once, read-only, then parsed locally. http(s) and file:// paths on this machine are accepted.</div>
+          <div style="font-size:11px;color:#f0a54a;display:flex;gap:7px;line-height:1.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M10.3 4.2 2.9 17a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z"></path><path d="M12 9v4M12 16.5h.01"></path></svg><span>A remote URL is an outbound request from this machine — only fetch sources you trust.</span></div>
+          <button onClick="{{fetchUp}}" style="{{fetchBtnS}}">Fetch &amp; parse →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 16px;font-size:12px;color:var(--ink);box-shadow:0 12px 32px rgba(0,0,0,.35);z-index:70;animation:rise .18s ease">{{toast}}</div>
+</sc-if>
+</div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;experimentalOn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;showCopilot&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+const SEV = { critical: '#f26d78', high: '#f0a54a', medium: '#d3b23a', low: '#3ecf8e' };
+const MONO = "'Geist Mono',ui-monospace,monospace";
+const SCREENS = ['overview','findings','incidents','sources','settings','assets','intel','discovery','vulns','enrich','oem','history','reports','cases','logout','login'];
+const TITLES = {
+  overview: ['Overview', ' · 18,204 lines parsed · 312 unparsed'],
+  findings: ['Findings', ' · 27 findings · rules v7'],
+  incidents: ['Incidents', 'INC-4a7f · brute-force chain on server-01'],
+  sources: ['Sources', 'live collectors — real listener state'],
+  settings: ['Settings', 'only settings that do something'],
+  assets: ['Assets', 'observed entities only'],
+  intel: ['Threat Intel', 'derived tags — not verdicts'],
+  discovery: ['Discovery', 'active scan — user-initiated'],
+  vulns: ['Vulnerabilities', 'CVSS band as reported · empty = unknown'],
+  enrich: ['Enrichment', 'real provider responses only'],
+  oem: ['OEM Engine', 'read-only connectors · credentials masked'],
+  history: ['History', 'persistent event store'],
+  reports: ['Reports', 'real files only'],
+  cases: ['Cases', 'analyst-entered · stored locally'],
+  logout: ['Log out', 'local, single-user tool'],
+  login: ['Log in', '']
+};
+const FINDINGS = [
+  { id:'f1', sev:'critical', t:'02:16:41', rule:'auth_bruteforce', host:'server-01', tech:'T1110',
+    title:'Brute-force authentication burst against admin',
+    reason:'14 failed SSH logins for account admin within 90s — rule threshold is 10 in 120s.',
+    expl:'A single external address repeatedly guessed the admin password on server-01. The rate and single-account focus rule out ordinary typos.',
+    pred:'count(sshd.failed_password, same_user) ≥ 10 within 120s → critical',
+    ev:[['fail','Aug 27 02:16:41 server-01 sshd[2214]: Failed password for admin from 203.0.113.44 port 51122 ssh2'],
+        ['fail','Aug 27 02:16:44 server-01 sshd[2214]: Failed password for admin from 203.0.113.44 port 51138 ssh2'],
+        ['mut','… 11 more failed attempts (02:16:45 – 02:16:51) …']],
+    seq:['02:16:41 · first failed login from 203.0.113.44','02:16:44 – 02:16:51 · 13 more failures, same account','02:16:51 · burst ends — 14 attempts total'] },
+  { id:'f2', sev:'critical', t:'02:19:10', rule:'c2_outbound_block', host:'server-01', tech:'T1571',
+    title:'Outbound connection to known C2 port blocked',
+    reason:'Outbound TCP to 198.51.100.7:4444 from a host with an open auth incident.',
+    expl:'Minutes after the successful login, server-01 tried to call out on a port associated with remote-control tooling. The firewall blocked it.',
+    pred:'egress.blocked ∧ dst_port ∈ c2_ports ∧ host.has_open_incident → critical',
+    ev:[['block','Aug 27 02:19:10 server-01 kernel: OUTBOUND BLOCK TCP 10.0.0.11:49812 → 198.51.100.7:4444']],
+    seq:['02:16:52 · accepted password for admin','02:19:10 · outbound TCP to 198.51.100.7:4444 blocked'] },
+  { id:'f3', sev:'high', t:'02:16:52', rule:'auth_success_after_fail', host:'server-01', tech:'T1078',
+    title:'Accepted password for admin during failure burst',
+    reason:'Successful login for the same account within 60s of ≥ 10 failures.',
+    expl:'The password guessing appears to have worked — the same account logged in from the same address seconds after the burst.',
+    pred:'sshd.accepted ∧ fails(same_user, 60s) ≥ 10 → high',
+    ev:[['ok','Aug 27 02:16:52 server-01 sshd[2214]: Accepted password for admin from 203.0.113.44 port 51204 ssh2']],
+    seq:['02:16:41 – 02:16:51 · 14 failed logins','02:16:52 · accepted password, same account + source'] },
+  { id:'f4', sev:'high', t:'03:02:11', rule:'priv_escalation_attempt', host:'db-02', tech:'T1068',
+    title:'sudo to root from unprivileged service account',
+    reason:'sudo denial for an account outside the sudoers set.',
+    expl:'A backup service account tried to open a root shell on db-02. Service accounts should never do this interactively.',
+    pred:'sudo.denied ∧ user ∈ service_accounts → high',
+    ev:[['fail','Aug 27 03:02:11 db-02 sudo: svc-backup : user NOT in sudoers ; TTY=pts/1 ; COMMAND=/bin/bash']],
+    seq:['03:02:11 · sudo /bin/bash denied for svc-backup'] },
+  { id:'f5', sev:'medium', t:'04:17:33', rule:'port_scan_inbound', host:'edge-fw', tech:'T1046',
+    title:'Inbound sweep across 42 ports from one source',
+    reason:'42 distinct destination ports from one source inside 5 minutes — threshold is 25.',
+    expl:'Someone probed the firewall to map open services. Broad but low-and-slow enough to be automated scanning.',
+    pred:'distinct(dst_port, same_src, 300s) ≥ 25 → medium',
+    ev:[['mut','Aug 27 04:17:33 edge-fw filterlog: block in tcp 198.51.100.23 → 10.0.0.1:8443'],
+        ['mut','Aug 27 04:17:34 edge-fw filterlog: block in tcp 198.51.100.23 → 10.0.0.1:8080']],
+    seq:['04:15:02 · first blocked probe','04:17:33 · 42nd distinct port — rule fires'] },
+  { id:'f6', sev:'medium', t:'05:40:02', rule:'cron_modification', host:'server-01', tech:'T1053',
+    title:'Root crontab modified outside change window',
+    reason:'crontab REPLACE for root outside the 09:00–18:00 change window.',
+    expl:'Root scheduled tasks changed in the middle of the night on the compromised host — a common persistence step.',
+    pred:'cron.replace ∧ user = root ∧ hour ∉ change_window → medium',
+    ev:[['mut','Aug 27 05:40:02 server-01 cron[901]: (root) REPLACE (root)']],
+    seq:['05:40:02 · root crontab replaced'] },
+  { id:'f7', sev:'low', t:'06:12:45', rule:'new_user_created', host:'db-02', tech:'T1136',
+    title:'Local account created: deploy2',
+    reason:'useradd observed; account creation is always surfaced.',
+    expl:'A new local account appeared on db-02. Possibly routine — worth confirming with whoever owns the host.',
+    pred:'useradd.observed → low',
+    ev:[['mut','Aug 27 06:12:45 db-02 useradd[3321]: new user: name=deploy2, UID=1007, home=/home/deploy2']],
+    seq:['06:12:45 · account deploy2 created'] },
+  { id:'f8', sev:'low', t:'07:03:19', rule:'dns_anomaly', host:'ws-114', tech:'T1071',
+    title:'Repeated NXDOMAIN lookups to one domain',
+    reason:'38 NXDOMAIN responses for one apex domain in 10 minutes.',
+    expl:'A workstation kept resolving a domain that does not exist — sometimes beaconing, often a misconfigured agent.',
+    pred:'count(dns.nxdomain, same_apex, 600s) ≥ 30 → low',
+    ev:[['mut','Aug 27 07:03:19 ws-114 dnsmasq[214]: NXDOMAIN cdn-sync-7731.example.net (38 in 10m)']],
+    seq:['06:53:20 · first NXDOMAIN','07:03:19 · 38th response — rule fires'] }
+];
+const CANNED = {
+  root: { q: "What's the root cause here?", type: 'text',
+    text: 'Most likely: the admin credential on server-01 was brute-forced and then used. 14 failed SSH logins from 203.0.113.44 in 90 seconds, an accepted password for the same account 11 seconds later, then an outbound connection on a known C2 port that the firewall blocked.',
+    cite: 'from 3 findings + auth_bruteforce.md · advisory' },
+  crit: { q: 'Show me the critical incidents', type: 'table',
+    rows: [{ id: 'INC-4a7f', title: 'Brute-force → successful compromise', sev: 'critical' }],
+    text: '1 critical incident in this run — both critical findings correlate to it.',
+    cite: 'cited: 1 incident · 3 findings' },
+  kpi: { q: 'Summarize the dashboard', type: 'kpi',
+    k: [['TOTAL','27',null],['CRIT','2','critical'],['HIGH','6','high'],['MED','9','medium'],['LOW','10','low']],
+    text: '27 findings across 4 hosts. The two critical ones belong to INC-4a7f on server-01; everything else is scanning noise and hygiene items.',
+    cite: 'cited: run auth-2026-08-27.log' },
+  entity: { q: "What's on server-01?", type: 'entity',
+    e: [['Host','server-01'],['Events','8,412'],['Findings','11'],['Risk','elevated'],['Last seen','07:03:19']],
+    text: 'server-01 carries both critical findings — the brute-force burst and the blocked outbound connection — plus a night-time crontab change.',
+    cite: 'cited: 11 findings' },
+  next: { q: 'Recommend next steps', type: 'steps',
+    steps: ['Rotate the admin credential on server-01','Review authorized_keys and the new cron entry','Keep the 203.0.113.44 egress block in place','Re-run the parser after rotation to confirm quiet'],
+    cite: 'from auth_bruteforce.md · advisory' }
+};
+const CHIP_ORDER = ['root','crit','kpi','entity','next'];
+
+class Component extends DCLogic {
+  state = {
+    screen: 'overview',
+    theme: (this.props && this.props.defaultTheme) || 'dark',
+    exp: !!(this.props && this.props.experimentalOn),
+    pal: false, pq: '', pi: 0,
+    runOpen: false, run: 'auth-2026-08-27.log',
+    selId: 'f1', ffilter: '', fsev: 'all',
+    lisOn: false, port: '5514', iface: 'lo',
+    compute: 'local', purge: '', purged: false,
+    chat: [{ id: 'root' }], draft: '',
+    toast: '', authTab: 'in',
+    upOpen: false, upUrl: '', aiOpen: false,
+    checks: []
+  };
+
+  componentDidMount() {
+    this.kd = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        this.setState(s => ({ pal: !s.pal, pq: '', pi: 0 }));
+        return;
+      }
+      if (this.state.pal) {
+        const items = this.palItems();
+        if (e.key === 'ArrowDown') { e.preventDefault(); this.setState(s => ({ pi: Math.min(items.length - 1, s.pi + 1) })); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); this.setState(s => ({ pi: Math.max(0, s.pi - 1) })); }
+        else if (e.key === 'Enter') { e.preventDefault(); const it = items[this.state.pi]; if (it) it.run(); }
+        else if (e.key === 'Escape') this.setState({ pal: false, pq: '' });
+      } else if (e.key === 'Escape') {
+        this.setState({ runOpen: false, toast: '', upOpen: false, aiOpen: false });
+      }
+    };
+    window.addEventListener('keydown', this.kd);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this.kd); this.clearToastT(); }
+
+  clearToastT() { if (this._tt) clearTimeout(this._tt); }
+  showToast(msg) {
+    this.clearToastT();
+    this.setState({ toast: msg });
+    this._tt = setTimeout(() => this.setState({ toast: '' }), 2800);
+  }
+  goScreen(s) {
+    const upd = { screen: s, pal: false, pq: '', pi: 0, runOpen: false };
+    if (s !== 'login' && !this.state.exp && ['assets','intel','discovery','vulns','enrich','oem','history','reports','cases'].includes(s)) upd.exp = true;
+    this.setState(upd);
+  }
+  palItems() {
+    const q = this.state.pq.trim().toLowerCase();
+    const labels = { overview:'Overview', findings:'Findings', incidents:'Incidents', sources:'Sources', settings:'Settings', assets:'Assets', intel:'Threat Intel', discovery:'Discovery', vulns:'Vulnerabilities', enrich:'Enrichment', oem:'OEM Engine', history:'History', reports:'Reports', cases:'Cases', login:'Log in screen' };
+    const screens = Object.keys(labels)
+      .filter(k => !q || labels[k].toLowerCase().includes(q))
+      .map(k => ({ group: 's', label: labels[k], run: () => this.goScreen(k) }));
+    const actions = [
+      { label: 'Switch theme', run: () => { this.toggleThemeF(); this.setState({ pal: false, pq: '' }); } },
+      { label: 'Toggle Experimental features', run: () => { this.setState(s => ({ exp: !s.exp, pal: false, pq: '' })); } },
+      { label: 'Upload logs', run: () => this.setState({ pal: false, pq: '', upOpen: true }) },
+      { label: 'Refresh dashboard', run: () => { this.setState({ pal: false, pq: '' }); this.showToast('Refreshed — no new lines since 07:03:19.'); } }
+    ].filter(a => !q || a.label.toLowerCase().includes(q)).map(a => ({ group: 'a', ...a }));
+    const items = screens.concat(actions);
+    if (q) items.push({ group: 'ask', label: this.state.pq, run: () => this.askFree(this.state.pq, true) });
+    return items;
+  }
+  toggleThemeF() { this.setState(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })); }
+  ask(id) { this.setState(s => ({ chat: s.chat.concat([{ id }]) })); }
+  askFree(q, fromPal) {
+    const txt = (q || '').trim();
+    if (!txt) return;
+    const lower = txt.toLowerCase();
+    let match = null;
+    if (lower.includes('root') || lower.includes('cause')) match = 'root';
+    else if (lower.includes('critical') || lower.includes('incident')) match = 'crit';
+    else if (lower.includes('summar') || lower.includes('dashboard')) match = 'kpi';
+    else if (lower.includes('server-01') || lower.includes('server')) match = 'entity';
+    else if (lower.includes('next') || lower.includes('recommend') || lower.includes('step')) match = 'next';
+    const entry = match ? { id: match } : { q: txt, fallback: true };
+    const upd = { chat: this.state.chat.concat([entry]), draft: '', aiOpen: true };
+    if (fromPal) { upd.pal = false; upd.pq = ''; }
+    this.setState(upd);
+  }
+
+  renderVals() {
+    const st = this.state;
+    const isDark = st.theme === 'dark';
+    const go = {};
+    SCREENS.forEach(s => { go[s] = () => this.goScreen(s); });
+    const ns = {}, ni = {};
+    SCREENS.forEach(s => {
+      const a = st.screen === s;
+      ns[s] = { display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: a ? 600 : 500, color: a ? 'var(--ink)' : 'var(--mut)', background: a ? 'var(--panel2)' : 'transparent' };
+      ni[s] = { display: 'flex', color: a ? 'var(--accent)' : 'var(--mut2)' };
+    });
+    const tabS = (on) => ({ flex: 1, borderRadius: '5px', padding: '6px', fontSize: '12.5px', fontWeight: on ? 600 : 500, cursor: 'pointer', background: on ? 'var(--panel)' : 'transparent', color: on ? 'var(--ink)' : 'var(--mut)', border: on ? '1px solid var(--border)' : '1px solid transparent' });
+    // KPI cards
+    const kpiDefs = [['Total','27',null,'↓ 34% vs prior run'],['Critical','2','critical','↓ 50%'],['High','6','high','↑ 2'],['Medium','9','medium','↓ 52%'],['Low','10','low','no change']];
+    const kpis = kpiDefs.map(([label, v, sev, d]) => ({ label, v, d, vS: { fontSize: '26px', fontWeight: 600, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', color: sev ? SEV[sev] : 'var(--ink)' } }));
+    // chart cols
+    const colData = [[0,0,1,2],[0,0,1,3],[2,1,1,2],[0,2,1,3],[0,1,0,2],[0,0,2,3],[0,1,1,2],[0,0,1,1],[0,1,2,3],[0,0,0,2],[0,0,1,2],[0,1,0,1],[0,0,1,3],[0,0,0,2]];
+    const sevOrder = ['critical','high','medium','low'];
+    const max = 8;
+    const cols = colData.map((d, i) => ({
+      s: { flex: 1, display: 'flex', flexDirection: 'column-reverse', gap: '1px', height: '100%', justifyContent: 'flex-start', animation: 'grow .5s ' + (i * 0.03) + 's ease both', transformOrigin: 'bottom' },
+      segs: d.map((n, j) => ({ s: { height: (n / max * 100) + '%', minHeight: n ? '3px' : '0', background: SEV[sevOrder[j]], borderRadius: '1.5px', opacity: .9 } })).filter(g => parseFloat(g.s.height) > 0).reverse()
+    }));
+    const tacticDefs = [['Credential Access', 9, 100],['Persistence', 5, 56],['Discovery', 4, 44],['Command & Control', 3, 33],['Privilege Escalation', 2, 22]];
+    const tactics = tacticDefs.map(([label, n, w], i) => ({ label, n: String(n), fS: { width: w + '%', height: '100%', background: 'var(--fill)', borderRadius: '2px', animation: 'growx .5s ' + (0.1 + i * 0.06) + 's ease both', transformOrigin: 'left' } }));
+    const dotS = (sev) => ({ width: '7px', height: '7px', borderRadius: '50%', background: SEV[sev], display: 'inline-block' });
+    const latest = FINDINGS.slice(0, 6).map(f => ({ t: f.t, rule: f.rule, host: f.host, title: f.title, dotS: dotS(f.sev), pick: () => this.setState({ screen: 'findings', selId: f.id }) }));
+    // findings
+    const q = st.ffilter.trim().toLowerCase();
+    const filtered = FINDINGS.filter(f => (st.fsev === 'all' || f.sev === st.fsev) && (!q || (f.rule + f.host + f.title).toLowerCase().includes(q)));
+    const tagS = (sev) => ({ fontSize: '9.5px', fontWeight: 700, letterSpacing: '.07em', color: SEV[sev], border: '1px solid color-mix(in oklab, ' + SEV[sev] + ' 40%, transparent)', borderRadius: '4px', padding: '2px 6px', textAlign: 'center', width: 'fit-content' });
+    const fRows = filtered.map(f => ({
+      ...f, sevShort: f.sev.slice(0, 4).toUpperCase(), tagS: tagS(f.sev),
+      rs: { display: 'grid', gridTemplateColumns: '64px 68px 1fr 76px 56px', gap: '0 10px', padding: '10px 18px', fontSize: '12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', alignItems: 'center', background: st.selId === f.id ? 'color-mix(in oklab, var(--accent) 7%, transparent)' : 'transparent' },
+      pick: () => this.setState({ selId: f.id })
+    }));
+    const sel = FINDINGS.find(f => f.id === st.selId) || filtered[0] || FINDINGS[0];
+    const evColor = { fail: SEV.critical, ok: SEV.low, block: SEV.high, mut: 'var(--mut2)' };
+    const fd = {
+      ...sel, sevShort: sel.sev.slice(0, 4).toUpperCase(), tagS: tagS(sel.sev),
+      verdict: 'MATCH', vS: { fontSize: '15px', fontWeight: 700, letterSpacing: '.04em', color: SEV[sel.sev], fontFamily: MONO },
+      ev: sel.ev.map(([k, t]) => ({ t, s: { color: evColor[k], fontFamily: MONO, fontSize: '11.5px', whiteSpace: 'pre' } })),
+      seq: sel.seq.map(t => ({ t }))
+    };
+    const fCount = filtered.length + ' of ' + FINDINGS.length + ' shown · 27 findings total';
+    // timeline ticks
+    const bfTicks = Array.from({ length: 14 }, (_, i) => ({ s: { position: 'absolute', left: (8 + i * 2.3) + '%', bottom: '19px', width: '2px', height: '11px', background: SEV.critical, borderRadius: '1px' } }));
+    // sources
+    const radioS = (on) => ({ width: '14px', height: '14px', borderRadius: '50%', border: on ? '4.5px solid var(--accent)' : '1.5px solid var(--mut2)', flex: 'none', boxSizing: 'border-box', display: 'inline-block' });
+    const btnPrimary = { background: 'var(--ink)', color: 'var(--bg)', borderRadius: '7px', padding: '7px 16px', fontWeight: 600, fontSize: '12.5px', cursor: 'pointer' };
+    const btnGhost = { border: '1px solid var(--border)', borderRadius: '7px', padding: '7px 16px', fontSize: '12.5px', color: 'var(--mut)', cursor: 'pointer' };
+    const btnDisabled = (b) => ({ ...b, opacity: .45, cursor: 'default' });
+    // history
+    const histKpis = [['Events','23,911'],['Critical','2'],['High','6'],['Assets','4'],['Open vulns','0'],['IOC hits','2']].map(([label, v]) => ({ label, v }));
+    const histRows = [
+      { t: 'Aug 27 02:16:41', src: 'syslog', host: 'server-01', eid: '—', sev: 'CRIT', sc: 'critical', msg: 'Failed password for admin from 203.0.113.44' },
+      { t: 'Aug 27 02:16:52', src: 'syslog', host: 'server-01', eid: '—', sev: 'HIGH', sc: 'high', msg: 'Accepted password for admin from 203.0.113.44' },
+      { t: 'Aug 27 02:19:10', src: 'syslog', host: 'server-01', eid: '—', sev: 'CRIT', sc: 'critical', msg: 'OUTBOUND BLOCK TCP 10.0.0.11:49812 → 198.51.100.7:4444' },
+      { t: 'Aug 26 14:02:07', src: 'evtx', host: 'win-ad-01', eid: '4625', sev: 'MED', sc: 'medium', msg: 'An account failed to log on' },
+      { t: 'Aug 26 13:48:55', src: 'evtx', host: 'win-ad-01', eid: '4720', sev: 'LOW', sc: 'low', msg: 'A user account was created' }
+    ].map(e => ({ ...e, sevS: { fontSize: '10px', fontWeight: 700, letterSpacing: '.06em', color: SEV[e.sc] } }));
+    // chat
+    const chat = st.chat.map(entry => {
+      if (entry.fallback) return { q: entry.q, hasText: true, isTable: false, isKpi: false, isEntity: false, isSteps: false, text: "I can only interpret what's in this run — try one of the suggested questions, or open Findings for the full list.", cite: 'advisory · no sources cited' };
+      const c = CANNED[entry.id];
+      return {
+        q: c.q, text: c.text || '', hasText: !!c.text, cite: c.cite,
+        isTable: c.type === 'table', isKpi: c.type === 'kpi', isEntity: c.type === 'entity', isSteps: c.type === 'steps',
+        rows: (c.rows || []).map(r => ({ ...r, dotS: dotS(r.sev) })),
+        k: (c.k || []).map(([l, v, sev]) => ({ l, v, s: { fontSize: '15px', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: sev ? SEV[sev] : 'var(--ink)' } })),
+        eRows: (c.e || []).map(([l, v]) => ({ l, v })),
+        steps: (c.steps || []).map(t => ({ t }))
+      };
+    });
+    const askedIds = st.chat.filter(e => e.id).map(e => e.id);
+    const chips = CHIP_ORDER.filter(id => !askedIds.includes(id)).map(id => ({ label: CANNED[id].q, on: () => this.ask(id) }));
+    // palette
+    const items = this.palItems();
+    const rowS = (a) => ({ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '7px', fontSize: '12.5px', cursor: 'pointer', background: a ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'transparent', color: a ? 'var(--ink)' : 'var(--mut)' });
+    const withIdx = items.map((it, i) => ({ ...it, active: i === st.pi, s: rowS(i === st.pi), icS: { display: 'flex', color: i === st.pi ? 'var(--accent)' : 'var(--mut2)' } }));
+    const pScreens = withIdx.filter(i => i.group === 's');
+    const pActions = withIdx.filter(i => i.group === 'a');
+    const askItem = withIdx.find(i => i.group === 'ask');
+
+    return {
+      theme: st.theme, isDark, isLight: !isDark,
+      toggleTheme: () => this.toggleThemeF(),
+      setDark: () => this.setState({ theme: 'dark' }), setLight: () => this.setState({ theme: 'light' }),
+      darkBtnS: tabS(isDark), lightBtnS: tabS(!isDark),
+      isLogin: st.screen === 'login', isApp: st.screen !== 'login',
+      isOverview: st.screen === 'overview', isFindings: st.screen === 'findings', isIncidents: st.screen === 'incidents',
+      isSources: st.screen === 'sources', isSettings: st.screen === 'settings', isAssets: st.screen === 'assets',
+      isIntel: st.screen === 'intel', isDiscovery: st.screen === 'discovery', isVulns: st.screen === 'vulns',
+      isEnrich: st.screen === 'enrich', isOem: st.screen === 'oem', isHistory: st.screen === 'history',
+      isReports: st.screen === 'reports', isCases: st.screen === 'cases', isLogout: st.screen === 'logout',
+      hasRail: st.screen === 'incidents',
+      incFindings: ['f1', 'f3', 'f2'].map(id => {
+        const f = FINDINGS.find(x => x.id === id);
+        return { rule: f.rule, title: f.title, t: f.t, dotS: dotS(f.sev), pick: () => this.setState({ screen: 'findings', selId: f.id }) };
+      }),
+      incChecks: ['Rotate the admin credential on server-01','Review authorized_keys for new entries','Inspect the modified root crontab','Confirm the 203.0.113.44 egress block holds'].map((t, i) => {
+        const done = st.checks.includes(i);
+        return { t, done,
+          boxS: { width: '14px', height: '14px', flex: 'none', marginTop: '1px', borderRadius: '4px', border: done ? 'none' : '1.5px solid var(--mut2)', background: done ? 'var(--accent)' : 'transparent', color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+          txtS: { color: done ? 'var(--mut2)' : 'var(--mut)', textDecoration: done ? 'line-through' : 'none' },
+          on: () => this.setState(s => ({ checks: s.checks.includes(i) ? s.checks.filter(x => x !== i) : s.checks.concat([i]) })) };
+      }),
+      ckCount: st.checks.length + ' of 4 done',
+      showAiBtn: ((this.props && this.props.showCopilot) ?? true),
+      aiOpen: st.aiOpen, aiClosed: !st.aiOpen,
+      toggleAi: () => this.setState(s => ({ aiOpen: !s.aiOpen })),
+      aiBtnS: { position: 'fixed', bottom: '20px', right: '20px', zIndex: 56, width: '42px', height: '42px', borderRadius: '50%', background: st.aiOpen ? 'var(--panel2)' : 'var(--ink)', color: st.aiOpen ? 'var(--ink)' : 'var(--bg)', border: st.aiOpen ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,.35)' },
+      go, ns, ni,
+      pageTitle: TITLES[st.screen][0],
+      pageSub: st.screen === 'overview' || st.screen === 'findings' ? st.run + TITLES[st.screen][1] : TITLES[st.screen][1],
+      exp: st.exp, expLabel: st.exp ? 'ON' : 'OFF',
+      toggleExp: () => this.setState(s => ({ exp: !s.exp })),
+      expPillS: { fontSize: '9px', fontWeight: 700, letterSpacing: '.08em', borderRadius: '20px', padding: '2px 8px', cursor: 'pointer', border: '1px solid ' + (st.exp ? 'color-mix(in oklab, var(--accent) 45%, transparent)' : 'var(--border)'), color: st.exp ? 'var(--accent)' : 'var(--mut2)', background: st.exp ? 'color-mix(in oklab, var(--accent) 9%, transparent)' : 'transparent' },
+      expWrapS: { maxHeight: st.exp ? '340px' : '0', overflow: st.exp ? 'visible' : 'hidden', transition: 'max-height .28s ease', opacity: st.exp ? 1 : 0 },
+      run: st.run, runOpen: st.runOpen,
+      toggleRun: () => this.setState(s => ({ runOpen: !s.runOpen })),
+      closeRun: () => this.setState({ runOpen: false }),
+      isRun1: st.run === 'auth-2026-08-27.log', isRun2: st.run === 'web-2026-08-25.log',
+      runRow1S: { display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', cursor: 'pointer', background: st.run === 'auth-2026-08-27.log' ? 'color-mix(in oklab, var(--accent) 7%, transparent)' : 'transparent' },
+      runRow2S: { display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', cursor: 'pointer', background: st.run === 'web-2026-08-25.log' ? 'color-mix(in oklab, var(--accent) 7%, transparent)' : 'transparent' },
+      pickRun1: () => this.setState({ run: 'auth-2026-08-27.log', runOpen: false }),
+      pickRun2: () => this.setState({ run: 'web-2026-08-25.log', runOpen: false }),
+      pickRun3: () => { this.setState({ runOpen: false }); this.showToast('fw-2026-08-24.log has not been parsed — parse it via Upload logs.'); },
+      uploadToast: () => this.showToast("Demo — the upload pipe isn't wired in this mockup."),
+      upOpen: st.upOpen, upUrl: st.upUrl,
+      openUp: () => this.setState({ upOpen: true }),
+      closeUp: () => this.setState({ upOpen: false }),
+      setUpUrl: (e) => this.setState({ upUrl: e.target.value }),
+      browseUp: () => this.showToast('Demo — the file picker and parse pipe are not wired in this mockup.'),
+      fetchUp: () => { if (st.upUrl.trim()) { this.setState({ upOpen: false, upUrl: '' }); this.showToast('Demo — fetching is not wired; the URL was not requested.'); } },
+      fetchBtnS: st.upUrl.trim()
+        ? { background: 'var(--ink)', color: 'var(--bg)', borderRadius: '7px', padding: '8px', fontWeight: 600, fontSize: '12.5px', cursor: 'pointer', marginTop: 'auto' }
+        : { border: '1px solid var(--border)', borderRadius: '7px', padding: '8px', fontSize: '12.5px', color: 'var(--mut2)', cursor: 'default', opacity: .55, marginTop: 'auto' },
+      refreshToast: () => this.showToast('Refreshed — no new lines since 07:03:19.'),
+      scanToast: () => this.showToast('Demo — active scanning is not wired in this mockup.'),
+      keyToast: () => this.showToast('Demo — provider keys are not stored in this mockup.'),
+      enrichToast: () => this.showToast('No provider key configured — the lookup was not attempted.'),
+      oemToast: () => this.showToast('Demo — connectors are not persisted in this mockup.'),
+      evtxToast: () => this.showToast('Demo — .evtx ingestion is not wired in this mockup.'),
+      cleanupToast: () => this.showToast('Cleanup ran — nothing older than 90 days to remove.'),
+      reportToast: () => this.showToast('Demo — report files are not generated in this mockup.'),
+      caseToast: () => this.showToast('Demo — case creation is not wired in this mockup.'),
+      noop: (e) => { if (e && e.preventDefault) e.preventDefault(); },
+      stop: (e) => e.stopPropagation(),
+      kpis, cols, tactics, latest,
+      ffilter: st.ffilter, setFF: (e) => this.setState({ ffilter: e.target.value }),
+      fsev: st.fsev, setFsev: (e) => this.setState({ fsev: e.target.value }),
+      fCount, fRows, fd,
+      bfTicks,
+      port: st.port, setPort: (e) => this.setState({ port: e.target.value.replace(/[^0-9]/g, '') }),
+      setLo: () => this.setState({ iface: 'lo' }), setAll: () => this.setState({ iface: 'all' }),
+      rLoS: radioS(st.iface === 'lo'), rAllS: radioS(st.iface === 'all'),
+      isAllIface: st.iface === 'all',
+      startLis: () => { if (!st.lisOn) { this.setState({ lisOn: true }); this.showToast('Listener started on ' + (st.iface === 'lo' ? '127.0.0.1' : '0.0.0.0') + ':' + st.port + ' (UDP + TCP).'); } },
+      stopLis: () => { if (st.lisOn) { this.setState({ lisOn: false }); this.showToast('Listener stopped.'); } },
+      startBtnS: st.lisOn ? btnDisabled(btnPrimary) : btnPrimary,
+      stopBtnS: st.lisOn ? btnGhost : btnDisabled(btnGhost),
+      lisState: st.lisOn ? 'listening' : 'stopped',
+      lisDotS: { width: '7px', height: '7px', borderRadius: '50%', background: st.lisOn ? SEV.low : 'var(--mut2)', display: 'inline-block' },
+      bindVal: st.lisOn ? (st.iface === 'lo' ? '127.0.0.1' : '0.0.0.0') + ':' + (st.port || '5514') : '—',
+      setLocal: () => this.setState({ compute: 'local' }), setRemote: () => this.setState({ compute: 'remote' }),
+      rLocalS: radioS(st.compute === 'local'), rRemoteS: radioS(st.compute === 'remote'),
+      isRemote: st.compute === 'remote',
+      redactNote: st.compute === 'local' ? 'not applicable — compute is local' : 'active — outbound text is redacted before it leaves',
+      saveCompute: () => this.showToast('Compute settings saved — location: ' + st.compute + '.'),
+      histKpis, histRows,
+      purge: st.purge, setPurge: (e) => this.setState({ purge: e.target.value }),
+      purged: st.purged, notPurged: !st.purged,
+      purgeBtnS: st.purge === 'PURGE'
+        ? { background: SEV.critical, color: '#fff', borderRadius: '7px', padding: '6px 14px', fontWeight: 600, fontSize: '12px', cursor: 'pointer' }
+        : { border: '1px solid var(--border)', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', color: 'var(--mut2)', cursor: 'default', opacity: .55 },
+      doPurge: () => { if (this.state.purge === 'PURGE') { this.setState({ purged: true, purge: '' }); this.showToast('History purged — 0 events retained.'); } },
+      chat, chips,
+      draft: st.draft, setDraft: (e) => this.setState({ draft: e.target.value }),
+      draftKey: (e) => { if (e.key === 'Enter') this.askFree(this.state.draft, false); },
+      pal: st.pal, pq: st.pq,
+      openPal: () => this.setState({ pal: true, pq: '', pi: 0 }),
+      closePal: () => this.setState({ pal: false, pq: '' }),
+      setPq: (e) => this.setState({ pq: e.target.value, pi: 0 }),
+      pScreens, pActions,
+      hasPScreens: pScreens.length > 0, hasPActions: pActions.length > 0,
+      hasAsk: !!askItem, askRowS: askItem ? askItem.s : {},
+      askFromPal: () => this.askFree(this.state.pq, true),
+      isSignup: st.authTab === 'up',
+      authIn: () => this.setState({ authTab: 'in' }), authUp: () => this.setState({ authTab: 'up' }),
+      tabInS: tabS(st.authTab === 'in'), tabUpS: tabS(st.authTab === 'up'),
+      clearUi: () => { this.setState({ theme: 'dark', exp: false, ffilter: '', fsev: 'all', screen: 'overview' }); this.showToast('Local UI state cleared — theme, filters, and notices reset.'); },
+      toast: st.toast, hasToast: !!st.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

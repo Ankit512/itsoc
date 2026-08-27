@@ -87,8 +87,8 @@ export function Assets() {
   return (
     <>
       <div className="is-note">
-        <b>Observed entities only.</b> Hosts come from parsed events, IPs from finding entities, usernames
-        from event messages and finding titles. An asset that never appeared in a log does not exist here.{" "}
+        <b>Observed entities only — nothing inventoried, nothing assumed.</b> Hosts come from parsed
+        events, IPs from finding entities, usernames from event messages and finding titles.{" "}
         {assetsAtRisk} of {assets.length} asset(s) and {usersAtRisk} of {users.length} user(s) at risk (≥1 finding).
       </div>
 

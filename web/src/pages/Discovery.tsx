@@ -33,12 +33,16 @@ function ScanStatus({ status }: { status?: DiscoveryStatus }) {
       <Fact label="Hosts found"><span className="is-tnum">{status?.hostsFound ?? 0}</span></Fact>
       <Fact label="Assets stored"><span className="is-tnum">{status?.assetsStored ?? 0}</span></Fact>
       <Fact label="Vulns stored"><span className="is-tnum">{status?.vulnsStored ?? 0}</span></Fact>
-      {status?.startedAt
-        ? <Fact label="Started"><span className="is-mono">{new Date(status.startedAt).toLocaleString()}</span></Fact>
-        : <Fact label="Started" na>—</Fact>}
-      {status?.finishedAt
-        ? <Fact label="Finished"><span className="is-mono">{new Date(status.finishedAt).toLocaleString()}</span></Fact>
-        : <Fact label="Finished" na>{running ? "in progress" : "—"}</Fact>}
+      {/* dc pairs both stamps on one "Started / finished" row. */}
+      <Fact label="Started / finished" na={!status?.startedAt && !status?.finishedAt}>
+        <span className="is-mono">
+          {status?.startedAt ? new Date(status.startedAt).toLocaleString() : "—"}
+          {" / "}
+          {status?.finishedAt
+            ? new Date(status.finishedAt).toLocaleString()
+            : running ? "in progress" : "—"}
+        </span>
+      </Fact>
       {status?.error && <div className="is-facts-row" style={{ color: "var(--crit)" }}>{status.error}</div>}
     </div>
   );
@@ -81,19 +85,19 @@ function Controls({ status }: { status?: DiscoveryStatus }) {
       )}
 
       <label className="is-field" style={{ margin: "8px 0" }}>
-        <span>Target host or CIDR range</span>
+        <span>Target host / CIDR</span>
         <input className="is-input" value={target} aria-label="Target host or CIDR"
                onChange={(e) => setTarget(e.target.value)}
                placeholder="192.168.1.0/24  ·  10.0.0.5  ·  127.0.0.1" />
       </label>
       <div className="is-mut" style={{ fontSize: 11, lineHeight: 1.5 }}>
-        Private (RFC1918), loopback, and link-local targets only. Public or internet-routable targets are
-        refused — this scans only networks you own.
+        Scanning sends packets to the target. Only scan networks you own — private (RFC1918), loopback,
+        and link-local targets only; public or internet-routable targets are refused.
       </div>
 
       <div className="is-note" style={{ borderColor: "var(--high)", color: "var(--high)", marginTop: 8 }}>
-        This is an <b>active network operation</b>, not read-only. Only scan networks you are authorized to
-        test. Every scan is initiated by you here — nothing runs on a timer.
+        <b>Active scan — private/loopback targets only · user-initiated · this is an active network
+        operation, not read-only.</b> Only scan networks you are authorized to test; nothing runs on a timer.
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 8 }}>
@@ -119,8 +123,8 @@ function DiscoveredAssets({ running }: { running: boolean }) {
       <div className="is-panel__h"><h3>Discovered assets</h3></div>
       {items.length === 0 ? (
         <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
-          No hosts discovered yet. Enter a private target above and run a scan — hosts nmap actually
-          observes appear here and in the assets store.
+          No scans have run — results appear here after a user-initiated scan. Enter a private target
+          above; hosts nmap actually observes appear here and in the assets store.
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>

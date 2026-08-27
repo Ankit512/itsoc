@@ -137,7 +137,9 @@ describe("Incidents page", () => {
     renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
 
     expect(await screen.findByTestId("rca-panel")).toBeInTheDocument();
-    expect(await screen.findByText(/no runbook matched this cluster/)).toBeInTheDocument();
+    // The note appears twice now: in the RCA runbook card and in the rail's
+    // response checklist, which refuses to invent steps without a runbook.
+    expect((await screen.findAllByText(/no runbook matched this cluster/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/model unavailable — deterministic facts only/)).toBeInTheDocument();
     expect(screen.getByText(/some member findings are not in the loaded run/)).toBeInTheDocument();
   });

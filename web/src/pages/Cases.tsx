@@ -173,12 +173,11 @@ export function Cases() {
   return (
     <>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
-        <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
-          Analyst-entered — no sample invented. Investigation cases you create, stored locally in{" "}
-          <span className="is-mono" style={{ color: "var(--ink)" }}>cases.json</span>. This is analyst-entered
-          data, not derived from findings.
-        </p>
-        <div style={{ marginLeft: "auto" }}><CreateCase /></div>
+        <div className="is-note" style={{ flex: 1, minWidth: 260 }}>
+          <b>Analyst-entered, stored locally, not derived — no sample cases invented.</b> Investigation
+          cases you create live in <span className="is-mono" style={{ color: "var(--ink)" }}>cases.json</span>.
+        </div>
+        <CreateCase />
       </div>
 
       {isLoading && <p className="is-mut">Loading cases…</p>}
@@ -190,7 +189,7 @@ export function Cases() {
       )}
       {!isLoading && !error && cases.length === 0 && (
         <div className="is-note" style={{ textAlign: "center", padding: "28px 14px" }}>
-          <div style={{ fontSize: 14, fontWeight: 650, color: "var(--ink)" }}>No cases yet</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>No cases yet.</div>
           <p className="is-mut" style={{ margin: "6px auto 0", maxWidth: 420, fontSize: 12 }}>
             Create a case to track an investigation. Nothing is shown here until you add one — no sample
             cases are invented.

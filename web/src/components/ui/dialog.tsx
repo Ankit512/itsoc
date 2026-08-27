@@ -5,8 +5,9 @@ import { X } from "lucide-react";
  *  shadcn-style components (which use only @radix-ui/react-slot — no
  *  react-dialog dep). Backdrop click and Escape close it; focus moves in on
  *  open; role="dialog" + aria-modal for assistive tech. */
-export function Dialog({ open, onClose, title, children }:
-  { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+export function Dialog({ open, onClose, title, subtitle, wide, children }:
+  { open: boolean; onClose: () => void; title: string; subtitle?: string;
+    wide?: boolean; children: ReactNode }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,18 +29,25 @@ export function Dialog({ open, onClose, title, children }:
       <div
         ref={panelRef}
         role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}
-        className="w-full max-w-[440px] rounded-lg bg-card p-4 shadow-[0_16px_48px_-12px_rgba(26,32,51,0.4)] outline-none"
+        className={
+          "is-modal rounded-lg bg-card shadow-[0_24px_64px_-12px_rgba(26,32,51,0.45)] outline-none " +
+          (wide ? "w-full max-w-[680px]" : "w-full max-w-[440px] p-4")
+        }
       >
-        <div className="mb-3 flex items-center gap-2">
-          <h2 className="text-[15px] font-semibold">{title}</h2>
+        {/* dc modal head: title + mono provenance line, close on the right. */}
+        <div className={wide ? "is-modal__h" : "mb-3 flex items-center gap-2"}>
+          <div>
+            <h2 className="text-[14px] font-semibold">{title}</h2>
+            {subtitle && <div className="is-modal__sub is-mono">{subtitle}</div>}
+          </div>
           <button
             onClick={onClose} aria-label="Close dialog"
-            className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-background"
+            className="ml-auto inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted-foreground hover:bg-background"
           >
-            <X className="h-[15px] w-[15px]" aria-hidden />
+            <X className="h-[13px] w-[13px]" aria-hidden />
           </button>
         </div>
-        {children}
+        {wide ? <div className="is-modal__body">{children}</div> : children}
       </div>
     </div>
   );

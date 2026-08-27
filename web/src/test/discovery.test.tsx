@@ -26,7 +26,7 @@ describe("Discovery — nmap scan control panel", () => {
     // The dual-use guardrail is stated: private targets only.
     expect(screen.getByText(/Private \(RFC1918\), loopback, and link-local targets only/i)).toBeInTheDocument();
     // Honest empty state for discovered assets.
-    expect(screen.getByText(/No hosts discovered yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No scans have run — results appear here after a user-initiated scan/i)).toBeInTheDocument();
   });
 
   it("refuses to enable scanning and warns honestly when nmap is not installed", async () => {
@@ -113,7 +113,7 @@ describe("Vulnerabilities — store-backed table", () => {
   it("shows an honest empty state when nothing is stored", async () => {
     mockFetch({ "/api/store/vulns": EMPTY_VULNS });
     renderApp(<App />, { route: "/vulnerabilities" });
-    expect(await screen.findByText(/No vulnerabilities recorded yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No vulnerability data yet/i)).toBeInTheDocument();
   });
 
   it("renders a stored vuln with its NSE-derived severity and CVSS", async () => {

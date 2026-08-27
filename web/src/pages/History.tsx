@@ -63,8 +63,8 @@ function EvtxIngest() {
     <div className="is-panel">
       <div className="is-panel__h"><h3>Ingest Windows Event Log (.evtx)</h3></div>
       <p className="is-mut" style={{ fontSize: 12, lineHeight: 1.5, margin: "0 0 8px" }}>
-        Upload a Windows <span className="is-mono" style={{ color: "var(--acc)" }}>.evtx</span> file to record its events
-        in the store. Each event's severity is the level Windows itself assigned (the EVTX{" "}
+        Parse an .evtx file into the persistent store. Each event's severity is the level Windows
+        itself assigned (the EVTX{" "}
         <span className="is-mono" style={{ color: "var(--ink)" }}>Level</span>), and its raw is the verbatim record —
         never keyword-guessed or rewritten.
       </p>
@@ -108,7 +108,7 @@ function Retention() {
     mutationFn: () => api.storePurge(),
     onSuccess: (r) => {
       const n = Object.values(r.purged).reduce((a, b) => a + b, 0);
-      setMsg(`Purged ${n} row(s) — the store is now empty.`); setConfirm(""); invalidate();
+      setMsg(`History purged — 0 events retained (${n} row(s) removed).`); setConfirm(""); invalidate();
     },
   });
 
@@ -136,6 +136,7 @@ function Retention() {
         <p className="is-mut" style={{ fontSize: 11, lineHeight: 1.5, margin: "6px 0" }}>
           Permanently wipes ALL stored events, assets, vulnerabilities, IOCs and investigations. Type{" "}
           <span className="is-mono" style={{ fontWeight: 700, color: "var(--ink)" }}>PURGE</span> to confirm.
+          This deletes every stored event.
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <input className="is-input" value={confirm} onChange={(e) => setConfirm(e.target.value)}
@@ -191,8 +192,8 @@ function EventsTable() {
 
       {items.length === 0 ? (
         <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
-          No events in the store yet. Ingest an .evtx above, start the syslog collector, or add an OEM
-          connector — stored events appear here.
+          No events in the store yet — counts here are real totals only. Ingest an .evtx above, start
+          the syslog collector, or add an OEM connector.
         </p>
       ) : (
         <>
@@ -239,9 +240,8 @@ export function History() {
   return (
     <>
       <div className="is-note">
-        <b>Persistent event store.</b> Windows EVTX ingest, Command-Center counts, full event history,
-        and retention controls. Counts are real store totals; severity is always the level the source
-        reported, never a verdict.
+        <b>Persistent event store · counts are real totals · severity is source-reported.</b> Windows
+        EVTX ingest, Command-Center counts, full event history, and retention controls — never a verdict.
       </div>
       {error && (
         <p className="is-mut" style={{ fontSize: 12.5 }}>

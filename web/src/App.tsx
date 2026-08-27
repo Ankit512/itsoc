@@ -1,5 +1,5 @@
 import { Routes, Route } from "react-router-dom";
-import { AuthProvider, RequireAuth } from "@/context/AuthContext";
+import { AuthProvider } from "@/context/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { Overview } from "@/pages/Overview";
 import { Alerts } from "@/pages/Alerts";
@@ -32,12 +32,11 @@ export default function App() {
           <Route path="/logout" element={<Logout />} />
         </Route>
 
-        {/* Protected application routes */}
+        {/* Application routes — auth gate removed at user request (local demo review).
+            To re-gate: wrap <AppShell /> back in <RequireAuth>…</RequireAuth>. */}
         <Route
           element={
-            <RequireAuth>
-              <AppShell />
-            </RequireAuth>
+            <AppShell />
           }
         >
           <Route index element={<Overview />} />

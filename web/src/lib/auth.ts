@@ -88,10 +88,15 @@ export async function getAuthStatus(): Promise<AuthStatus> {
   }
 }
 
-/** Retrieve current authenticated profile using the stored token. */
+/** Retrieve the current profile.
+ *
+ *  Called even with no stored token: when the owner has switched the login gate
+ *  off (serve.py AUTH_REQUIRED), /api/auth/me answers 200 with the machine's
+ *  local profile and `authenticated: false, authDisabled: true`. We surface
+ *  that user so the shell can name the operator, while `isAuthenticated` stays
+ *  false — the UI must never imply a login happened. With the gate on and no
+ *  token the endpoint is still 401 and this returns null, as before. */
 export async function getMe(): Promise<AuthUser | null> {
-  const token = getToken();
-  if (!token) return null;
   try {
     const res = await fetch("/api/auth/me", {
       headers: authHeaders(),

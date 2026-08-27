@@ -710,7 +710,7 @@ export function CopilotRail({
         data-testid="copilot-footer"
         className="cop-f border-t pt-2 text-[11px] font-medium text-muted-foreground"
       >
-        Rules set the severity. I explain &amp; prioritize — I don&apos;t decide.
+        Rules set severity. I interpret &amp; explain — I don&apos;t decide.
       </div>
     </section>
   );

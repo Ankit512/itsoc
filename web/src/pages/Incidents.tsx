@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { api, INCIDENT_STATES, type AttemptPoint, type Incident, type IncidentState, type Rca } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -363,6 +363,56 @@ function IncidentAnalyst({ inc }: { inc: Incident }) {
   );
 }
 
+/** Response checklist (v3 dc rail). Items are the cited runbook's OWN list
+ *  lines, quoted verbatim — never generated advice. When no runbook clears the
+ *  citation bar the card shows the backend's honest no-match note instead of
+ *  inventing steps. Ticks are local analyst state; they change nothing. */
+function ResponseChecklist({ inc }: { inc: Incident }) {
+  const { data } = useQuery({ queryKey: ["rca", inc.id], queryFn: () => api.incidentRca(inc.id) });
+  const [done, setDone] = useState<Record<number, boolean>>({});
+  const rca = data && !("error" in data) ? (data as Rca) : null;
+  const rb = rca?.runbook;
+
+  // A runbook passage is markdown: its "- "/"* "/"1. " lines are the steps.
+  const steps: string[] = (rb?.matched ? rb.passage ?? "" : "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^([-*]|\d+\.)\s+/.test(l))
+    .map((l) => l.replace(/^([-*]|\d+\.)\s+/, ""));
+
+  return (
+    <section className="is-panel" data-testid="response-checklist">
+      <div className="is-panel__h">
+        <h3>Response checklist</h3>
+        <span className="is-chip">from runbook</span>
+      </div>
+      {steps.length === 0 ? (
+        <p className="is-mut" style={{ fontSize: "11.5px", margin: 0, lineHeight: 1.5 }}>
+          {rb?.matched
+            ? `${rb.file} was cited but lists no discrete steps — read the passage above.`
+            : rb?.note ?? "No runbook match — no checklist to show."}
+        </p>
+      ) : (
+        <>
+          <div className="is-check">
+            {steps.map((t, i) => (
+              <button key={i} type="button" className={cn("is-check__row", done[i] && "on")}
+                      aria-pressed={!!done[i]}
+                      onClick={() => setDone((d) => ({ ...d, [i]: !d[i] }))}>
+                <span className="box">{done[i] && <Check size={9} strokeWidth={3} aria-hidden />}</span>
+                <span className="txt">{t}</span>
+              </button>
+            ))}
+          </div>
+          <div className="is-mono is-mut2" style={{ fontSize: 10, marginTop: 8 }}>
+            {Object.values(done).filter(Boolean).length}/{steps.length} done · {rb?.file}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 /** Right rail for the selected incident: real Properties + the real cross-run
  *  brute-force sparkline + the inline itsoc-analyst card (v3 renders). */
 function IncidentRail({ inc }: { inc: Incident }) {
@@ -403,6 +453,7 @@ function IncidentRail({ inc }: { inc: Incident }) {
       </section>
 
       <BruteforceSparkline inc={inc} />
+      <ResponseChecklist inc={inc} />
       <IncidentAnalyst inc={inc} />
     </aside>
   );

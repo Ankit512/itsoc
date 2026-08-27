@@ -154,8 +154,8 @@ function ConnectorList() {
       <div className="is-panel__h"><h3 style={{ display: "flex", alignItems: "center", gap: 7 }}><Cable size={15} aria-hidden /> Connectors ({items.length})</h3></div>
       {items.length === 0 ? (
         <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
-          No OEM connectors yet. Add one above — when enabled and pointed at a real vendor API, the engine
-          polls it on its interval and records events in the store.
+          No connectors yet — add one on the left. When enabled and pointed at a real vendor API, the
+          engine polls it on its interval and records events in the store.
         </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column" }}>
@@ -171,9 +171,8 @@ export function OemEngine() {
   return (
     <>
       <div className="is-note">
-        <b>Read-only OEM/API connectors.</b> They poll a vendor's events feed into the persistent store.
-        Credentials are user-supplied and stored masked; last-run and last-error are the real poll
-        outcome — never a fabricated “connected”.
+        <b>Read-only OEM/API connectors · credentials stored masked · last-run is the real outcome.</b>{" "}
+        They poll a vendor's events feed into the persistent store — never a fabricated “connected”.
       </div>
       {error && (
         <p className="is-mut" style={{ fontSize: 12.5 }}>

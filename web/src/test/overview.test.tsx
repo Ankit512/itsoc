@@ -21,7 +21,8 @@ describe("Overview page (v6)", () => {
     expect(screen.getAllByText("31").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("22").length).toBeGreaterThanOrEqual(1);
 
-    // Handoff §3: donut + over-time + top-tactics all present (donut restored).
+    // The donut is kept by product decision even though the v3 dc drops it:
+    // donut + over-time + top-tactics are all present.
     expect(screen.getByTestId("chart-donut")).toBeInTheDocument();
     expect(screen.getByTestId("chart-overtime")).toBeInTheDocument();
     expect(screen.getAllByTestId("chart-tactic").length).toBe(2);
@@ -31,9 +32,12 @@ describe("Overview page (v6)", () => {
     expect(tactics.textContent!.indexOf("Credential Access"))
       .toBeLessThan(tactics.textContent!.indexOf("Initial Access"));
 
+    // Latest alerts carries the v3 column set: TIME · sev · RULE · HOST · FINDING.
     expect(screen.getByText(/Brute-force then SUCCESSFUL/)).toBeInTheDocument();
-    expect(screen.getByText("Breaking In")).toBeInTheDocument();
-    // The action column deep-links into the Alerts page.
+    for (const col of ["Time", "Rule", "Host", "Finding"]) {
+      expect(screen.getByRole("columnheader", { name: col })).toBeInTheDocument();
+    }
+    // The finding title itself deep-links into the Alerts page.
     expect(screen.getByRole("link", { name: "View finding" }))
       .toHaveAttribute("href", "/alerts?sel=detector-0");
   });
@@ -70,7 +74,7 @@ describe("Overview page (v6)", () => {
     expect(screen.getByTestId("copilot-fab")).toBeInTheDocument();
     expect(screen.getByText(/never changed here/)).toBeInTheDocument();
     expect(screen.getByTestId("copilot-footer")).toHaveTextContent(
-      "Rules set the severity. I explain & prioritize — I don't decide.",
+      "Rules set severity. I interpret & explain — I don't decide.",
     );
   });
 

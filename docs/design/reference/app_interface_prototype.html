@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Sentinel Local — Log Analysis (prototype)</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1c2530; --muted:#5f6b7a; --line:#e4e8ee;
+    --navy:#1f3864; --accent:#2e6fd6;
+    --crit:#b3261e; --crit-bg:#fdecea; --high:#c8631a; --high-bg:#fdf1e7;
+    --med:#8a7100; --med-bg:#fcf7e3; --low:#5f6b7a; --low-bg:#eef1f4;
+    --good:#1b7f4b; --good-bg:#e7f4ec;
+    --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 60px}
+  /* header */
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;color:var(--navy)}
+  .brand .dot{width:11px;height:11px;border-radius:3px;background:var(--navy)}
+  .brand small{font-weight:500;color:var(--muted);font-size:12px}
+  .localbadge{display:flex;align-items:center;gap:7px;background:var(--good-bg);color:var(--good);
+    border:1px solid #cfe6d9;border-radius:20px;padding:6px 13px;font-size:12.5px;font-weight:600}
+  /* input row */
+  .runbar{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px;margin-bottom:16px}
+  .runbar .path{flex:1;font-family:var(--mono);font-size:13px;color:var(--ink);background:#f1f3f6;
+    border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+  .btn{border:0;border-radius:8px;padding:9px 15px;font-weight:600;font-size:13.5px;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:#eef1f6;color:var(--navy)}
+  /* summary */
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .stat .n{font-size:23px;font-weight:700;color:var(--navy)}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .chips{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px}
+  .chip.c{background:var(--crit-bg);color:var(--crit)} .chip.h{background:var(--high-bg);color:var(--high)}
+  .chip.m{background:var(--med-bg);color:var(--med)} .chip.l{background:var(--low-bg);color:var(--low)}
+  /* findings */
+  h2.section{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 10px}
+  .finding{background:var(--card);border:1px solid var(--line);border-left-width:5px;border-radius:11px;
+    padding:14px 16px;margin-bottom:12px}
+  .finding.sev-crit{border-left-color:var(--crit)} .finding.sev-high{border-left-color:var(--high)}
+  .finding.sev-med{border-left-color:var(--med)} .finding.sev-low{border-left-color:var(--low)}
+  .frow{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .sev{font-size:11.5px;font-weight:800;border-radius:6px;padding:3px 9px;white-space:nowrap;letter-spacing:.3px}
+  .sev.crit{background:var(--crit-bg);color:var(--crit)} .sev.high{background:var(--high-bg);color:var(--high)}
+  .sev.med{background:var(--med-bg);color:var(--med)} .sev.low{background:var(--low-bg);color:var(--low)}
+  .ftitle{font-weight:650;font-size:15.5px;margin:1px 0 6px}
+  .meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+  .tag{font-size:11.5px;background:#eef1f6;color:var(--navy);border-radius:6px;padding:2px 8px;font-family:var(--mono)}
+  .tag.ti{background:#f3e9fb;color:#6b2fb3} .tag.src{background:#e7f4ec;color:var(--good)}
+  .evi{font-family:var(--mono);font-size:12.5px;background:#f1f3f6;border:1px solid var(--line);
+    border-radius:8px;padding:9px 11px;color:#37414d;white-space:pre-wrap;overflow-x:auto}
+  .why{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;display:none}
+  .why.open{display:block}
+  .whytoggle{margin-top:10px;font-size:12.5px;font-weight:600;color:var(--accent);cursor:pointer;user-select:none}
+  .contrast{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+  .cbox{border-radius:9px;padding:10px 12px;font-size:13px}
+  .cbox.rules{background:var(--good-bg);border:1px solid #cfe6d9}
+  .cbox.model{background:#f4f5f7;border:1px solid var(--line)}
+  .cbox .h{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;margin-bottom:4px}
+  .cbox.rules .h{color:var(--good)} .cbox.model .h{color:var(--muted)}
+  .cbox .verdict{font-weight:800;font-size:15px}
+  .prov{font-size:12.5px;color:var(--muted);margin-top:8px}
+  .prov b{color:var(--ink)}
+  /* footer */
+  footer{margin-top:22px;background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .foot-note{font-size:12.5px;color:var(--muted)}
+  .foot-note b{color:var(--good)}
+  .banner{background:#fff8e6;border:1px solid #f0e0b0;color:#7a5c00;font-size:12px;border-radius:8px;
+    padding:7px 12px;margin-bottom:14px;text-align:center}
+  @media(max-width:640px){.summary{grid-template-columns:repeat(2,1fr)}.contrast{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">◆ Design prototype — static sample data (sample-2.log). Placeholder name &amp; styling; wired to the real engine later.</div>
+
+  <header>
+    <div class="brand"><span class="dot"></span> Sentinel&nbsp;Local <small>— on-prem log analysis</small></div>
+    <div class="localbadge">🔒 Local · 0 bytes leave this machine</div>
+  </header>
+
+  <div class="runbar">
+    <div class="path">~/logs/sample-2.log</div>
+    <button class="btn ghost">Load sample</button>
+    <button class="btn primary">Analyze ▸</button>
+  </div>
+
+  <div class="summary">
+    <div class="stat"><div class="n">5</div><div class="l">Findings</div>
+      <div class="chips"><span class="chip c">2 CRIT</span><span class="chip h">1 HIGH</span><span class="chip m">1 MED</span><span class="chip l">1 LOW</span></div></div>
+    <div class="stat"><div class="n">19</div><div class="l">Lines parsed · 0 unparsed</div></div>
+    <div class="stat"><div class="n">2</div><div class="l">Threat-intel matches</div></div>
+    <div class="stat"><div class="n">llama3.1:8b</div><div class="l">Model · ruleset v1 · deterministic</div></div>
+  </div>
+
+  <h2 class="section">Findings — ranked by severity</h2>
+
+  <!-- 1 -->
+  <div class="finding sev-crit">
+    <div class="frow"><div>
+      <div class="ftitle">Account compromise — brute-force then successful login for 'admin'</div>
+      <div class="meta"><span class="tag">src 203.0.113.44</span><span class="tag src">rule: auth_bruteforce_success</span><span class="tag ti">🛈 known brute-force IP · MITRE T1110</span></div>
+      <div class="evi">7× auth failed for 'admin' from 203.0.113.44 (02:16:44–02:16:50)
+INFO auth success for 'admin' from 203.0.113.44 (02:16:52)</div>
+    </div><span class="sev crit">CRITICAL</span></div>
+    <div class="whytoggle" onclick="t(this)">Why this rating ▾</div>
+    <div class="why">
+      <div class="contrast">
+        <div class="cbox rules"><div class="h">Rules verdict</div><div class="verdict" style="color:var(--crit)">CRITICAL</div><div class="prov">≥5 failures + a success from the same IP within 120s → likely compromise. Deterministic; evidence-linked.</div></div>
+        <div class="cbox model"><div class="h">Raw LLM alone</div><div class="verdict">MEDIUM</div><div class="prov">Saw the failures, missed the failure→success correlation. Under-rated.</div></div>
+      </div>
+      <div class="prov"><b>Enrichment:</b> 203.0.113.44 matches threat-intel indicator “Known brute-force source IP” → ATT&amp;CK T1110 (Brute Force, Credential Access).</div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="finding sev-crit">
+    <div class="frow"><div>
+      <div class="ftitle">Database connection pool exhausted — server-03</div>
+      <div class="meta"><span class="tag">host server-03</span><span class="tag src">rule: critical_service_event</span></div>
+      <div class="evi">CRIT server-03 database connection pool exhausted (0/50 available) ×2
+ERROR server-03 request GET /api/orders 503 timeout</div>
+    </div><span class="sev crit">CRITICAL</span></div>
+    <div class="whytoggle" onclick="t(this)">Why this rating ▾</div>
+    <div class="why">
+      <div class="contrast">
+        <div class="cbox rules"><div class="h">Rules verdict</div><div class="verdict" style="color:var(--crit)">CRITICAL</div><div class="prov">Line logged at CRIT + message matches exhaustion/pool → service-impacting.</div></div>
+        <div class="cbox model"><div class="h">Raw LLM alone</div><div class="verdict">MEDIUM</div><div class="prov">Downgraded a line the source itself tagged CRIT.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="finding sev-high">
+    <div class="frow"><div>
+      <div class="ftitle">Suspicious outbound connection to a known C2 address</div>
+      <div class="meta"><span class="tag">dest 45.153.160.2:4444</span><span class="tag src">rule: suspicious_outbound</span><span class="tag ti">🛈 known C2 IP · MITRE T1071</span></div>
+      <div class="evi">WARN firewall-01 outbound connection blocked to 45.153.160.2:4444 from server-02</div>
+    </div><span class="sev high">HIGH</span></div>
+    <div class="whytoggle" onclick="t(this)">Why this rating ▾</div>
+    <div class="why">
+      <div class="contrast">
+        <div class="cbox rules"><div class="h">Rules verdict</div><div class="verdict" style="color:var(--high)">HIGH</div><div class="prov">Port 4444 in suspicious-port list; fires even when blocked.</div></div>
+        <div class="cbox model"><div class="h">Raw LLM alone</div><div class="verdict">LOW</div><div class="prov">Treated a blocked connection as routine; no concept of a C2 port.</div></div>
+      </div>
+      <div class="prov"><b>Enrichment:</b> 45.153.160.2 matches “Known C2 callback IP” → ATT&amp;CK T1071 (Application Layer Protocol, Command &amp; Control).</div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="finding sev-med">
+    <div class="frow"><div>
+      <div class="ftitle">Error-rate spike — 7 ERROR/CRIT lines in 60s</div>
+      <div class="meta"><span class="tag src">rule: error_rate_spike</span></div>
+      <div class="evi">7 ERROR/CRIT events within a 60s sliding window (02:16:44–02:18:45)</div>
+    </div><span class="sev med">MEDIUM</span></div>
+    <div class="whytoggle" onclick="t(this)">Why this rating ▾</div>
+    <div class="why"><div class="prov">Deterministic burst rule; ≥5 ERROR/CRIT within 60s. Model provides the plain-language explanation.</div></div>
+  </div>
+
+  <!-- 5 -->
+  <div class="finding sev-low">
+    <div class="frow"><div>
+      <div class="ftitle">Disk usage at 78% on /var/log</div>
+      <div class="meta"><span class="tag">host server-01</span><span class="tag" style="background:#eef1f6;color:var(--muted)">source: model gap-fill</span></div>
+      <div class="evi">WARN server-01 disk usage at 78% on /var/log</div>
+    </div><span class="sev low">LOW</span></div>
+    <div class="whytoggle" onclick="t(this)">Why this rating ▾</div>
+    <div class="why"><div class="prov">Below the 80% rule threshold, so no rule fired — the <b>model surfaced it as a low-severity heads-up</b>. Shows the two layers working together: rules own the alarms, the model catches sub-threshold context.</div></div>
+  </div>
+
+  <footer>
+    <div class="foot-note"><b>✓ Processed locally on this machine.</b> No log data was sent to any external service. &nbsp;·&nbsp; Run 2026-08-14 02:20 · model llama3.1:8b · ruleset v1 · detector 43f0560f</div>
+    <button class="btn primary">⤓ Download audit report</button>
+  </footer>
+
+</div>
+<script>
+  function t(el){ el.nextElementSibling.classList.toggle('open');
+    el.textContent = el.nextElementSibling.classList.contains('open') ? 'Hide details ▴' : 'Why this rating ▾'; }
+</script>
+</body>
+</html>

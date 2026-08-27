@@ -20,9 +20,9 @@ export function ThreatIntel() {
   return (
     <>
       <div className="is-note">
-        <b>Surfaced, not generated.</b> Indicators come from an offline STIX bundle; the technique rollups
-        are the static MITRE mapping each rule carries. These are <b>derived tags — not verdicts</b>, and
-        nothing here changes a finding's severity.
+        <b>Surfaced, not generated — derived tags, not verdicts.</b> Indicators come from an offline
+        STIX bundle; the technique rollups are the static MITRE mapping each rule carries. Nothing here
+        changes a finding's severity.
       </div>
 
       <div className="is-grid-2">

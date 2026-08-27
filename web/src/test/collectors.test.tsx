@@ -32,7 +32,7 @@ describe("Collectors — syslog control panel", () => {
     // The form seeds from the current listener config.
     expect(screen.getByLabelText("Listen port")).toHaveValue("1514");
     // Honest empty state for received events.
-    expect(screen.getByText(/No syslog events received yet/)).toBeInTheDocument();
+    expect(screen.getByText(/No events received yet — the listener reports real traffic only/)).toBeInTheDocument();
   });
 
   it("warns before binding 0.0.0.0 (network exposure)", async () => {

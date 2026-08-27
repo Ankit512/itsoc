@@ -1,0 +1,403 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>itsoc. — interactive prototype</title>
+<style>
+:root,[data-theme="dark"]{--bg:#0b0d12;--pan:#14161d;--pan2:#0f1218;--bd:#1e222c;--bd2:#272c38;--ink:#e7eaf1;--ink2:#c7ccd8;--mut:#828b9c;--mut2:#5c6474;--acc:#7c6cff;--accw:color-mix(in srgb,var(--acc) 16%,transparent);--crit:#f0616d;--high:#f2a33c;--med:#d6b02e;--low:#33c895;--mono:ui-monospace,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif}
+[data-theme="light"]{--bg:#f6f7f9;--pan:#fff;--pan2:#fbfbfd;--bd:#e7e9ef;--bd2:#dde0e8;--ink:#12141a;--ink2:#33384a;--mut:#6a7385;--mut2:#8b93a3;--acc:#6d5cf0;--accw:color-mix(in srgb,var(--acc) 12%,transparent);--crit:#df4650;--high:#d98600;--med:#b08a00;--low:#12a37e}
+*{box-sizing:border-box}html,body{margin:0;height:100%}body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px}
+.mono{font-family:var(--mono)}.mut{color:var(--mut)}.tnum{font-variant-numeric:tabular-nums}
+button{font-family:inherit}
+/* login */
+.auth{display:grid;grid-template-columns:1.05fr 1fr;height:100vh}
+.auth .brand{padding:44px 40px;background:var(--pan2);border-right:1px solid var(--bd);display:flex;flex-direction:column;gap:22px}
+.wm{font-weight:750;font-size:30px;letter-spacing:-.03em}.wm span{color:var(--acc)}
+.tag{font-size:26px;font-weight:600;line-height:1.25;letter-spacing:-.02em}
+.pts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}.pts li{color:var(--mut);padding-left:20px;position:relative}.pts li:before{content:"✓";position:absolute;left:0;color:var(--acc);font-weight:700}
+.honest{margin-top:auto;font-size:11.5px;color:var(--mut);border:1px dashed var(--bd);border-radius:9px;padding:11px 13px;line-height:1.5}
+.aform{display:flex;flex-direction:column;justify-content:center;padding:44px;position:relative}
+.acard{width:100%;max-width:360px;margin:0 auto;display:flex;flex-direction:column;gap:13px}
+.tabs{display:flex;background:var(--pan2);border:1px solid var(--bd);border-radius:8px;padding:3px;gap:3px}
+.tabs button{flex:1;padding:8px;border:0;background:transparent;color:var(--mut);border-radius:6px;cursor:pointer;font-weight:600;font-size:12.5px}.tabs button.on{background:var(--pan);color:var(--ink)}
+label.f{display:flex;flex-direction:column;gap:6px}label.f span{font-size:11.5px;color:var(--mut)}
+input,select{background:var(--pan);border:1px solid var(--bd);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:13px;outline:none;width:100%}input:focus{border-color:var(--acc)}
+.primary{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:11px;font-weight:650;font-size:13.5px;cursor:pointer}
+/* app */
+.app{display:none;grid-template-columns:220px 1fr;height:100vh}
+.app.on{display:grid}
+.side{background:var(--pan2);border-right:1px solid var(--bd);padding:14px 11px;display:flex;flex-direction:column;gap:3px;overflow:auto}
+.sbrand{display:flex;align-items:center;gap:9px;font-weight:750;font-size:18px;letter-spacing:-.02em;padding:2px 7px 10px}.sbrand span{color:var(--acc)}.sbrand .mk{width:26px;height:26px;border-radius:8px;background:var(--accw);display:grid;place-items:center;color:var(--acc)}
+.ssearch{display:flex;align-items:center;gap:8px;color:var(--mut);border:1px solid var(--bd);border-radius:8px;padding:7px 10px;margin-bottom:6px;font-size:12px;cursor:pointer;background:var(--pan)}
+.ssearch kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--bd);border-radius:5px;padding:1px 5px}
+.nav a{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:8px;color:var(--mut);font-weight:500;cursor:pointer;text-decoration:none}
+.nav a .ic{width:16px;text-align:center}.nav a:hover{background:var(--pan);color:var(--ink)}.nav a.active{background:var(--accw);color:var(--acc);font-weight:600}
+.ngrp{display:flex;align-items:center;justify-content:space-between;margin:14px 8px 5px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.ngrp .bdg{font-size:9px;font-weight:700;padding:2px 6px;border-radius:5px;background:var(--bd);color:var(--mut);cursor:pointer}.ngrp .bdg.on{background:var(--accw);color:var(--acc)}
+.exp{display:none;flex-direction:column;gap:1px}.exp.on{display:flex}
+.expoff{margin:2px 6px;padding:10px;border:1px dashed var(--bd);border-radius:8px;color:var(--mut);font-size:11px}
+.sfoot{margin-top:auto;padding-top:10px}
+.suser{display:flex;align-items:center;gap:7px;font-size:12.5px}.suser .d{width:7px;height:7px;border-radius:50%;background:var(--low)}.suser .r{color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.slog{display:flex;align-items:center;gap:9px;padding:7px 8px;color:var(--mut);cursor:pointer}
+.smeta{padding:4px 8px;color:var(--mut);font-size:10px;font-family:var(--mono)}
+.main{display:flex;flex-direction:column;min-width:0;overflow:auto}
+.top{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--bd)}
+.top h1{font-size:20px;font-weight:650;margin:0;letter-spacing:-.01em}.top .sub{color:var(--acc);font-size:11.5px;margin-top:1px}
+.tsearch{flex:1;max-width:340px;margin:0 auto;display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--pan);color:var(--mut);cursor:pointer;font-size:12.5px}
+.tsearch kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--bd);border-radius:5px;padding:1px 5px}
+.tacts{display:flex;align-items:center;gap:8px;position:relative}
+.btn{display:inline-flex;align-items:center;gap:7px;background:var(--pan);border:1px solid var(--bd);color:var(--ink);padding:8px 12px;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer}.btn:hover{border-color:var(--acc)}
+.btn.prim{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.ico{width:34px;height:34px;display:grid;place-items:center;background:var(--pan);border:1px solid var(--bd);color:var(--ink);border-radius:8px;cursor:pointer}.ico:hover{border-color:var(--acc)}
+.content{padding:16px 20px 40px;display:flex;flex-direction:column;gap:14px}
+.page{display:none}.page.on{display:flex;flex-direction:column;gap:14px}
+.panel{background:var(--pan);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}.ph h3{font-size:13px;font-weight:650;margin:0}
+.note{border:1px dashed var(--bd);border-radius:8px;padding:11px 14px;color:var(--mut);font-size:12px;line-height:1.5}.note b{color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:12px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.kpi{background:var(--pan);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.kpi .lbl{color:var(--mut);font-size:11px}.kpi .v{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.kpi .dl{font-size:10.5px;font-weight:600}.dl.up{color:var(--low)}.dl.dn{color:var(--crit)}.dl.na{color:var(--mut);font-weight:400}
+.vc{color:var(--crit)}.vh{color:var(--high)}.vm{color:var(--med)}.vl{color:var(--low)}
+.chip{font-size:10px;color:var(--mut);border:1px solid var(--bd);border-radius:20px;padding:2px 9px}.chip.adv{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 40%,transparent)}
+.tag{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.03em;padding:3px 8px;border-radius:6px}
+.tcrit{background:color-mix(in srgb,var(--crit) 17%,transparent);color:var(--crit)}.thigh{background:color-mix(in srgb,var(--high) 18%,transparent);color:var(--high)}.tmed{background:color-mix(in srgb,var(--med) 20%,transparent);color:var(--med)}.tlow{background:color-mix(in srgb,var(--low) 18%,transparent);color:var(--low)}
+.tid{display:inline-block;background:var(--accw);color:var(--acc);border-radius:5px;padding:1px 6px;font-family:var(--mono);font-size:10.5px}
+.hbar{display:grid;grid-template-columns:130px 1fr 28px;align-items:center;gap:10px;font-size:12px;padding:5px 0}.hbar .l{color:var(--mut)}.hbar .tk{height:8px;background:var(--pan2);border-radius:6px;overflow:hidden}.hbar .fl{height:100%;background:var(--acc);border-radius:6px}.hbar .n{text-align:right;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;color:var(--mut);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:0 12px 9px}
+td{padding:11px 12px;border-top:1px solid var(--bd);font-size:12.5px}
+tbody tr{cursor:pointer}tbody tr:hover{background:var(--pan2)}tbody tr.sel{background:var(--accw)}
+.twrap{background:var(--pan);border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+.md{display:grid;grid-template-columns:minmax(380px,1fr) 1.15fr;gap:14px;align-items:start}
+.detail{background:var(--pan);border:1px solid var(--bd);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:13px}
+.dhead{display:flex;align-items:center;gap:10px}.dhead h2{font-size:16px;font-weight:650;margin:0}.dhead .id{margin-left:auto;color:var(--mut);font-family:var(--mono);font-size:11px}
+.dmeta{color:var(--mut);font-size:12px}.dmeta b{color:var(--ink)}.ro{margin-left:8px;font-size:10px;border:1px solid var(--bd);border-radius:20px;padding:2px 8px}
+.vgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.blk{background:var(--pan2);border:1px solid var(--bd);border-radius:8px;padding:12px 13px}.blk .cap{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:7px}.blk .verdict{font-size:15px;font-weight:700;margin-bottom:5px}.blk p{margin:0;font-size:12.5px;line-height:1.55;color:var(--ink2)}
+.ev{margin:0;background:var(--pan2);border:1px solid var(--bd);border-left:3px solid var(--acc);border-radius:8px;padding:11px 13px;font-family:var(--mono);font-size:11.5px;line-height:1.7;overflow-x:auto;white-space:pre-wrap;word-break:break-word}.ev .ln{color:var(--mut);margin-right:10px}.ev mark{background:var(--accw);color:var(--acc);padding:0 2px;border-radius:3px}
+.pre{font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--ink2);white-space:pre-wrap}.pre .kw{color:var(--acc)}
+.life{display:flex;gap:8px}.life .st{padding:7px 14px;border:1px solid var(--bd);border-radius:8px;background:var(--pan2);color:var(--mut);font-size:12px;cursor:pointer}.life .st.on{background:var(--accw);color:var(--acc);border-color:transparent;font-weight:600}
+.frow{display:flex;justify-content:space-between;padding:6px 0;font-size:12px}.frow span{color:var(--mut)}.frow b{font-weight:550;font-variant-numeric:tabular-nums}.frow .na{color:var(--mut);font-weight:400}
+.rca{border:1px solid var(--bd);border-radius:8px;padding:12px 14px}.rca .h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.rca p{margin:0;font-size:12.5px;line-height:1.55}.rca .src{font-size:10.5px;color:var(--mut);border-top:1px solid var(--bd);margin-top:9px;padding-top:8px}
+.radio{display:flex;align-items:center;gap:9px;padding:6px 0;cursor:pointer;font-size:12.5px}.radio .dot{width:15px;height:15px;border-radius:50%;border:2px solid var(--bd);flex:0 0 auto}.radio.on .dot{border-color:var(--acc);box-shadow:inset 0 0 0 3px var(--acc)}.radio small{color:var(--mut)}
+/* copilot rail (drawer) */
+.rail{position:fixed;top:0;right:-320px;width:300px;height:100vh;background:var(--pan2);border-left:1px solid var(--bd);padding:16px 14px;display:flex;flex-direction:column;gap:13px;transition:right .22s;z-index:45;overflow:auto}
+.rail.on{right:0}
+.rec{background:var(--pan);border:1px solid var(--bd);border-radius:8px;padding:12px}.rec .t{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);font-weight:700;margin-bottom:6px}.rec p{margin:0 0 8px;font-size:12.5px;line-height:1.5}.rec .cited{font-size:10.5px;color:var(--mut);border-top:1px solid var(--bd);padding-top:7px}
+.q{align-self:flex-end;background:var(--accw);border-radius:10px 10px 3px 10px;padding:7px 10px;font-size:12px;max-width:88%}
+.a{background:var(--pan);border:1px solid var(--bd);border-radius:10px 10px 10px 3px;padding:9px 11px;font-size:12px;line-height:1.5}
+.sugg button{display:block;width:100%;text-align:left;background:var(--pan);border:1px solid var(--bd);color:var(--ink);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:12px;margin-bottom:6px}.sugg button:hover{border-color:var(--acc);color:var(--acc)}
+.copfoot{color:var(--mut);font-size:10.5px;line-height:1.5;margin-top:auto}
+.fab{position:fixed;right:22px;bottom:22px;display:inline-flex;align-items:center;gap:8px;background:var(--pan);border:1px solid var(--bd2);box-shadow:0 8px 30px rgba(0,0,0,.35);border-radius:22px;padding:9px 14px;cursor:pointer;z-index:40}.fab .adv{font-size:9px;color:var(--acc);text-transform:uppercase;letter-spacing:.05em}
+/* palette */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;place-items:start center;padding-top:12vh;z-index:60}.ov.on{display:grid}
+.pal{width:640px;max-width:92vw;background:var(--pan);border:1px solid var(--bd2);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden}
+.pal .in{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--bd)}.pal .in input{border:0;background:transparent;font-size:15px;padding:0}.pal .in kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--bd);border-radius:5px;padding:2px 6px;color:var(--mut)}
+.pal .it{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px}.pal .it:hover,.pal .it.active{background:var(--accw);color:var(--acc)}
+.pal .ft{display:flex;justify-content:space-between;padding:9px 14px;border-top:1px solid var(--bd);color:var(--mut);font-size:10.5px}
+/* run switcher */
+.runs{position:absolute;top:44px;right:0;width:320px;background:var(--pan);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden;display:none;z-index:55}.runs.on{display:block}
+.runs .s{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--bd);color:var(--mut)}.runs .s input{border:0;background:transparent;padding:0}
+.runs .g{padding:9px 13px 5px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.runs .r{display:flex;align-items:center;gap:10px;padding:9px 13px;cursor:pointer}.runs .r:hover{background:var(--pan2)}.runs .r.cur{background:var(--accw)}.runs .r .nm{font-family:var(--mono);font-size:12.5px}.runs .r .mt{color:var(--mut);font-size:11px}.runs .r .fd{margin-left:auto;color:var(--mut);font-size:11px}
+.cur-bdg{font-size:8.5px;font-weight:700;background:var(--accw);color:var(--acc);border-radius:4px;padding:2px 5px}
+@media(max-width:820px){.auth,.app.on{grid-template-columns:1fr}.side,.auth .brand{display:none}.kpis,.grid2,.grid3{grid-template-columns:1fr 1fr}.md{grid-template-columns:1fr}}
+</style></head>
+<body data-theme="dark">
+
+<!-- ===== LOGIN ===== -->
+<div class="auth" id="login">
+  <div class="brand">
+    <div class="wm">itsoc<span>.</span></div>
+    <div class="tag">Local, honest, rules-first<br>security operations.</div>
+    <ul class="pts"><li>Deterministic rules own every verdict</li><li>The AI explains &amp; recommends — it never decides</li><li>Runs on your machine · nothing leaves by default</li></ul>
+    <div class="honest">Local demo — a single profile on this machine. No cloud account, no server session.</div>
+  </div>
+  <div class="aform">
+    <button class="ico" style="position:absolute;top:20px;right:20px" onclick="toggleTheme()" id="tglL">☾</button>
+    <div class="acard">
+      <div class="tabs"><button class="on">Log in</button><button>Sign up</button></div>
+      <h1 style="margin:6px 0 0;font-size:21px">Welcome back</h1>
+      <p class="mut" style="margin:0;font-size:12.5px">Unlock this console to continue.</p>
+      <label class="f"><span>Username</span><input value="analyst"></label>
+      <label class="f"><span>Passphrase</span><input type="password" value="demopass123"></label>
+      <button class="primary" onclick="enterApp()">Sign in to session →</button>
+      <div class="honest" style="margin-top:2px">Passphrase is salted &amp; scrypt-hashed locally. Client calls route through one swap-seam module (<span class="mono">auth.ts</span>) ready for future token/passkey providers.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div class="app" id="app">
+  <aside class="side">
+    <div class="sbrand"><span class="mk">◈</span>itsoc<span>.</span></div>
+    <div class="ssearch" onclick="openPal()"><kbd>⌘K</kbd> Search or ask…</div>
+    <div class="nav" id="nav">
+      <a class="active" data-p="overview"><span class="ic">▦</span>Overview</a>
+      <a data-p="findings"><span class="ic">◈</span>Findings</a>
+      <a data-p="incidents"><span class="ic">◇</span>Incidents</a>
+      <a data-p="sources"><span class="ic">≋</span>Sources</a>
+      <a data-p="settings"><span class="ic">⚙</span>Settings</a>
+    </div>
+    <div class="ngrp">Experimental <span class="bdg" id="expBadge" onclick="toggleExp()">OFF</span></div>
+    <div class="expoff" id="expOff">Command Center · off</div>
+    <div class="exp" id="expNav">
+      <a data-p="assets"><span class="ic">▤</span>Assets</a>
+      <a data-p="threat"><span class="ic">◊</span>Threat Intel</a>
+      <a data-p="discovery"><span class="ic">◎</span>Discovery</a>
+      <a data-p="vulns"><span class="ic">◈</span>Vulnerabilities</a>
+      <a data-p="history"><span class="ic">▧</span>History</a>
+    </div>
+    <div class="sfoot">
+      <div class="suser"><span class="d"></span>ankit</div><div class="r" style="padding-left:14px;margin-bottom:8px">Analyst</div>
+      <div class="slog" onclick="logout()"><span>⇥</span>Logout</div>
+      <div class="smeta">rules v3 · qwen3:8b · local</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="top">
+      <div><h1 id="pgTitle">Overview</h1><div class="sub" id="pgSub">Security Overview</div></div>
+      <div class="tsearch" onclick="openPal()"><kbd>⌘K</kbd> Search or ask itsoc…</div>
+      <div class="tacts">
+        <button class="btn prim">↑ Upload Logs</button>
+        <button class="btn" onclick="toggleRuns(event)">▦ sample-2.log ▾</button>
+        <button class="btn">↺ Runs</button>
+        <button class="btn">⟳ Refresh</button>
+        <button class="btn" onclick="toggleTheme()" id="tglA">☾ Light</button>
+        <div class="runs" id="runs">
+          <div class="s">🔍<input placeholder="Search runs…"></div>
+          <div class="g">Today</div>
+          <div class="r cur"><div><div class="nm">sample-2.log <span class="cur-bdg">CURRENT</span></div><div class="mt">2026-08-26 17:50</div></div><div class="fd">11 findings</div><div class="check" style="color:var(--acc)">✓</div></div>
+          <div class="r"><div><div class="nm">SSH_2k.log</div><div class="mt">2026-08-26 12:20</div></div><div class="fd">23 findings</div></div>
+          <div class="g">Previous runs</div>
+          <div class="r"><div><div class="nm">access.log</div><div class="mt">2026-08-24 15:36</div></div><div class="fd">0 findings</div></div>
+          <div class="r"><div><div class="nm">Windows.json</div><div class="mt">2026-08-24 15:19</div></div><div class="fd">14 findings</div></div>
+          <div class="r"><div><div class="nm">Windows.txt</div><div class="mt">2026-08-23 11:15 · <span style="color:var(--high)">unparsed</span></div></div><div class="fd">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- OVERVIEW -->
+      <div class="page on" id="p-overview">
+        <div class="note mono" style="font-size:10.5px">sample-2.log · host firewall-01, server-01, server-03 · 19 lines parsed · 0 unparsed · ruleset v3-universal · qwen3:8b · detector 364577c5…a4a876</div>
+        <div class="kpis">
+          <div class="kpi"><div class="lbl">Total alerts</div><div class="v">11</div><div class="dl dn">▼ 52% vs previous</div></div>
+          <div class="kpi"><div class="lbl">Critical</div><div class="v vc">3</div><div class="dl up">▲ 50%</div></div>
+          <div class="kpi"><div class="lbl">High</div><div class="v vh">2</div><div class="dl dn">▼ 83%</div></div>
+          <div class="kpi"><div class="lbl">Medium</div><div class="v vm">5</div><div class="dl dn">▼ 44%</div></div>
+          <div class="kpi"><div class="lbl">Low</div><div class="v vl">1</div><div class="dl na">no prior run — no delta</div></div>
+        </div>
+        <div class="grid3">
+          <div class="panel"><div class="ph"><h3>Alerts by severity</h3></div><div style="display:flex;align-items:center;gap:16px"><svg viewBox="0 0 120 120" width="120" height="120" id="donut"></svg><div style="font-size:12px;line-height:2"><div><span class="tag tcrit">■</span> Critical <b>3</b> · 27%</div><div><span class="tag thigh">■</span> High <b>2</b> · 18%</div><div><span class="tag tmed">■</span> Medium <b>5</b> · 45%</div><div><span class="tag tlow">■</span> Low <b>1</b> · 9%</div></div></div></div>
+          <div class="panel"><div class="ph"><h3>Alerts over time</h3></div><svg viewBox="0 0 340 150" width="100%" height="150" id="ot" preserveAspectRatio="none"></svg></div>
+          <div class="panel"><div class="ph"><h3>Top ATT&CK tactics</h3><span class="chip">derived · not a verdict</span></div>
+            <div class="hbar"><span class="l">Impact</span><div class="tk"><div class="fl" style="width:100%"></div></div><span class="n">2</span></div>
+            <div class="hbar"><span class="l">Command &amp; Control</span><div class="tk"><div class="fl" style="width:50%"></div></div><span class="n">1</span></div>
+            <div class="hbar"><span class="l">Credential Access</span><div class="tk"><div class="fl" style="width:50%"></div></div><span class="n">1</span></div>
+          </div>
+        </div>
+        <div class="panel"><div class="ph"><h3>Latest alerts</h3><span class="mut" style="font-size:11px">drill into Findings for evidence</span></div>
+          <table><thead><tr><th>Time</th><th>Sev</th><th>Attacker status</th><th>Alert</th><th>Source</th></tr></thead><tbody>
+            <tr onclick="go('findings')"><td class="mono">02:19:10</td><td><span class="tag thigh">HIGH</span></td><td>Damaging / Stealing</td><td>Outbound connection to 45.153.160.2:4444 (blocked)</td><td class="mono mut">sample-2.log</td></tr>
+            <tr onclick="go('findings')"><td class="mono">02:18:30</td><td><span class="tag tcrit">CRITICAL</span></td><td>Damaging / Stealing</td><td>DB connection pool exhausted (0/50 available)</td><td class="mono mut">sample-2.log</td></tr>
+            <tr onclick="go('findings')"><td class="mono">02:16:52</td><td><span class="tag tcrit">CRITICAL</span></td><td>Spreading Inside</td><td>Brute-force → successful login for 'admin' from 203.0.113.44</td><td class="mono mut">sample-2.log</td></tr>
+          </tbody></table>
+        </div>
+      </div>
+
+      <!-- FINDINGS -->
+      <div class="page" id="p-findings">
+        <div style="display:flex;gap:10px"><input placeholder="Filter findings…" style="max-width:340px"><select style="max-width:150px"><option>All severities</option></select><span class="mut" style="align-self:center;font-size:12px">11 of 11 finding(s) · 19 lines parsed · 0 unparsed</span></div>
+        <div class="md">
+          <div class="twrap"><table><thead><tr><th>Sev</th><th>Time</th><th>Rule</th><th>Host</th><th>ATT&CK</th></tr></thead><tbody id="fbody"></tbody></table></div>
+          <div class="detail" id="fdetail"></div>
+        </div>
+      </div>
+
+      <!-- INCIDENTS -->
+      <div class="page" id="p-incidents">
+        <div style="display:flex;gap:10px;align-items:center"><select style="max-width:150px"><option>All states</option></select><span class="mut" style="font-size:12px">128 incident(s) · correlated clusters of real findings</span></div>
+        <div class="md">
+          <div class="twrap"><table><thead><tr><th>Sev</th><th>State</th><th>Entity</th><th>Findings</th></tr></thead><tbody id="ibody"></tbody></table></div>
+          <div class="detail" id="idetail"></div>
+        </div>
+      </div>
+
+      <!-- SOURCES -->
+      <div class="page" id="p-sources">
+        <div class="note"><b>Live collector controls.</b> Point network devices, agents, or a relay at this port and messages stream into the store in real time. Everything shown is the real listener state — never a fake "running".</div>
+        <div class="grid2">
+          <div class="panel"><div class="ph"><h3>≋ Syslog collector (UDP + TCP)</h3></div>
+            <p class="mut" style="font-size:12px;line-height:1.5">Receives syslog messages on the port below and records each one verbatim. Severity comes from the syslog PRI the sender chose — the collector never invents a level.</p>
+            <label class="f" style="margin:8px 0"><span>Listen port</span><input value="1514"></label>
+            <div class="radio on"><span class="dot"></span>Loopback <span class="mono">127.0.0.1</span> <small>— only this machine (safe default)</small></div>
+            <div class="radio"><span class="dot"></span>All interfaces <span class="mono">0.0.0.0</span> <small style="color:var(--high)">— exposes the port to the network</small></div>
+            <div style="display:flex;gap:8px;margin-top:8px"><button class="btn prim" id="collBtn" onclick="toggleColl()">Start collector</button><button class="btn">Stop</button><span class="mut" id="collState" style="align-self:center;font-size:12px">Stopped</span></div>
+          </div>
+          <div class="panel"><div class="ph"><h3>◉ Listener status</h3></div>
+            <div class="frow"><span>State</span><b id="lstState" style="color:var(--mut)">Stopped</b></div>
+            <div class="frow"><span>Bind / port</span><b class="mono">127.0.0.1:1514</b></div>
+            <div class="frow"><span>Protocols</span><b>UDP + TCP</b></div>
+            <div class="frow"><span>Messages received</span><b>0</b></div>
+            <div class="frow"><span>Last message</span><b class="na">none yet</b></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="page" id="p-settings">
+        <div class="note"><b>System settings.</b> Only settings that genuinely do something are shown — each reflects real backend or client state, nothing decorative.</div>
+        <div class="panel" style="max-width:560px"><div class="ph"><h3>⚙ Compute location</h3></div>
+          <p class="mut" style="font-size:12px;line-height:1.5">Detection ALWAYS runs locally — this only changes where the advisory LLM explanations compute. Currently: <b style="color:var(--ink)">local</b>.</p>
+          <div class="radio on" id="rLocal" onclick="setCompute('local')"><span class="dot"></span>Local <small>— nothing leaves this machine</small></div>
+          <div class="radio" id="rRemote" onclick="setCompute('remote')"><span class="dot"></span>Remote <small>— explanations call an OpenAI-compatible endpoint (redacted first)</small></div>
+          <div id="remoteBox" style="display:none;margin-top:8px;display:none;flex-direction:column;gap:8px">
+            <label class="f"><span>Base URL (must end in /v1)</span><input placeholder="https://host:port/v1"></label>
+            <label class="f"><span>Model</span><input placeholder="model name"></label>
+            <label class="f"><span>API key</span><input placeholder="sk-…"></label>
+          </div>
+          <button class="btn prim" style="margin-top:10px">Save compute settings</button>
+        </div>
+        <div class="panel" style="max-width:560px"><div class="ph"><h3>Analyst model</h3></div>
+          <p style="font-size:12px;margin:0">Model: <span class="mono">qwen3:8b</span> · Endpoint: <b>local</b></p>
+          <p class="mut" style="font-size:12px;margin:6px 0 0;line-height:1.5">The model only explains findings in plain language. It never sets or changes a severity or verdict — those are the deterministic rules.</p>
+        </div>
+        <div class="panel" style="max-width:560px"><div class="ph"><h3>Appearance</h3></div>
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px">Theme: <b id="themeName">Dark</b> — saved for your next visit.</span><button class="btn" onclick="toggleTheme()">☾ Switch</button></div>
+        </div>
+      </div>
+
+      <!-- ASSETS -->
+      <div class="page" id="p-assets">
+        <div class="note"><b>Observed entities only.</b> Hosts come from parsed events, IPs from finding entities, usernames from messages. An asset that never appeared in a log does not exist here.</div>
+        <div class="twrap"><table><thead><tr><th>Asset</th><th>Kind</th><th>Events</th><th>Findings</th><th>Risk</th><th>Last seen</th></tr></thead><tbody>
+          <tr><td class="mono">server-01</td><td>HOST</td><td>—</td><td>2</td><td><span class="tag thigh">at risk</span></td><td class="mono mut">02:16:52</td></tr>
+          <tr><td class="mono">203.0.113.44</td><td>IP</td><td>0</td><td>1</td><td><span class="tag thigh">at risk</span></td><td class="mono mut">02:16:52</td></tr>
+          <tr><td class="mono">45.153.160.2</td><td>IP</td><td>0</td><td>1</td><td><span class="tag thigh">at risk</span></td><td class="mono mut">02:19:10</td></tr>
+          <tr><td class="mono">firewall-01</td><td>HOST</td><td>—</td><td>3</td><td><span class="tag thigh">at risk</span></td><td class="mono mut">02:19:10</td></tr>
+        </tbody></table></div>
+      </div>
+
+      <!-- THREAT INTEL -->
+      <div class="page" id="p-threat">
+        <div class="note"><b>Surfaced, not generated.</b> Indicators come from an offline STIX bundle; technique rollups are the static MITRE mapping each rule carries. These are <b>derived tags — not verdicts</b>.</div>
+        <div class="grid2">
+          <div class="panel"><div class="ph"><h3>Indicators of Compromise</h3></div><table><thead><tr><th>Name</th><th>Pattern</th></tr></thead><tbody>
+            <tr><td>Known brute-force source</td><td class="mono">ipv4 = '203.0.113.44'</td></tr>
+            <tr><td>Known C2 callback</td><td class="mono">ipv4 = '45.153.160.2'</td></tr>
+          </tbody></table></div>
+          <div class="panel"><div class="ph"><h3>Rule → MITRE map</h3></div>
+            <div style="font-size:12px;line-height:2.1"><div><span class="mono">auth_bruteforce</span> <span class="tid">T1110</span></div><div><span class="mono">auth_bruteforce_success</span> <span class="tid">T1110</span> <span class="tid">T1078</span></div><div><span class="mono">suspicious_outbound</span> <span class="tid">T1571</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="p-discovery"><div class="note"><b>Active nmap discovery</b> — private/loopback targets only, user-initiated, never on a timer. This is an <b>active network operation</b>, not read-only.</div><div class="panel"><div class="ph"><h3>Scan status</h3></div><div class="frow"><span>State</span><b>Idle</b></div><div class="frow"><span>Hosts found</span><b>0</b></div><div class="frow"><span>Started</span><b class="na">—</b></div></div></div>
+      <div class="page" id="p-vulns"><div class="note">Vulnerabilities discovered by nmap NSE scripts. Severity is the CVSS band NSE reported — empty means unknown, shown honestly rather than guessed.</div><div class="panel"><h3 style="margin:0 0 8px">Vulnerabilities</h3><p class="mut" style="margin:0;font-size:12px">No vulnerabilities recorded yet. Run a scan from Discovery against a private target.</p></div></div>
+      <div class="page" id="p-history"><div class="note">The persistent event store (EVTX ingest, Command-Center counts, retention). Counts are real store totals; severity is always the level the source reported, never a verdict.</div><div class="kpis"><div class="kpi"><div class="lbl">Events</div><div class="v">2,500</div></div><div class="kpi"><div class="lbl">Critical</div><div class="v vc">0</div><div class="dl na">source-reported</div></div><div class="kpi"><div class="lbl">Assets</div><div class="v">4</div></div><div class="kpi"><div class="lbl">Open vulns</div><div class="v">0</div></div><div class="kpi"><div class="lbl">IOC hits</div><div class="v">0</div></div></div></div>
+    </div>
+  </div>
+
+  <!-- copilot rail -->
+  <div class="rail" id="rail">
+    <div style="display:flex;align-items:center;justify-content:space-between"><b style="font-size:13px">itsoc analyst</b><span class="chip adv">advisory</span></div>
+    <div class="rec"><div class="t">Start here</div><p><b>203.0.113.44 → server-01.</b> The only chain with a successful login after brute-force (T1110 → T1078). 3 correlated findings, spanning 4 min.</p><div class="cited">cited: 3 findings · rule <span class="mono">auth_bruteforce_success</span></div></div>
+    <div class="q">What's the root cause here?</div>
+    <div class="a">A sustained brute-force from <b>203.0.113.44</b> succeeded against <span class="mono">admin</span> at 02:16:52 after 14 failures, then a C2 callback to 45.153.160.2:4444 was blocked. Root cause: a compromised <span class="mono">admin</span> credential.</div>
+    <div class="sugg"><button>Summarize this run for a handoff</button><button>Which host should I look at first?</button><button>Is brute-force trending up?</button></div>
+    <div style="display:flex;gap:6px"><input placeholder="Ask itsoc…"><button class="ico" style="background:var(--acc);color:#fff;border:0">↑</button></div>
+    <div class="copfoot">Rules set the severity. I interpret &amp; explain — I don't decide.</div>
+  </div>
+  <div class="fab" onclick="toggleRail()"><b>◆ AI Analyst</b><span class="adv">advisory</span></div>
+</div>
+
+<!-- palette -->
+<div class="ov" id="pal" onclick="if(event.target.id==='pal')closePal()">
+  <div class="pal">
+    <div class="in">🔍<input id="palIn" placeholder="Search screens, actions, or ask itsoc…" oninput="filterPal()"><kbd>ESC</kbd></div>
+    <div id="palList" style="max-height:52vh;overflow:auto;padding:6px"></div>
+    <div class="ft"><span>↑↓ navigate · ↵ select · esc close</span><span>itsoc. command palette</span></div>
+  </div>
+</div>
+
+<script>
+var THEME='dark';
+function toggleTheme(){THEME=THEME==='dark'?'light':'dark';document.body.setAttribute('data-theme',THEME);var t=THEME==='dark'?'☾':'☀';var a=document.getElementById('tglA');if(a)a.textContent=t+' '+(THEME==='dark'?'Light':'Dark');var l=document.getElementById('tglL');if(l)l.textContent=t;var n=document.getElementById('themeName');if(n)n.textContent=THEME==='dark'?'Dark':'Light';}
+function enterApp(){document.getElementById('login').style.display='none';document.getElementById('app').classList.add('on');}
+function logout(){document.getElementById('app').classList.remove('on');document.getElementById('login').style.display='grid';}
+var TITLES={overview:['Overview','Security Overview'],findings:['Findings','Alerts & Detections'],incidents:['Incidents','Incident Management & RCA'],sources:['Sources','Live Collectors & Syslog'],settings:['Settings','Configuration & Model'],assets:['Assets','Observed Assets & Users'],threat:['Threat Intel','Indicators & MITRE'],discovery:['Discovery','Nmap · active'],vulns:['Vulnerabilities','NSE findings'],history:['History','Persistent Store']};
+function go(p){
+  document.querySelectorAll('.page').forEach(function(x){x.classList.remove('on')});
+  document.getElementById('p-'+p).classList.add('on');
+  document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.dataset.p===p)});
+  document.getElementById('pgTitle').textContent=TITLES[p][0];document.getElementById('pgSub').textContent=TITLES[p][1];
+  window.scrollTo(0,0);closePal();
+}
+document.querySelectorAll('#nav a, #expNav a').forEach(function(a){a.onclick=function(){go(a.dataset.p)}});
+function toggleExp(){var on=document.getElementById('expNav').classList.toggle('on');document.getElementById('expBadge').classList.toggle('on',on);document.getElementById('expBadge').textContent=on?'ON':'OFF';document.getElementById('expOff').style.display=on?'none':'block';}
+function toggleRail(){document.getElementById('rail').classList.toggle('on')}
+function toggleRuns(e){e.stopPropagation();document.getElementById('runs').classList.toggle('on')}
+document.addEventListener('click',function(){document.getElementById('runs').classList.remove('on')});
+document.querySelector('#runs').addEventListener('click',function(e){e.stopPropagation()});
+document.querySelectorAll('#runs .r').forEach(function(r){r.onclick=function(){document.querySelectorAll('#runs .r').forEach(function(x){x.classList.remove('cur')});r.classList.add('cur');document.getElementById('runs').classList.remove('on')}});
+function toggleColl(){var b=document.getElementById('collBtn'),running=b.textContent.indexOf('Start')>-1;b.textContent=running?'Stop collector':'Start collector';document.getElementById('collState').textContent=running?'Collector started.':'Stopped';document.getElementById('lstState').textContent=running?'Running':'Stopped';document.getElementById('lstState').style.color=running?'var(--low)':'var(--mut)';}
+function setCompute(m){document.getElementById('rLocal').classList.toggle('on',m==='local');document.getElementById('rRemote').classList.toggle('on',m==='remote');var box=document.getElementById('remoteBox');box.style.display=m==='remote'?'flex':'none';}
+/* palette */
+var PAL=[['▦','Overview','overview'],['◈','Findings','findings'],['◇','Incidents','incidents'],['≋','Sources & Collectors','sources'],['⚙','Settings','settings'],['▤','Assets','assets'],['◊','Threat Intel','threat'],['◎','Discovery (Nmap)','discovery'],['◐','Switch theme','_theme'],['✦','Enable Experimental','_exp']];
+function openPal(){document.getElementById('pal').classList.add('on');document.getElementById('palIn').value='';document.getElementById('palIn').focus();renderPal(PAL);}
+function closePal(){document.getElementById('pal').classList.remove('on')}
+function renderPal(list){document.getElementById('palList').innerHTML=list.map(function(x){return '<div class="it" onclick="palGo(\''+x[2]+'\')"><span class="ic">'+x[0]+'</span>'+x[1]+'</div>'}).join('');}
+function filterPal(){var q=document.getElementById('palIn').value.toLowerCase();renderPal(PAL.filter(function(x){return x[1].toLowerCase().indexOf(q)>-1}));}
+function palGo(p){if(p==='_theme'){toggleTheme();closePal();return}if(p==='_exp'){if(!document.getElementById('expNav').classList.contains('on'))toggleExp();closePal();return}go(p)}
+document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPal()}if(e.key==='Escape')closePal()});
+/* findings data */
+var FIND=[
+ {s:'crit',t:'02:16:52',r:'auth_bruteforce_success',h:'server-01',a:'T1110',title:"Brute-force then SUCCESSFUL login for 'admin' from 203.0.113.44 — likely account compromise",verdict:'CRITICAL',why:'A sustained brute-force from 203.0.113.44 succeeded against admin — 14 failures then an accepted login. High-confidence account compromise.',ev:"1122  02:16:52 server-01 sshd[2213]: <mark>Accepted password</mark> for admin from 203.0.113.44 port 51140 ssh2",pred:"failures>=5 within 120s  AND  success_after_failures\n-> severity = critical",seq:'02:16:41 first failure · 02:16:52 accepted'},
+ {s:'crit',t:'02:18:30',r:'critical_service_event',h:'server-03',a:'T1499.002',title:'DB connection pool exhausted (0/50 available)',verdict:'CRITICAL',why:'Service exhaustion condition matched a critical infrastructure rule in the telemetry.',ev:"1140  02:18:30 server-03 app: FATAL db pool exhausted 0/50",pred:"pool_available == 0  -> severity = critical",seq:'02:18:30 pool exhausted'},
+ {s:'high',t:'02:19:10',r:'suspicious_outbound',h:'firewall-01',a:'T1571',title:'Outbound connection to 45.153.160.2:4444 (blocked)',verdict:'HIGH',why:'Port 4444: Metasploit / common reverse-shell & C2 port. An internal host contacting this port suggests possible malware/C2; the block is good but the source host should still be investigated.',ev:"18  2026-08-13T02:19:10Z WARN firewall-01 outbound connection blocked to <mark>45.153.160.2:4444</mark> from server-02",pred:"dest_port in SUSPICIOUS_PORTS  # 4444 -> C2\n-> severity = high  (blocked == true does not downgrade)",seq:'02:19:10 firewall-01 outbound — blocked'},
+ {s:'med',t:'02:16:50',r:'error_rate_spike',h:'server-01',a:'T1499.002',title:'7 ERROR/CRIT events within 60s',verdict:'MEDIUM',why:'A burst of error/critical events crossed the rate threshold within the window.',ev:"1119  02:16:50 server-01 kernel: 7 ERROR events in 60s",pred:"error_count >= 5 within 60s -> severity = medium",seq:'02:16:00–02:16:50 burst'}
+];
+function renderFindings(){document.getElementById('fbody').innerHTML=FIND.map(function(f,i){return '<tr onclick="selF('+i+')" id="fr'+i+'"><td><span class="tag t'+f.s+'">'+f.verdict+'</span></td><td class="mono">'+f.t+'</td><td class="mono mut">'+f.r+'</td><td class="mono">'+f.h+'</td><td>'+(f.a?'<span class="tid">'+f.a+'</span>':'')+'</td></tr>'}).join('');selF(0);}
+function selF(i){var f=FIND[i];document.querySelectorAll('#fbody tr').forEach(function(r){r.classList.remove('sel')});document.getElementById('fr'+i).classList.add('sel');
+ document.getElementById('fdetail').innerHTML='<div class="dhead"><span class="tag t'+f.s+'">'+f.verdict+'</span><span class="mono mut">'+f.r+'</span></div>'+
+ '<h2 style="margin:0;font-size:16px">'+f.title+'</h2>'+
+ '<div class="vgrid"><div class="blk '+f.s+'"><div class="cap">Rule verdict · authoritative</div><div class="verdict v'+f.s[0]+'">'+f.verdict+'</div><p>'+f.why+'</p></div>'+
+ '<div class="blk"><div class="cap">Plain-language explanation · advisory</div><p class="mut">Explanation pending — the deterministic verdict is already final.</p></div></div>'+
+ '<div><div class="cap" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:6px">Evidence · verbatim from source log</div><pre class="ev">'+f.ev+'</pre></div>'+
+ '<div class="vgrid"><div><div class="cap" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:6px">Rule predicate that fired</div><div class="pre">'+f.pred.replace(/->/g,'<span class="kw">-></span>')+'</div></div>'+
+ '<div><div class="cap" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:6px">Event sequence</div><div class="mut" style="font-size:12px">'+f.seq+'</div></div></div>';
+}
+/* incidents data */
+var INC=[
+ {s:'crit',e:'203.0.113.44',n:3,st:'New',ts:'2026-08-13T02:16:52',rca:'A sustained brute-force from 203.0.113.44 succeeded against admin at 02:16:52 after 14 failures, then a C2 callback to 45.153.160.2:4444 was blocked. Likely root cause: a compromised admin credential.',tech:'T1110 · T1078 · T1571',rb:true},
+ {s:'high',e:'unknown',n:5,st:'New',ts:'2026-08-24T15:36:04',rca:null,tech:'',rb:false},
+ {s:'low',e:'Win19',n:1,st:'New',ts:'2026-08-24T15:39:07',rca:null,tech:'',rb:false},
+ {s:'med',e:'server-03',n:1,st:'New',ts:'2026-08-13T02:18:30',rca:null,tech:'T1499.002',rb:false}
+];
+function renderInc(){document.getElementById('ibody').innerHTML=INC.map(function(c,i){return '<tr onclick="selI('+i+')" id="ir'+i+'"><td><span class="tag t'+c.s+'">'+c.s.toUpperCase()+'</span></td><td><span class="chip">'+c.st+'</span></td><td class="mono">'+c.e+'</td><td>'+c.n+'</td></tr>'}).join('');selI(0);}
+function selI(i){var c=INC[i];document.querySelectorAll('#ibody tr').forEach(function(r){r.classList.remove('sel')});document.getElementById('ir'+i).classList.add('sel');
+ document.getElementById('idetail').innerHTML='<div class="dhead"><span class="tag t'+c.s+'">'+c.s.toUpperCase()+'</span><span class="chip">'+c.st+'</span><span class="id">inc-'+(1000+i)+'</span></div>'+
+ '<h2 style="margin:0;font-size:16px">'+c.e+' — '+c.n+' correlated finding(s)</h2>'+
+ '<div class="dmeta">'+c.e+' · detected '+c.ts.slice(11,19)+' · '+c.n+' finding(s) <span class="ro">severity is rule-owned</span></div>'+
+ '<div><div class="cap" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:9px">Lifecycle · analyst-owned</div><div class="life" id="life">'+['New','Acknowledged','Investigating','Resolved'].map(function(s){return '<div class="st'+(s===c.st?' on':'')+'" onclick="setLife('+i+',\''+s+'\')">'+s+'</div>'}).join('')+'</div></div>'+
+ '<div class="vgrid"><div class="blk"><div class="cap">Timestamps · from the log, not wall-clock</div><div class="frow"><span>Detected</span><b class="mono">'+c.ts+'</b></div><div class="frow"><span>First seen</span><b class="mono">'+c.ts+'</b></div><div class="frow"><span>Resolved</span><b class="na">n/a</b></div></div>'+
+ '<div class="blk"><div class="cap">MITRE techniques · derived, not verdicts</div>'+(c.tech?('<div style="line-height:2">'+c.tech.split(' · ').map(function(t){return '<span class="tid">'+t+'</span>'}).join(' ')+'</div>'):'<p class="mut">No techniques mapped.</p>')+'</div></div>'+
+ '<div class="rca"><div class="h"><b>Root cause</b><span class="chip adv">advisory · hypothesis · not a verdict</span></div>'+(c.rca?('<p>'+c.rca+'</p><div class="src">'+(c.rb?'runbook matched <span class="mono">auth_bruteforce.md</span> · score 4.1':'from correlated findings')+'</div>'):'<p class="mut">No runbook match — deterministic facts only. This cluster\'s rules did not clear the citation bar.</p>')+'</div>';
+}
+function setLife(i,s){INC[i].st=s;selI(i);document.getElementById('ir'+i).querySelector('.chip').textContent=s;}
+/* charts */
+function draw(){
+  var cs=getComputedStyle(document.body);function C(n){return cs.getPropertyValue(n).trim()}
+  // donut
+  var d=[[3,C('--crit')],[2,C('--high')],[5,C('--med')],[1,C('--low')]],tot=11,r=45,cx=60,cy=60,circ=2*Math.PI*r,off=0,s='';
+  d.forEach(function(x){var frac=x[0]/tot,len=frac*circ;s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+x[1]+'" stroke-width="16" stroke-dasharray="'+len+' '+(circ-len)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 60 60)"/>';off+=len;});
+  s+='<text x="60" y="58" text-anchor="middle" fill="'+C('--ink')+'" font-size="20" font-weight="700">11</text><text x="60" y="72" text-anchor="middle" fill="'+C('--mut')+'" font-size="8">Total</text>';
+  document.getElementById('donut').innerHTML=s;
+  // over-time stacked bars
+  var data=[[0,0,1,2],[1,0,2,1],[2,2,1,0],[0,0,1,1]],cols=[C('--low'),C('--med'),C('--high'),C('--crit')],W=340,H=150,n=data.length,gap=W/n,bw=gap*0.6,max=6,o='';
+  data.forEach(function(col,i){var x=i*gap+(gap-bw)/2,y=H;col.forEach(function(v,si){var h=v/max*(H-10);y-=h;o+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+cols[si]+'" rx="1.5"/>';});});
+  document.getElementById('ot').innerHTML=o;
+}
+renderFindings();renderInc();draw();
+var _tt=toggleTheme;toggleTheme=function(){_tt();draw();};
+</script></body></html>

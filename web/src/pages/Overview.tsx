@@ -118,19 +118,33 @@ export function Overview() {
         </div>
       </div>
 
+      {/* Charts row. The v3 dc drops the severity donut and runs a 1.9fr/1fr
+          pair; the donut is KEPT here by an explicit product decision, so this
+          stays a three-up row. Everything else follows v3: the "Findings over
+          time" naming, the severity legend, and the bare `derived` chip. */}
       <div className="is-grid-3">
-        <div className="is-panel">
+        <div className="is-panel is-panel--chart">
           <div className="is-panel__h"><h3>Alerts by severity</h3></div>
           <SeverityDonut data={overview.severityDonut} />
         </div>
-        <div className="is-panel">
-          <div className="is-panel__h"><h3>Alerts over time</h3></div>
+        <div className="is-panel is-panel--chart">
+          <div className="is-panel__h">
+            <h3>Findings over time</h3>
+            <div className="is-legend">
+              {(["critical", "high", "medium", "low"] as const).map((sev) => (
+                <span key={sev}>
+                  <i style={{ background: sevVar(sev) }} />
+                  {{ critical: "crit", high: "high", medium: "med", low: "low" }[sev]}
+                </span>
+              ))}
+            </div>
+          </div>
           <AlertsOverTime data={overview.alertsOverTime} />
         </div>
-        <div className="is-panel">
+        <div className="is-panel is-panel--chart">
           <div className="is-panel__h">
             <h3>Top ATT&amp;CK tactics</h3>
-            <span className="is-chip">derived · not a verdict</span>
+            <span className="is-chip" title="Derived from the rules' MITRE annotation — a display aid, not a verdict">derived</span>
           </div>
           <TacticBars data={overview.mitreTactics} />
         </div>
@@ -148,10 +162,10 @@ export function Overview() {
             <thead>
               <tr>
                 <th>Time</th>
-                <th>Sev</th>
-                <th>Attacker status</th>
-                <th>Alert</th>
-                <th>Source</th>
+                <th aria-label="Severity" />
+                <th>Rule</th>
+                <th>Host</th>
+                <th>Finding</th>
               </tr>
             </thead>
             <tbody>
@@ -171,29 +185,23 @@ export function Overview() {
                   <td className="col-mono">{a.time}</td>
                   <td>
                     <span
-                      className="is-tag"
-                      style={{ background: `color-mix(in srgb, ${sevVar(a.severity)} 17%, transparent)`, color: sevVar(a.severity) }}
-                    >
-                      {a.severity.toUpperCase()}
-                    </span>
+                      className="is-sevdot"
+                      title={a.severity.toUpperCase()}
+                      style={{ background: sevVar(a.severity) }}
+                    />
                   </td>
-                  <td title="Derived kill-chain grouping of this alert's MITRE tactics — a display aid, not a verdict">
-                    {a.attackerStatus || "—"}
-                  </td>
+                  <td className="col-mono is-mut" title={a.rule || undefined}>{a.rule || "—"}</td>
+                  <td className="is-mut">{a.host || "—"}</td>
                   <td>
-                    {a.name}
                     <Link
                       to={`/alerts?sel=${encodeURIComponent(a.id)}`}
                       aria-label="View finding"
                       title="View this finding's evidence in Findings"
-                      style={{ marginLeft: 8, color: "var(--acc)", fontSize: "11px" }}
+                      style={{ color: "inherit" }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      view →
+                      {a.name}
                     </Link>
-                  </td>
-                  <td className="col-mono">
-                    {a.source ? <span title={a.source}>{a.source.split("/").pop()}</span> : "—"}
                   </td>
                 </tr>
               ))}

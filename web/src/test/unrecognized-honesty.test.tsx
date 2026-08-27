@@ -94,7 +94,6 @@ describe("FIX C — github/gitlab blob URL -> raw file URL", () => {
     renderApp(<App />);
     await screen.findByTestId("chart-overtime");
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
-    await userEvent.click(screen.getByRole("button", { name: /attach a link/i }));
     await userEvent.type(screen.getByLabelText("Log file URL"),
       "https://github.com/o/r/blob/main/app.log");
     expect(await screen.findByText(/web-page link, not the raw file/)).toBeInTheDocument();

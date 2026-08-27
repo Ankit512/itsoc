@@ -127,9 +127,9 @@ function Controls({ status }: { status?: SyslogStatus }) {
 
       {bind === "0.0.0.0" && (
         <div className="is-note" style={{ borderColor: "var(--high)", color: "var(--high)", marginTop: 4 }}>
-          Binding <span className="is-mono" style={{ fontWeight: 700 }}>0.0.0.0</span> lets any host that can
-          reach this machine send events into your store. Only do this on a trusted network, behind a
-          firewall. Prefer loopback for local testing.
+          Binding to <span className="is-mono" style={{ fontWeight: 700 }}>0.0.0.0</span> exposes the
+          listener to the network. Any host that can reach this machine could send events into your
+          store — only do this on a trusted network, behind a firewall.
         </div>
       )}
 
@@ -168,8 +168,8 @@ function RecentEvents({ running }: { running: boolean }) {
       <div className="is-panel__h"><h3>Recent received events</h3></div>
       {items.length === 0 ? (
         <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
-          No syslog events received yet. Start the collector and send it a message — received lines
-          appear here and in the events store.
+          No events received yet — the listener reports real traffic only. Start the collector and
+          send it a message; received lines appear here and in the events store.
         </p>
       ) : (
         <>
@@ -209,9 +209,8 @@ export function Collectors() {
   return (
     <>
       <div className="is-note">
-        <b>Live collector controls.</b> Point network devices, Linux/Windows agents, or a relay at this
-        port and messages stream into the persistent store in real time. Everything shown here is the
-        real listener state — never a fake “running”.
+        <b>Real listener state — never a fake running.</b> Point network devices, Linux/Windows
+        agents, or a relay at this port and messages stream into the persistent store in real time.
       </div>
       {error && (
         <p className="is-mut" style={{ fontSize: 12.5 }}>

@@ -5,10 +5,14 @@ import { useUi } from "@/store/ui";
 import { useJobs } from "@/store/jobs";
 import { useAuth } from "@/context/AuthContext";
 
-/** Logout — honest card for a local, single-profile demo tool, in the itsoc.
- *  design system. Signs out of the active local demo session token, revokes the
- *  backend session, and resets local browser UI state back to a neutral default.
- *  Nothing here pretends there is a cloud account to sign out of. */
+/** Logout — the design-v3 "Log out" screen: one centred 480px card (26px pad,
+ *  14px stack, heading + explanation + a two-button row).
+ *
+ *  Copy deviation, on purpose: the dc mock says "there is nothing to sign out
+ *  of … no account, no login, no server session". This build DOES keep a local
+ *  profile (console/.soc/auth.json) and a session token, so that sentence would
+ *  be a false surface. The card keeps the dc's shape and its "clear local UI
+ *  state" framing, but states what is actually true here. */
 export function Logout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -32,34 +36,38 @@ export function Logout() {
   };
 
   return (
-    <div className="is-panel" style={{ maxWidth: 560 }}>
-      <div className="is-panel__h"><h3>Sign out</h3></div>
-      <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: 0 }}>
-        Sign out of this <b style={{ color: "var(--ink)" }}>local demo session</b>.
-        {user && <> Currently active as <span className="is-mono" style={{ color: "var(--ink)" }}>{user.username}</span> ({user.role}).</>}
-      </p>
-      <p className="is-mut" style={{ fontSize: 12.5, lineHeight: 1.55, margin: "8px 0 0" }}>
-        Signing out revokes your local session token and resets this browser’s UI state (saved theme,
-        active notifications, and cached queries) back to a neutral default. Your analyzed runs,
-        incidents, and findings live on the backend and are untouched.
-      </p>
+    <div className="is-logout">
+      <div className="is-logout__card">
+        <h2 className="is-logout__h">Clear this machine&rsquo;s local UI state</h2>
+        <p className="is-mut" style={{ fontSize: 12.5, lineHeight: 1.65, margin: 0 }}>
+          itsoc. is a local, single-user tool
+          {user && (
+            <>
+              {" "}&mdash; this machine&rsquo;s profile is{" "}
+              <span className="is-mono" style={{ color: "var(--ink)" }}>{user.username}</span> ({user.role})
+            </>
+          )}
+          . The login gate is off, so there is no session to end. What this clears is local UI
+          state: your theme, dismissed notifications, and the current search. Analyzed runs,
+          incidents, and findings live on the backend and are untouched.
+        </p>
 
-      {done ? (
-        <div className="is-note" style={{ marginTop: 14 }}>
-          <b>Signed out of local demo session.</b> Local UI state and session tokens have been cleared.
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button className="is-btn is-btn--primary" onClick={() => navigate("/login")}>Sign in again</button>
-            <button className="is-btn" onClick={() => navigate("/")}>View dashboard</button>
+        {done ? (
+          <div className="is-note">
+            <b>Local UI state cleared.</b> Theme, notifications, cached queries and any stored token are gone.
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button className="is-btn is-btn--primary" onClick={() => navigate("/")}>Back to the console</button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
-          <button className="is-btn is-btn--primary" onClick={handleSignOut} disabled={loading}>
-            {loading ? "Signing out…" : "Sign out of local session"}
-          </button>
-          <button className="is-btn" onClick={() => navigate("/")}>Cancel</button>
-        </div>
-      )}
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button className="is-btn is-btn--primary" onClick={handleSignOut} disabled={loading}>
+              {loading ? "Clearing…" : "Clear local UI state"}
+            </button>
+            <button className="is-btn" onClick={() => navigate("/")}>Cancel</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

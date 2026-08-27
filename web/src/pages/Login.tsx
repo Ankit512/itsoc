@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { Check, Moon, ShieldCheck, Sun } from "lucide-react";
 import { useUi } from "@/store/ui";
 
 /** Login — the itsoc. split auth screen (is-auth), mirroring the prototype login
@@ -52,8 +53,11 @@ export function Login() {
     return (
       <div className="is-auth">
         <div className="is-auth__brand">
-          <div className="is-brand" style={{ fontSize: 30 }}>itsoc<span className="dot">.</span></div>
-          <div className="tag">Local, honest, rules-first<br />security operations.</div>
+          <div className="is-auth__mark">
+            <span className="mark"><ShieldCheck size={13} strokeWidth={1.7} aria-hidden /></span>
+            <span className="is-brand">itsoc<span className="dot">.</span></span>
+          </div>
+          <div className="tag">Local, honest, rules-first security operations.</div>
         </div>
         <div className="is-auth__form">
           <div className="is-auth__card">
@@ -74,12 +78,15 @@ export function Login() {
   return (
     <div className="is-auth">
       <div className="is-auth__brand">
-        <div className="is-brand" style={{ fontSize: 30 }}>itsoc<span className="dot">.</span></div>
-        <div className="tag">Local, honest, rules-first<br />security operations.</div>
+        <div className="is-auth__mark">
+          <span className="mark"><ShieldCheck size={13} strokeWidth={1.7} aria-hidden /></span>
+          <span className="is-brand">itsoc<span className="dot">.</span></span>
+        </div>
+        <div className="tag">Local, honest, rules-first security operations.</div>
         <ul className="pts">
-          <li>Deterministic rules own every verdict</li>
-          <li>The AI explains &amp; recommends — it never decides</li>
-          <li>Runs on your machine · nothing leaves by default</li>
+          <li><Check size={14} strokeWidth={1.7} aria-hidden />Rules set severity — deterministic, inspectable, versioned.</li>
+          <li><Check size={14} strokeWidth={1.7} aria-hidden />The AI only explains — it never decides a verdict.</li>
+          <li><Check size={14} strokeWidth={1.7} aria-hidden />Nothing leaves this machine unless you say so.</li>
         </ul>
         <div className="is-auth__honest">
           Local demo — a single profile on this machine. No cloud account, no server session.
@@ -89,7 +96,7 @@ export function Login() {
       <div className="is-auth__form" style={{ position: "relative" }}>
         <button className="is-icobtn" style={{ position: "absolute", top: 20, right: 20 }}
                 onClick={toggleTheme} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}>
-          {dark ? "☾" : "☀"}
+          {dark ? <Sun size={14} strokeWidth={1.7} aria-hidden /> : <Moon size={14} strokeWidth={1.7} aria-hidden />}
         </button>
         <div className="is-auth__card">
           <div className="is-tabs">
@@ -134,8 +141,8 @@ export function Login() {
           </div>
 
           <div className="is-auth__honest" style={{ marginTop: 2 }}>
-            Passphrase is salted &amp; scrypt-hashed locally. Client calls route through one swap-seam
-            module (<span className="is-mono">auth.ts</span>) ready for future token/passkey providers.
+            Passphrase is scrypt-hashed locally; auth routes through one swap-seam module
+            (<span className="is-mono">auth.ts</span>) ready for future token/passkey.
           </div>
         </div>
       </div>

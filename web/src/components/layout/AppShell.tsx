@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Antenna, Bell, Cable, Database, FileText, Folder, House, Link as LinkIcon, LogOut, Monitor,
-  Radar, RefreshCw, Search, Settings, Shield, ShieldAlert, ShieldCheck, Sparkles, TriangleAlert, Upload,
+  Radar, RefreshCw, Search, Settings, Shield, ShieldAlert, Sparkles, TriangleAlert, Upload, X,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -46,24 +46,27 @@ export const EXPERIMENTAL_NAV = [
 
 export const NAV = [...CORE_NAV, ...EXPERIMENTAL_NAV];
 
+/** Page title + subtitle, verbatim from the v3 dc `TITLES` map. The subtitle is
+ *  a mono provenance/intent line (what this screen is honest about), never a
+ *  restatement of the title. */
 const TITLES: Record<string, { title: string; subtitle: string }> = {
-  "/": { title: "Overview", subtitle: "Security Overview" },
-  "/alerts": { title: "Findings", subtitle: "Alerts & Detections" },
-  "/findings": { title: "Findings", subtitle: "Alerts & Detections" },
-  "/incidents": { title: "Incidents", subtitle: "Incident Management & RCA" },
-  "/collectors": { title: "Sources", subtitle: "Live Collectors & Syslog" },
-  "/sources": { title: "Sources", subtitle: "Live Collectors & Syslog" },
-  "/settings": { title: "Settings", subtitle: "Configuration & Model" },
-  "/threat-intel": { title: "Threat Intel", subtitle: "MITRE ATT&CK & IOCs" },
-  "/assets": { title: "Assets", subtitle: "Observed Assets & Users" },
-  "/discovery": { title: "Discovery", subtitle: "Network Discovery & Scans" },
-  "/vulnerabilities": { title: "Vulnerabilities", subtitle: "Vulnerability Scanning" },
-  "/enrichment": { title: "Enrichment", subtitle: "Threat Intelligence Feeds" },
-  "/oem": { title: "OEM Engine", subtitle: "Vendor Connectors" },
-  "/history": { title: "History", subtitle: "EVTX Ingest & Store" },
-  "/reports": { title: "Reports", subtitle: "Export Reports & Scorecards" },
-  "/cases": { title: "Cases", subtitle: "Case Management" },
-  "/logout": { title: "Logout", subtitle: "Local Session Reset" },
+  "/": { title: "Overview", subtitle: "" },
+  "/alerts": { title: "Findings", subtitle: "" },
+  "/findings": { title: "Findings", subtitle: "" },
+  "/incidents": { title: "Incidents", subtitle: "" },
+  "/collectors": { title: "Sources", subtitle: "live collectors — real listener state" },
+  "/sources": { title: "Sources", subtitle: "live collectors — real listener state" },
+  "/settings": { title: "Settings", subtitle: "only settings that do something" },
+  "/threat-intel": { title: "Threat Intel", subtitle: "derived tags — not verdicts" },
+  "/assets": { title: "Assets", subtitle: "observed entities only" },
+  "/discovery": { title: "Discovery", subtitle: "active scan — user-initiated" },
+  "/vulnerabilities": { title: "Vulnerabilities", subtitle: "CVSS band as reported · empty = unknown" },
+  "/enrichment": { title: "Enrichment", subtitle: "real provider responses only" },
+  "/oem": { title: "OEM Engine", subtitle: "read-only connectors · credentials masked" },
+  "/history": { title: "History", subtitle: "persistent event store" },
+  "/reports": { title: "Reports", subtitle: "real files only" },
+  "/cases": { title: "Cases", subtitle: "analyst-entered · stored locally" },
+  "/logout": { title: "Log out", subtitle: "local, single-user tool" },
 };
 
 /** crit/high/med/low map to the tiny severity word in the recent-incidents list. */
@@ -92,14 +95,18 @@ function Sidebar() {
     <aside className="is-side">
       {/* Brand wordmark: 'itsoc.' with the dot in --acc (DESIGN_HANDOFF §1) */}
       <div className="is-brand">
-        <span className="mark"><ShieldCheck className="h-4 w-4" strokeWidth={1.9} aria-hidden /></span>
         <span data-testid="wordmark">itsoc<span className="dot">.</span></span>
       </div>
 
-      {/* ⌘K search pill */}
-      <button className="is-side-search" onClick={() => setCommandPaletteOpen(true)}>
+      {/* ⌘K search pill — dc order: icon · label · shortcut */}
+      <button
+        className="is-side-search"
+        onClick={() => setCommandPaletteOpen(true)}
+        aria-label="Open command palette"
+      >
+        <Search className="h-3 w-3" strokeWidth={1.7} aria-hidden />
+        <span className="lbl">Search…</span>
         <kbd>⌘K</kbd>
-        <span className="truncate">Search or ask…</span>
       </button>
 
       {/* Primary nav */}
@@ -172,17 +179,17 @@ function Sidebar() {
       {/* Footer: user + role, Logout, rules · model · local meta */}
       <div className="is-side-foot">
         {user && (
-          <>
-            <div className="is-side-user">
-              <span className="dot" />
-              <span className="truncate">{user.username}</span>
+          <div className="is-side-user">
+            <span className="dot" />
+            <div className="who">
+              <div className="name truncate">{user.username}</div>
+              <div className="role">{user.role}</div>
             </div>
-            <div className="role" style={{ paddingLeft: 14, marginBottom: 8 }}>{user.role}</div>
-          </>
+          </div>
         )}
         <NavLink to="/logout" className="is-side-logout" title="Sign out of this local demo session">
-          <LogOut className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-          Logout
+          <LogOut className="h-3.5 w-3.5" strokeWidth={1.7} aria-hidden />
+          Log out
         </NavLink>
         <div className="is-side-meta" title={`rules v1 · ${model} · local`}>
           rules v1 · {model} · local
@@ -199,7 +206,6 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const startUpload = useJobs((s) => s.startUpload);
   const startUrl = useJobs((s) => s.startUrl);
   const startEvtx = useJobs((s) => s.startEvtx);
-  const [mode, setMode] = useState<"file" | "link">("file");
 
   const routeFiles = (files: FileList) => {
     const all = Array.from(files);
@@ -209,6 +215,7 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
     if (evtx.length) startEvtx(evtx);
   };
   const [url, setUrl] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const isBlob = isBlobPageUrl(url);
 
@@ -220,33 +227,27 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
     onClose();
   };
 
-  const seg = (active: boolean) =>
-    cn(
-      "flex-1 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors",
-      active ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
-    );
-
   return (
-    <Dialog open={open} onClose={onClose} title="Add logs to analyze">
-      <div className="mb-3 flex gap-1 rounded-lg bg-background p-1">
-        <button className={seg(mode === "file")} onClick={() => setMode("file")}>
-          Upload from this computer
-        </button>
-        <button className={seg(mode === "link")} onClick={() => setMode("link")}>
-          Attach a link
-        </button>
-      </div>
-
-      {mode === "file" ? (
-        <div className="flex flex-col gap-2">
-          <label
-            title={ACCEPTED_TITLE}
-            className="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed border-border px-4 py-6 text-center text-[12.5px] text-muted-foreground hover:border-primary"
-          >
-            <Upload className="h-5 w-5" strokeWidth={1.6} aria-hidden />
-            <span className="text-[13px] font-semibold text-foreground">Choose a log file</span>
-            Analyzed locally — the file never leaves this machine.
+    <Dialog
+      open={open}
+      onClose={onClose}
+      wide
+      title="Upload logs"
+      subtitle="parsed locally · nothing leaves this machine"
+    >
+      {/* dc "Upload logs": two side-by-side sections — files on the left,
+          a link on the right. No tab switcher; both are always available. */}
+      <div className="is-upload">
+        <section>
+          <div className="is-upload__lbl">UPLOAD FILES</div>
+          <label title={ACCEPTED_TITLE} className="is-drop">
+            <Upload className="h-5 w-5" strokeWidth={1.7} aria-hidden />
+            <div className="t">
+              Drop log files here or <span style={{ color: "var(--acc)" }}>browse</span>
+            </div>
+            <div className="s">.log · .txt · .csv · .tsv · .json · .xml · .evtx — max 64 MB</div>
             <input
+              ref={fileRef}
               type="file"
               multiple
               className="hidden"
@@ -261,45 +262,58 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
               }}
             />
           </label>
-          <p className="text-[11px] text-muted-foreground">{ACCEPTED_TITLE}</p>
-        </div>
-      ) : (
-        <form
-          className="flex flex-col gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submitUrl();
-          }}
-        >
-          <label className="text-[11.5px] text-muted-foreground">
-            Public URL of a raw log file
-            <input
-              className="mt-1 w-full rounded-md border border-border bg-card px-2.5 py-2 text-[13px] outline-none focus:border-primary"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              aria-label="Log file URL"
-              placeholder="https://raw.githubusercontent.com/…/app.log"
-              inputMode="url"
-              autoComplete="off"
-            />
-          </label>
-          {isBlob && (
-            <p className="text-[11px]" style={{ color: "var(--high)" }}>
-              That’s a web-page link, not the raw file — we’ll fetch the raw version instead:{" "}
-              <span className="break-all font-mono">{rawFileUrl(url)}</span>
-            </p>
-          )}
-          <p className="text-[11px] text-muted-foreground">
-            The server fetches it (http/https only, public hosts, size- and text-gated) and runs the
-            same analysis. A page that isn’t a text log is rejected honestly.
+          <button type="button" className="is-btn" onClick={() => fileRef.current?.click()}>
+            Choose files…
+          </button>
+          <p className="is-mut" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+            Files are parsed by the rules engine on this machine and become a new run.
+            EVTX is ingested into the persistent store and appears on History.
           </p>
-          <div>
-            <button type="submit" disabled={!url.trim()} className="is-btn is-btn--primary">
-              <LinkIcon className="h-4 w-4" strokeWidth={1.8} aria-hidden /> Fetch &amp; analyze
-            </button>
-          </div>
-        </form>
-      )}
+        </section>
+
+        <section>
+          <div className="is-upload__lbl">PASTE A LOG LINK</div>
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitUrl();
+            }}
+          >
+            <label className="is-field">
+              <span>URL</span>
+              <input
+                className="is-input is-mono"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                aria-label="Log file URL"
+                placeholder="https://host.local/var/log/auth.log"
+                inputMode="url"
+                autoComplete="off"
+              />
+            </label>
+            {isBlob && (
+              <p className="text-[11px]" style={{ color: "var(--high)" }}>
+                That’s a web-page link, not the raw file — we’ll fetch the raw version instead:{" "}
+                <span className="break-all font-mono">{rawFileUrl(url)}</span>
+              </p>
+            )}
+            <p className="is-mut" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+              The file is fetched once, read-only, then parsed locally (http/https only, public hosts,
+              size- and text-gated). A page that isn’t a text log is rejected honestly.
+            </p>
+            <p style={{ display: "flex", gap: 7, fontSize: 11, margin: 0, color: "var(--high)", lineHeight: 1.5 }}>
+              <TriangleAlert size={12} strokeWidth={1.7} aria-hidden style={{ flex: "none", marginTop: 2 }} />
+              <span>A remote URL is an outbound request from this machine — only fetch sources you trust.</span>
+            </p>
+            <div>
+              <button type="submit" disabled={!url.trim()} className="is-btn is-btn--primary">
+                <LinkIcon className="h-4 w-4" strokeWidth={1.8} aria-hidden /> Fetch &amp; parse →
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
     </Dialog>
   );
 }
@@ -314,7 +328,7 @@ function UploadButton({ onClick }: { onClick: () => void }) {
       className={cn("is-btn is-btn--primary", busy && "cursor-progress opacity-70")}
     >
       <Upload className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-      {busy ? "Analyzing…" : "Upload Logs"}
+      {busy ? "Analyzing…" : "Upload logs"}
     </button>
   );
 }
@@ -322,21 +336,14 @@ function UploadButton({ onClick }: { onClick: () => void }) {
 function Header({ onOpenUpload }: { onOpenUpload: () => void }) {
   const { pathname } = useLocation();
   const queryClient = useQueryClient();
-  const { setCommandPaletteOpen } = useUi();
-  const info = TITLES[pathname] ?? { title: "itsoc.", subtitle: "Security Overview" };
+  const info = TITLES[pathname] ?? { title: "itsoc.", subtitle: "" };
 
   return (
     <div className="is-top">
       <div className="is-title">
         <h1>{info.title}</h1>
-        <div className="sub">{info.subtitle}</div>
+        {info.subtitle && <div className="sub">{info.subtitle}</div>}
       </div>
-
-      {/* Centered ⌘K search */}
-      <button className="is-top-search" onClick={() => setCommandPaletteOpen(true)} aria-label="Open command palette">
-        <kbd>⌘K</kbd>
-        <span className="truncate">Search or ask itsoc…</span>
-      </button>
 
       <div className="is-top-actions">
         <UploadButton onClick={onOpenUpload} />
@@ -380,14 +387,18 @@ export function AppShell() {
           >
             <CopilotRail docked />
           </aside>
+          {/* dc launcher: a 42px round button — sparkle when closed, X when
+              open. The label lives in the panel header, not on the button. */}
           <button
-            className="is-cop-fab"
+            className={cn("is-cop-fab", railOpen && "open")}
             data-testid="copilot-fab"
             onClick={() => setRailOpen((o) => !o)}
             aria-label={railOpen ? "Close AI Analyst" : "Open AI Analyst"}
+            aria-expanded={railOpen}
           >
-            <b className="n"><Sparkles className="ic" size={13} aria-hidden /> AI Analyst</b>
-            <span className="adv">advisory</span>
+            {railOpen
+              ? <X size={14} strokeWidth={1.7} aria-hidden />
+              : <Sparkles size={16} strokeWidth={1.7} aria-hidden />}
           </button>
         </>
       )}

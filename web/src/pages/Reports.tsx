@@ -60,7 +60,7 @@ export function Reports() {
     <>
       <div className="is-note" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
         <span style={{ maxWidth: 640, lineHeight: 1.5 }}>
-          <b>Real files only.</b> Every row is a report that exists on disk in{" "}
+          <b>Real files only — a report exists when it is on disk.</b> Every row lives in{" "}
           <span className="is-mono" style={{ color: "var(--acc)" }}>console/.soc/reports/</span>. Generating renders
           the <b>current run</b> through the standalone exporter — nothing is listed that wasn't produced.
         </span>
@@ -90,7 +90,7 @@ export function Reports() {
           <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>Couldn't load reports — {(error as Error).message}</p>
         ) : reports.length === 0 ? (
           <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
-            No reports generated yet — use “Generate report” above to render the current run.
+            No saved reports — generate one to see it here.
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>

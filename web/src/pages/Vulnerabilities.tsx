@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, type StoreVuln } from "@/lib/api";
 import { sevVar } from "@/lib/severity";
@@ -26,9 +27,9 @@ export function Vulnerabilities() {
   return (
     <>
       <div className="is-note">
-        Vulnerabilities discovered by nmap NSE <span className="is-mono" style={{ color: "var(--acc)" }}>vuln</span> scripts
-        during a scan. Severity is the CVSS band NSE reported — an empty severity means NSE gave no score,
-        shown honestly as “unknown” rather than guessed.
+        <b>Severity is the CVSS band NSE reported; empty = unknown, shown honestly.</b> Findings come
+        from nmap NSE <span className="is-mono" style={{ color: "var(--acc)" }}>vuln</span> scripts during a
+        scan — an empty severity is never guessed.
       </div>
       {error && (
         <p className="is-mut" style={{ fontSize: 12.5 }}>
@@ -42,8 +43,8 @@ export function Vulnerabilities() {
         </div>
         {items.length === 0 ? (
           <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
-            No vulnerabilities recorded yet. Run a “Service + vulnerability scan” from the Discovery page
-            against a private target — real NSE findings appear here.
+            No vulnerability data yet.<br />
+            Run a service + vulnerability scan from <Link to="/discovery">Discovery</Link> to populate this table.
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>

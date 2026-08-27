@@ -19,7 +19,7 @@ describe("Reports page", () => {
   it("shows an honest empty state with no reports yet", async () => {
     mockFetch({ "/api/reports": { reports: [] } });
     renderApp(<App />, { route: "/reports" });
-    expect(await screen.findByText(/No reports generated yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No saved reports — generate one to see it here/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Generate report/ })).toBeInTheDocument();
   });
 

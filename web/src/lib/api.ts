@@ -58,6 +58,8 @@ export interface OverviewData {
   latestAlerts: {
     id: string; time: string; severity: string; attackerStatus: string;
     tactics: string[]; name: string; source: string;
+    /** dc Latest-alerts columns. Empty string = not derivable for this finding. */
+    rule?: string; host?: string;
   }[];
   ingestion: { acceptedLabel: string; files: { name: string; ok: boolean }[] };
   model: string;

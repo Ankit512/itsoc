@@ -26,7 +26,7 @@ describe("Cases page (CRUD)", () => {
     mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS,
                 "/api/cases": { cases: [] } });
     renderApp(<App />, { route: "/cases" });
-    expect(await screen.findByText("No cases yet")).toBeInTheDocument();
+    expect(await screen.findByText("No cases yet.")).toBeInTheDocument();
     expect(screen.getByText(/no sample cases are invented/i)).toBeInTheDocument();
   });
 
@@ -44,7 +44,7 @@ describe("Cases page (CRUD)", () => {
     }));
 
     renderApp(<App />, { route: "/cases" });
-    await screen.findByText("No cases yet");
+    await screen.findByText("No cases yet.");
 
     await userEvent.click(screen.getByRole("button", { name: /new case/i }));
     await userEvent.type(screen.getByLabelText("Case title"), "Follow up on root logins");
