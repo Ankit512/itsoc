@@ -19,6 +19,13 @@ interface CommandItem {
   keywords?: string[];
 }
 
+/** dc §command-menu group headings — Screens / Actions / Ask itsoc. */
+const GROUP_LABEL: Record<CommandItem["group"], string> = {
+  Navigation: "Screens",
+  Actions: "Actions",
+  Ask: "Ask itsoc",
+};
+
 export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -190,8 +197,12 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
             displayItems.map((item, idx) => {
               const Icon = item.icon;
               const isSelected = idx === selectedIndex;
+              const newGroup = idx === 0 || displayItems[idx - 1].group !== item.group;
               return (
                 <li key={item.id}>
+                  {newGroup && (
+                    <div className="is-palette__group" aria-hidden>{GROUP_LABEL[item.group]}</div>
+                  )}
                   <button
                     onClick={item.onSelect}
                     onMouseEnter={() => setSelectedIndex(idx)}

@@ -368,3 +368,6 @@
 .is-analyst__ask::placeholder{ color:var(--mut2); }
 .is-analyst__ask:focus{ outline:none; border-color:var(--acc); }
 .is-analyst__foot{ font-size:10px; color:var(--mut2); line-height:1.5; }
+
+/* Command palette — grouped section headings (Screens / Actions / Ask itsoc) */
+.is-palette__group{ padding:8px 12px 4px; font-size:10px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--mut2); }
