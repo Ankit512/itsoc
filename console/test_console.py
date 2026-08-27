@@ -4407,6 +4407,54 @@ def check_ask_view():
     return 0 if all(results) else 1
 
 
+def check_bruteforce_series():
+    """Design-v3 pages-A P0 — the RCA rail brute-force sparkline series
+    (soc.entity_attempt_series). A DERIVED aggregation over real saved runs,
+    never a verdict: attempts/run = summed `occurrences` of that run's
+    brute-force findings for the entity; non-brute findings are excluded; only
+    runs where the entity actually has such a finding contribute a point; fewer
+    than two real points is an honest 'n/a — needs ≥2 runs', never a trend."""
+    print("\nCross-run brute-force attempt series (RCA rail sparkline — derived, not a verdict):")
+    sys.path.insert(0, str(HERE))
+    import soc
+    results = []
+
+    def check(label, cond, detail=""):
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + (f"  ({detail})" if detail and not cond else ""))
+        results.append(bool(cond))
+
+    def _f(entity_ip, typ, occ):
+        return {"chips": [{"text": entity_ip}], "type": typ, "occurrences": occ}
+
+    runs = [
+        {"label": "Aug 21", "date": "2026-08-21", "findings": [_f("203.0.113.44", "auth_bruteforce", 4)]},
+        {"label": "Aug 24", "date": "2026-08-24", "findings": [_f("203.0.113.44", "auth_bruteforce", 9)]},
+        {"label": "Aug 27", "date": "2026-08-27", "findings": [
+            _f("203.0.113.44", "auth_bruteforce", 14), _f("10.0.0.9", "port_scan", 3)]},
+    ]
+    s = soc.entity_attempt_series(runs, "203.0.113.44")
+    check("available with >=2 real runs", s["available"] is True, str(s.get("available")))
+    check("points are per-run summed occurrences (4,9,14)",
+          [p["attempts"] for p in s["points"]] == [4, 9, 14], str([p["attempts"] for p in s["points"]]))
+    check("thisRun=14 and CHANGE = real % vs the prior run",
+          s["thisRun"] == 14 and s["changePct"] == round((14 - 9) / 9 * 100), str(s.get("changePct")))
+    check("7-run avg is the real mean of the points",
+          s["avg"] == round((4 + 9 + 14) / 3, 1), str(s.get("avg")))
+    check("rising series -> direction up, forecast elevated",
+          s["direction"] == "up" and s["forecast"] == "elevated")
+    check("caption is the honesty surface, verbatim",
+          s["caption"] == "derived from run history, not a verdict")
+    check("non-brute finding excluded (port_scan not counted in attempts)", s["thisRun"] == 14)
+
+    na = soc.entity_attempt_series(runs, "10.0.0.9")  # only 1 run, and not brute anyway
+    check("entity with <2 brute runs -> honest n/a, no fabricated trend",
+          na["available"] is False and "≥2 runs" in na["note"] and "thisRun" not in na)
+    one = soc.entity_attempt_series(runs[:1], "203.0.113.44")
+    check("a single run is never a 1-point trend -> honest n/a", one["available"] is False)
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -4468,18 +4516,19 @@ def main():
     phase4_ = check_redesign_phase4()
     auth_ = check_auth()
     askview_ = check_ask_view()
+    bfseries_ = check_bruteforce_series()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
-            or askview_):
+            or askview_ or bfseries_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
-          "+ ask-view checks green")
+          "+ ask-view + bruteforce-series checks green")
     return 0
 
 

@@ -272,6 +272,77 @@ def set_incident_state(iid, new_state):
 
 
 # ---------------------------------------------------------------------------
+# Cross-run brute-force attempt series (RCA right-rail sparkline)
+# ---------------------------------------------------------------------------
+# A DERIVED display aggregation over the persistent run history — never a
+# verdict. Attempts/run = the sum of `occurrences` over that run's findings
+# that (a) are about this entity and (b) fired a brute-force / failed-auth
+# rule. Only runs where the entity ACTUALLY has such a finding contribute a
+# point — a run where the entity is absent is not a fabricated zero. Fewer
+# than two real points → an honest "n/a — needs >=2 runs", never a trend.
+# The caller (serve.py) supplies the real saved runs; this stays FS-agnostic.
+
+_BRUTE_RE = re.compile(
+    r"brute|failed|auth[_-]?fail|login[_-]?fail|password[_-]?spray|"
+    r"credential|failed[_-]?login|ssh[_-]?fail",
+    re.I)
+
+
+def entity_attempt_series(runs, entity, limit=7):
+    """Per-entity brute-force attempt series across saved runs.
+
+    `runs` = [{"label", "date", "findings": [...]}, ...] oldest→newest (the
+    real saved run history). Returns a display dict:
+      available True  → {points, thisRun, avg, changePct, direction, forecast,
+                         runs, caption}
+      available False → {points, note} (honest n/a; <2 real points)
+    Never fabricates a point, a zero, or a direction.
+    """
+    points = []
+    for r in runs:
+        total = 0
+        hit = False
+        for f in r.get("findings", []) or []:
+            ent, _ = _primary_entity(f)
+            if ent != entity:
+                continue
+            if not _BRUTE_RE.search(str(f.get("type", ""))):
+                continue
+            hit = True
+            try:
+                total += int(f.get("occurrences") or 0)
+            except (TypeError, ValueError):
+                pass
+        if hit:
+            points.append({"label": r.get("label", ""),
+                           "date": r.get("date", ""),
+                           "attempts": total})
+    points = points[-limit:]
+    if len(points) < 2:
+        return {"available": False,
+                "entity": entity,
+                "points": points,
+                "note": "n/a — needs ≥2 runs with brute-force activity "
+                        "for this entity"}
+    attempts = [p["attempts"] for p in points]
+    this_run, prior, first = attempts[-1], attempts[-2], attempts[0]
+    avg = round(sum(attempts) / len(attempts), 1)
+    change_pct = None if prior == 0 else round((this_run - prior) / prior * 100)
+    direction = "up" if this_run > first else "down" if this_run < first else "flat"
+    forecast = {"up": "elevated", "down": "easing", "flat": "steady"}[direction]
+    return {"available": True,
+            "entity": entity,
+            "points": points,
+            "thisRun": this_run,
+            "avg": avg,
+            "changePct": change_pct,
+            "direction": direction,
+            "forecast": forecast,
+            "runs": len(points),
+            "caption": "derived from run history, not a verdict"}
+
+
+# ---------------------------------------------------------------------------
 # RCA — layered root-cause view of one incident (advisory on top, never below)
 # ---------------------------------------------------------------------------
 #

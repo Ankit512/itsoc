@@ -102,7 +102,10 @@ describe("Incidents page", () => {
     expect(screen.getByText(/Rotate the credential/)).toBeInTheDocument();
 
     expect(screen.getByTestId("rca-hypothesis")).toBeInTheDocument();
-    expect(screen.getByText(/A sustained brute-force from 203.0.113.44/)).toBeInTheDocument();
+    // The hypothesis also grounds the inline itsoc-analyst card in the rail, so
+    // scope the assertion to the root-cause hypothesis block itself.
+    expect(within(screen.getByTestId("rca-hypothesis"))
+      .getByText(/A sustained brute-force from 203.0.113.44/)).toBeInTheDocument();
   });
 
   it("renders honest absence notes when runbook and model are unavailable", async () => {

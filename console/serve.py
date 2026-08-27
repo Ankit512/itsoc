@@ -326,6 +326,44 @@ def load_run(name):
     return json.loads((RUNS_DIR / name).read_text())
 
 
+_MONTHS = ("", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _run_date_label(generated_at, filename):
+    """A real (iso-date, short-label e.g. 'Aug 22') for a saved run, from its
+    generatedAt or, failing that, the timestamp prefix of its filename."""
+    ymd = ""
+    ga = generated_at or ""
+    if len(ga) >= 10 and ga[4] == "-" and ga[7] == "-":
+        ymd = ga[:10]
+    elif len(filename) >= 8 and filename[:8].isdigit():
+        ymd = f"{filename[:4]}-{filename[4:6]}-{filename[6:8]}"
+    if len(ymd) == 10:
+        try:
+            return ymd, f"{_MONTHS[int(ymd[5:7])]} {int(ymd[8:10])}"
+        except (ValueError, IndexError):
+            pass
+    return ymd, ymd or filename
+
+
+def history_runs():
+    """Saved runs oldest→newest as {label, date, findings} — the real history
+    the cross-run brute-force series (soc.entity_attempt_series) reads from."""
+    out = []
+    if not RUNS_DIR.exists():
+        return out
+    for path in sorted(RUNS_DIR.glob("*.json"), key=lambda f: f.name):
+        try:
+            s = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        date, label = _run_date_label(s.get("generatedAt", ""), path.name)
+        out.append({"label": label, "date": date,
+                    "findings": s.get("findings", [])})
+    return out
+
+
 def runs_summary():
     """Aggregate view across ALL saved runs — the whole history, one shape.
 
@@ -1354,6 +1392,15 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             rca = soc.derive_rca(path.split("/")[3], STATE,
                                  hypothesis_fn=rca_hypothesis_fn())
             self._json(rca) if rca else self._json({"error": "no such incident"}, 404)
+        elif path.startswith("/api/incidents/") and path.endswith("/bruteforce"):
+            iid = path.split("/")[3]
+            inc = next((i for i in soc.list_incidents(STATE)
+                        if i.get("id") == iid), None)
+            if not inc:
+                self._json({"error": "no such incident"}, 404)
+            else:
+                self._json(soc.entity_attempt_series(
+                    history_runs(), inc.get("entity", "")))
         elif path.startswith("/api/incidents/"):
             inc = soc.get_incident(path.split("/")[3])
             self._json(inc) if inc else self._json({"error": "no such incident"}, 404)

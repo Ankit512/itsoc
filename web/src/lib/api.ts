@@ -246,6 +246,24 @@ export interface Rca {
   hypothesis: RcaHypothesis;
 }
 
+/** Cross-run brute-force attempt series for an incident's entity (RCA rail
+ *  sparkline). A DERIVED display aggregation over run history — never a verdict.
+ *  available=false is the honest n/a (fewer than 2 real runs for the entity). */
+export interface AttemptPoint { label: string; date: string; attempts: number }
+export interface AttemptSeries {
+  available: boolean;
+  entity: string;
+  points: AttemptPoint[];
+  note?: string;
+  thisRun?: number;
+  avg?: number;
+  changePct?: number | null;
+  direction?: "up" | "down" | "flat";
+  forecast?: string;
+  runs?: number;
+  caption?: string;
+}
+
 export interface Asset {
   id: string; name: string; kind: "host" | "ip";
   events: number; findings: number; atRisk: boolean;
@@ -651,6 +669,8 @@ export const api = {
       `/api/incidents${state ? `?state=${state}` : ""}`),
   incident: (id: string) => getJson<OrError<Incident>>(`/api/incidents/${id}`),
   incidentRca: (id: string) => getJson<OrError<Rca>>(`/api/incidents/${id}/rca`),
+  incidentBruteforce: (id: string) =>
+    getJson<AttemptSeries>(`/api/incidents/${id}/bruteforce`),
 
   /** Analyst lifecycle transition (POST /api/incidents/<id>/state). Returns the
    *  updated incident; 400 (bad state) / 404 (unknown id) reject honestly. */

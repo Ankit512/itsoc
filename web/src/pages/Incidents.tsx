@@ -1,8 +1,17 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { api, INCIDENT_STATES, type Incident, type IncidentState, type Rca } from "@/lib/api";
+import { Sparkles } from "lucide-react";
+import { api, INCIDENT_STATES, type AttemptPoint, type Incident, type IncidentState, type Rca } from "@/lib/api";
 import { cn } from "@/lib/utils";
+
+/** Open the shell's real (streaming) analyst — the inline card is a grounded
+ *  summary; its chips + ask-box hand off to the shell copilot via its existing
+ *  launcher, so we never duplicate the CopilotRail or touch shell chrome. */
+function openCopilot() {
+  const fab = document.querySelector<HTMLButtonElement>('[data-testid="copilot-fab"]');
+  fab?.click();
+}
 
 function sevShort(sev: string): "crit" | "high" | "med" | "low" {
   const s = (sev || "").toUpperCase();
@@ -232,9 +241,130 @@ function EvidenceCard({ inc }: { inc: Incident }) {
   );
 }
 
-/** Right rail for the selected incident: real Properties + an honest-n/a
- *  brute-force sparkline card. (The itsoc-analyst card is the shell copilot,
- *  present shell-wide as the docked rail/launcher — not duplicated here.) */
+/** Build the sparkline area+line path over the attempt points. */
+function sparkGeometry(points: AttemptPoint[], w: number, h: number, pad = 4) {
+  const vals = points.map((p) => p.attempts);
+  const max = Math.max(...vals, 1);
+  const min = Math.min(...vals, 0);
+  const span = max - min || 1;
+  const n = points.length;
+  const x = (i: number) => (n === 1 ? w / 2 : pad + (i / (n - 1)) * (w - 2 * pad));
+  const y = (v: number) => h - pad - ((v - min) / span) * (h - 2 * pad);
+  const line = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(p.attempts).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(n - 1).toFixed(1)} ${(h - pad).toFixed(1)} L${x(0).toFixed(1)} ${(h - pad).toFixed(1)} Z`;
+  return { line, area, x, y };
+}
+
+/** Brute-force attempt sparkline — the entity's failed-login attempts across
+ *  the last N saved runs, from GET /api/incidents/<id>/bruteforce (a DERIVED
+ *  run-history aggregation, never a verdict). Honest 'n/a — needs ≥2 runs'
+ *  when fewer than two real runs carry brute-force activity for the entity. */
+function BruteforceSparkline({ inc }: { inc: Incident }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["bruteforce", inc.id],
+    queryFn: () => api.incidentBruteforce(inc.id),
+  });
+
+  const card = (body: ReactNode) => (
+    <section className="is-panel" data-testid="bruteforce-card">
+      <div className="is-panel__h">
+        <h3>Brute-force on {inc.entity} <span className="is-mut2" style={{ fontWeight: 400 }}>· last 7 runs</span></h3>
+      </div>
+      {body}
+    </section>
+  );
+
+  if (isLoading) return card(<p className="is-mut" style={{ fontSize: "11.5px" }}>Loading run history…</p>);
+  if (!data || !data.available) {
+    return card(
+      <div className="is-spark-na">
+        <div className="is-mono na" style={{ fontSize: 13 }}>n/a — needs ≥2 runs</div>
+        <p className="is-mut2" style={{ fontSize: "10.5px", marginTop: 6, lineHeight: 1.5 }}>
+          {data?.note ?? "A cross-run trend needs ≥2 runs with brute-force activity for this entity."}
+          {" · "}derived from run history, not a verdict
+        </p>
+      </div>,
+    );
+  }
+
+  const W = 252, H = 60;
+  const { line, area, x, y } = sparkGeometry(data.points, W, H);
+  const last = data.points.length - 1;
+  const mid = Math.floor(last / 2);
+  const up = data.changePct != null && data.changePct > 0;
+  const arrow = data.direction === "up" ? "↑" : data.direction === "down" ? "↓" : "→";
+  const change = data.changePct == null ? "n/a" : `${data.changePct > 0 ? "+" : ""}${data.changePct}%`;
+
+  return card(
+    <div className="is-spark">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none"
+        className="is-spark__svg" role="img" aria-label={`brute-force attempts across ${data.runs} runs`}>
+        <path d={area} className="is-spark__area" />
+        <path d={line} className="is-spark__line" />
+        <circle cx={x(last)} cy={y(data.points[last].attempts)} r="3" className="is-spark__dot" />
+      </svg>
+      <div className="is-spark__x">
+        <span>{data.points[0].label}</span>
+        {last > 1 && <span>{data.points[mid].label}</span>}
+        <span>{data.points[last].label}</span>
+      </div>
+      <div className="is-spark__stats">
+        <div><div className="k">THIS RUN</div><div className="v">{data.thisRun} <span>attempts</span></div></div>
+        <div><div className="k">7-RUN AVG</div><div className="v">{data.avg} <span>attempts</span></div></div>
+        <div><div className="k">CHANGE</div><div className={cn("v", up ? "up" : "dn")}>{change} <span>vs prior run</span></div></div>
+      </div>
+      <p className="is-spark__trend">
+        {arrow} trending {data.direction} across {data.runs} runs · forecast: {data.forecast} — {data.caption}
+      </p>
+    </div>,
+  );
+}
+
+/** Inline itsoc-analyst card (advisory) — a grounded interpretation of THIS
+ *  incident from its real RCA (hypothesis + runbook citation); the chips and
+ *  ask-box hand off to the shell's real streaming analyst. It never states a
+ *  verdict. Distinct testids so it never collides with the shell CopilotRail. */
+function IncidentAnalyst({ inc }: { inc: Incident }) {
+  const { data } = useQuery({ queryKey: ["rca", inc.id], queryFn: () => api.incidentRca(inc.id) });
+  const rca = data && !("error" in data) && "facts" in data ? (data as Rca) : null;
+  const runbook = rca?.runbook.matched ? rca.runbook.file : null;
+  const chain = inc.techniques.map((t) => t.id).join(" → ");
+  const answer = rca?.hypothesis.text
+    ?? `${inc.entity} carries ${inc.findingCount} correlated finding(s)${chain ? ` spanning ${chain}` : ""}. The rules set the severity (${(inc.severity || "").toUpperCase()}) — I only interpret what they found, I don't decide it.`;
+  const cite = `from ${inc.findingCount} finding(s)${runbook ? ` + ${runbook}` : ""}`;
+  const chips = ["Summarize the dashboard", `What's on ${inc.entity}?`, "Recommend next steps"];
+
+  return (
+    <section className="is-analyst" data-testid="incident-analyst">
+      <div className="is-analyst__h">
+        <b><Sparkles className="ic" size={13} aria-hidden /> itsoc analyst</b>
+        <span className="adv">advisory</span>
+      </div>
+      <div className="is-analyst__q">What's the root cause here?</div>
+      <div className="is-analyst__a">
+        {answer}
+        <div className="cite">cited: {cite}</div>
+      </div>
+      <div className="is-analyst__chips">
+        {chips.map((c) => (
+          <button key={c} type="button" className="chip" onClick={openCopilot} title="Continue in the analyst">{c}</button>
+        ))}
+      </div>
+      <input
+        className="is-analyst__ask"
+        placeholder="Ask about this run…"
+        aria-label="Ask about this run"
+        onKeyDown={(e) => { if (e.key === "Enter") openCopilot(); }}
+      />
+      <div className="is-analyst__foot" data-testid="incident-analyst-footer">
+        Rules set severity. I interpret &amp; explain — I don't decide.
+      </div>
+    </section>
+  );
+}
+
+/** Right rail for the selected incident: real Properties + the real cross-run
+ *  brute-force sparkline + the inline itsoc-analyst card (v3 renders). */
 function IncidentRail({ inc }: { inc: Incident }) {
   const rows: [string, ReactNode][] = [
     ["Severity", <SevTag key="s" sev={inc.severity} />],
@@ -272,15 +402,8 @@ function IncidentRail({ inc }: { inc: Incident }) {
         </div>
       </section>
 
-      <section className="is-panel">
-        <div className="is-panel__h"><h3>Brute-force on {inc.entity} · last 7 runs</h3></div>
-        <div className="is-spark-na">
-          <div className="is-mono na" style={{ fontSize: 13 }}>n/a — needs ≥2 runs</div>
-          <p className="is-mut2" style={{ fontSize: "10.5px", marginTop: 6, lineHeight: 1.5 }}>
-            A cross-run trend isn't computed in this build — no direction or forecast is claimed.
-          </p>
-        </div>
-      </section>
+      <BruteforceSparkline inc={inc} />
+      <IncidentAnalyst inc={inc} />
     </aside>
   );
 }
