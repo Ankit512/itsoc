@@ -2,21 +2,21 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Search, ShieldCheck, TriangleAlert } from "lucide-react";
 import { api, type StoreIoc, type TiEnrichResult } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /** Enrichment — look up an IP against external threat-intel providers (OTX and
- *  AbuseIPDB) using YOUR API keys. Keys are stored write-only (masked): the
- *  page only ever learns whether a key is present. A provider with no key is
- *  reported as not-configured and never called; a verdict/score always comes
- *  from the provider's real response — never keyword-guessed. */
+ *  AbuseIPDB) using YOUR API keys, in the itsoc. design system (mirrors v3 dc
+ *  "Enrichment"). Keys are stored write-only (masked): the page only ever learns
+ *  whether a key is present. A provider with no key is reported as not-configured
+ *  and never called; a verdict/score always comes from the provider's real
+ *  response — never keyword-guessed. */
 
-const field = "w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary";
-
+/** A verdict is a provider's own label, not a rule severity — colour it with the
+ *  severity tokens only for legibility (malicious→crit, suspicious→med, clean→low). */
 function verdictColor(verdict: string): string | undefined {
   const v = verdict.toLowerCase();
-  if (v === "malicious") return "var(--sev-critical)";
-  if (v === "suspicious") return "var(--sev-medium)";
-  if (v === "clean") return "var(--sev-low)";
+  if (v === "malicious") return "var(--crit)";
+  if (v === "suspicious") return "var(--med)";
+  if (v === "clean") return "var(--low)";
   return undefined;
 }
 
@@ -28,24 +28,23 @@ function KeyField({ which, label, configured }: { which: "otx" | "abuseipdb"; la
     onSuccess: () => { setValue(""); queryClient.invalidateQueries({ queryKey: ["ti"] }); },
   });
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2 text-[12.5px]">
-        <span className="font-semibold text-foreground">{label}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 500 }}>{label}</div>
         {configured ? (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium" style={{ color: "var(--sev-low)" }}>
-            <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> key configured
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--low)" }}>
+            <ShieldCheck size={13} aria-hidden /> key configured
           </span>
         ) : (
-          <span className="text-[11px] text-muted-foreground">no key configured</span>
+          <div className="is-mut2" style={{ fontSize: 11 }}>no key configured</div>
         )}
       </div>
-      <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (value.trim()) save.mutate(); }}>
-        <input className={field} type="password" value={value} autoComplete="off"
-               onChange={(e) => setValue(e.target.value)}
-               aria-label={`${label} API key`}
+      <form style={{ display: "flex", alignItems: "center", gap: 8 }}
+            onSubmit={(e) => { e.preventDefault(); if (value.trim()) save.mutate(); }}>
+        <input className="is-input" type="password" value={value} autoComplete="off" style={{ width: 120 }}
+               onChange={(e) => setValue(e.target.value)} aria-label={`${label} API key`}
                placeholder={configured ? "Replace stored key…" : "Paste API key…"} />
-        <button type="submit" disabled={!value.trim() || save.isPending}
-          className="whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 transition-colors">
+        <button className="is-btn" type="submit" disabled={!value.trim() || save.isPending}>
           {save.isPending ? "Saving…" : "Save"}
         </button>
       </form>
@@ -55,23 +54,16 @@ function KeyField({ which, label, configured }: { which: "otx" | "abuseipdb"; la
 
 function KeysCard({ otx, abuseipdb }: { otx: boolean; abuseipdb: boolean }) {
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-          <KeyRound className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-          Provider keys
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 flex flex-col gap-3.5">
-        <p className="text-[12px] text-muted-foreground leading-relaxed">
-          Your API keys are stored write-only and never sent back to the browser — this page
-          only shows whether each is set. Enrichment calls go only to the provider you supplied
-          a key for.
-        </p>
-        <KeyField which="otx" label="AlienVault OTX" configured={otx} />
-        <KeyField which="abuseipdb" label="AbuseIPDB" configured={abuseipdb} />
-      </CardContent>
-    </Card>
+    <div className="is-panel">
+      <div className="is-panel__h"><h3 style={{ display: "flex", alignItems: "center", gap: 7 }}><KeyRound size={15} aria-hidden /> Provider keys</h3></div>
+      <p className="is-mut" style={{ fontSize: 12, lineHeight: 1.5, margin: "0 0 4px" }}>
+        Your API keys are stored write-only and never sent back to the browser — this page only shows
+        whether each is set. Enrichment calls go only to the provider you supplied a key for.
+      </p>
+      <KeyField which="otx" label="AlienVault OTX" configured={otx} />
+      <div style={{ borderTop: "1px solid var(--bd)" }} />
+      <KeyField which="abuseipdb" label="AbuseIPDB" configured={abuseipdb} />
+    </div>
   );
 }
 
@@ -91,80 +83,61 @@ function EnrichPanel({ anyKey }: { anyKey: boolean }) {
   });
 
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-          <Search className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-          Enrich an IP
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 flex flex-col gap-3">
-        {!anyKey && (
-          <div className="flex items-start gap-2 rounded-lg border p-2.5 text-[11.5px]"
-               style={{ borderColor: "var(--sev-medium)", color: "var(--sev-medium)", background: "color-mix(in srgb, var(--sev-medium) 8%, transparent)" }}>
-            <TriangleAlert className="mt-px h-4 w-4 flex-none" aria-hidden />
-            <span>No provider key is configured yet. Add an OTX or AbuseIPDB key above — until
-              then a lookup honestly reports every provider as not-configured.</span>
-          </div>
-        )}
-        <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (ip.trim()) enrich.mutate(); }}>
-          <input className={field} value={ip} onChange={(e) => setIp(e.target.value)}
-                 aria-label="IP address to enrich" inputMode="numeric"
-                 placeholder="203.0.113.9" />
-          <button type="submit" disabled={!ip.trim() || enrich.isPending}
-            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-opacity">
-            <Search className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-            {enrich.isPending ? "Enriching…" : "Enrich"}
-          </button>
-        </form>
+    <div className="is-panel">
+      <div className="is-panel__h"><h3 style={{ display: "flex", alignItems: "center", gap: 7 }}><Search size={15} aria-hidden /> Enrich an IP</h3></div>
+      {!anyKey && (
+        <div className="is-note" style={{ display: "flex", alignItems: "flex-start", gap: 8, borderColor: "var(--high)", color: "var(--high)" }}>
+          <TriangleAlert size={15} aria-hidden style={{ flex: "none", marginTop: 1 }} />
+          <span>No provider key is configured yet. Add an OTX or AbuseIPDB key above — until then a lookup
+            honestly reports every provider as not-configured.</span>
+        </div>
+      )}
+      <form style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}
+            onSubmit={(e) => { e.preventDefault(); if (ip.trim()) enrich.mutate(); }}>
+        <input className="is-input" value={ip} onChange={(e) => setIp(e.target.value)} style={{ flex: 1 }}
+               aria-label="IP address to enrich" inputMode="numeric" placeholder="203.0.113.9" />
+        <button className="is-btn is-btn--primary" type="submit" disabled={!ip.trim() || enrich.isPending}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Search size={13} aria-hidden />
+          {enrich.isPending ? "Enriching…" : "Enrich"}
+        </button>
+      </form>
 
-        {err && <p className="text-[11.5px]" style={{ color: "var(--sev-critical)" }}>{err}</p>}
+      {err && <p style={{ color: "var(--crit)", fontSize: 11.5, margin: "6px 0 0" }}>{err}</p>}
 
-        {result && !result.error && (
-          <div className="flex flex-col gap-2.5 text-[12px] pt-1">
-            {result.notConfigured.length > 0 && (
-              <p className="text-muted-foreground text-[11.5px]">
-                Not configured (skipped): {result.notConfigured.join(", ")}
-              </p>
-            )}
-            {result.errors.map((e) => (
-              <p key={e.provider} className="text-[11.5px]" style={{ color: "var(--sev-critical)" }}>
-                {e.provider}: {e.error}
-              </p>
-            ))}
-            {result.results.length === 0 && result.errors.length === 0 && result.notConfigured.length > 0 && (
-              <p className="text-muted-foreground text-[11.5px]">No provider was called — add a key to enrich.</p>
-            )}
-            {result.results.length > 0 && (
-              <div className="overflow-auto rounded-lg border border-border">
-                <table className="w-full border-collapse text-left text-[12.5px]">
-                  <thead className="sticky top-0 z-10 bg-card border-b border-border text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="border-b border-border px-3 py-2">Provider</th>
-                      <th className="border-b border-border px-3 py-2">Verdict</th>
-                      <th className="border-b border-border px-3 py-2">Score</th>
-                      <th className="border-b border-border px-3 py-2">Details</th>
+      {result && !result.error && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12, marginTop: 8 }}>
+          {result.notConfigured.length > 0 && (
+            <p className="is-mut" style={{ fontSize: 11.5, margin: 0 }}>
+              Not configured (skipped): {result.notConfigured.join(", ")}
+            </p>
+          )}
+          {result.errors.map((e) => (
+            <p key={e.provider} style={{ fontSize: 11.5, margin: 0, color: "var(--crit)" }}>{e.provider}: {e.error}</p>
+          ))}
+          {result.results.length === 0 && result.errors.length === 0 && result.notConfigured.length > 0 && (
+            <p className="is-mut" style={{ fontSize: 11.5, margin: 0 }}>No provider was called — add a key to enrich.</p>
+          )}
+          {result.results.length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table className="is-table">
+                <thead><tr><th>Provider</th><th>Verdict</th><th>Score</th><th>Details</th></tr></thead>
+                <tbody>
+                  {result.results.map((r) => (
+                    <tr key={r.provider} style={{ cursor: "default" }}>
+                      <td style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>{r.provider}</td>
+                      <td style={{ fontSize: 12, fontWeight: 600, color: verdictColor(r.verdict) }}>{r.verdict}</td>
+                      <td className="is-tnum" style={{ fontWeight: 600 }}>{r.score}</td>
+                      <td className="is-mono" style={{ fontSize: 11, color: "var(--mut)", wordBreak: "break-all" }}>{r.details}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {result.results.map((r) => (
-                      <tr key={r.provider} className="hover:bg-muted/40 transition-colors">
-                        <td className="border-b border-border px-3 py-2 font-medium text-foreground text-xs">{r.provider}</td>
-                        <td className="border-b border-border px-3 py-2 font-semibold text-xs" style={{ color: verdictColor(r.verdict) }}>
-                          {r.verdict}
-                        </td>
-                        <td className="border-b border-border px-3 py-2 tabular-nums text-xs font-medium">{r.score}</td>
-                        <td className="border-b border-border px-3 py-2 font-mono break-all text-[11px] text-muted-foreground leading-relaxed">{r.details}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -172,46 +145,31 @@ function IocHistory() {
   const { data } = useQuery({ queryKey: ["ti", "iocs"], queryFn: () => api.iocs(100) });
   const items: StoreIoc[] = data?.items ?? [];
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="text-[14px] font-semibold">Recent IOC lookups</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3">
-        {items.length === 0 ? (
-          <p className="text-[12.5px] text-muted-foreground">
-            No IOC lookups recorded yet. Enrich an IP above — real provider results appear here
-            and in the IOC store.
-          </p>
-        ) : (
-          <div className="overflow-auto rounded-lg border border-border">
-            <table className="w-full border-collapse text-left text-[12.5px]">
-              <thead className="sticky top-0 z-10 bg-card border-b border-border text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="border-b border-border px-3 py-2.5">Time</th>
-                  <th className="border-b border-border px-3 py-2.5">IOC</th>
-                  <th className="border-b border-border px-3 py-2.5">Provider</th>
-                  <th className="border-b border-border px-3 py-2.5">Verdict</th>
-                  <th className="border-b border-border px-3 py-2.5">Score</th>
+    <div className="is-panel">
+      <div className="is-panel__h"><h3>Recent IOC lookups</h3></div>
+      {items.length === 0 ? (
+        <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
+          No IOC lookups recorded yet. Enrich an IP above — real provider results appear here and in the IOC store.
+        </p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="is-table">
+            <thead><tr><th>Time</th><th>IOC</th><th>Provider</th><th>Verdict</th><th>Score</th></tr></thead>
+            <tbody>
+              {items.map((i) => (
+                <tr key={i.id} style={{ cursor: "default" }}>
+                  <td className="col-mono" style={{ whiteSpace: "nowrap" }}>{new Date(i.ts).toLocaleString()}</td>
+                  <td className="col-mono" style={{ color: "var(--ink)", fontWeight: 500 }}>{i.ioc}</td>
+                  <td style={{ fontSize: 12 }}>{i.provider}</td>
+                  <td style={{ fontSize: 12, fontWeight: 600, color: verdictColor(i.verdict) }}>{i.verdict}</td>
+                  <td className="is-tnum" style={{ fontWeight: 600 }}>{i.score}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {items.map((i) => (
-                  <tr key={i.id} className="hover:bg-muted/40 transition-colors">
-                    <td className="border-b border-border px-3 py-2 tabular-nums text-muted-foreground whitespace-nowrap text-[11px]">
-                      {new Date(i.ts).toLocaleString()}
-                    </td>
-                    <td className="border-b border-border px-3 py-2 font-mono text-xs font-medium text-foreground">{i.ioc}</td>
-                    <td className="border-b border-border px-3 py-2 text-xs">{i.provider}</td>
-                    <td className="border-b border-border px-3 py-2 font-semibold text-xs" style={{ color: verdictColor(i.verdict) }}>{i.verdict}</td>
-                    <td className="border-b border-border px-3 py-2 tabular-nums text-xs font-medium">{i.score}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -220,24 +178,22 @@ export function Enrichment() {
   const otx = !!keys?.otx, abuseipdb = !!keys?.abuseipdb;
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="rounded-xl border border-dashed border-border bg-card">
-        <CardContent className="p-4 text-[12.5px] text-muted-foreground leading-relaxed">
-          <b className="text-foreground">Threat Intel Enrichment.</b> External provider lookups using your own API keys. Every
-          verdict and score shown is the provider's real response — never a fabricated or
-          keyword-guessed result.
-        </CardContent>
-      </Card>
+    <>
+      <div className="is-note">
+        <b>Real provider responses — never fabricated.</b> External threat-intel lookups using your own API
+        keys. Every verdict and score shown is the provider's real response, never a fabricated or
+        keyword-guessed result.
+      </div>
       {error && (
-        <p className="text-[12.5px] text-muted-foreground">
+        <p className="is-mut" style={{ fontSize: 12.5 }}>
           Backend not reachable — start the console server to run enrichment.
         </p>
       )}
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <div className="is-grid-2">
         <KeysCard otx={otx} abuseipdb={abuseipdb} />
         <EnrichPanel anyKey={otx || abuseipdb} />
       </div>
       <IocHistory />
-    </div>
+    </>
   );
 }

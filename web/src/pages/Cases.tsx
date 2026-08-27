@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil, X } from "lucide-react";
 import { api, CASE_STATUSES, type Case, type CaseStatus } from "@/lib/api";
 
 /** Cases — analyst-entered investigation records (cases.json), in the itsoc.
@@ -55,7 +56,7 @@ function CreateCase() {
         <div className="is-panel__h">
           <h3>New case</h3>
           <button type="button" className="is-icobtn" aria-label="Cancel new case"
-                  onClick={() => { setOpen(false); setErr(""); }} style={{ width: 26, height: 26 }}>✕</button>
+                  onClick={() => { setOpen(false); setErr(""); }} style={{ width: 26, height: 26 }}><X size={14} aria-hidden /></button>
         </div>
         <label className="is-field"><span>Title (required)</span>
           <input className="is-input" value={title} onChange={(e) => setTitle(e.target.value)}
@@ -121,7 +122,7 @@ function CaseRow({ c }: { c: Case }) {
           </select>
         </label>
         {!editing && (
-          <button className="is-icobtn" style={{ width: 28, height: 28 }} onClick={() => setEditing(true)} aria-label={`Edit ${c.id}`}>✎</button>
+          <button className="is-icobtn" style={{ width: 28, height: 28 }} onClick={() => setEditing(true)} aria-label={`Edit ${c.id}`}><Pencil size={13} aria-hidden /></button>
         )}
       </div>
 

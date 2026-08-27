@@ -2,16 +2,14 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Cable, Plug, RefreshCw } from "lucide-react";
 import { api, type OemConnector } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /** OEM / API Engine — read-only connectors that poll a vendor's events API
  *  (Cisco Firepower, Ruckus SmartZone, ManageEngine Log360, or a generic
- *  endpoint) into the persistent store. Vendor tokens are user-supplied and
- *  stored masked — the page only shows whether a token is set. `lastRun` /
- *  `lastError` are the REAL poll outcome; an event's severity is the level the
- *  vendor reported, never guessed. A placeholder base URL is never called. */
-
-const field = "w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary";
+ *  endpoint) into the persistent store, in the itsoc. design system (mirrors v3
+ *  dc "OEM Engine"). Vendor tokens are user-supplied and stored masked — the page
+ *  only shows whether a token is set. `lastRun` / `lastError` are the REAL poll
+ *  outcome; an event's severity is the level the vendor reported, never guessed.
+ *  A placeholder base URL is never called. */
 
 const TEMPLATES: Record<string, { vendor: string; baseUrl: string; eventsPath: string }> = {
   "Cisco Firepower": { vendor: "cisco", baseUrl: "https://FIREPOWER", eventsPath: "/api/fdm/v6/events" },
@@ -51,63 +49,55 @@ function AddConnector() {
   });
 
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-          <Plug className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-          Add / update a connector
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-3 flex flex-col gap-3">
-        <label className="text-[11px] font-medium text-muted-foreground">
-          Template
-          <select className={`mt-1 ${field}`} value={name in TEMPLATES ? name : "Generic API"}
-                  onChange={(e) => applyTemplate(e.target.value)} aria-label="Template">
-            {Object.keys(TEMPLATES).map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+    <div className="is-panel">
+      <div className="is-panel__h"><h3 style={{ display: "flex", alignItems: "center", gap: 7 }}><Plug size={15} aria-hidden /> Add / update a connector</h3></div>
+
+      <label className="is-field"><span>Template</span>
+        <select className="is-select" value={name in TEMPLATES ? name : "Generic API"}
+                onChange={(e) => applyTemplate(e.target.value)} aria-label="Template">
+          {Object.keys(TEMPLATES).map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </label>
+
+      <div className="is-grid-2" style={{ gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <label className="is-field"><span>Connector name</span>
+          <input className="is-input" value={name} onChange={(e) => setName(e.target.value)} aria-label="Connector name" placeholder="fw-core" />
         </label>
-        <label className="text-[11px] font-medium text-muted-foreground">
-          Connector name
-          <input className={`mt-1 ${field}`} value={name} onChange={(e) => setName(e.target.value)} aria-label="Connector name" />
+        <label className="is-field"><span>Poll interval (s)</span>
+          <input className="is-input" value={interval} inputMode="numeric"
+                 onChange={(e) => setInterval(e.target.value.replace(/[^0-9]/g, ""))} aria-label="Poll interval seconds" placeholder="300" />
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="text-[11px] font-medium text-muted-foreground">
-            Vendor
-            <input className={`mt-1 ${field}`} value={vendor} onChange={(e) => setVendor(e.target.value)} aria-label="Vendor" />
-          </label>
-          <label className="text-[11px] font-medium text-muted-foreground">
-            Poll interval (s)
-            <input className={`mt-1 ${field}`} value={interval} inputMode="numeric"
-                   onChange={(e) => setInterval(e.target.value.replace(/[^0-9]/g, ""))} aria-label="Poll interval seconds" />
-          </label>
-        </div>
-        <label className="text-[11px] font-medium text-muted-foreground">
-          Base URL
-          <input className={`mt-1 ${field}`} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
-                 aria-label="Base URL" placeholder="https://firepower.example.com" />
-          <span className="mt-1 block text-[11px] text-muted-foreground">
-            Replace any placeholder host (e.g. <span className="font-mono text-primary">FIREPOWER</span>) with your
-            real appliance — a placeholder URL is never called.
-          </span>
-        </label>
-        <label className="text-[11px] font-medium text-muted-foreground">
-          Events path
-          <input className={`mt-1 ${field}`} value={eventsPath} onChange={(e) => setEventsPath(e.target.value)} aria-label="Events path" />
-        </label>
-        <label className="text-[11px] font-medium text-muted-foreground">
-          API token (stored masked, never returned)
-          <input className={`mt-1 ${field}`} type="password" value={token} autoComplete="off"
-                 onChange={(e) => setToken(e.target.value)} aria-label="API token" placeholder="Bearer token…" />
-        </label>
-        <div className="flex items-center gap-2 pt-1">
-          <button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}
-            className="rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-opacity">
-            {create.isPending ? "Saving…" : "Save connector"}
-          </button>
-          {msg && <span className="text-[12px] text-muted-foreground">{msg}</span>}
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <label className="is-field"><span>Vendor</span>
+        <input className="is-input" value={vendor} onChange={(e) => setVendor(e.target.value)} aria-label="Vendor" />
+      </label>
+
+      <label className="is-field"><span>Base URL</span>
+        <input className="is-input" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
+               aria-label="Base URL" placeholder="https://fmc.local/api" />
+      </label>
+      <p className="is-mut" style={{ fontSize: 11, margin: "-4px 0 0", lineHeight: 1.5 }}>
+        Replace any placeholder host (e.g. <span className="is-mono" style={{ color: "var(--acc)" }}>FIREPOWER</span>) with your
+        real appliance — a placeholder URL is never called.
+      </p>
+
+      <label className="is-field"><span>Events path</span>
+        <input className="is-input" value={eventsPath} onChange={(e) => setEventsPath(e.target.value)} aria-label="Events path" />
+      </label>
+
+      <label className="is-field"><span>API token (stored masked, never returned)</span>
+        <input className="is-input" type="password" value={token} autoComplete="off"
+               onChange={(e) => setToken(e.target.value)} aria-label="API token" placeholder="Bearer token…" />
+      </label>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+        <button className="is-btn is-btn--primary" onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
+          {create.isPending ? "Saving…" : "Save connector"}
+        </button>
+        {msg && <span className="is-mut" style={{ fontSize: 12 }}>{msg}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -117,46 +107,40 @@ function ConnectorRow({ c }: { c: OemConnector }) {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["oem"] });
 
   const toggle = useMutation({
-    mutationFn: () => api.oemCreateConnector({
-      name: c.name, config: {}, enabled: !c.enabled,
-    }),
+    mutationFn: () => api.oemCreateConnector({ name: c.name, config: {}, enabled: !c.enabled }),
     onSuccess: refresh,
   });
   const poll = useMutation({
     mutationFn: () => api.oemPoll(c.name),
-    onSuccess: (r) => {
-      setMsg(r.ok ? `Polled — stored ${r.stored} event(s).` : `Poll failed: ${r.error}`);
-      refresh();
-    },
+    onSuccess: (r) => { setMsg(r.ok ? `Polled — stored ${r.stored} event(s).` : `Poll failed: ${r.error}`); refresh(); },
     onError: (e: Error) => setMsg(e.message),
   });
 
   return (
-    <div className="flex flex-col gap-2 border-b border-border py-3 last:border-0">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="font-semibold text-foreground text-[13.5px]">{c.name}</span>
-        <span className="text-[11px] text-muted-foreground">vendor {c.kind}</span>
-        <span className="text-[11px] font-semibold" style={{ color: c.enabled ? "var(--sev-low)" : "hsl(var(--muted-foreground))" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, borderBottom: "1px solid var(--bd)", padding: "12px 0" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "2px 12px" }}>
+        <span style={{ fontSize: 13.5, fontWeight: 600 }}>{c.name}</span>
+        <span className="is-mut" style={{ fontSize: 11 }}>vendor {c.kind}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: c.enabled ? "var(--low)" : "var(--mut)" }}>
           {c.enabled ? "enabled" : "disabled"}
         </span>
-        <span className="text-[11px] text-muted-foreground">every {c.interval ?? 60}s</span>
-        <span className="text-[11px] text-muted-foreground">{c.hasToken ? "token set" : "no token"}</span>
+        <span className="is-mut" style={{ fontSize: 11 }}>every {c.interval ?? 60}s</span>
+        <span className="is-mut" style={{ fontSize: 11 }}>{c.hasToken ? "token set" : "no token"}</span>
       </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
-        <span>last run: <span className="text-foreground">{c.lastRun ? new Date(c.lastRun).toLocaleString() : "never"}</span></span>
-        {c.lastError && <span style={{ color: "var(--sev-critical)" }}>last error: {c.lastError}</span>}
+      <div className="is-mut" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "2px 16px", fontSize: 11 }}>
+        <span>last run: <span style={{ color: "var(--ink)" }}>{c.lastRun ? new Date(c.lastRun).toLocaleString() : "never"}</span></span>
+        {c.lastError && <span style={{ color: "var(--crit)" }}>last error: {c.lastError}</span>}
       </div>
-      <div className="flex items-center gap-2 pt-1">
-        <button onClick={() => toggle.mutate()} disabled={toggle.isPending}
-          className="rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 transition-colors">
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+        <button className="is-btn" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
           {c.enabled ? "Disable" : "Enable"}
         </button>
-        <button onClick={() => poll.mutate()} disabled={poll.isPending}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 transition-colors">
-          <RefreshCw className="h-3 w-3" strokeWidth={1.8} aria-hidden />
+        <button className="is-btn" onClick={() => poll.mutate()} disabled={poll.isPending}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <RefreshCw size={12} aria-hidden />
           {poll.isPending ? "Polling…" : "Poll now"}
         </button>
-        {msg && <span className="text-[11.5px] text-muted-foreground">{msg}</span>}
+        {msg && <span className="is-mut" style={{ fontSize: 11.5 }}>{msg}</span>}
       </div>
     </div>
   );
@@ -166,49 +150,40 @@ function ConnectorList() {
   const { data } = useQuery({ queryKey: ["oem", "connectors"], queryFn: api.oemConnectors, refetchInterval: 5000 });
   const items = data?.connectors ?? [];
   return (
-    <Card className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <CardHeader className="p-4 pb-3 border-b border-border">
-        <CardTitle className="flex items-center gap-2 text-[14px] font-semibold">
-          <Cable className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} aria-hidden />
-          Connectors ({items.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-2">
-        {items.length === 0 ? (
-          <p className="text-[12.5px] text-muted-foreground py-2">
-            No OEM connectors yet. Add one above — when enabled and pointed at a real vendor API,
-            the engine polls it on its interval and records events in the store.
-          </p>
-        ) : (
-          <div className="flex flex-col">
-            {items.map((c) => <ConnectorRow key={c.name} c={c} />)}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="is-panel" style={{ alignSelf: "start" }}>
+      <div className="is-panel__h"><h3 style={{ display: "flex", alignItems: "center", gap: 7 }}><Cable size={15} aria-hidden /> Connectors ({items.length})</h3></div>
+      {items.length === 0 ? (
+        <p className="is-mut" style={{ fontSize: 12.5, margin: 0 }}>
+          No OEM connectors yet. Add one above — when enabled and pointed at a real vendor API, the engine
+          polls it on its interval and records events in the store.
+        </p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {items.map((c) => <ConnectorRow key={c.name} c={c} />)}
+        </div>
+      )}
+    </div>
   );
 }
 
 export function OemEngine() {
   const { error } = useQuery({ queryKey: ["oem", "connectors"], queryFn: api.oemConnectors });
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="rounded-xl border border-dashed border-border bg-card">
-        <CardContent className="p-4 text-[12.5px] text-muted-foreground leading-relaxed">
-          <b className="text-foreground">OEM &amp; Vendor API Connectors.</b> Read-only connectors that poll a vendor's events feed into the persistent store.
-          Credentials are user-supplied and stored masked; last-run and last-error are the real poll
-          outcome — never a fabricated “connected”.
-        </CardContent>
-      </Card>
+    <>
+      <div className="is-note">
+        <b>Read-only OEM/API connectors.</b> They poll a vendor's events feed into the persistent store.
+        Credentials are user-supplied and stored masked; last-run and last-error are the real poll
+        outcome — never a fabricated “connected”.
+      </div>
       {error && (
-        <p className="text-[12.5px] text-muted-foreground">
+        <p className="is-mut" style={{ fontSize: 12.5 }}>
           Backend not reachable — start the console server to manage connectors.
         </p>
       )}
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <div className="is-grid-2">
         <AddConnector />
         <ConnectorList />
       </div>
-    </div>
+    </>
   );
 }

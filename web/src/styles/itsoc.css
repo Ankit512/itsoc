@@ -371,3 +371,10 @@
 
 /* Command palette — grouped section headings (Screens / Actions / Ask itsoc) */
 .is-palette__group{ padding:8px 12px 4px; font-size:10px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--mut2); }
+
+/* ---- v3 pages-B (Jim) — additions used by Track B page interiors ---------- */
+/* Segmented Dark | Light control on Settings › Appearance (v3 dc): a recessed
+   --inset track holding two is-btn segments; the active one is accent-filled. */
+.is-seg{ display:inline-flex; gap:3px; padding:3px; background:var(--inset); border:1px solid var(--bd); border-radius:var(--radius-sm); }
+.is-seg .is-btn{ padding:5px 12px; font-size:12px; border-color:transparent; background:transparent; }
+.is-seg .is-btn--primary{ border-color:var(--acc); background:var(--acc); color:var(--acc-ink); }

@@ -20,7 +20,7 @@ function ScanStatus({ status }: { status?: DiscoveryStatus }) {
   const running = !!status?.running;
   return (
     <div className="is-panel">
-      <div className="is-panel__h"><h3>◉ Scan status</h3></div>
+      <div className="is-panel__h"><h3>Scan status</h3></div>
       <Fact label="State">
         <span style={{ color: running ? "var(--low)" : "var(--mut)" }}>
           {running ? "Scanning…" : status?.finishedAt ? "Idle (last scan complete)" : "Idle"}
@@ -64,7 +64,7 @@ function Controls({ status }: { status?: DiscoveryStatus }) {
 
   return (
     <div className="is-panel">
-      <div className="is-panel__h"><h3>◎ Scan a private network or host</h3></div>
+      <div className="is-panel__h"><h3>Scan a private network or host</h3></div>
       <p className="is-mut" style={{ fontSize: 12, lineHeight: 1.5, margin: "0 0 4px" }}>
         Runs real <span className="is-mono" style={{ color: "var(--acc)" }}>nmap</span> against the target and records
         every host it observes in the persistent store. A vulnerability scan additionally runs nmap's NSE{" "}
