@@ -188,8 +188,40 @@
 .is-block.med .verdict{ color:var(--med); } .is-block.low .verdict{ color:var(--low); }
 .is-block p{ margin:0; font-size:12.5px; line-height:1.55; color:var(--ink2); }
 .is-evidence{ margin:0; background:var(--inset); border:1px solid var(--bd); border-left:3px solid var(--acc); border-radius:var(--radius-sm); padding:11px 13px; font-family:var(--mono); font-size:11.5px; line-height:1.7; overflow-x:auto; white-space:pre-wrap; word-break:break-word; }
-.is-evidence .ln{ color:var(--mut); margin-right:10px; }
+.is-evidence .ln{ color:var(--mut2); margin-right:10px; }
+.is-evidence .eline{ display:block; }
+.is-evidence .eline.crit{ color:var(--crit); }
 .is-evidence mark{ background:var(--acc-weak); color:var(--acc); padding:0 2px; border-radius:3px; }
+
+/* ---- 12b. INCIDENT / RCA v3 composition (center + right rail) ---------- */
+.is-rca-layout{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start; }
+.is-rca-center{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+.is-rca-rail{ display:flex; flex-direction:column; gap:14px; position:sticky; top:0; }
+.is-crumb{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mut2); }
+.is-crumb__link{ background:none; border:none; padding:0; color:var(--acc); cursor:pointer; font-size:12px; }
+.is-crumb__link:hover{ text-decoration:underline; }
+.is-crumb .sep{ color:var(--mut2); }
+.is-rca-head{ display:flex; align-items:center; gap:12px; }
+.is-rca-head .ttl{ flex:1; min-width:0; font-size:20px; font-weight:600; letter-spacing:-.015em; margin:0; }
+/* Attack timeline */
+.is-tl__axis{ position:relative; height:72px; margin:2px 4px; }
+.is-tl__line{ position:absolute; left:0; right:0; bottom:24px; height:1px; background:var(--bd); }
+.is-tl__tick{ position:absolute; bottom:19px; width:2px; height:11px; transform:translateX(-1px); }
+.is-tl__dot{ position:absolute; bottom:18px; width:11px; height:11px; border-radius:50%; border:2px solid var(--pan); transform:translateX(-5px); }
+.is-tl__dotlabel{ position:absolute; bottom:16px; left:50%; transform:translateX(-50%); font-size:10.5px; white-space:nowrap; }
+.is-tl__t{ position:absolute; bottom:2px; transform:translateX(-50%); font-family:var(--mono); font-size:10px; color:var(--mut2); }
+.is-tl__legend{ display:flex; gap:14px; font-size:10.5px; color:var(--mut); }
+.is-tl__legend span{ display:flex; align-items:center; gap:5px; }
+.is-tl__legend .tk{ width:2px; height:9px; } .is-tl__legend .dt{ width:8px; height:8px; border-radius:50%; }
+/* Chain technique pills */
+.is-chain{ display:flex; gap:12px; align-items:center; font-size:12px; padding-top:4px; }
+.is-chain .lbl{ width:56px; flex:none; font-size:10px; font-weight:600; letter-spacing:.08em; color:var(--mut2); }
+.is-chain .pills{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.is-chip--tech{ font-family:var(--mono); font-size:10.5px; color:var(--acc); border:1px solid color-mix(in srgb,var(--acc) 30%,transparent); background:color-mix(in srgb,var(--acc) 8%,transparent); border-radius:4px; padding:2px 7px; }
+/* Sparkline honest-n/a card */
+.is-spark-na{ border:1px dashed var(--bd); border-radius:var(--radius-sm); padding:14px; text-align:center; }
+.is-facts-row .na{ color:var(--mut); font-weight:400; }
+@media(max-width:1080px){ .is-rca-layout{ grid-template-columns:1fr; } .is-rca-rail{ position:static; } }
 .is-predicate{ font-family:var(--mono); font-size:11px; line-height:1.6; color:var(--ink2); white-space:pre-wrap; }
 .is-predicate .kw{ color:var(--acc); }
 

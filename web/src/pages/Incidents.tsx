@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { api, INCIDENT_STATES, type Incident, type IncidentState, type Rca } from "@/lib/api";
@@ -103,7 +103,189 @@ function RcaPanel({ incidentId }: { incidentId: string }) {
   );
 }
 
-function IncidentDetail({ inc }: { inc: Incident }) {
+/** Parse "HH:MM:SS" or an ISO stamp to a comparable ms value; null if neither. */
+function toMs(t?: string | null): number | null {
+  if (!t) return null;
+  const iso = Date.parse(t);
+  if (!Number.isNaN(iso)) return iso;
+  const m = /^(\d{1,2}):(\d{2}):(\d{2})/.exec(t);
+  if (m) return ((+m[1]) * 3600 + (+m[2]) * 60 + (+m[3])) * 1000;
+  return null;
+}
+type TickKind = "fail" | "ok" | "c2" | "other";
+function kindOf(rule?: string, label?: string): TickKind {
+  const s = `${rule ?? ""} ${label ?? ""}`.toLowerCase();
+  if (/c2|outbound|beacon|block|exfil|callback/.test(s)) return "c2";
+  if (/success|accepted|login ok|logged in|granted/.test(s)) return "ok";
+  if (/fail|invalid|brute|denied|refused|bad/.test(s)) return "fail";
+  return "other";
+}
+const KIND_VAR: Record<TickKind, string> = {
+  fail: "var(--crit)", ok: "var(--low)", c2: "var(--high)", other: "var(--mut)",
+};
+
+/** Attack-timeline card (v3): a hairline axis with the cluster's real sub-events
+ *  positioned by time — failed-login ticks, and OK/C2 marker dots when such an
+ *  event actually occurred. Positions are derived from the events' own stamps;
+ *  honest empty when the cluster has no sub-event timeline. */
+function AttackTimeline({ incidentId }: { incidentId: string }) {
+  const { data } = useQuery({ queryKey: ["rca", incidentId], queryFn: () => api.incidentRca(incidentId) });
+  const rca = data && !("error" in data) && "facts" in data ? (data as Rca) : null;
+  const events = rca?.facts.timeline ?? [];
+
+  const card = (body: ReactNode) => (
+    <section className="is-panel is-tl">
+      <div className="is-panel__h"><h3>Attack timeline</h3></div>
+      {body}
+    </section>
+  );
+
+  if (!events.length) {
+    return card(
+      <p className="is-mut" style={{ fontSize: "11.5px" }}>
+        No sub-event timeline for this cluster — the correlated findings carry no ordered events.
+      </p>,
+    );
+  }
+
+  const stamps = events.map((e) => toMs(e.t));
+  const known = stamps.filter((v): v is number => v != null);
+  const min = known.length ? Math.min(...known) : 0;
+  const max = known.length ? Math.max(...known) : 0;
+  const span = max - min;
+  const pctFor = (i: number) => {
+    const v = stamps[i];
+    if (v == null || span <= 0) return events.length > 1 ? 8 + (i / (events.length - 1)) * 80 : 48;
+    return 8 + ((v - min) / span) * 80;
+  };
+
+  const first = events.find((e) => e.t)?.t;
+  const last = [...events].reverse().find((e) => e.t)?.t;
+
+  return card(
+    <>
+      <div className="is-tl__axis" role="img" aria-label="attack timeline">
+        <div className="is-tl__line" />
+        {events.map((e, i) => {
+          const kind = kindOf(e.rule, e.label);
+          const left = `${pctFor(i)}%`;
+          const title = `${e.t || "—"} · ${e.label}${e.rule ? ` [${e.rule}]` : ""}`;
+          if (kind === "ok" || kind === "c2") {
+            return (
+              <span key={i} className="is-tl__dot" style={{ left, background: KIND_VAR[kind] }} title={title}>
+                <span className="is-tl__dotlabel" style={{ color: KIND_VAR[kind] }}>
+                  {kind === "ok" ? "login OK" : "C2 blocked"}
+                </span>
+              </span>
+            );
+          }
+          return <span key={i} className="is-tl__tick" style={{ left, background: KIND_VAR[kind] }} title={title} />;
+        })}
+        {first && <span className="is-tl__t" style={{ left: "8%" }}>{first.slice(-8)}</span>}
+        {last && last !== first && <span className="is-tl__t" style={{ left: "88%" }}>{last.slice(-8)}</span>}
+      </div>
+      <div className="is-tl__legend">
+        <span><i className="tk" style={{ background: "var(--crit)" }} />failed login</span>
+        <span><i className="dt" style={{ background: "var(--low)" }} />login OK</span>
+        <span><i className="dt" style={{ background: "var(--high)" }} />C2 blocked</span>
+      </div>
+    </>,
+  );
+}
+
+/** Verbatim evidence — the real log lines from the incident's member findings
+ *  (console_state), never generated. Honest note when the members aren't in the
+ *  loaded run. */
+function EvidenceCard({ inc }: { inc: Incident }) {
+  const { data, isError } = useQuery({ queryKey: ["console-state"], queryFn: api.consoleState });
+  const byId = new Map((data?.findings ?? []).map((f) => [f.id, f]));
+  const members = inc.findingIds.map((id) => byId.get(id)).filter((f): f is NonNullable<typeof f> => !!f);
+  const lines = members.flatMap((f) => f.lines ?? []);
+
+  return (
+    <section className="is-panel">
+      <div className="is-panel__h"><h3>Evidence — verbatim log lines</h3></div>
+      {lines.length ? (
+        <>
+          <pre className="is-evidence" data-testid="incident-evidence">
+            {lines.map((l, i) => (
+              <div key={i} className={l.crit ? "eline crit" : "eline"}>
+                <span className="ln">{l.n}</span>
+                {l.a}
+                {l.hit && <mark>{l.hit}</mark>}
+                {l.b}
+              </div>
+            ))}
+          </pre>
+          <div className="is-mono is-mut2" style={{ fontSize: "10.5px", marginTop: 8 }}>
+            verbatim from the source log — nothing generated
+          </div>
+        </>
+      ) : (
+        <p className="is-mut" style={{ fontSize: "11.5px" }}>
+          {isError || !data
+            ? "The member findings for this cluster aren't in the loaded run — no verbatim evidence to show."
+            : "No stored evidence lines on this cluster's member findings."}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Right rail for the selected incident: real Properties + an honest-n/a
+ *  brute-force sparkline card. (The itsoc-analyst card is the shell copilot,
+ *  present shell-wide as the docked rail/launcher — not duplicated here.) */
+function IncidentRail({ inc }: { inc: Incident }) {
+  const rows: [string, ReactNode][] = [
+    ["Severity", <SevTag key="s" sev={inc.severity} />],
+    ["State", <StateChip key="st" state={inc.state} />],
+    ["Entity", <span key="e" className="is-mono">{inc.entity}</span>],
+    ["Findings", <span key="f" className="is-tnum">{inc.findingCount}</span>],
+    ["First seen", <span key="fs" className={inc.firstSeen ? "is-mono" : "na"}>{inc.firstSeen ?? "n/a"}</span>],
+    ["Last seen", <span key="ls" className={inc.lastSeen ? "is-mono" : "na"}>{inc.lastSeen ?? "n/a"}</span>],
+  ];
+  return (
+    <aside className="is-rca-rail">
+      <section className="is-panel">
+        <div className="is-panel__h"><h3>Properties</h3></div>
+        <div className="is-facts">
+          {rows.map(([label, val]) => (
+            <div key={label} className="is-facts-row">
+              <span>{label}</span>
+              <b>{val}</b>
+            </div>
+          ))}
+          <div className="is-facts-row">
+            <span>Techniques</span>
+            <b>
+              {inc.techniques.length ? (
+                <span className="flex flex-wrap gap-1" style={{ justifyContent: "flex-end" }}>
+                  {inc.techniques.map((t) => (
+                    <span key={t.id} className="is-chip--tech" title={`${t.id} · ${t.name} · ${t.tactic}`}>{t.id}</span>
+                  ))}
+                </span>
+              ) : (
+                <span className="na">n/a</span>
+              )}
+            </b>
+          </div>
+        </div>
+      </section>
+
+      <section className="is-panel">
+        <div className="is-panel__h"><h3>Brute-force on {inc.entity} · last 7 runs</h3></div>
+        <div className="is-spark-na">
+          <div className="is-mono na" style={{ fontSize: 13 }}>n/a — needs ≥2 runs</div>
+          <p className="is-mut2" style={{ fontSize: "10.5px", marginTop: 6, lineHeight: 1.5 }}>
+            A cross-run trend isn't computed in this build — no direction or forecast is claimed.
+          </p>
+        </div>
+      </section>
+    </aside>
+  );
+}
+
+function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) {
   const qc = useQueryClient();
   const mutation = useMutation({
     mutationFn: (state: IncidentState) => api.setIncidentState(inc.id, state),
@@ -113,109 +295,115 @@ function IncidentDetail({ inc }: { inc: Incident }) {
     },
   });
 
-  const facts: [string, string | null][] = [
-    ["Detected (earliest finding)", inc.createdAt],
-    ["First seen", inc.firstSeen],
-    ["Last seen", inc.lastSeen],
-    ["Acknowledged", inc.acknowledgedAt],
-    ["Resolved", inc.resolvedAt],
-  ];
+  const spanLabel = (() => {
+    const a = toMs(inc.firstSeen), b = toMs(inc.lastSeen);
+    if (a == null || b == null || b < a) return null;
+    const s = Math.round((b - a) / 1000);
+    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+  })();
 
   return (
-    <div className="is-md__detail">
-      <div className="is-detail-head">
-        <SevTag sev={inc.severity} />
-        <StateChip state={inc.state} />
-        <span className="id">{inc.id}</span>
-      </div>
-      <h2>{inc.entity} — {inc.findingCount} correlated finding(s)</h2>
-      <div className="is-detail-meta">
-        {inc.title} · detected {inc.createdAt ? inc.createdAt.slice(11, 19) : "n/a"}
-        <span className="is-ro">severity is rule-owned</span>
-      </div>
-
-      {/* Lifecycle — analyst-owned, real stamps */}
-      <div className="is-lifecycle">
-        <div className="cap">Lifecycle · analyst-owned</div>
-        <div className="steps">
-          {INCIDENT_STATES.map((s) => (
-            <button
-              key={s}
-              className={cn("step", s === inc.state && "on")}
-              style={{ textTransform: "capitalize" }}
-              disabled={s === inc.state || mutation.isPending}
-              onClick={() => mutation.mutate(s)}
-              title={s === inc.state ? "Current state" : `Move to ${s}`}
-            >
-              {s}
-            </button>
-          ))}
+    <div className="is-rca-layout">
+      <div className="is-rca-center">
+        {/* Breadcrumb — 'Incidents / <id>' */}
+        <div className="is-crumb">
+          <button className="is-crumb__link" onClick={onBack}>Incidents</button>
+          <span className="sep">/</span>
+          <span className="is-mono is-mut">{inc.id}</span>
         </div>
-        {mutation.isError && (
-          <p style={{ marginTop: 8, fontSize: "11.5px", color: "var(--crit)" }}>{(mutation.error as Error).message}</p>
-        )}
-      </div>
 
-      <div className="is-vgrid">
-        <div className="is-facts">
-          <div className="cap">Timestamps · from the log, not wall-clock</div>
-          {facts.map(([label, val]) => (
-            <div key={label} className="is-facts-row">
-              <span>{label}</span>
-              <b className={val ? "is-mono" : "na"}>{val ?? "n/a"}</b>
+        {/* Header: severity pill + title + state */}
+        <div className="is-rca-head">
+          <SevTag sev={inc.severity} />
+          <h2 className="ttl">{inc.title || `${inc.entity} — ${inc.findingCount} correlated finding(s)`}</h2>
+          <StateChip state={inc.state} />
+        </div>
+        <div className="is-detail-meta">
+          <span className="is-mono">{inc.entity}</span>
+          {" · "}detected {inc.createdAt ? inc.createdAt.slice(11, 19) : "n/a"}
+          {spanLabel && <> · span {spanLabel}</>}
+          {" · "}{inc.findingCount} correlated finding(s)
+          <span className="is-ro">severity is rule-owned</span>
+        </div>
+
+        {/* Attack timeline (real sub-events, positioned by time) */}
+        <AttackTimeline incidentId={inc.id} />
+
+        {/* Root cause — advisory territory (§3) */}
+        <section className="is-panel" data-testid="rca-panel">
+          <div className="is-panel__h" style={{ justifyContent: "space-between" }}>
+            <h3>Root cause</h3>
+            <span className="is-chip is-chip--adv">advisory · hypothesis · not a verdict</span>
+          </div>
+          <RcaPanel incidentId={inc.id} />
+          {/* Chain — MITRE technique pills (derived tags, not verdicts) */}
+          <div className="is-chain">
+            <span className="lbl">CHAIN</span>
+            {inc.techniques.length ? (
+              <span className="pills">
+                {inc.techniques.map((t, i) => (
+                  <span key={t.id} className="flex items-center gap-1.5">
+                    {i > 0 && <span className="is-mut2">→</span>}
+                    <span className="is-chip--tech" title={`${t.id} · ${t.name} · ${t.tactic} — derived, does not affect severity`}>{t.id}</span>
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className="is-mut" style={{ fontSize: "11.5px" }}>no techniques mapped</span>
+            )}
+          </div>
+          {inc.attackerStatus && (
+            <div style={{ fontSize: "11.5px" }}>
+              <span className="is-mut">Kill-chain phase: </span>
+              <span title="Derived grouping of member tactics — a display aid, not a verdict">{inc.attackerStatus}</span>
             </div>
-          ))}
+          )}
+        </section>
+
+        {/* Verbatim evidence */}
+        <EvidenceCard inc={inc} />
+
+        {/* Correlated findings + lifecycle (analyst-owned, real stamps) */}
+        <section className="is-panel">
+          <div className="is-panel__h"><h3>{inc.findingCount} correlated finding(s)</h3></div>
+          <div className="flex flex-wrap gap-1.5">
+            {inc.findingIds.map((fid) => (
+              <a key={fid} href={`/alerts?sel=${encodeURIComponent(fid)}`}
+                className="is-tag is-tag--info is-mono" title="Open this finding in Findings">
+                {fid}
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <div className="is-lifecycle">
+          <div className="cap">Lifecycle · analyst-owned</div>
+          <div className="steps">
+            {INCIDENT_STATES.map((s) => (
+              <button
+                key={s}
+                className={cn("step", s === inc.state && "on")}
+                style={{ textTransform: "capitalize" }}
+                disabled={s === inc.state || mutation.isPending}
+                onClick={() => mutation.mutate(s)}
+                title={s === inc.state ? "Current state" : `Move to ${s}`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          {mutation.isError && (
+            <p style={{ marginTop: 8, fontSize: "11.5px", color: "var(--crit)" }}>{(mutation.error as Error).message}</p>
+          )}
           {inc.timeUncertain && (
             <p className="is-mut" style={{ marginTop: 8, fontSize: 11 }}>
               A member finding had no timestamp — it joined this cluster's first group.
             </p>
           )}
         </div>
-
-        <div className="is-facts">
-          <div className="cap">MITRE techniques · derived tags, not verdicts</div>
-          {inc.techniques.length ? (
-            <div className="flex flex-wrap gap-1.5">
-              {inc.techniques.map((t) => (
-                <span key={t.id} className="is-tid" title={`${t.id} · ${t.name} · ${t.tactic} — derived, does not affect severity`}>
-                  {t.id}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="is-mut" style={{ fontSize: "11.5px" }}>No techniques mapped.</p>
-          )}
-          {inc.attackerStatus && (
-            <div style={{ marginTop: 10, fontSize: "11.5px" }}>
-              <span className="is-mut">Kill-chain phase: </span>
-              <span title="Derived grouping of member tactics — a display aid, not a verdict" style={{ fontWeight: 500 }}>
-                {inc.attackerStatus}
-              </span>
-            </div>
-          )}
-        </div>
       </div>
 
-      <div className="is-facts">
-        <div className="cap">{inc.findingCount} correlated finding(s)</div>
-        <div className="flex flex-wrap gap-1.5">
-          {inc.findingIds.map((fid) => (
-            <a key={fid} href={`/alerts?sel=${encodeURIComponent(fid)}`}
-              className="is-tag is-tag--info is-mono" title="Open this finding in Findings">
-              {fid}
-            </a>
-          ))}
-        </div>
-      </div>
-
-      {/* Root cause — advisory territory (§3) */}
-      <div className="is-rca" data-testid="rca-panel" style={{ borderStyle: "dashed" }}>
-        <div className="h">
-          <b>Root cause</b>
-          <span className="is-chip is-chip--adv">advisory · hypothesis · not a verdict</span>
-        </div>
-        <RcaPanel incidentId={inc.id} />
-      </div>
+      <IncidentRail inc={inc} />
     </div>
   );
 }
@@ -232,12 +420,17 @@ export function Incidents() {
   const incidents = data?.incidents ?? [];
   const selId = params.get("sel");
   const selected = incidents.find((i) => i.id === selId) ?? null;
+  const clearSel = () => setParams({});
 
   if (isLoading) return <p className="is-mut">Loading incidents…</p>;
   if (isError) {
     return <div className="is-note">Couldn't load incidents — {(error as Error).message}</div>;
   }
 
+  // Selected → the v3 single-incident RCA composition (center + right rail).
+  if (selected) return <IncidentDetail inc={selected} onBack={clearSel} />;
+
+  // Otherwise → the incident index: filter + list, honest empty state.
   return (
     <>
       <div className="flex flex-wrap items-center gap-2.5">
@@ -263,7 +456,7 @@ export function Incidents() {
             : "No incidents yet — an incident is a correlated cluster of the current run's findings. Analyze a log with findings and they'll appear here."}
         </div>
       ) : (
-        <div className={cn("is-md", !selected && "!grid-cols-1")}>
+        <div className="is-md !grid-cols-1">
           <div className="is-md__list">
             <div className="overflow-auto max-h-[60vh]">
               <table className="is-table">
@@ -281,7 +474,7 @@ export function Incidents() {
                       key={inc.id}
                       data-testid="incident-row"
                       onClick={() => setParams({ sel: inc.id })}
-                      className={cn(selected?.id === inc.id && "active")}
+                      className="cursor-pointer"
                     >
                       <td><SevTag sev={inc.severity} /></td>
                       <td><StateChip state={inc.state} /></td>
@@ -296,8 +489,6 @@ export function Incidents() {
               </table>
             </div>
           </div>
-
-          {selected && <IncidentDetail inc={selected} />}
         </div>
       )}
     </>
