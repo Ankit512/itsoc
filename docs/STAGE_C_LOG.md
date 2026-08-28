@@ -87,3 +87,76 @@ vitest 107/107 ✓ · `run_eval` 17/17 f1 1.000 ✓ · `console/test_console.py`
    contract changed.
 4. Pre-existing `ResourceWarning: unclosed file` noise from `normalize.py:226/229/251/254`. Not
    introduced here, outside the allowlist.
+
+### C0-T1 · Runbook schema + eligibility engine — **ACCEPTED** (commit `0e7af92`, Claude Code worker)
+
+**Schema.** `console/runbooks.py`: `id`, `name`, `trigger{rule_ids, entity_types}`,
+`preconditions{required_evidence}`, `steps[{type: action|notify_draft, connector, params_template,
+rollback}]`, `severity_floor`. Every field required; unknown fields rejected; `rollback` must be a
+mapping or an **explicit null** (absent != safe). Shipped `rb-block-ip` and `rb-draft-notify`.
+
+**Standing invariant — "no LLM parameter in `eligible()`'s signature" — VERIFIED BY god INDEPENDENTLY**
+(live `inspect.signature`, not the worker's claim):
+```
+SIG: (runbook, incident, findings)
+VAR_ARGS PRESENT: []          # no *args, no **kwargs — nothing can be smuggled in under any name
+LLM-ISH PARAM NAMES: []
+```
+Ineligibility is structural twice over: (1) signature closure as above; (2) **data closure** —
+`_rule_facts()` projects incident + member findings through `RULE_OWNED_*_KEYS` allowlists before any
+predicate runs, so `llmSev`/`llmWhy`/`explanation` are *absent* from what the engine sees rather than
+filtered afterward. `ADVISORY_KEYS` is asserted disjoint from both allowlists.
+
+**god adversarial test (beyond the card).** Poisoned an incident and all member findings with
+`llmSev: CRITICAL`, `llmWhy`, `explanation`, `advisory` in every plausible slot:
+- advisory could **not force** eligibility -> still `False`
+- advisory could **not suppress** an otherwise-identical verdict -> `missing` list byte-identical to baseline
+- the engine *did* respond to the rule-owned `severity` field (INFO -> "below the HIGH floor"), i.e. it
+  honors rule data and ignores advisory data. Correct on both sides.
+
+**god non-vacuity check (beyond the card).** A guarantee that always returns `False` would make every
+test above pass vacuously. Confirmed the positive path is reachable:
+`eligible -> {'eligible': True, 'missing': []}` on a well-formed brute-force incident.
+
+**Test-weakening check.** The 2 deletions in `test_console.py` are only the main() aggregation
+condition and the summary string, both replaced by extended versions including `runbooks`. No existing
+check modified or weakened (verified by god via `git diff -U0 | grep '^-'`).
+
+**Diff:** 4 files, +696 / -2 — `console/runbooks.py` (384), `rb-block-ip.yaml` (50),
+`rb-draft-notify.yaml` (44), `console/test_console.py` (+220/-2). Allowlist-clean.
+
+| # | Acceptance | Result (god-verified) |
+|---|---|---|
+| a | eligibility units + `inspect.signature` no-override property | **PASS** — 43 checks; signature re-verified live by god |
+| b | missing-evidence -> structural `missing: [...]` | **PASS** — names each absent key individually |
+| c | both runbooks load/validate; violations rejected honestly | **PASS** — 8 rejection cases all raise `RunbookError` |
+| d | `console/test_console.py` | **PASS** — `… + runbooks checks green` |
+| e | `tests/eval/run_eval.py` | **PASS** — 17/17, f1 1.000 |
+| f | `tests/test_intake.py` | **PASS** — 4/4 OK |
+| g | vitest / build | **PASS** — 26 files, 107/107; built in 6.32s |
+| h | detector sha | **PASS** — `364577c5…a4a876` |
+| i | diff inside allowlist | **PASS** — the 4 files above only |
+
+**Honesty spot-check (forced empty/failure states).** Incident with no matching runbook ->
+`match_runbooks -> []`; empty is genuinely empty, no fallback runbook, no default-to-eligible path,
+and `evaluate_all` still explains *why* each declined. Preconditions entirely unmet -> 8 named misses,
+nothing invented; severity reported as *unknown* rather than assumed. Absent runbook directory -> `{}`,
+not an invented default. Unparseable file -> loud `RunbookError`, not a silently-skipped file.
+
+### Findings carried forward from C0-T1 (logged, not absorbed)
+
+5. **PyYAML is not installed; no dependency was added.** The two runbooks keep the `.yaml` extension
+   the build doc mandates but are written in the **JSON subset of YAML** (valid YAML 1.2, parsable by
+   stdlib `json`). The loader prefers `yaml.safe_load` when PyYAML is importable, so installing it
+   later is a no-op. Cost: no YAML comments or block style. **Not a build-doc deviation** (the files
+   are `console/runbooks/*.yaml` as specified), but block YAML would need an owner dependency decision.
+6. **`console/runbooks.py` and `console/runbooks/` coexist** — both mandated by the build doc's own
+   paths. The module currently wins Python's import order (verified), but dropping an `__init__.py`
+   into the directory would shadow it. Fragile adjacency; worth a rename in a later card.
+7. **Nothing calls `eligible()` in production yet** — correct for C0 scope (C0-T2 owns the store), but
+   it is proven by tests only, not yet by a live incident path. C1/C3 must wire it.
+8. `match_runbooks()`/`evaluate_all()` re-read and re-validate from disk on every call when no dict is
+   passed. Fine at two runbooks; whoever wires this into a request path should pass a cached dict.
+9. `required_evidence` vocabulary is closed but unvalidated: a typo'd key (`record_ref`) would validate
+   and then be permanently ineligible. Fails **safe** (never falsely eligible) but fails quietly.
+   Worth a key-vocabulary check in a follow-up.
