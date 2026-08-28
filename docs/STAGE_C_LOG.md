@@ -985,3 +985,34 @@ checkout.
 - Design notes recorded: a *pending* create is deliberately NOT audited (creating a proposal is not a
   consequential act; `audit.STATUSES` covers approved/rejected/executed/failed), and approvals persist
   to `.soc/approvals.json` via `soc._save`, leaving the SQLite store schema untouched.
+
+### C3-T3 · Gated MCP `propose_block_ip` + docs honesty correction — ACCEPTED
+- Commits `adf236d` (initial), `19fcbf8` (repair C3-T3a), `73167a5` (repair C3-T3b) on `stage-c/c3-mcp`.
+  Worker: Toby. Two repair rounds; both defect classes were found by the orchestrator, not by the suite.
+- **Defect 1 (C3-T3a): advertised-but-ignored parameters.** The input schema declared `ip`
+  ("Optional IPv4 address to verify against incident entity") and `note`; the function read neither.
+  A caller could supply an address, believe they had constrained which IP gets blocked, and be wrong —
+  the same failure mode as the "read-only" claim the same commit was correcting. Also
+  `state: resp.get("state", "pending")` fabricated a backend fact when the backend returned none.
+  Resolved by removing both parameters and the default. Verified through the registered handler:
+  a call carrying `ip`/`note`/`approve`/`passphrase` sends `{incidentId, runbookId}` only, and a
+  no-state backend now yields `state: None`.
+- **Defect 2 (C3-T3b): the honesty correction stopped one file short of the published manifest.**
+  `itsoc_mcp/server.json:4` and `PUBLISHING.md:22,26` still said "read-only" / "Tools (all read-only)".
+  `server.json` is the description published to the MCP registry — correcting the in-repo files while
+  leaving the public manifest false would have left the honest statement in the one place nobody
+  outside the repo reads. Also unmet at that point: the build doc's C3 item 3 requirement to
+  "Document in `itsoc_mcp/PUBLISHING.md` provenance". Both now done; `grep -rEi "read.only" itsoc_mcp/`
+  returns zero matches; package version deliberately not bumped.
+- Negative authority verified independently: payload carries only `incidentId`/`runbookId`; the registry
+  contains no `approve_*`/`reject_*`/`execute_*`/`revoke_*`/`remediate_*` tool; `tools.py` imports
+  neither `subprocess` nor `socket` nor the connector module.
+- Gate: MCP 131/131, console suite PASSED, approvals 14/14, fsafe 10, eval 19/19 f1 1.000, detector frozen.
+
+### Deviation register addition — D-3 (ratified by the orchestrator, disclosed to the owner)
+`73167a5` touched five files outside its card's allowlist (`client.py`, `server.py`, `tools.py`,
+`test_mcp.py`, `requirements-mcp.txt`). Every hunk is a comment, docstring or description string
+removing a stale "read-only" claim; there is no executable change. The cause was the orchestrator's
+card, whose definition of done required that no inaccurate claim survive anywhere in `itsoc_mcp/`
+while its allowlist named only three files. Ratified on that basis. This is the sixth card in this run
+whose wording caused a worker to breach or question its own allowlist — see OPEN-12.
