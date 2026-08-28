@@ -611,3 +611,92 @@ entries.
 A phase whose acceptance is **fully green** with zero tripwires and zero **unratified** deviations
 **auto-merges to local `main` and proceeds without asking**. The C0 ask was justified by a non-green
 acceptance item plus open kickoff questions; clean gates will not wait from C1 onward.
+
+---
+
+## Orchestration record — worker stall, liveness doctrine, phase-order audit (2026-08-28)
+
+### Meredith stalled — card reassigned (owner-ratified)
+
+`meredith-mtconud5` never activated: **0 tokens, `lastTool: null`, `lastActiveSecAgo: null`, empty
+`memory.md`**, and **two `Circuit breaker: steer` notices** queued in its inbox alongside its card.
+Its card (`prep-c1-sources-nav`, read-only) was **reassigned to Toby**, who already produced the
+read-only C5 inventory covering the collector *backend*, so the frontend half pairs naturally.
+
+Per the documented lesson from an earlier effort, **no replacement agent was spawned** — respawning on
+a stall produced reassignment churn historically. Owner ratified.
+**Standing rule:** if Meredith's slot recovers it takes a **new** card from the queue; the moved card
+does not move back.
+
+### Liveness doctrine — STANDING, not a footnote
+
+> **Delivery is the liveness signal. `fleet.json` token counts and `lastTool` are unreliable and must
+> NEVER be the basis for declaring a worker stalled or alive.**
+
+Evidence: Toby and Oscar both read `tokens: 0, lastTool: null` in `fleet.json` while having each
+delivered four and three completed cards respectively.
+
+**Required diagnostic sequence before declaring any stall** (this is what was actually done for
+Meredith): (1) check whether the agent has ever **delivered** a message; (2) read its
+`agents/<id>/memory.md`; (3) read its `agents/<id>/inbox/` for queued work and breaker notices. Only
+then may a stall be declared. Recorded in `hive/stage-c/GUARDRAILS.md` for all workers.
+
+### PHASE-ORDER AUDIT — no breach. Prep-only confirmed.
+
+The owner flagged a possible phase-ordering breach based on orchestrator wording. **Audited; no breach.**
+
+**Orchestrator wording correction.** "Toby already owns the collector backend from C5" was sloppy and
+is withdrawn. The accurate statement: *Toby produced a **read-only prep inventory** of the collector
+backend in preparation for C5.* No C5 work has executed. Likewise "delivered three completed cards"
+meant three cards **of which the post-C0 ones were all read-only inventories** — it did not mean three
+phases of implementation.
+
+**(a) Cards delivered, by id and phase:**
+
+| Worker | Card | Phase | Type | Evidence |
+|---|---|---|---|---|
+| Toby | `C0-T4` terminology sweep | **C0** | EXECUTION | commit `141db71` (+ god fix `649aea4`) |
+| Toby | `prep-c1-intel-network` | C1 prep | **READ-ONLY** | no commit |
+| Toby | `prep-c2-seams` | C2 prep | **READ-ONLY** | no commit |
+| Toby | `prep-c5-backpressure` | C5 prep | **READ-ONLY** | no commit |
+| Toby | `prep-c1-sources-nav` (reassigned) | C1 prep | **READ-ONLY** | in flight |
+| Oscar | `C0-T6` offline TI repair | **C0** | EXECUTION | commit `7db891b` |
+| Oscar | `prep-c4-designsystem` | C4 prep | **READ-ONLY** | no commit |
+| Oscar | `prep-c3-mcp` | C3 prep | **READ-ONLY** | no commit |
+| Pam | `mitre-cache-diagnosis`, `prep-c1-cases` | C0/C1 | **READ-ONLY** | no commit |
+| Pam | `prep-c3-auth` | C3 prep | **READ-ONLY** | in flight |
+| Jim | `C0-T5` MCP assertion | **C0** | EXECUTION | commit `261f226` |
+| Jim | `prep-c3-target` | C3 prep | **READ-ONLY** | in flight |
+
+**Every execution card is phase C0. Every post-C0 card is read-only inventory.**
+
+**(b) Has any C2+ card begun executing? NO.** Proof:
+```
+$ ls console/investigate.py console/org_context.py console/actions/ console/approvals.py
+ls: console/investigate.py:  No such file or directory
+ls: console/org_context.py:  No such file or directory
+ls: console/actions/:        No such file or directory
+ls: console/approvals.py:    No such file or directory
+```
+None of the C2/C3/C4 implementation surfaces exist. And every file touched since Stage C began
+(`git diff --name-only e8ca0b7..HEAD`) is C0-scope: `console/audit.py`, `console/fsafe.py`,
+`console/runbooks.py` + the 2 runbook yaml, `console/store.py`, `console/test_console.py`,
+`console/test_fsafe.py`, `docs/*`, `itsoc_mcp/test_mcp.py`, `log_analyzer.py`, `rules_syslog.py`,
+`threat_intel/*`. Nothing from C1's screen merges, C2's investigation engine, C3's action layer, C4's
+components, or C5's back-pressure.
+
+### FINDING — foreign uncommitted work in the tree (NOT Stage C)
+
+The audit did surface something real: the working tree is **not clean**, and the changes are **not
+ours**. See **OPEN-4** in `docs/STAGE_C_OPEN_ITEMS.md`. Summary: an independent task queue lives at
+`log-analyzer/inbox/` (untracked, **not gitignored**), and uncommitted edits implementing its card
+`006-asset-risk-weight.md` — sourced from `ITSOC_REDESIGN_SPEC.md` §Phase 4, **not** Stage C — appeared
+at 11:20-11:22, after the C0 merge at 11:01. No Stage C card allowlist includes those files. The C0
+exit gate and post-merge gate both ran **before** they appeared, so **no Stage C result is
+contaminated**. Not reverted or committed — not Stage C's to touch. Owner decision requested.
+
+### Process correction adopted (owner instruction)
+
+`docs/STAGE_C_OPEN_ITEMS.md` is now maintained as the open-items register. **Every future gating ask
+stands alone** and is quoted **verbatim** from that register, answerable without reference to prior
+conversation.
