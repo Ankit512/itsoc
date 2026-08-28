@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
-  Antenna, Bell, Cable, Database, FileText, Folder, House, Link as LinkIcon, LogOut, Monitor,
-  Radar, RefreshCw, Search, Settings, Shield, ShieldAlert, Sparkles, TriangleAlert, Upload, X,
+  Antenna, Bell, Cable, Database, FileText, House, Link as LinkIcon, LogOut, Monitor,
+  Radar, RefreshCw, Search, Settings, Shield, ShieldCheck, Sparkles, TriangleAlert, Upload, X,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -20,28 +20,24 @@ import { isBlobPageUrl, rawFileUrl } from "@/lib/rawUrl";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
-/** Core navigation per DESIGN_HANDOFF §2 (Overview · Findings · Incidents · Sources · Settings) */
+/** Core navigation per DESIGN_HANDOFF §2 + Stage C §1 consolidation (12-screen roster) */
 export const CORE_NAV = [
   { to: "/", label: "Overview", icon: House, ready: true },
   { to: "/alerts", label: "Findings", icon: Bell, ready: true },
   { to: "/incidents", label: "Incidents", icon: TriangleAlert, ready: true },
-  { to: "/collectors", label: "Sources", icon: Antenna, ready: true },
+  { to: "/approvals", label: "Approvals", icon: ShieldCheck, ready: false },
+  { to: "/intel", label: "Intel", icon: Shield, ready: true },
+  { to: "/network", label: "Network", icon: Radar, ready: true },
+  { to: "/assets", label: "Assets", icon: Monitor, ready: true },
+  { to: "/sources", label: "Sources", icon: Antenna, ready: true },
+  { to: "/history", label: "History", icon: Database, ready: true },
+  { to: "/reports", label: "Reports", icon: FileText, ready: true },
   { to: "/settings", label: "Settings", icon: Settings, ready: true },
 ] as const;
 
-/** Experimental group (off by default). Leads with the handoff's named five
- *  (Assets · Threat Intel · Discovery · Vulnerabilities · History), then the
- *  remaining real experimental pages so none is orphaned. */
+/** Experimental group (off by default). Houses OEM Engine. */
 export const EXPERIMENTAL_NAV = [
-  { to: "/assets", label: "Assets", icon: Monitor, ready: true },
-  { to: "/threat-intel", label: "Threat Intel", icon: Shield, ready: true },
-  { to: "/discovery", label: "Discovery", icon: Radar, ready: true },
-  { to: "/vulnerabilities", label: "Vulnerabilities", icon: ShieldAlert, ready: true },
-  { to: "/history", label: "History", icon: Database, ready: true },
-  { to: "/enrichment", label: "Enrichment", icon: Search, ready: true },
   { to: "/oem", label: "OEM Engine", icon: Cable, ready: true },
-  { to: "/reports", label: "Reports", icon: FileText, ready: true },
-  { to: "/cases", label: "Cases", icon: Folder, ready: true },
 ] as const;
 
 export const NAV = [...CORE_NAV, ...EXPERIMENTAL_NAV];
@@ -50,17 +46,20 @@ export const NAV = [...CORE_NAV, ...EXPERIMENTAL_NAV];
  *  a mono provenance/intent line (what this screen is honest about), never a
  *  restatement of the title. */
 const TITLES: Record<string, { title: string; subtitle: string }> = {
+  "/intel": { title: "Intel", subtitle: "feeds & live enrichment — external context" },
   "/": { title: "Overview", subtitle: "" },
   "/alerts": { title: "Findings", subtitle: "" },
   "/findings": { title: "Findings", subtitle: "" },
   "/incidents": { title: "Incidents", subtitle: "" },
+  "/approvals": { title: "Approvals", subtitle: "single authoritative approval surface — coming in C4" },
   "/collectors": { title: "Sources", subtitle: "live collectors — real listener state" },
   "/sources": { title: "Sources", subtitle: "live collectors — real listener state" },
   "/settings": { title: "Settings", subtitle: "only settings that do something" },
   "/threat-intel": { title: "Threat Intel", subtitle: "derived tags — not verdicts" },
   "/assets": { title: "Assets", subtitle: "observed entities only" },
-  "/discovery": { title: "Discovery", subtitle: "active scan — user-initiated" },
-  "/vulnerabilities": { title: "Vulnerabilities", subtitle: "CVSS band as reported · empty = unknown" },
+  "/network": { title: "Network", subtitle: "active nmap discovery & vulnerabilities" },
+  "/discovery": { title: "Network", subtitle: "active nmap discovery & vulnerabilities" },
+  "/vulnerabilities": { title: "Network", subtitle: "active nmap discovery & vulnerabilities" },
   "/enrichment": { title: "Enrichment", subtitle: "real provider responses only" },
   "/oem": { title: "OEM Engine", subtitle: "read-only connectors · credentials masked" },
   "/history": { title: "History", subtitle: "persistent event store" },

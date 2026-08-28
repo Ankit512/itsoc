@@ -208,6 +208,48 @@ export interface Incident {
   resolvedAt: string | null;
   timeUncertain: boolean;
   isRollup?: boolean;
+  // --- C1-T1: Cases absorbed into Incidents (all additive/optional) ---
+  /** "rule" (detector-derived, the default) or "manual" (analyst-created from
+   *  an incident-less case). A manual incident must NEVER be rendered as a
+   *  rule-detected one. */
+  origin?: "rule" | "manual";
+  /** Honest badge for a manual incident — analyst-created, carries no rule
+   *  verdict. Present only when origin === "manual". */
+  manualBadge?: string;
+  /** Severity an analyst assigned to the underlying case, if any. Shown ONLY
+   *  when present and MUST be labelled "analyst-assigned" — never as a rule
+   *  verdict. `severity` is null for manual incidents. */
+  analystSeverity?: string | null;
+  /** Case records absorbed onto this incident (many-to-many is fine: a case
+   *  can appear on several incidents). Empty/absent when no case links here. */
+  cases?: EmbeddedCase[];
+}
+
+/** A pre-merge Case projected onto an Incident (C1-T1). Loss-free: every case
+ *  field travels. `caseStatus` is the analyst's real case lifecycle, kept
+ *  separate from the incident's operational `state`. `linkedFindings` is the
+ *  analyst's chosen findings — deliberately separate from `Incident.findingIds`
+ *  (which is derived and recomputed). */
+export interface EmbeddedCase {
+  caseId: string;
+  title: string;
+  notes: string;
+  assignee: string;
+  caseStatus: CaseStatus;
+  caseCreatedAt: string | null;
+  caseUpdatedAt: string | null;
+  linkedFindings: string[];
+  linkedIncidents: string[];
+}
+
+/** Normalize an incident from the API. Manual incidents (analyst-created cases)
+ *  carry `severity: null` on the wire — no rule verdict. The UI treats severity
+ *  as a string everywhere (e.g. `sevVar`/`sevWord` in the shell call
+ *  `.toUpperCase()`), so we coerce the null to "" here at the single seam rather
+ *  than making every consumer null-safe. "" reads as "no rule severity"; the
+ *  manual badge is what actually communicates the state. */
+export function normIncident(i: Incident): Incident {
+  return { ...i, severity: (i.severity as string | null) ?? "" };
 }
 
 export interface RcaFactEvent { t: string; label: string; line?: number; findingId?: string; rule?: string }
@@ -666,10 +708,15 @@ export const api = {
   },
 
   // --- Phase C endpoints ---
-  incidents: (state?: IncidentState) =>
-    getJson<{ incidents: Incident[] }>(
-      `/api/incidents${state ? `?state=${state}` : ""}`),
-  incident: (id: string) => getJson<OrError<Incident>>(`/api/incidents/${id}`),
+  incidents: async (state?: IncidentState) => {
+    const r = await getJson<{ incidents: Incident[] }>(
+      `/api/incidents${state ? `?state=${state}` : ""}`);
+    return { incidents: (r.incidents ?? []).map(normIncident) };
+  },
+  incident: async (id: string) => {
+    const r = await getJson<OrError<Incident>>(`/api/incidents/${id}`);
+    return "error" in r ? r : normIncident(r);
+  },
   incidentRca: (id: string) => getJson<OrError<Rca>>(`/api/incidents/${id}/rca`),
   incidentBruteforce: (id: string) =>
     getJson<AttemptSeries>(`/api/incidents/${id}/bruteforce`),
@@ -684,7 +731,7 @@ export const api = {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-    return body as Incident;
+    return normIncident(body as Incident);
   },
 
   assets: () => getJson<OrError<{ assets: Asset[] }>>("/api/assets"),

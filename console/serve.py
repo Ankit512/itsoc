@@ -2495,6 +2495,10 @@ def main():
 
     global STATE, CURRENT_RUN_FILE
     store.init_db()   # ensure the SOC Command Center store exists before serving
+    # C1-T1: absorb any analyst-created cases into incidents ADDITIVELY at boot,
+    # so /api/incidents carries the merged case metadata and incident-less cases
+    # surface as honestly-badged manual incidents. Idempotent + fail-soft.
+    soc._try_absorb_cases()
     # OEM poller (socf-ti-oem): polls each ENABLED, configured connector on its
     # interval. Idle until the user enables one; a placeholder base URL is never
     # called. Runs as a daemon thread, so it dies with the process. FENCED

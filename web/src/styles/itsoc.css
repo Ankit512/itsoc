@@ -438,3 +438,24 @@
 .is-seg{ display:inline-flex; gap:3px; padding:3px; background:var(--inset); border:1px solid var(--bd); border-radius:var(--radius-sm); }
 .is-seg .is-btn{ padding:5px 12px; font-size:12px; border-color:transparent; background:transparent; }
 .is-seg .is-btn--primary{ border-color:var(--acc); background:var(--acc); color:var(--acc-ink); }
+
+/* ── C1-T2: Cases absorbed into Incidents ─────────────────────────────────
+   A manual incident is an analyst-created case with NO rule verdict. The
+   owner's core honesty constraint: it must be visually unmistakable and never
+   read as a rule-detected severity. These EXTEND the is-* system (is-tag,
+   is-panel, is-chip); they do not fork it. */
+.is-tag--manual{ background:color-mix(in srgb,var(--mut) 20%,transparent); color:var(--ink); border:1px dashed var(--bd); text-transform:uppercase; }
+.is-manual-sev{ display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.is-anasev{ font-size:9.5px; font-weight:600; letter-spacing:.03em; color:var(--mut); border:1px solid var(--bd); border-radius:var(--radius-xs); padding:3px 7px; text-transform:uppercase; }
+
+/* One analyst case absorbed onto an incident (the merged Cases surface). */
+.is-case{ border:1px solid var(--bd); border-radius:var(--radius-sm); padding:12px; background:var(--pan); }
+.is-case__h{ display:flex; align-items:flex-start; gap:10px; justify-content:space-between; }
+.is-case__ttl{ font-size:13.5px; font-weight:650; color:var(--ink); }
+.is-case__meta{ margin-top:10px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 16px; border-top:1px solid var(--bd); padding-top:9px; font-size:11px; color:var(--mut); }
+.is-case__links{ display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+.is-case__links .lk{ font-size:10px; border:1px solid var(--bd); border-radius:4px; padding:0 5px; color:var(--mut); text-decoration:none; }
+.is-case__links .lk:hover{ border-color:var(--acc); color:var(--acc); }
+
+/* Single-column variant of the RCA layout for manual incidents (no rule rail). */
+.is-rca-layout.is-single{ grid-template-columns:minmax(0,760px); }

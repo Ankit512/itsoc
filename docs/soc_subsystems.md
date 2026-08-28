@@ -120,6 +120,53 @@ starts `open`. `PATCH /api/cases/<id>` accepts any subset of
 `title, notes, assignee, status, links` and bumps `updatedAt`. Unknown id →
 404; unknown status → 400. List returns `{"cases": [...]}` newest first.
 
+### 3a. Cases → Incidents merge (C1-T1, additive; owner-ratified 2026-08-28)
+
+Cases **absorb into incidents** so the merged Incidents screen carries the case
+surface. The merge is ADDITIVE — nothing is dropped, no verdict is derived, and
+the case endpoints above keep working unchanged. `soc.migrate_cases_to_incidents()`
+projects `cases.json` into `incidents.json` (idempotent; run at server boot and
+after every case create/patch):
+
+- **A case linked to incident(s)** is projected onto **each** linked incident
+  under `incident["cases"]` — an embedded, loss-free copy keyed by `caseId`.
+  Many-to-many is explicit: the whole case travels to every incident it names,
+  never folded into one. The incident keeps `origin: "rule"`. `linkedFindings`
+  on the embedded record is the analyst's chosen findings and is kept **separate
+  from** the incident's derived `findingIds` (which is recomputed every sync).
+- **An incident-less case** (no resolvable incident link) becomes a **first-class
+  MANUAL incident**: `origin: "manual"`, `findingIds: []`, `findingCount: 0`.
+  Honesty is the point — a manual incident must never be confusable with a
+  rule-detected one. It carries `manualBadge` = `"MANUAL — analyst-created, no
+  rule verdict"`, `severity: null` (never a rule verdict), and `analystSeverity`
+  is shown **only** if the analyst assigned one (label it *analyst-assigned*).
+
+**Status map** (case status → incident operational `state`, explicit and
+documented — never collapsed blindly). The analyst's real case status is also
+preserved verbatim as `caseStatus`, so nothing is flattened away:
+
+| case status   | incident `state` |
+|---------------|------------------|
+| `open`        | `new`            |
+| `investigating` | `investigating` |
+| `closed`      | `resolved`       |
+
+The 5-state target lifecycle (`… → pending-approval → contained → …`) is **not**
+introduced as incident states in C1: `pending-approval`/`contained` belong to the
+C3/C4 approval/containment flow (phase order), so C1 maps into the existing
+operational states and keeps the analyst's `caseStatus` intact.
+
+**Preserve block (the silent-killer fix).** `sync_incidents` recomputes an
+incident's derived fields on every analysis and previously preserved only
+`state/acknowledgedAt/resolvedAt`. It now also carries `origin` and `cases`
+across re-derivation — without that, absorbed case metadata would be silently
+wiped on the next run.
+
+**Legacy export.** `export.build_legacy_cases(cases)` writes a read-only, honest
+JSON snapshot of the pre-merge case records with every free-text field
+(`title/notes/assignee`) routed through `console/redact.py` (IPs, usernames,
+hostnames masked). Empty means no cases existed — nothing is invented.
+
 ## 4. Reports — `GET /api/reports`, `POST /api/reports`
 
 Lists **files that exist** in `console/.soc/reports/`; nothing is listed that
