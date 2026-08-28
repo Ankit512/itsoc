@@ -19,8 +19,7 @@ from . import tools
 
 # --- tool registry --------------------------------------------------------
 # Each entry: name, description, JSON-Schema for arguments, and a handler that
-# receives (client, arguments) and returns a JSON-serializable dict. Stage 2
-# appends the remaining six read-only tools here.
+# receives (client, arguments) and returns a JSON-serializable dict.
 TOOLS = [
     {
         "name": "analyze_log",
@@ -52,7 +51,7 @@ TOOLS = [
     {
         "name": "list_runs",
         "description": (
-            "List saved analysis runs from the backend's run history (read-only). "
+            "List saved analysis runs from the backend's run history. "
             "Returns run_id, label, finding count, and the current run. Empty when "
             "there are no runs — never a fabricated entry."),
         "inputSchema": {"type": "object", "properties": {}},

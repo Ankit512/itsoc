@@ -19,12 +19,22 @@ intentionally left to a person.
 - **PyPI package:** `itsoc-mcp`
 - **Version:** `0.1.0` (must match across `pyproject.toml`, `server.json`, and the
   PyPI upload on every release).
-- **One-line description:** Read-only MCP server over a local log-analysis
-  backend; a client that computes no verdicts.
+- **One-line description:** MCP server over a local log-analysis backend with no
+  action execution and no approval authority; a client that computes no verdicts.
 - **Homepage:** https://github.com/Ankit512/log-anomaly-detector
 - **License:** MIT · **Transport:** stdio
-- **Tools (all read-only):** `analyze_log`, `list_runs`, `get_findings`,
-  `get_evidence`, `explain_finding`, `export_run`, `threat_intel_lookup`
+- **Tools:** `analyze_log`, `list_runs`, `get_findings`, `get_evidence`,
+  `explain_finding`, `export_run`, `threat_intel_lookup`, `propose_block_ip`
+
+## Provenance & Execution Authority
+
+`itsoc-mcp` has **no action execution authority and no approval authority**:
+- `propose_block_ip` creates an approval record in the `pending` state only.
+- It forwards strictly proposal facts (`incidentId`, `runbookId`) to `POST /api/approvals`.
+- It accepts and transmits NO credentials, passphrases, tokens, or actor identities.
+- It exposes no approval, rejection, execution, revocation, or remediation tools.
+- Approval and execution strictly require human-in-the-loop step-up authentication on the backend console (`console/serve.py` / `/api/approvals/:id/approve`) and are architecturally unreachable from MCP.
+- Every tool response carries an explicit `provenance` block detailing verdict provenance (rule-owned/deterministic), advisory status of LLM explanations, and authority boundaries.
 
 ## Publish flow (human-run, in order)
 

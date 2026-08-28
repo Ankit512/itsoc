@@ -1,4 +1,4 @@
-# Packaging for the OPTIONAL itsoc read-only MCP server.
+# Packaging for the OPTIONAL itsoc MCP server.
 #
 # This packages ONLY itsoc_mcp/. The core backend (`python3 console/serve.py`)
 # stays stdlib-only and is NOT packaged or affected by this file — installing
@@ -18,12 +18,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "itsoc-mcp"
 version = "0.1.0"
-description = "Read-only MCP server exposing the itsoc log-analysis backend's existing analysis to MCP clients. Client of the local API; computes no verdicts; redacted-by-default egress."
+description = "MCP server exposing the itsoc log-analysis backend's existing analysis to MCP clients with no action execution and no approval authority. Client of the local API; computes no verdicts; redacted-by-default egress."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
 authors = [{ name = "Ankit Kumar" }]
-keywords = ["mcp", "model-context-protocol", "security", "soc", "log-analysis", "read-only"]
+keywords = ["mcp", "model-context-protocol", "security", "soc", "log-analysis"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Information Technology",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_mcp.py — NETWORK-FREE smoke tests for the itsoc read-only MCP tools.
+"""test_mcp.py — NETWORK-FREE smoke tests for the itsoc MCP tools.
 
 No sockets, no mcp SDK, no ATT&CK cache dependency: the ApiClient is replaced by
 a scripted fake and the offline MITRE mapper is stubbed, so these run with ZERO
@@ -7,11 +7,11 @@ installs and prove the HONESTY contract, not the transport. Run:
 
     python3 itsoc_mcp/test_mcp.py
 
-Covers all 7 tools: analyze_log, list_runs, get_findings, get_evidence,
-explain_finding, export_run, threat_intel_lookup — the happy path plus the
-honest empty/idle/error states (never a fabricated all-clear or empty file), and
-that raw log text is REDACTED by default and returned only with
-ITSOC_MCP_TRUSTED_LOCAL=1.
+Covers all 8 tools: analyze_log, list_runs, get_findings, get_evidence,
+explain_finding, export_run, threat_intel_lookup, propose_block_ip — the happy path
+plus the honest empty/idle/error states (never a fabricated all-clear or empty file),
+strict negative-authority invariants, and that raw log text is REDACTED by default
+and returned only with ITSOC_MCP_TRUSTED_LOCAL=1.
 """
 
 import json

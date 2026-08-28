@@ -1,4 +1,4 @@
-"""tools.py — the read-only tool implementations, independent of the MCP SDK.
+"""tools.py — tool implementations with no action execution and no approval authority, independent of the MCP SDK.
 
 Each function takes an ApiClient and returns a plain dict (JSON-serializable).
 Keeping the logic here — separate from server.py's MCP wiring — means the whole
@@ -196,12 +196,12 @@ def _current_state_or_error(client):
 
 
 def _run_guard(state, run_id):
-    """The current-run tools read the backend's ACTIVE run. This read-only server
+    """The current-run tools read the backend's ACTIVE run. This server
     deliberately does NOT switch the active run (that is a shared side effect), so
     a run_id that isn't the current one is an honest error, not a silent mismatch."""
     if run_id and state.get("runId") and run_id != state.get("runId"):
         return (f"run '{run_id}' is not the active run (current: "
-                f"'{state.get('runId')}'). This read-only server does not switch "
+                f"'{state.get('runId')}'). This server does not switch "
                 "the active run; omit run_id to use the current one, or open that "
                 "run in the console first.")
     return None
@@ -215,7 +215,7 @@ def _finding_by_id(state, finding_id):
 # TOOL 2 — list_runs
 # ---------------------------------------------------------------------------
 def list_runs(client):
-    """List saved runs from the backend's run history (read-only). Pass-through:
+    """List saved runs from the backend's run history. Pass-through:
     if there are none, the list is honestly empty — never a fabricated entry."""
     try:
         data = client.get_json("/api/runs")
