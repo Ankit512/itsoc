@@ -75,6 +75,7 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
     { id: "nav-incidents", label: "Incidents", group: "Navigation", icon: TriangleAlert, onSelect: () => go("/incidents"), keywords: ["rca", "incident", "investigate"] },
     { id: "nav-sources", label: "Sources & Collectors", group: "Navigation", icon: Antenna, onSelect: () => go("/collectors"), keywords: ["syslog", "collectors", "ingest"] },
     { id: "nav-settings", label: "Settings", group: "Navigation", icon: Settings, onSelect: () => go("/settings"), keywords: ["config", "model", "compute"] },
+    { id: "nav-intel", label: "Intel (Feeds & Enrichment)", group: "Navigation", icon: Shield, onSelect: () => go("/intel"), keywords: ["intel", "threat intel", "feeds", "taxii", "stix", "enrichment", "otx", "abuseipdb", "mitre", "attack", "ioc"] },
     { id: "nav-threat-intel", label: "Threat Intel", group: "Navigation", icon: Shield, onSelect: () => go("/threat-intel"), keywords: ["mitre", "attack", "ioc"] },
     { id: "nav-assets", label: "Assets", group: "Navigation", icon: Monitor, onSelect: () => go("/assets"), keywords: ["hosts", "users", "inventory"] },
     { id: "nav-reports", label: "Reports", group: "Navigation", icon: FileText, onSelect: () => go("/reports"), keywords: ["export", "pdf", "markdown"] },

@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Overview } from "@/pages/Overview";
 import { Alerts } from "@/pages/Alerts";
 import { Incidents } from "@/pages/Incidents";
+import { Intel } from "@/pages/Intel";
 import { ThreatIntel } from "@/pages/ThreatIntel";
 import { Assets } from "@/pages/Assets";
 import { Discovery } from "@/pages/Discovery";
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="alerts" element={<Alerts />} />
           <Route path="findings" element={<Alerts />} />
           <Route path="incidents" element={<Incidents />} />
+          <Route path="intel" element={<Intel />} />
           <Route path="threat-intel" element={<ThreatIntel />} />
           <Route path="assets" element={<Assets />} />
           <Route path="discovery" element={<Discovery />} />
