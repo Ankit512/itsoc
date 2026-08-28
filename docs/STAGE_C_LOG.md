@@ -700,3 +700,52 @@ contaminated**. Not reverted or committed — not Stage C's to touch. Owner deci
 `docs/STAGE_C_OPEN_ITEMS.md` is now maintained as the open-items register. **Every future gating ask
 stands alone** and is quoted **verbatim** from that register, answerable without reference to prior
 conversation.
+
+### C0-T7 · MITRE mapping data-and-hygiene repair — **ACCEPTED** (commit `3998f06`, worker Oscar)
+
+Owner-approved product-code allowlist (OPEN-1, approved as re-scoped). Diff: `rule_mitre_map.py` only,
++53/-43. **This clears the last known-red — C1 now has its zero-known-red baseline.**
+
+Applied: `T1499.002` 'Service Exhaustion' -> **'Service Exhaustion Flood'** (8 rules); `T1046`
+'Network Service Scanning' -> **'Network Service Discovery'**; `T1136.001` parent:sub resolved to
+'Local Account'; `techniques_for_rule` now returns **`copy.deepcopy`** (line 68); the malformed
+`'ioc_observed': []` sentinel removed.
+
+**god-verified independently, not claimed:** `threat_intel/test_threat_intel.py` -> **0 failures, exactly
+3 reasoned skips** (each carrying the visible doctored-cache reason string). `run_eval.py` 17/17
+f1 1.000 with an **empty `manifest.json` diff — zero severity shift**, so the owner's hard-stop condition
+did not trigger. `console/test_console.py`, `console/test_fsafe.py`, `tests/test_intake.py` 4/4,
+`itsoc_mcp/test_mcp.py` 93/0 all green. Detector `364577c5…a4a876`. Foreign uncommitted files untouched.
+
+**god adversarial test of the defensive-copy fix** (beyond the card): mutated the returned list in place
+and appended to it, then re-read the table — `table intact after caller mutation: True`. The
+guardrail-bearing table can no longer be corrupted by a caller, which was the owner's stated concern
+("the same disease as the DEFAULT_MODE finding").
+
+**Follow-up C0-T7a dispatched** — the version anchor is not yet pinned. Owner: *"a repo URL is a moving
+target … 'correct' drifts the moment MITRE ships the next release."* god extracted the hard facts from
+the actual bundle: id `bundle--6198013c-6f02-42a4-9713-38ea1301a1aa`, `spec_version "2.0"`,
+`x_mitre_attack_spec_version "3.3.0"`, cache mtime 2026-08-14, and **no `x-mitre-collection` object**, so
+a release number (vX.Y) is genuinely not recorded — to be stated plainly rather than guessed. Two
+additions god caught: the header's **"STIX 2.1" claim is wrong** (the bundle says 2.0), and the header
+must disclose that this cache is a **known-doctored fixture** (no `defense-evasion` tactic; invented
+'Stealth'/'Defense Impairment'; `T1070.001` revoked with a fabricated 2026-04-14 date) so a reader can
+tell how far to trust the anchor.
+
+## Ops notes — hook error frequency log (owner-requested)
+
+Owner: *"a flaky hook that ever silently fails on a real stop is a liveness hazard of the same genus as
+the fleet.json counters."* Tracking occurrences here.
+
+| # | Timestamp | Error | Blocking? |
+|---|---|---|---|
+| 1 | 2026-08-28 (this session) | `hive-node: Interrupted system call` on stop hook | No — flagged as local infra noise; work unaffected |
+
+If this recurs, the count above grows and it is escalated as a liveness hazard rather than noise.
+
+## Standing instruction recorded — open-items quoting
+
+Owner: *"OPEN-5 exists only as a name to me. Fine while non-gating — but the moment it gates, its full
+text comes inline in the same message."* Adopted: any `STAGE_C_OPEN_ITEMS.md` entry that becomes gating
+is quoted **in full, inline, as plain flowing prose** — no box-drawing, no columns (owner's relay
+corrupts those). Prose summaries remain fine for non-gating items.
