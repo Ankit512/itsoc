@@ -27,12 +27,17 @@ built to sit downstream of anomaly_detector.py in a pipeline:
     anomaly_detector.py  --export-flagged flagged.log
     threat_detector.py   --input flagged.log --taxii-discovery-url ... 
 
-Usage (live TAXII server):
+Severity is RULE-OWNED. A threat feed is untrusted external input: it may
+propose a level, and that proposal can only ever LOWER the severity a match
+gets. See RULE_SEVERITY_POLICY below.
+
+Usage (live TAXII server) — auth is token/cert, config-file only. No flag
+accepts a literal secret; a token on the command line is visible in `ps`:
   python threat_detector.py \\
       --input suspicious_ips.log \\
       --taxii-discovery-url https://your-taxii-server/taxii2/ \\
       --taxii-collection-id COLLECTION_UUID \\
-      --taxii-username user --taxii-password pass \\
+      --taxii-config /etc/itsoc/taxii.json \\
       --output threat_report
 
 Usage (offline / demo mode — no TAXII server, use a local STIX bundle file):
@@ -50,7 +55,15 @@ from collections import defaultdict
 from pathlib import Path
 
 from mitre_attack import MitreAttackMapper
-from taxii_client import TaxiiFeed, extract_iocs, extract_technique_refs
+from taxii_client import (
+    CredentialError,
+    TaxiiFeed,
+    add_auth_arguments,
+    credentials_from_args,
+    extract_iocs,
+    extract_technique_refs,
+    reject_secret_bearing_argv,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +132,7 @@ def match_and_enrich(observed_iocs, threat_iocs, technique_links, mitre_mapper):
                             "url": rec["url"],
                         })
 
-                findings.append({
+                finding = {
                     "observed_value": value,
                     "ioc_type": ioc_type,
                     "threat_intel_name": match.get("name", ""),
@@ -127,23 +140,133 @@ def match_and_enrich(observed_iocs, threat_iocs, technique_links, mitre_mapper):
                     "threat_intel_stix_id": match["stix_id"],
                     "valid_from": match.get("valid_from"),
                     "mitre_techniques": techniques,
-                    "severity": severity_for(match, techniques),
-                })
+                }
+                finding.update(severity_detail(match, techniques))
+                findings.append(finding)
 
-    sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-    findings.sort(key=lambda f: sev_order.get(f["severity"], 4))
+    findings.sort(key=lambda f: -SEVERITY_RANK.get(f["severity"], -1))
     return findings
 
 
+# ---------------------------------------------------------------------------
+# Severity — RULE-OWNED (CLAUDE.md §5, Stage-C guardrail 1)
+# ---------------------------------------------------------------------------
+#
+# The old mapping flattened almost everything to CRITICAL and let the feed's
+# own labels drive the console. A threat feed is untrusted external input: it
+# must not be able to declare its way to CRITICAL.
+#
+# The mapping below is rule-owned in two parts:
+#
+#   1. RULE POLICY sets a CEILING from evidence *we* can corroborate locally —
+#      whether the indicator carries a known-malicious label AND whether the
+#      ATT&CK relationship in the bundle actually resolved to a technique.
+#      Nothing the feed writes can raise that ceiling.
+#   2. The FEED-DECLARED level is then applied only if it is strictly BELOW the
+#      ceiling. In other words the feed may de-escalate, never escalate.
+#
+# CRITICAL is unreachable from threat intel alone (TI_SEVERITY_CEILING). A
+# correlated IOC is an enrichment signal, not a verdict; CRITICAL stays with
+# the rule engine in anomaly_detector.py, which owns verdicts.
+
+SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
+#: Hard cap on anything threat intel can produce. Rules own CRITICAL.
+TI_SEVERITY_CEILING = "high"
+
+#: Labels that count as a known-malicious assertion (STIX 2.1 indicator_types
+#: / STIX 2.0 labels). Rule-owned vocabulary, not read from the feed.
+MALICIOUS_LABELS = frozenset({"malicious-activity", "compromised"})
+
+#: (known-malicious label?, resolved ATT&CK technique?) -> (tier, ceiling)
+RULE_SEVERITY_POLICY = {
+    (True, True):   ("corroborated",   "high"),    # labelled AND technique-linked
+    (True, False):  ("labelled_only",  "medium"),  # feed says bad, nothing corroborates it
+    (False, True):  ("technique_only", "medium"),  # technique link, no malicious label
+    (False, False): ("uncorroborated", "low"),     # a bare list entry
+}
+
+#: Level words we accept from a feed. Anything else is reported as
+#: unrecognised rather than silently coerced.
+_DECLARED_ALIASES = {
+    "critical": "critical", "crit": "critical", "severe": "critical",
+    "high": "high",
+    "medium": "medium", "moderate": "medium", "med": "medium",
+    "low": "low", "informational": "low", "info": "low",
+}
+
+
+def feed_declared_severity(threat_ioc):
+    """The level the FEED claims, as (normalised, raw).
+
+    Read from an explicit ``severity`` / ``x_severity`` property, or from a
+    ``severity:<level>`` label. Returns (None, None) when the feed declares
+    nothing — we do NOT infer one, and we do not read numeric confidence
+    scores, because turning a 0-100 confidence into a severity word would be
+    inventing data the feed never stated.
+
+    (normalised, raw) with normalised=None but raw set means the feed declared
+    something we do not recognise; callers surface that rather than ignore it.
+    """
+    raw = threat_ioc.get("feed_severity")
+    if raw is None:
+        for label in threat_ioc.get("labels") or []:
+            text = str(label).strip().lower()
+            if text.startswith("severity:"):
+                raw = text.split(":", 1)[1].strip()
+                break
+    if raw is None:
+        return None, None
+    raw = str(raw).strip()
+    if not raw:
+        return None, None
+    return _DECLARED_ALIASES.get(raw.lower()), raw
+
+
+def severity_detail(threat_ioc, techniques):
+    """Full, auditable severity decision for one threat-intel match.
+
+    Returns the severity plus *why*: the rule tier, the ceiling that tier
+    imposes, what the feed declared, and which of the two won. The report
+    prints this so a reader can always tell a rule-policy assignment from a
+    feed-supplied one — no severity ever looks more sourced than it is.
+    """
+    labels = {str(l).strip().lower() for l in (threat_ioc.get("labels") or [])}
+    malicious = bool(labels & MALICIOUS_LABELS)
+    tier, ceiling = RULE_SEVERITY_POLICY[(malicious, bool(techniques))]
+
+    # Belt and braces: the policy table can never exceed the TI hard cap.
+    if SEVERITY_RANK[ceiling] > SEVERITY_RANK[TI_SEVERITY_CEILING]:
+        ceiling = TI_SEVERITY_CEILING
+
+    declared, declared_raw = feed_declared_severity(threat_ioc)
+
+    if declared_raw is None:
+        severity = ceiling
+        source = "rule-policy (feed declared no level)"
+    elif declared is None:
+        severity = ceiling
+        source = (f"rule-policy (feed level {declared_raw!r} unrecognised, ignored)")
+    elif SEVERITY_RANK[declared] < SEVERITY_RANK[ceiling]:
+        severity = declared
+        source = "feed-declared (below rule ceiling)"
+    else:
+        severity = ceiling
+        source = f"rule-capped (feed declared {declared_raw!r})"
+
+    return {
+        "severity": severity,
+        "severity_tier": tier,
+        "severity_ceiling": ceiling,
+        "feed_declared_severity": declared_raw,
+        "severity_source": source,
+    }
+
+
 def severity_for(threat_ioc, techniques):
-    labels = [l.lower() for l in threat_ioc.get("labels", [])]
-    if "malicious-activity" in labels and techniques:
-        return "critical"
-    if "malicious-activity" in labels:
-        return "high"
-    if techniques:
-        return "high"
-    return "medium"
+    """Rule-mapped severity for a threat-intel match: the feed-declared level
+    capped by rule policy. Never returns 'critical' — see TI_SEVERITY_CEILING."""
+    return severity_detail(threat_ioc, techniques)["severity"]
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +296,11 @@ def write_reports(findings, output_prefix, stats):
         counts = defaultdict(int)
         for f in findings:
             counts[f["severity"]] += 1
+        md_lines.append(
+            f"> Severity is rule-owned: rule policy sets a ceiling from locally "
+            f"corroborated evidence and the feed's declared level applies only if it is "
+            f"lower. Threat intel alone never reaches CRITICAL "
+            f"(ceiling: {TI_SEVERITY_CEILING.upper()}).\n")
         md_lines.append("## Severity breakdown\n")
         for sev in ["critical", "high", "medium", "low"]:
             if counts.get(sev):
@@ -183,6 +311,10 @@ def write_reports(findings, output_prefix, stats):
             md_lines.append(f"### [{f['severity'].upper()}] {f['observed_value']} ({f['ioc_type']})")
             md_lines.append(f"- **Matched threat-intel indicator:** {f['threat_intel_name'] or f['threat_intel_stix_id']}")
             md_lines.append(f"- **Labels:** {', '.join(f['threat_intel_labels']) or 'n/a'}")
+            md_lines.append(
+                f"- **Severity basis:** {f.get('severity_source', 'n/a')} — rule tier "
+                f"`{f.get('severity_tier', 'n/a')}` (ceiling {f.get('severity_ceiling', 'n/a')}); "
+                f"feed declared: {f.get('feed_declared_severity') or 'nothing'}")
             if f["mitre_techniques"]:
                 for t in f["mitre_techniques"]:
                     tactics = ", ".join(t["tactics"]) or "n/a"
@@ -224,13 +356,36 @@ def run(args):
         stix_objects = load_stix_objects_offline(args.stix_bundle)
         print(f"  Loaded {len(stix_objects)} STIX objects from local bundle {args.stix_bundle}")
     elif args.taxii_discovery_url:
-        feed = TaxiiFeed(
-            discovery_url=args.taxii_discovery_url,
-            collection_id=args.taxii_collection_id,
-            username=args.taxii_username,
-            password=args.taxii_password,
-        )
-        stix_objects = list(feed.pull_objects(added_after=args.added_after))
+        try:
+            creds = credentials_from_args(args)
+        except CredentialError as exc:
+            # A bad cert/token path fails HERE, loudly, before any network call —
+            # never by quietly downgrading to an anonymous pull.
+            print(f"ERROR: TAXII credentials: {exc}")
+            sys.exit(2)
+        print(f"  TAXII auth: {creds.describe()}")
+        if not creds.has_auth():
+            print("  NOTE: no token or client certificate resolved — this pull is "
+                  "anonymous. Supply --taxii-config / --taxii-token-file if the "
+                  "server requires auth.")
+        try:
+            feed = TaxiiFeed(
+                discovery_url=args.taxii_discovery_url,
+                collection_id=args.taxii_collection_id,
+                credentials=creds,
+            )
+            stix_objects = list(feed.pull_objects(added_after=args.added_after))
+        except RuntimeError as exc:
+            print(f"ERROR: {exc}")
+            sys.exit(2)
+        except Exception as exc:                       # noqa: BLE001 — surface it
+            # Unreachable/refused/TLS-failed server: fail visibly with a non-zero
+            # exit. We do NOT fall through to an empty report, which would look
+            # like a clean "no threats found".
+            print(f"ERROR: TAXII pull from {args.taxii_discovery_url} failed: "
+                  f"{type(exc).__name__}: {exc}")
+            print("       No report written — this is a feed failure, not a clean result.")
+            sys.exit(3)
         print(f"  Pulled {len(stix_objects)} STIX objects from TAXII collection {args.taxii_collection_id}")
     else:
         print("ERROR: provide either --stix-bundle (offline) or --taxii-discovery-url + --taxii-collection-id (live)")
@@ -260,6 +415,11 @@ def run(args):
 
 
 if __name__ == "__main__":
+    # Before argparse sees argv: refuse any secret-bearing flag, and refuse it
+    # WITHOUT echoing the value (argparse's own error would print it).
+    if reject_secret_bearing_argv() is not None:
+        sys.exit(2)
+
     parser = argparse.ArgumentParser(description="Threat intel matching + MITRE ATT&CK mapping")
     parser.add_argument("--input", required=True, help="Log file or IOC list to scan for observed indicators")
     parser.add_argument("--output", default="threat_report", help="Output file prefix")
@@ -267,9 +427,9 @@ if __name__ == "__main__":
     # Live TAXII mode
     parser.add_argument("--taxii-discovery-url", default=None)
     parser.add_argument("--taxii-collection-id", default=None)
-    parser.add_argument("--taxii-username", default=None)
-    parser.add_argument("--taxii-password", default=None)
     parser.add_argument("--added-after", default=None, help="Only pull indicators added after this ISO timestamp")
+    # Auth: token/cert, config-file only. Every flag below takes a PATH.
+    add_auth_arguments(parser)
 
     # Offline mode
     parser.add_argument("--stix-bundle", default=None, help="Path to a local STIX bundle JSON file (offline mode)")

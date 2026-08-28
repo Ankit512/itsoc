@@ -3903,7 +3903,7 @@ def check_rules_parity():
                     f"Deterministic threat pattern matched security telemetry: {rx.pattern}",
                     {"host": host, "ioc_ips": ips, "ioc_domains": domains,
                      "ioc_hashes": hashes},
-                    "Preserve evidence, identify the source and affected asset, correlate adjacent events, and contain according to the incident playbook."))
+                    "Preserve evidence, identify the source and affected asset, correlate adjacent events, and contain according to the incident runbook."))
                 break
         return out
 
@@ -4525,6 +4525,470 @@ def check_bruteforce_series():
     return 0 if all(results) else 1
 
 
+def check_runbooks():
+    """Stage C C0-T1 — the declarative runbook schema and the STRUCTURAL
+    eligibility engine (console/runbooks.py).
+
+    The load-bearing assertion here is the NO-OVERRIDE PROPERTY of guardrail 1:
+    rules own eligibility and the LLM can never be an eligibility input. That is
+    checked against the REAL `inspect.signature(runbooks.eligible)` — parameters
+    exactly (runbook, incident, findings), no *args, no **kwargs, no advisory
+    name — so an advisory signal cannot be passed, not merely should not be.
+    A companion behavioural check mutates every LLM field on the findings and
+    asserts the verdict is byte-identical.
+
+    Also asserted: both shipped runbooks load and validate; schema violations
+    raise rather than being coerced; an unmet precondition produces a `missing`
+    list that NAMES what is absent; and an incident matching nothing returns an
+    honest empty list rather than a default-to-eligible.
+    """
+    print("\nRunbooks — schema + structural eligibility (rules own eligibility; LLM can never be an input):")
+    sys.path.insert(0, str(HERE))
+    import runbooks
+    results = []
+
+    def check(label, cond, detail=""):
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + (f"  ({detail})" if detail and not cond else ""))
+        results.append(bool(cond))
+
+    # ---- a) the no-override property, proved on the live signature ----------
+    sig = inspect.signature(runbooks.eligible)
+    names = tuple(sig.parameters)
+    check("eligible() signature is exactly (runbook, incident, findings)",
+          names == ("runbook", "incident", "findings"), str(sig))
+    kinds = [p.kind for p in sig.parameters.values()]
+    check("eligible() declares no *args and no **kwargs — an advisory argument "
+          "cannot be smuggled in under any name",
+          inspect.Parameter.VAR_POSITIONAL not in kinds
+          and inspect.Parameter.VAR_KEYWORD not in kinds, str(sig))
+    advisory_word = re.compile(r"llm|advisory|narrative|hypoth|explan|model|prose|summary|rca",
+                               re.IGNORECASE)
+    check("no eligible() parameter name reads as an LLM/advisory/narrative input",
+          not any(advisory_word.search(n) for n in names), str(names))
+    try:
+        runbooks.assert_no_llm_input()
+        check("runbooks.assert_no_llm_input() agrees (same signature, checked at runtime)", True)
+    except AssertionError as exc:
+        check("runbooks.assert_no_llm_input() agrees (same signature, checked at runtime)",
+              False, str(exc))
+    check("the rule-owned projection allowlists never overlap the advisory keys",
+          not (runbooks.RULE_OWNED_INCIDENT_KEYS | runbooks.RULE_OWNED_FINDING_KEYS)
+          & runbooks.ADVISORY_KEYS)
+
+    # ---- shipped runbooks load and validate --------------------------------
+    rbs = runbooks.load_runbooks()
+    check("exactly the two shipped runbooks load",
+          sorted(rbs) == ["rb-block-ip", "rb-draft-notify"], str(sorted(rbs)))
+    for rid, rb in rbs.items():
+        check(f"{rid} validates against the schema",
+              runbooks.validate_runbook(rb) is rb)
+        check(f"{rid} declares every schema field",
+              set(rb) == {"id", "name", "trigger", "preconditions", "steps", "severity_floor"},
+              str(sorted(rb)))
+        check(f"{rid} steps are only action|notify_draft with connector/params_template/rollback",
+              all(s["type"] in runbooks.STEP_TYPES and "connector" in s
+                  and "params_template" in s and "rollback" in s for s in rb["steps"]))
+    check("rb-draft-notify drafts only — it declares no action step",
+          all(s["type"] == "notify_draft" for s in rbs["rb-draft-notify"]["steps"]))
+    check("rb-block-ip carries a real rollback on its action step",
+          isinstance(rbs["rb-block-ip"]["steps"][0]["rollback"], dict))
+
+    # ---- c) schema violations are rejected honestly, never coerced ---------
+    import copy
+    def rejects(label, mutate):
+        bad = copy.deepcopy(rbs["rb-block-ip"])
+        mutate(bad)
+        try:
+            runbooks.validate_runbook(bad)
+        except runbooks.RunbookError:
+            check(label, True)
+            return
+        check(label, False, "accepted an invalid runbook")
+
+    rejects("missing field rejected (not defaulted)", lambda d: d.pop("severity_floor"))
+    rejects("unknown top-level field rejected", lambda d: d.update({"escalate": True}))
+    rejects("bad severity_floor rejected (not coerced)",
+            lambda d: d.update({"severity_floor": "SEVERE"}))
+    rejects("unknown step type rejected", lambda d: d["steps"][0].update({"type": "execute"}))
+    rejects("step missing rollback rejected (absent != safe)",
+            lambda d: d["steps"][0].pop("rollback"))
+    rejects("wrong type for trigger.rule_ids rejected",
+            lambda d: d["trigger"].update({"rule_ids": "auth_bruteforce"}))
+    rejects("empty trigger.rule_ids rejected (a runbook that could never fire)",
+            lambda d: d["trigger"].update({"rule_ids": []}))
+    rejects("extra field inside trigger rejected",
+            lambda d: d["trigger"].update({"llm_hint": "block it"}))
+
+    # ---- the fixtures: real incident/finding shape (soc.derive_incidents) ---
+    def _finding(fid, typ, sev, n, host="LabSZ", occ=6):
+        return {"id": fid, "type": typ, "sev": sev, "ruleSev": sev, "host": host,
+                "occurrences": occ, "lines": [{"n": n, "a": "Dec 24 11:03:53 LabSZ sshd[1]: x"}],
+                "llmSev": None, "llmWhy": None, "explanation": ""}
+
+    inc_ok = {"id": "inc-aaa", "entity": "203.0.113.44", "entityKind": "ip",
+              "severity": "CRITICAL", "findingIds": ["detector-0"],
+              "firstSeen": "2025-12-24T11:03:53+00:00",
+              "lastSeen": "2025-12-24T11:19:02+00:00"}
+    f_ok = [_finding("detector-0", "auth_bruteforce", "CRITICAL", 1869)]
+
+    v = runbooks.eligible(rbs["rb-block-ip"], inc_ok, f_ok)
+    check("a triggering, fully-evidenced CRITICAL ip incident is eligible for rb-block-ip",
+          v == {"eligible": True, "missing": []}, str(v))
+
+    # ---- the no-override property, behaviourally ---------------------------
+    f_llm = [dict(f, llmSev="CRITICAL", llmWhy="the model says block this now",
+                  explanation="model prose", hypothesis="model prose", rca="model prose")
+             for f in f_ok]
+    inc_llm = dict(inc_ok, llmSev="CRITICAL", hypothesis="model prose",
+                   explanation="model prose", advisory="escalate")
+    check("advisory fields on the incident and findings change nothing — "
+          "they are projected out before any predicate runs",
+          runbooks.eligible(rbs["rb-block-ip"], inc_llm, f_llm) == v)
+    inc_low = dict(inc_ok, severity="LOW")
+    f_low = [dict(f, sev="LOW", ruleSev="LOW", llmSev="CRITICAL",
+                  llmWhy="model wants to escalate this") for f in f_ok]
+    low_v = runbooks.eligible(rbs["rb-block-ip"], inc_low, f_low)
+    check("an LLM 'CRITICAL' cannot lift a LOW incident over the severity floor",
+          low_v["eligible"] is False
+          and any("severity_floor" in m and "LOW" in m for m in low_v["missing"]),
+          str(low_v))
+    inc_hi = dict(inc_ok, severity="CRITICAL")
+    f_hi = [dict(f, llmSev="INFO", llmWhy="model says benign") for f in f_ok]
+    check("an LLM 'INFO' cannot suppress an otherwise eligible incident",
+          runbooks.eligible(rbs["rb-block-ip"], inc_hi, f_hi)["eligible"] is True)
+
+    # ---- b) missing-evidence path names what is absent ---------------------
+    inc_bare = {"id": "inc-bbb", "entity": "203.0.113.44", "entityKind": "ip",
+                "severity": "CRITICAL", "findingIds": ["detector-9"],
+                "firstSeen": None, "lastSeen": None}
+    f_bare = [{"id": "detector-9", "type": "auth_bruteforce", "sev": "CRITICAL",
+               "lines": [], "occurrences": 0}]
+    m = runbooks.eligible(rbs["rb-block-ip"], inc_bare, f_bare)
+    check("no record {n} refs, no timestamps, no occurrences -> ineligible", m["eligible"] is False)
+    check("missing names record_refs explicitly",
+          "required_evidence: record_refs" in m["missing"], str(m["missing"]))
+    check("missing names timestamps explicitly",
+          "required_evidence: timestamps" in m["missing"], str(m["missing"]))
+    check("missing names occurrences explicitly",
+          "required_evidence: occurrences" in m["missing"], str(m["missing"]))
+    check("missing is a list of strings, one per unmet requirement",
+          isinstance(m["missing"], list) and all(isinstance(x, str) for x in m["missing"])
+          and len(m["missing"]) == 3, str(m["missing"]))
+
+    # every precondition unmet at once — nothing is invented, nothing defaults true
+    inc_empty = {"id": "inc-ccc", "entity": "", "entityKind": None,
+                 "severity": None, "findingIds": []}
+    allmiss = runbooks.eligible(rbs["rb-block-ip"], inc_empty, [])
+    check("an incident with no evidence at all is ineligible, never default-eligible",
+          allmiss["eligible"] is False)
+    check("every unmet requirement is named: trigger, entity type, severity, all 5 evidence keys",
+          len(allmiss["missing"]) == 8
+          and any(x.startswith("trigger.rule_ids") for x in allmiss["missing"])
+          and any(x.startswith("trigger.entity_types") for x in allmiss["missing"])
+          and any(x.startswith("severity_floor") for x in allmiss["missing"])
+          and sum(x.startswith("required_evidence") for x in allmiss["missing"]) == 5,
+          str(allmiss["missing"]))
+    check("the unknown-severity case says so rather than assuming a severity",
+          any("severity is unknown" in x for x in allmiss["missing"]), str(allmiss["missing"]))
+
+    # ---- trigger mismatch --------------------------------------------------
+    inc_wrong = dict(inc_ok, entityKind="host", entity="LabSZ")
+    f_wrong = [_finding("detector-0", "error_rate_spike", "CRITICAL", 12)]
+    w = runbooks.eligible(rbs["rb-block-ip"], inc_wrong, f_wrong)
+    check("a non-triggering rule is named in missing, with the rules the incident does have",
+          any(x.startswith("trigger.rule_ids") and "error_rate_spike" in x for x in w["missing"]),
+          str(w["missing"]))
+    check("a wrong entity kind is named in missing",
+          any(x.startswith("trigger.entity_types") and "host" in x for x in w["missing"]),
+          str(w["missing"]))
+
+    # ---- evidence keys are computed from rule output only ------------------
+    keys = runbooks.evidence_keys(inc_ok, f_ok)
+    check("evidence keys are the rule-derived vocabulary, record {n} refs included",
+          {"entity", "entity_kind:ip", "record_refs", "timestamps", "occurrences",
+           "host", "rule_verdict:auth_bruteforce"} == keys, str(sorted(keys)))
+    check("a finding not in findingIds contributes no evidence",
+          "rule_verdict:port_scan" not in runbooks.evidence_keys(
+              inc_ok, f_ok + [_finding("other-1", "port_scan", "HIGH", 5)]))
+
+    # ---- honest empty: an incident matching NO runbook ---------------------
+    inc_none = {"id": "inc-ddd", "entity": "LabSZ", "entityKind": "host",
+                "severity": "INFO", "findingIds": ["detector-7"],
+                "firstSeen": None, "lastSeen": None}
+    f_none = [{"id": "detector-7", "type": "some_unmapped_rule", "sev": "INFO", "lines": []}]
+    matched = runbooks.match_runbooks(inc_none, f_none, rbs)
+    check("an incident matching no runbook returns [] — empty is empty, no fallback runbook",
+          matched == [], str(matched))
+    ev = runbooks.evaluate_all(inc_none, f_none, rbs)
+    check("evaluate_all still explains why each runbook did not match",
+          set(ev) == set(rbs) and all(v["eligible"] is False and v["missing"] for v in ev.values()),
+          str(ev))
+    check("match_runbooks over the eligible incident names only what really matched",
+          runbooks.match_runbooks(inc_ok, f_ok, rbs) == ["rb-block-ip", "rb-draft-notify"],
+          str(runbooks.match_runbooks(inc_ok, f_ok, rbs)))
+    check("no runbooks on disk -> {} and no matches, not an invented default",
+          runbooks.load_runbooks(HERE / "no-such-runbook-dir") == {}
+          and runbooks.match_runbooks(inc_ok, f_ok, {}) == [])
+
+    # ---- eligible() itself rejects an invalid runbook rather than guessing --
+    try:
+        runbooks.eligible({"id": "x"}, inc_ok, f_ok)
+        check("eligible() on a malformed runbook raises rather than answering", False)
+    except runbooks.RunbookError:
+        check("eligible() on a malformed runbook raises rather than answering", True)
+
+    return 0 if all(results) else 1
+
+
+def check_audit():
+    """Stage C C0-T2 — the append-only, hash-chained audit ledger
+    (console/audit.py) and its DERIVED sqlite index (store.audit_index).
+
+    The load-bearing property here is guardrail 2, honesty: the chain REPORTS
+    its own breaks and can never quietly fix one. That is asserted twice —
+    behaviourally (tamper a MIDDLE entry, verify_chain names that exact index,
+    and the file's bytes are unchanged afterwards) and structurally (audit.py's
+    real AST contains no write/replace/truncate/unlink call at all; its only
+    mutation of the ledger is a single append).
+
+    Also asserted: the JSONL is the source of truth and the sqlite table is
+    rebuildable from it alone; the migration is ADDITIVE — a COPY of the real
+    console/.soc/soc_history.db opens with every pre-existing table and row
+    still there; and concurrent appenders from separate processes still produce
+    a chain that verifies.
+    """
+    import ast
+    import shutil as _shutil
+    import sqlite3
+    import subprocess as _sp
+
+    print("\nAudit chain — append-only + hash-chained (the chain reports its own breaks):")
+    sys.path.insert(0, str(HERE))
+    import audit
+    import runbooks
+    import store
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(bool(cond))
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    real = (store.SOC_DIR, store.DB_PATH, audit.SOC_DIR, audit.AUDIT_DIR)
+    try:
+        with tempfile.TemporaryDirectory(prefix="audit-test-") as tmp:
+            tmp = Path(tmp)
+            store.SOC_DIR = tmp
+            store.DB_PATH = tmp / "soc_history.db"
+            audit.SOC_DIR = tmp
+            audit.AUDIT_DIR = tmp / "audit"
+            store.init_db()
+
+            # ---- a) a clean chain verifies ------------------------------
+            rbs = runbooks.load_runbooks()
+            rb = rbs["rb-block-ip"]
+            proof = runbooks.eligible(rb, {"id": "INC-1", "entityKind": "ip",
+                                           "severity": "CRITICAL", "findings": []}, [])
+            entries = []
+            entries.append(audit.append("analyst@soc", "INC-1", "rb-block-ip", "eligibility",
+                                        "approved", eligibility_proof=proof,
+                                        evidence_refs=["evt:1", "evt:2"],
+                                        request_redacted={"ip": "203.0.113.44"},
+                                        response_verbatim=None))
+            entries.append(audit.append("analyst@soc", "INC-1", "rb-block-ip", "block",
+                                        "executed", eligibility_proof=proof,
+                                        evidence_refs=["evt:2"],
+                                        request_redacted={"ip": "203.0.113.44"},
+                                        response_verbatim={"http": 200}))
+            entries.append(audit.append("analyst@soc", "INC-2", "rb-draft-notify", "draft",
+                                        "rejected", eligibility_proof={"eligible": False,
+                                                                       "missing": ["severity_floor"]}))
+            v = audit.verify_chain()
+            check("verify_chain() on a clean 3-entry chain is ok", v["ok"] and v["break"] is None, str(v))
+            check("verify_chain() counts every entry", v["count"] == 3, str(v["count"]))
+            check("every entry carries exactly the D4 field contract",
+                  all(tuple(e) == audit.FIELDS for e in entries),
+                  str(tuple(entries[0])))
+            check("the first entry chains from GENESIS and each entry links to its predecessor",
+                  entries[0]["prev_hash"] == audit.GENESIS
+                  and entries[1]["prev_hash"] == entries[0]["entry_hash"]
+                  and entries[2]["prev_hash"] == entries[1]["entry_hash"])
+            check("eligibility_proof carries what runbooks.eligible() returned, verbatim",
+                  entries[0]["eligibility_proof"] == proof, str(proof))
+            check("an unknown status is rejected, never stored as an invented one",
+                  _raises(lambda: audit.append("a", "i", "r", "s", "totally-fine")))
+
+            # an append only ADDS bytes
+            before_bytes = audit.chain_path().read_bytes()
+            entries.append(audit.append("analyst@soc", "INC-2", "rb-draft-notify", "draft",
+                                        "failed"))
+            after_bytes = audit.chain_path().read_bytes()
+            check("appending never rewrites a byte already in the ledger",
+                  after_bytes.startswith(before_bytes))
+
+            # ---- c) the sqlite index is DERIVED and rebuildable ----------
+            rows = store.audit_rows()
+            check("every appended entry is mirrored into the derived sqlite index",
+                  [r["entry_hash"] for r in rows] == [e["entry_hash"] for e in entries],
+                  str(len(rows)))
+            check("the derived index round-trips the structured fields",
+                  rows[0]["eligibility_proof"] == proof
+                  and rows[0]["evidence_refs"] == ["evt:1", "evt:2"])
+            with store._connect() as c:
+                c.execute("DELETE FROM audit_index")       # simulate a lost/corrupt index
+            check("the index can be wiped (it is a cache, not the source of truth)",
+                  store.audit_rows() == [])
+            rebuilt = audit.rebuild_index()
+            check("rebuild_index() reconstructs the whole index from the JSONL alone",
+                  rebuilt["rebuilt"] and rebuilt["indexed"] == len(entries)
+                  and [r["entry_hash"] for r in store.audit_rows()]
+                      == [e["entry_hash"] for e in entries], str(rebuilt))
+            check("a wiped-and-rebuilt index does not disturb the ledger",
+                  audit.chain_path().read_bytes() == after_bytes)
+
+            # ---- f) real concurrent appenders still produce a valid chain -
+            worker = tmp / "appender.py"
+            worker.write_text(
+                "import sys\n"
+                f"sys.path.insert(0, {str(HERE)!r})\n"
+                "import audit, store\n"
+                f"audit.SOC_DIR = store.SOC_DIR = {str(tmp)!r}\n"
+                f"audit.AUDIT_DIR = {str(tmp / 'audit')!r}\n"
+                f"store.DB_PATH = {str(tmp / 'soc_history.db')!r}\n"
+                "import os\n"
+                "for i in range(6):\n"
+                "    audit.append('w%d' % os.getpid(), 'INC-C', 'rb-block-ip', 'step%d' % i,\n"
+                "                 'executed', index=False)\n")
+            procs = [_sp.Popen([sys.executable, str(worker)]) for _ in range(5)]
+            codes = [p.wait() for p in procs]
+            v2 = audit.verify_chain()
+            check("5 concurrent appender PROCESSES all exited 0", set(codes) == {0}, str(codes))
+            check("the chain still verifies after 30 concurrent appends "
+                  "(no two entries chained off the same predecessor)",
+                  v2["ok"] and v2["count"] == len(entries) + 30, str(v2))
+
+            # ---- b) TAMPER a MIDDLE entry -------------------------------
+            lines = audit.chain_path().read_text().split("\n")
+            lines = [ln for ln in lines if ln]
+            orig_lines = list(lines)
+            victim = 1                              # a middle entry, not the head/tail
+            doctored = json.loads(lines[victim])
+            doctored["actor"] = "someone-else@evil"  # content changed, hash left alone
+            lines[victim] = json.dumps(doctored, sort_keys=True, separators=(",", ":"))
+            audit.chain_path().write_text("\n".join(lines) + "\n")
+            tampered_bytes = audit.chain_path().read_bytes()
+
+            v3 = audit.verify_chain()
+            check("verify_chain() REPORTS the break on a tampered chain", not v3["ok"], str(v3))
+            check(f"...at the CORRECT index ({victim}, the entry that was edited)",
+                  v3["break"] and v3["break"]["index"] == victim, str(v3["break"]))
+            check("...naming the reason (the entry_hash no longer matches its contents)",
+                  v3["break"] and "entry_hash does not match" in v3["break"]["reason"],
+                  str(v3["break"]))
+            check("verify_chain() did NOT touch the file — no silent re-chaining",
+                  audit.chain_path().read_bytes() == tampered_bytes)
+            check("verify_chain() is stable: a second call reports the SAME break, "
+                  "it does not 'heal' on re-read",
+                  audit.verify_chain() == v3)
+            check("rebuild_index() REFUSES to build an index over a broken chain "
+                  "(a corrupt ledger is never laundered into the UI)",
+                  audit.rebuild_index() == {"rebuilt": False, "indexed": 0,
+                                            "verification": v3})
+            check("...and the derived index still holds only the pre-break rebuild",
+                  len(store.audit_rows()) == len(entries))
+
+            # a CUT chain: from the UNTAMPERED ledger, delete entry 2. Entry 3
+            # then sits at index 2 with a prev_hash pointing at a line that is
+            # no longer there — the cut is reported exactly there.
+            cut = [ln for i, ln in enumerate(orig_lines) if i != 2]
+            audit.chain_path().write_text("\n".join(cut) + "\n")
+            v4 = audit.verify_chain()
+            check("deleting a middle entry is reported as a cut at that index",
+                  not v4["ok"] and v4["break"]["index"] == 2
+                  and "prev_hash does not match" in v4["break"]["reason"], str(v4["break"]))
+
+            # ---- structural proof: audit.py has NO repair path -----------
+            tree = ast.parse((HERE / "audit.py").read_text())
+            called = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    f = node.func
+                    called.add(f.attr if isinstance(f, ast.Attribute)
+                               else getattr(f, "id", ""))
+            forbidden = {"write_text", "write_bytes", "atomic_write_text", "durable_append_line",
+                         "replace", "truncate", "unlink", "remove", "rename", "rmtree", "open"}
+            check("audit.py calls NO file-rewriting primitive at all "
+                  "(no write/replace/truncate/unlink/rename/open)",
+                  not (called & forbidden), str(sorted(called & forbidden)))
+            check("its only ledger mutation is a single append through fsafe",
+                  sum(1 for n in ast.walk(tree)
+                      if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                      and n.func.attr == "append_line_holding_lock") == 1)
+            check("no function in audit.py is named like a repair",
+                  not [n.name for n in ast.walk(tree)
+                       if isinstance(n, ast.FunctionDef)
+                       and re.search(r"repair|fix|heal|rechain|re_chain|rewrite|patch", n.name, re.I)])
+
+            # ---- d) the store migration is ADDITIVE ----------------------
+            live_db = HERE / ".soc" / "soc_history.db"
+            if live_db.exists():
+                copy_dir = tmp / "fixture"
+                copy_dir.mkdir()
+                copy_db = copy_dir / "soc_history.db"
+                _shutil.copy2(live_db, copy_db)      # a COPY — never the live store
+
+                def snapshot(db):
+                    with sqlite3.connect(str(db)) as c:
+                        names = [r[0] for r in c.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table' "
+                            "AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+                        return names, {n: c.execute(f"SELECT COUNT(*) FROM {n}").fetchone()[0]
+                                       for n in names}
+
+                before_tables, before_counts = snapshot(copy_db)
+                store.SOC_DIR = copy_dir
+                store.DB_PATH = copy_db
+                store._INIT_DONE.discard(str(copy_db))
+                store.init_db()                      # the migration under test
+                after_tables, after_counts = snapshot(copy_db)
+
+                print(f"  [info] tables BEFORE init_db(): {before_tables}")
+                print(f"  [info] tables AFTER  init_db(): {after_tables}")
+                expected = {"events", "assets", "vulnerabilities", "iocs",
+                            "connectors", "settings", "investigations"}
+                check("the real .soc DB copy already carried the 7 pre-existing tables",
+                      expected <= set(before_tables), str(sorted(before_tables)))
+                check("the migration DROPS nothing — every prior table survives",
+                      set(before_tables) <= set(after_tables),
+                      str(sorted(set(before_tables) - set(after_tables))))
+                check("the migration ADDS exactly audit_index",
+                      set(after_tables) - set(before_tables) == {"audit_index"},
+                      str(sorted(set(after_tables) - set(before_tables))))
+                check("no prior table lost or gained a row",
+                      all(after_counts[t] == before_counts[t] for t in before_tables),
+                      str({t: (before_counts[t], after_counts[t]) for t in before_tables
+                           if after_counts[t] != before_counts[t]}))
+                check("audit_index is not in HISTORY_TABLES/ALL_DATA_TABLES — "
+                      "retention cleanup and purge can never reach audit evidence",
+                      "audit_index" not in store.HISTORY_TABLES
+                      and "audit_index" not in store.ALL_DATA_TABLES)
+            else:
+                check("a real console/.soc/soc_history.db was available to test the "
+                      "migration against", False, f"{live_db} does not exist — NOT TESTED")
+    finally:
+        store.SOC_DIR, store.DB_PATH, audit.SOC_DIR, audit.AUDIT_DIR = real
+
+    return 0 if all(results) else 1
+
+
+def _raises(fn):
+    try:
+        fn()
+        return False
+    except Exception:
+        return True
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -4587,18 +5051,20 @@ def main():
     auth_ = check_auth()
     askview_ = check_ask_view()
     bfseries_ = check_bruteforce_series()
+    runbooks_ = check_runbooks()
+    audit_ = check_audit()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
-            or askview_ or bfseries_):
+            or askview_ or bfseries_ or runbooks_ or audit_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
-          "+ ask-view + bruteforce-series checks green")
+          "+ ask-view + bruteforce-series + runbooks + audit-chain checks green")
     return 0
 
 

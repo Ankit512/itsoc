@@ -433,7 +433,7 @@ def test_ti_match(tmpdir, monkeypatch_build_mapper):
     check("ok=True", r.get("ok") is True)
     check("matched True", r.get("matched") is True)
     m = r["matches"][0]
-    check("severity from threat_detector (critical)", m["severity"] == "critical")
+    check("severity from threat_detector (high)", m["severity"] == "high")
     check("MITRE technique enriched", m["mitre_techniques"][0]["technique_id"] == "T1110")
 
 
