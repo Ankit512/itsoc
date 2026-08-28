@@ -31,7 +31,7 @@ export function OpsMetrics() {
         ? "Mean time to resolve needs resolved incidents — no lifecycle basis yet"
         : `Mean of created→resolved over ${m.mttrBasis} incident(s)` },
     { label: "Assets at Risk", value: m.assetsAtRisk == null ? "—" : String(m.assetsAtRisk),
-      title: "Hosts in the current run with a HIGH or CRITICAL finding" },
+      title: "Assets with a HIGH or CRITICAL finding — LOW/MEDIUM excluded to avoid dilution" },
     { label: "Users at Risk", value: m.usersAtRisk == null ? "—" : String(m.usersAtRisk),
       title: "Accounts targeted by findings in the current run" },
     { label: "Data Sources", value: String(m.dataSources),

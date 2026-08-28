@@ -960,11 +960,14 @@ def metrics(state, run_labels=()):
         "openIncidents": sum(1 for i in incidents if i.get("state") != "resolved"),
         "mttdSeconds": mttd, "mttdBasis": mttd_basis,
         "mttrSeconds": mttr, "mttrBasis": mttr_basis,
-        # Per-run derivations have no honest value without a run.
+        # HIGH+ risk only — counting all atRisk dilutes the signal when most
+        # entities have at least one LOW finding (ITSOC_REDESIGN_SPEC section Phase 4).
         "assetsAtRisk": None if idle else sum(
-            1 for a in derive_assets(state) if a["atRisk"]),
+            1 for a in derive_assets(state)
+            if (a.get("maxSeverity") or "").upper() in ("CRITICAL", "HIGH")),
         "usersAtRisk": None if idle else sum(
-            1 for u in derive_users(state) if u["atRisk"]),
+            1 for u in derive_users(state)
+            if (u.get("maxSeverity") or "").upper() in ("CRITICAL", "HIGH")),
         "dataSources": len({label for label in run_labels if label}),
     }
 
