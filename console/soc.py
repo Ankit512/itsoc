@@ -38,6 +38,7 @@ sys.path.insert(0, str(ROOT / "threat_intel"))
 
 import explanation_guard  # noqa: E402
 import export  # noqa: E402
+import org_context  # noqa: E402
 import redact  # noqa: E402
 from rule_mitre_map import RULE_TECHNIQUES  # noqa: E402
 from tactic_phase_map import phase_for_tactics  # noqa: E402
@@ -189,6 +190,11 @@ def derive_incidents(state):
                 else f"{entity} — {len(members)} correlated finding(s)"
             )
 
+            pri_info = org_context.derive_incident_priority(
+                {"entity": entity, "entityKind": kind, "severity": sev},
+                members=members,
+            )
+
             incidents.append({
                 "id": inc_id,
                 "runId": state.get("runId", ""),
@@ -196,6 +202,9 @@ def derive_incidents(state):
                 "entityKind": kind,
                 "title": title,
                 "severity": sev,
+                "priority": pri_info["priority"],
+                "criticality": pri_info["criticality"],
+                "priorityRationale": pri_info["rationale"],
                 "findingIds": [f.get("id") for f in members],
                 "findingCount": len(members),
                 "techniques": techniques,
@@ -253,8 +262,60 @@ def list_incidents(state=None, state_filter=None):
     return deduped
 
 
+# ---------------------------------------------------------------------------
+# Canonical demo-scenario alias (C2-T0)
+# ---------------------------------------------------------------------------
+# Incident ids are DERIVED from a content hash (see derive_incidents) that embeds
+# the run id, so they are not human-chosen and drift with the run date. Yet the
+# design kit, the C2 acceptance scenario and the C5 demo script all refer to the
+# canonical brute-force scenario 203.0.113.44 -> server-01 by ONE fixed, memorable
+# id: INC-4a7f. We do NOT fabricate an incident carrying that id — that would be a
+# lie, and the incident must be REAL output of the real rules. Instead we make the
+# real, rule-produced incident ADDRESSABLE by the alias: it resolves to whichever
+# stored incident matches the scenario signature (attacker entity), and to None
+# when that scenario has not been analyzed — an honest empty, never a minted
+# record. No derived id changes: every incident keeps exactly the id
+# derive_incidents computed, so id behaviour for all other incidents is untouched.
+INCIDENT_ALIASES = {
+    "INC-4a7f": {"entity": "203.0.113.44", "entityKind": "ip"},
+}
+
+
+def _resolve_alias_id(iid, store):
+    """Map a canonical alias (e.g. INC-4a7f) to the REAL derived id of the stored
+    incident that matches its scenario signature, or None if that scenario is not
+    present. A non-alias id is returned unchanged — aliases are the only ids this
+    touches, so ordinary incident lookup is byte-for-byte unaffected. When a
+    scenario recurs across runs in one store the pick is deterministic: prefer the
+    brute-force incident (technique T1110), then earliest-detected, then id order."""
+    sig = INCIDENT_ALIASES.get(iid)
+    if sig is None:
+        return iid
+    matches = [rid for rid, inc in store.items()
+               if inc.get("entity") == sig["entity"]
+               and inc.get("entityKind") == sig["entityKind"]]
+    if not matches:
+        return None
+
+    def _rank(rid):
+        inc = store[rid]
+        has_bf = any(t.get("id") == "T1110" for t in inc.get("techniques") or [])
+        return (0 if has_bf else 1, inc.get("createdAt") or "", rid)
+    return sorted(matches, key=_rank)[0]
+
+
 def get_incident(iid):
-    return _load("incidents.json").get(iid)
+    """One incident by id. A canonical demo alias (INCIDENT_ALIASES, e.g.
+    INC-4a7f) resolves to the real rule-produced incident for its scenario and is
+    annotated with `alias`; an unknown id or an unmatched alias returns None."""
+    store = _load("incidents.json")
+    real_id = _resolve_alias_id(iid, store)
+    if not real_id:
+        return None
+    inc = store.get(real_id)
+    if inc is not None and real_id != iid:
+        inc = {**inc, "alias": iid}
+    return inc
 
 
 def set_incident_state(iid, new_state):
@@ -265,7 +326,8 @@ def set_incident_state(iid, new_state):
     if new_state not in INCIDENT_STATES:
         raise ValueError(f"state must be one of {INCIDENT_STATES}")
     store = _load("incidents.json")
-    inc = store.get(iid)
+    real_id = _resolve_alias_id(iid, store)      # INC-4a7f -> real derived id
+    inc = store.get(real_id) if real_id else None
     if not inc:
         return None
     if new_state != "new" and not inc.get("acknowledgedAt"):
@@ -572,12 +634,15 @@ def derive_rca(iid, state=None, hypothesis_fn=None):
 def derive_assets(state):
     """Hosts seen in parsed events + IPs seen in findings. Nothing else exists."""
     assets = {}
+    org_ctx = org_context.load_org_context()
 
     def touch(name, kind):
         key = (kind, name)
         if key not in assets:
+            crit = org_ctx.get_criticality(name)
             assets[key] = {"id": f"asset-{kind}-{name}", "name": name, "kind": kind,
                            "events": 0, "findings": 0, "atRisk": False,
+                           "criticality": crit,
                            "riskScore": 0, "maxSeverity": None,
                            "lastSeen": None}
         return assets[key]
@@ -597,7 +662,8 @@ def derive_assets(state):
             a = touch(f["host"], "host")
             a["findings"] += 1
             a["atRisk"] = True
-            a["riskScore"] += weight
+            crit_mult = org_context.CRITICALITY_WEIGHTS.get(a.get("criticality", "standard"), 1.0)
+            a["riskScore"] += round(weight * crit_mult, 1)
             if not a["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(a["maxSeverity"], 5):
                 a["maxSeverity"] = f_sev
 
@@ -607,7 +673,8 @@ def derive_assets(state):
                 a = touch(text, "ip")
                 a["findings"] += 1
                 a["atRisk"] = True
-                a["riskScore"] += weight
+                crit_mult = org_context.CRITICALITY_WEIGHTS.get(a.get("criticality", "standard"), 1.0)
+                a["riskScore"] += round(weight * crit_mult, 1)
                 if not a["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(a["maxSeverity"], 5):
                     a["maxSeverity"] = f_sev
                 if f.get("stamp") and (a["lastSeen"] or "") < f["stamp"]:

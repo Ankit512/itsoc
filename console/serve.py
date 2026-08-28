@@ -59,6 +59,8 @@ import auth  # noqa: E402  # local demo auth + swap seam (Phase 6)
 import discovery  # noqa: E402  # nmap discovery + vuln scan -> store (socf-discovery)
 import evtx_ingest  # noqa: E402  # Windows .evtx ingest -> store (socf-evtx-history)
 import export  # noqa: E402
+import investigate  # noqa: E402  # deterministic investigation engine (C2) — never waits on the LLM
+import org_context  # noqa: E402
 import redact  # noqa: E402
 import soc  # noqa: E402
 import store  # noqa: E402  # persistent SOC Command Center store (console/store.py)
@@ -1422,9 +1424,19 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json({"incidents": soc.list_incidents(
                 STATE, state_filter=(qs.get("state") or [None])[0])})
         elif path.startswith("/api/incidents/") and path.endswith("/rca"):
-            rca = soc.derive_rca(path.split("/")[3], STATE,
-                                 hypothesis_fn=rca_hypothesis_fn())
+            # D2 split: the deterministic investigation case assembles and returns
+            # immediately — it NEVER blocks on the model (investigate.assemble makes
+            # no LLM call). The advisory layer is dispatched separately and carried
+            # here as an honest `pending` seam; it can never delay or fabricate the
+            # facts. (Was: soc.derive_rca(..., hypothesis_fn=rca_hypothesis_fn()),
+            # which blocked the whole response on la.chat_completion.)
+            rca = investigate.assemble(path.split("/")[3], STATE)
             self._json(rca) if rca else self._json({"error": "no such incident"}, 404)
+        elif path.startswith("/api/incidents/") and path.endswith("/advisory"):
+            # Separate by construction: /rca above returns the deterministic case
+            # without touching a model; only this opt-in route waits for advisory.
+            advisory = investigate.dispatch_advisory(path.split("/")[3], STATE)
+            self._json(advisory) if advisory else self._json({"error": "no such incident"}, 404)
         elif path.startswith("/api/incidents/") and path.endswith("/bruteforce"):
             iid = path.split("/")[3]
             inc = next((i for i in soc.list_incidents(STATE)
@@ -1484,6 +1496,9 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json(auth.AUTH_PROVIDER.get_status())
         elif path == "/api/auth/me":
             self._auth_me()
+        # --- Org Context / Criticality (C2-T3) ------------------------------
+        elif path == "/api/org-context":
+            self._json(org_context.load_org_context().to_dict())
         elif path.startswith("/api/"):
             # An unknown /api path is a real 404 — never fall through to the SPA
             # (that would return HTML for a missing endpoint and mask the bug).
@@ -1618,8 +1633,23 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._auth_login()
         elif path == "/api/auth/logout":
             self._auth_logout()
+        # --- Org Context / Criticality (C2-T3) ------------------------------
+        elif path == "/api/org-context":
+            self._update_org_context()
         else:
             self.send_error(405, "This console only accepts POST /api/analyze")
+
+    def _update_org_context(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            return self._json({"error": "invalid JSON body"}, 400)
+        try:
+            ctx = org_context.save_org_context(payload)
+            return self._json(ctx.to_dict())
+        except ValueError as err:
+            return self._json({"error": str(err)}, 400)
 
     # -----------------------------------------------------------------------
     # SOC Command Center store routes (console/store.py). Read endpoints return

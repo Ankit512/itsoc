@@ -283,11 +283,106 @@ export interface RcaHypothesis {
   reasons?: string[];
 }
 
+/** One reconstructed record in the deterministic investigation timeline. Every
+ *  entry carries its source record number `n`, which resolves back to a verbatim
+ *  line in the events store — that resolvable {n} is what makes it a fact. */
+export interface InvestigationEvent {
+  n: number;
+  ts: string;
+  level: string;
+  host: string;
+  msg: string;
+  raw: string;
+  isFinding: boolean;
+  findingId?: string | null;
+}
+export interface InvestigationAsset {
+  name: string;
+  kind: string;
+  role: string;
+  records: number[];
+  firstRecord: number;
+  eventCount: number;
+}
+export interface InvestigationCorrelation {
+  entity?: string | null;
+  entityKind?: string | null;
+  assets: InvestigationAsset[];
+}
+export interface InvestigationIoc {
+  type: string;
+  value: string;
+  records: number[];
+  firstRecord: number;
+  count: number;
+}
+export interface InvestigationBlastRadius {
+  sourceEntity?: string | null;
+  assets: string[];
+  accounts: string[];
+  assetCount: number;
+  accountCount: number;
+  records: number[];
+}
+/** The DETERMINISTIC investigation case (console/investigate.py). Rule-derived,
+ *  every fact cited by a resolvable record {n}, and never a model output. */
+export interface Investigation {
+  entity?: string | null;
+  entityKind?: string | null;
+  timeline: InvestigationEvent[];
+  correlation: InvestigationCorrelation;
+  iocs: InvestigationIoc[];
+  blastRadius: InvestigationBlastRadius;
+  recordsConsidered: number[];
+  note?: string | null;
+}
+/** The pending advisory seam carried on the /rca payload — the deterministic
+ *  case never waits on it. Advisory prose arrives from the separate /advisory
+ *  route and is never a verdict. */
+export interface RcaAdvisorySeam {
+  status: string;        // "pending" here; the /advisory route fills or times out
+  label: string;
+  text: string | null;
+  note?: string | null;
+}
+
 export interface Rca {
   incidentId: string;
   facts: RcaFacts;
   runbook: RcaRunbook;
   hypothesis: RcaHypothesis;
+  // Additive (C2): the deterministic investigation file + the pending advisory
+  // seam. Optional so pre-C2 payloads (and the existing RCA tests) still type.
+  investigation?: Investigation;
+  advisory?: RcaAdvisorySeam;
+  deterministic?: boolean;
+  assembledInMs?: number;
+}
+
+/** One grounded advisory agent's output. `status` is the honesty surface:
+ *  "complete" (guard-passed prose), "rejected" (all prose withheld), or
+ *  "timed_out" (the model was unreachable — shown, never silently dropped). */
+export type AdvisoryStatus = "complete" | "rejected" | "timed_out";
+export interface AdvisorySentence { text: string; records: number[] }
+export interface AdvisoryBlock {
+  kind: string;
+  label: string;                 // "ADVISORY · narrative" etc.
+  status: AdvisoryStatus;
+  text: string | null;
+  sentences: AdvisorySentence[];
+  rejected: { text: string; records: number[]; reasons: string[] }[];
+  grounding: { factual_sentences: number; cited_and_resolvable: number; ratio: number };
+  note?: string | null;
+}
+/** The parallel-advisory report (/api/incidents/:id/advisory). Dispatched
+ *  SEPARATELY from the deterministic case; the screen must never block on it. */
+export interface AdvisoryReport {
+  incidentId: string;
+  label: string;                 // "ADVISORY"
+  status: "complete" | "timed_out";
+  blocks: AdvisoryBlock[];
+  grounding: { factual_sentences: number; cited_and_resolvable: number; ratio: number };
+  note?: string | null;
 }
 
 /** Cross-run brute-force attempt series for an incident's entity (RCA rail
@@ -718,6 +813,12 @@ export const api = {
     return "error" in r ? r : normIncident(r);
   },
   incidentRca: (id: string) => getJson<OrError<Rca>>(`/api/incidents/${id}/rca`),
+  /** The parallel grounded advisory agents (narrative / ATT&CK / pivots). This
+   *  is dispatched SEPARATELY from the deterministic case and may take up to the
+   *  server deadline or time out — callers must render it in its own query so the
+   *  investigation file never waits on it. */
+  incidentAdvisory: (id: string) =>
+    getJson<OrError<AdvisoryReport>>(`/api/incidents/${id}/advisory`),
   incidentBruteforce: (id: string) =>
     getJson<AttemptSeries>(`/api/incidents/${id}/bruteforce`),
 

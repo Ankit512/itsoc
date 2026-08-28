@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Check, Sparkles, Pencil, X } from "lucide-react";
-import { api, INCIDENT_STATES, CASE_STATUSES, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca } from "@/lib/api";
+import { api, INCIDENT_STATES, CASE_STATUSES, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /** Open the shell's real (streaming) analyst — the inline card is a grounded
@@ -728,6 +728,215 @@ function IncidentRail({ inc }: { inc: Incident }) {
   );
 }
 
+/** A resolvable record {n} citation. Deterministic facts cite records; a cite
+ *  resolves when its `n` maps to a real event in the loaded case, and its verbatim
+ *  source line is shown on hover. A citation that does NOT resolve is marked
+ *  honestly (`.miss`) rather than shown as if it were grounded. */
+function RecordCite({ n, byN }: { n: number; byN: Map<number, InvestigationEvent> }) {
+  const ev = byN.get(n);
+  return (
+    <span
+      className={cn("is-cite", !ev && "miss")}
+      data-testid={`cite-${n}`}
+      data-resolves={ev ? "true" : "false"}
+      title={ev ? `record ${n}: ${ev.raw}` : `record ${n} is not in the loaded run`}
+    >
+      {`{${n}}`}
+    </span>
+  );
+}
+
+/** One grounded advisory agent's block (narrative / ATT&CK / pivots). Model
+ *  output, never a verdict — so it renders inside the advisory family (dashed
+ *  accent + ADVISORY chip) and shows its three honest states: filled prose,
+ *  withheld ("rejected"), or a VISIBLE timeout that never becomes prose. */
+function AdvisoryBlockView({ block, byN }: { block: AdvisoryBlock; byN: Map<number, InvestigationEvent> }) {
+  const timedOut = block.status === "timed_out";
+  return (
+    <div className="is-block is-adv" data-testid={`investigation-adv-${block.kind}`} data-adv-status={block.status}>
+      <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+        <span className="cap" style={{ marginBottom: 0 }}>{block.kind}</span>
+        <span className="is-chip is-chip--adv">{block.label}</span>
+      </div>
+      {block.status === "complete" && block.sentences.length ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {block.sentences.map((s, i) => (
+            <p key={i} style={{ fontSize: 12, lineHeight: 1.5 }}>
+              {s.text}{" "}
+              {s.records.map((n) => <RecordCite key={n} n={n} byN={byN} />)}
+            </p>
+          ))}
+        </div>
+      ) : timedOut ? (
+        <div className="note-timeout" data-testid={`advisory-timeout-${block.kind}`}>
+          {block.note || "ADVISORY · timed out — retry"}
+        </div>
+      ) : (
+        <p className="is-mut" style={{ fontSize: "11.5px" }}>
+          {block.note || "ADVISORY · unverified — model prose was withheld by the grounding guard"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The Investigation file (build-doc C2 item 4). The DETERMINISTIC case — timeline
+ *  reconstruction, entity/asset correlation, IOCs and blast radius — comes from
+ *  /rca and renders immediately, every fact carrying a resolvable record {n}. The
+ *  ADVISORY agents are dispatched on a SEPARATE query so the file never waits on
+ *  the model; they render pending → filled → visible-timeout, always distinct from
+ *  the deterministic blocks so a reader can tell fact from hypothesis at a glance. */
+function InvestigationFile({ incidentId }: { incidentId: string }) {
+  const { data: rcaData, isLoading } = useQuery({
+    queryKey: ["rca", incidentId],
+    queryFn: () => api.incidentRca(incidentId),
+  });
+  const rca = rcaData && !("error" in rcaData) && "facts" in rcaData ? (rcaData as Rca) : null;
+  const inv = rca?.investigation;
+
+  // A SEPARATE query — the deterministic file above never blocks on this. Advisory
+  // failure is data, not an exception, so keep it out of retry/suspense storms.
+  const advisory = useQuery({
+    queryKey: ["advisory", incidentId],
+    queryFn: () => api.incidentAdvisory(incidentId),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const advReport = advisory.data && !("error" in advisory.data) ? (advisory.data as AdvisoryReport) : null;
+
+  if (isLoading) {
+    return (
+      <section className="is-panel" data-testid="investigation-file">
+        <div className="is-panel__h"><h3>Investigation file</h3></div>
+        <p className="is-mut" style={{ fontSize: "11.5px" }}>Assembling the deterministic case…</p>
+      </section>
+    );
+  }
+  if (!inv) {
+    return (
+      <section className="is-panel" data-testid="investigation-file">
+        <div className="is-panel__h"><h3>Investigation file</h3></div>
+        <p className="is-mut" style={{ fontSize: "11.5px" }}>
+          No investigation file for this incident — its member records are not in the loaded run.
+        </p>
+      </section>
+    );
+  }
+
+  const byN = new Map(inv.timeline.map((e) => [e.n, e]));
+  const c = inv.correlation;
+
+  return (
+    <section className="is-panel" data-testid="investigation-file">
+      <div className="is-panel__h" style={{ justifyContent: "space-between" }}>
+        <h3>Investigation file</h3>
+        <span className="is-chip is-chip--ok" title="Rule-derived and cited — not a model output">
+          deterministic · rule-derived
+        </span>
+      </div>
+
+      <div className="is-invfile">
+        {/* ---- DETERMINISTIC: timeline reconstruction (resolvable {n} = the line) */}
+        <div className="is-block is-det" data-testid="investigation-deterministic">
+          <div className="cap authoritative">Timeline · reconstructed from the events store · every line cited</div>
+          {inv.timeline.length ? (
+            <pre className="is-evidence" data-testid="investigation-timeline">
+              {inv.timeline.map((e) => (
+                <div key={e.n} className={e.isFinding ? "eline crit" : "eline"} data-testid={`tl-${e.n}`}>
+                  <span className="ln">{`{${e.n}}`}</span>
+                  {e.raw}
+                </div>
+              ))}
+            </pre>
+          ) : (
+            <p className="is-mut" style={{ fontSize: "11.5px" }}>No records reconstructed for this entity in the loaded run.</p>
+          )}
+        </div>
+
+        {/* ---- DETERMINISTIC: entity / asset correlation */}
+        <div className="is-block is-det" data-testid="investigation-correlation">
+          <div className="cap authoritative">Correlation · {c.entity ?? "—"} → assets it touched</div>
+          {c.assets.length ? c.assets.map((a) => (
+            <div key={a.name} className="is-facts-row">
+              <span><span className="is-mono">{a.name}</span> <span className="is-mut">· {a.role} · {a.eventCount} record(s)</span></span>
+              <b>{a.records.map((n) => <RecordCite key={n} n={n} byN={byN} />)}</b>
+            </div>
+          )) : (
+            <p className="is-mut" style={{ fontSize: "11.5px" }}>No correlated assets — the entity acted only on itself.</p>
+          )}
+        </div>
+
+        {/* ---- DETERMINISTIC: IOC extraction */}
+        <div className="is-block is-det" data-testid="investigation-iocs">
+          <div className="cap authoritative">Indicators · extracted from the records, not inferred</div>
+          {inv.iocs.length ? inv.iocs.map((i) => (
+            <div key={`${i.type}:${i.value}`} className="is-facts-row">
+              <span><span className="is-tag is-tag--info is-mono">{i.type}</span> <span className="is-mono">{i.value}</span> <span className="is-mut">· ×{i.count}</span></span>
+              <b>{i.records.map((n) => <RecordCite key={n} n={n} byN={byN} />)}</b>
+            </div>
+          )) : (
+            <p className="is-mut" style={{ fontSize: "11.5px" }}>No indicators extracted from the reconstructed records.</p>
+          )}
+        </div>
+
+        {/* ---- DETERMINISTIC: blast radius */}
+        <div className="is-block is-det" data-testid="investigation-blast">
+          <div className="cap authoritative">Blast radius · everything in scope, each traceable to a record</div>
+          <div className="is-facts-row">
+            <span className="is-mut">Source</span>
+            <b><span className="is-mono">{inv.blastRadius.sourceEntity ?? "—"}</span></b>
+          </div>
+          <div className="is-facts-row">
+            <span className="is-mut">Assets ({inv.blastRadius.assetCount})</span>
+            <b className={inv.blastRadius.assets.length ? undefined : "na"}>
+              {inv.blastRadius.assets.length ? inv.blastRadius.assets.map((h) => <span key={h} className="is-mono" style={{ marginRight: 8 }}>{h}</span>) : "none"}
+            </b>
+          </div>
+          <div className="is-facts-row">
+            <span className="is-mut">Accounts ({inv.blastRadius.accountCount})</span>
+            <b className={inv.blastRadius.accounts.length ? undefined : "na"}>
+              {inv.blastRadius.accounts.length ? inv.blastRadius.accounts.map((u) => <span key={u} className="is-mono" style={{ marginRight: 8 }}>{u}</span>) : "none"}
+            </b>
+          </div>
+          <div style={{ marginTop: 4 }}>{inv.blastRadius.records.map((n) => <RecordCite key={n} n={n} byN={byN} />)}</div>
+        </div>
+
+        {inv.note && <p className="is-mut" style={{ fontSize: 11 }}>{inv.note}</p>}
+
+        {/* ---- ADVISORY: dispatched separately, visually distinct, honest states */}
+        <div className="is-adv-head" data-testid="investigation-advisory">
+          <span className="cap" style={{ marginBottom: 0 }}>Advisory · model output</span>
+          <span className="is-chip is-chip--adv">ADVISORY · hypothesis · not a verdict</span>
+          {advReport?.status === "timed_out" && (
+            <button className="is-btn is-btn--ghost" style={{ marginLeft: "auto", fontSize: 11 }}
+                    data-testid="advisory-retry" onClick={() => advisory.refetch()}>
+              retry
+            </button>
+          )}
+        </div>
+
+        {advisory.isLoading || advisory.isFetching ? (
+          // PENDING — dispatched, not yet returned. The file above is already complete.
+          <div className="is-block is-adv" data-testid="advisory-pending">
+            <p className="is-mut" style={{ fontSize: "11.5px" }}>
+              ADVISORY · pending — three grounded agents dispatched; the deterministic case above does not wait on them.
+            </p>
+          </div>
+        ) : !advReport ? (
+          // Route unreachable — a VISIBLE degrade, never a silent omission.
+          <div className="is-block is-adv" data-testid="advisory-unavailable">
+            <div className="note-timeout">ADVISORY · timed out — retry</div>
+            <button className="is-btn is-btn--ghost" style={{ marginTop: 6, fontSize: 11 }}
+                    data-testid="advisory-retry" onClick={() => advisory.refetch()}>retry</button>
+          </div>
+        ) : (
+          advReport.blocks.map((b) => <AdvisoryBlockView key={b.kind} block={b} byN={byN} />)
+        )}
+      </div>
+    </section>
+  );
+}
+
 function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) {
   const spanLabel = (() => {
     const a = toMs(inc.firstSeen), b = toMs(inc.lastSeen);
@@ -762,6 +971,9 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
 
         {/* Attack timeline (real sub-events, positioned by time) */}
         <AttackTimeline incidentId={inc.id} />
+
+        {/* Investigation file — deterministic case (cited) + separate advisory */}
+        <InvestigationFile incidentId={inc.id} />
 
         {/* Root cause — advisory territory (§3) */}
         <section className="is-panel" data-testid="rca-panel">
