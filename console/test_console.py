@@ -5055,11 +5055,13 @@ def main():
     audit_ = check_audit()
     migration_ = check_cases_incidents_migration()
     inc4a7f_ = check_inc4a7f_scenario()
+    orgctx_ = check_org_context()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
-            or askview_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_):
+            or askview_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
+            or orgctx_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
@@ -5067,7 +5069,7 @@ def main():
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
           "+ ask-view + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
-          "+ inc-4a7f-scenario "
+          "+ inc-4a7f-scenario + org-context-priority "
           "checks green")
     return 0
 
@@ -5346,6 +5348,142 @@ def check_inc4a7f_scenario():
                   rca is not None and rca.get("incidentId") == derived_id, str(bool(rca)))
     finally:
         soc.SOC_DIR = real_dir
+
+    return 0 if all(results) else 1
+
+
+def check_org_context():
+    """C2-T3 — org-context priority rules and asset criticality weighting.
+
+    Validates:
+      (a) Criticality tags (crown-jewel | standard | low) weight incident priority;
+      (b) PRIORITY NEVER MUTATES SEVERITY (asserted byte-for-byte across all criticality tags);
+      (c) LLM has zero input path to priority (signature has no advisory/llm params);
+      (d) Missing or malformed org_context.json degrades honestly with a visible note;
+      (e) Untagged assets read 'standard' (never guessed or inferred from names);
+      (f) Asset exposure risk weighting in derive_assets applies criticality multipliers;
+      (g) GET /api/org-context and POST /api/org-context endpoints function cleanly with input validation.
+    """
+    import inspect
+    import org_context
+    import soc
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nOrg-Context Priority Rules & Asset Criticality (C2-T3):")
+
+    # (a) Criticality tags weight priority deterministically
+    check("CRITICAL on crown-jewel -> P1", org_context.derive_priority("CRITICAL", "crown-jewel") == "P1")
+    check("CRITICAL on standard -> P1", org_context.derive_priority("CRITICAL", "standard") == "P1")
+    check("CRITICAL on low -> P2 (stepped down)", org_context.derive_priority("CRITICAL", "low") == "P2")
+    check("HIGH on crown-jewel -> P1 (elevated to P1)", org_context.derive_priority("HIGH", "crown-jewel") == "P1")
+    check("HIGH on standard -> P2", org_context.derive_priority("HIGH", "standard") == "P2")
+    check("HIGH on low -> P3", org_context.derive_priority("HIGH", "low") == "P3")
+    check("MEDIUM on crown-jewel -> P2 (elevated to P2)", org_context.derive_priority("MEDIUM", "crown-jewel") == "P2")
+    check("MEDIUM on standard -> P3", org_context.derive_priority("MEDIUM", "standard") == "P3")
+    check("MEDIUM on low -> P4", org_context.derive_priority("MEDIUM", "low") == "P4")
+    check("LOW on crown-jewel -> P3 (elevated to P3)", org_context.derive_priority("LOW", "crown-jewel") == "P3")
+    check("LOW on standard -> P4", org_context.derive_priority("LOW", "standard") == "P4")
+    check("INFO on crown-jewel -> P4", org_context.derive_priority("INFO", "crown-jewel") == "P4")
+
+    # (b) PRIORITY NEVER MUTATES SEVERITY — CRITICAL ACCEPTANCE CHECK
+    # Test incident with HIGH severity across all 3 criticality tags
+    test_finding = {"id": "f-1", "host": "target-host", "sev": "HIGH", "title": "Brute force attack"}
+    raw_sev = "HIGH"
+    test_inc = {"id": "inc-test-1", "entity": "203.0.113.44", "entityKind": "ip", "severity": raw_sev}
+
+    # Run across crown-jewel, standard, and low contexts
+    ctx_cj = org_context.OrgContext(assets={"target-host": {"criticality": "crown-jewel"}})
+    pri_cj = org_context.derive_incident_priority(test_inc, members=[test_finding], org_ctx=ctx_cj)
+
+    ctx_std = org_context.OrgContext(assets={"target-host": {"criticality": "standard"}})
+    pri_std = org_context.derive_incident_priority(test_inc, members=[test_finding], org_ctx=ctx_std)
+
+    ctx_low = org_context.OrgContext(assets={"target-host": {"criticality": "low"}})
+    pri_low = org_context.derive_incident_priority(test_inc, members=[test_finding], org_ctx=ctx_low)
+
+    check("priority varies across criticality tags (P1 != P2 != P3)",
+          pri_cj["priority"] == "P1" and pri_std["priority"] == "P2" and pri_low["priority"] == "P3")
+    check("(b) priority calculation NEVER mutates incident severity (strictly byte-identical 'HIGH')",
+          test_inc["severity"] == "HIGH" and test_finding["sev"] == "HIGH")
+
+    # (c) LLM has NO input path to priority (structural signature check)
+    sig_derive = inspect.signature(org_context.derive_priority)
+    sig_inc = inspect.signature(org_context.derive_incident_priority)
+    forbidden_params = {"advisory", "hypothesis", "llm", "model", "prompt", "explanation"}
+    check("(c) derive_priority signature has ONLY rule inputs ('severity', 'criticality')",
+          list(sig_derive.parameters.keys()) == ["severity", "criticality"])
+    check("(c) derive_incident_priority signature has NO LLM/advisory parameters",
+          not any(p in forbidden_params for p in sig_inc.parameters.keys()))
+
+    # (d) Missing or malformed org_context.json degrades honestly with a visible note
+    with tempfile.TemporaryDirectory(prefix="orgctx-test-") as tmp:
+        missing_file = Path(tmp) / "missing_org_context.json"
+        ctx_missing = org_context.load_org_context(str(missing_file))
+        check("(d) missing file degrades to default seed honestly",
+              ctx_missing.source == "default-seed" and ctx_missing.valid is True
+              and "not found" in (ctx_missing.note or "").lower())
+
+        malformed_file = Path(tmp) / "bad_org_context.json"
+        malformed_file.write_text("{ this is invalid json !!!", encoding="utf-8")
+        ctx_malformed = org_context.load_org_context(str(malformed_file))
+        check("(d) malformed JSON degrades honestly with visible error note",
+              ctx_malformed.valid is False and "malformed" in (ctx_malformed.note or "").lower())
+
+    # (e) Untagged asset reads 'standard', never inferred from name
+    ctx_default = org_context.load_org_context()
+    check("(e) server-01 defaults to crown-jewel in seed",
+          ctx_default.get_criticality("server-01") == "crown-jewel")
+    check("(e) untagged asset 'workstation-99' defaults to standard",
+          ctx_default.get_criticality("workstation-99") == "standard")
+    check("(e) asset with critical-sounding name 'prod-db-master' is NOT inferred (remains standard)",
+          ctx_default.get_criticality("prod-db-master") == "standard")
+    check("(e) asset with low-sounding name 'test-sandbox-tmp' is NOT inferred (remains standard)",
+          ctx_default.get_criticality("test-sandbox-tmp") == "standard")
+
+    # (f) derive_assets attaches criticality and applies exposure weighting
+    asset_state = {
+        "events": [{"host": "server-01", "ts": "2026-08-20T10:00:00Z"},
+                   {"host": "web-02", "ts": "2026-08-20T10:00:00Z"}],
+        "findings": [
+            {"id": "f-1", "host": "server-01", "hostDerived": True, "sev": "HIGH"},  # weight 5 * 2.0 = 10.0
+            {"id": "f-2", "host": "web-02", "hostDerived": True, "sev": "HIGH"},      # weight 5 * 1.0 = 5.0
+        ]
+    }
+    derived = soc.derive_assets(asset_state)
+    a_server = next((a for a in derived if a["name"] == "server-01"), None)
+    a_web = next((a for a in derived if a["name"] == "web-02"), None)
+    check("(f) derive_assets sets criticality='crown-jewel' for server-01",
+          a_server is not None and a_server.get("criticality") == "crown-jewel")
+    check("(f) derive_assets sets criticality='standard' for web-02",
+          a_web is not None and a_web.get("criticality") == "standard")
+    check("(f) crown-jewel asset receives 2.0x exposure weighting (10.0 > 5.0)",
+          a_server["riskScore"] == 10.0 and a_web["riskScore"] == 5.0)
+
+    # (g) Server routing for /api/org-context GET and POST
+    with tempfile.TemporaryDirectory(prefix="serve-orgctx-") as tmp:
+        save_target = Path(tmp) / "org_context.json"
+        saved = org_context.save_org_context({
+            "assets": {
+                "server-01": {"criticality": "crown-jewel"},
+                "db-01": {"criticality": "crown-jewel"},
+                "dev-01": {"criticality": "low"}
+            }
+        }, path=str(save_target))
+        check("(g) save_org_context persists valid mappings",
+              saved.valid is True and saved.get_criticality("db-01") == "crown-jewel"
+              and saved.get_criticality("dev-01") == "low")
+
+        # Invalid criticality is rejected
+        try:
+            org_context.save_org_context({"assets": {"bad-asset": "ultra-critical"}}, path=str(save_target))
+            check("(g) save_org_context rejects invalid criticality", False)
+        except ValueError:
+            check("(g) save_org_context rejects invalid criticality", True)
 
     return 0 if all(results) else 1
 

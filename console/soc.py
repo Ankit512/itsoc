@@ -38,6 +38,7 @@ sys.path.insert(0, str(ROOT / "threat_intel"))
 
 import explanation_guard  # noqa: E402
 import export  # noqa: E402
+import org_context  # noqa: E402
 import redact  # noqa: E402
 from rule_mitre_map import RULE_TECHNIQUES  # noqa: E402
 from tactic_phase_map import phase_for_tactics  # noqa: E402
@@ -189,6 +190,11 @@ def derive_incidents(state):
                 else f"{entity} — {len(members)} correlated finding(s)"
             )
 
+            pri_info = org_context.derive_incident_priority(
+                {"entity": entity, "entityKind": kind, "severity": sev},
+                members=members,
+            )
+
             incidents.append({
                 "id": inc_id,
                 "runId": state.get("runId", ""),
@@ -196,6 +202,9 @@ def derive_incidents(state):
                 "entityKind": kind,
                 "title": title,
                 "severity": sev,
+                "priority": pri_info["priority"],
+                "criticality": pri_info["criticality"],
+                "priorityRationale": pri_info["rationale"],
                 "findingIds": [f.get("id") for f in members],
                 "findingCount": len(members),
                 "techniques": techniques,
@@ -625,12 +634,15 @@ def derive_rca(iid, state=None, hypothesis_fn=None):
 def derive_assets(state):
     """Hosts seen in parsed events + IPs seen in findings. Nothing else exists."""
     assets = {}
+    org_ctx = org_context.load_org_context()
 
     def touch(name, kind):
         key = (kind, name)
         if key not in assets:
+            crit = org_ctx.get_criticality(name)
             assets[key] = {"id": f"asset-{kind}-{name}", "name": name, "kind": kind,
                            "events": 0, "findings": 0, "atRisk": False,
+                           "criticality": crit,
                            "riskScore": 0, "maxSeverity": None,
                            "lastSeen": None}
         return assets[key]
@@ -650,7 +662,8 @@ def derive_assets(state):
             a = touch(f["host"], "host")
             a["findings"] += 1
             a["atRisk"] = True
-            a["riskScore"] += weight
+            crit_mult = org_context.CRITICALITY_WEIGHTS.get(a.get("criticality", "standard"), 1.0)
+            a["riskScore"] += round(weight * crit_mult, 1)
             if not a["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(a["maxSeverity"], 5):
                 a["maxSeverity"] = f_sev
 
@@ -660,7 +673,8 @@ def derive_assets(state):
                 a = touch(text, "ip")
                 a["findings"] += 1
                 a["atRisk"] = True
-                a["riskScore"] += weight
+                crit_mult = org_context.CRITICALITY_WEIGHTS.get(a.get("criticality", "standard"), 1.0)
+                a["riskScore"] += round(weight * crit_mult, 1)
                 if not a["maxSeverity"] or SEV_RANK.get(f_sev, 5) < SEV_RANK.get(a["maxSeverity"], 5):
                     a["maxSeverity"] = f_sev
                 if f.get("stamp") and (a["lastSeen"] or "") < f["stamp"]:
