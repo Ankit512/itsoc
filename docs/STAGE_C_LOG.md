@@ -749,3 +749,42 @@ Owner: *"OPEN-5 exists only as a name to me. Fine while non-gating — but the m
 text comes inline in the same message."* Adopted: any `STAGE_C_OPEN_ITEMS.md` entry that becomes gating
 is quoted **in full, inline, as plain flowing prose** — no box-drawing, no columns (owner's relay
 corrupts those). Prose summaries remain fine for non-gating items.
+
+### C0-T7a · ATT&CK version anchor pinned — **ACCEPTED** (commit `538e414`, worker Oscar)
+
+Comment-only change, god-verified (`git show 538e414` contains no non-comment lines; +14/-4 in
+`rule_mitre_map.py` alone). The anchor now pins concretely instead of pointing at a moving repo URL:
+bundle id `bundle--6198013c-6f02-42a4-9713-38ea1301a1aa`, `spec_version "2.0"` (the earlier "STIX 2.1"
+claim was wrong and is corrected), `x_mitre_attack_spec_version "3.3.0"`, retrieval date 2026-08-14, and
+an explicit statement that **the ATT&CK release number is not recorded in this bundle** because it holds
+no `x-mitre-collection` object — stated plainly rather than guessed, which was the point.
+
+It also carries the honesty disclosure: the local cache is a **known-doctored fixture** (missing
+`defense-evasion`, invented 'Stealth'/'Defense Impairment', `T1070.001` revoked with a fabricated
+2026-04-14 date), and that this is what the three reasoned test skips correspond to. A reader can now
+tell exactly how far to trust the anchor. Suites still green: threat_intel 0 failures / 3 skips,
+`run_eval` 17/17 f1 1.000.
+
+### C1-T1 · IN FLIGHT — orchestrator intervention before commit (not a defect in the work)
+
+Two mechanical problems caught by a routine progress check, **before** anything was committed:
+
+1. **Work was on `main`, not the phase branch.** `stage-c/c1-consolidation` existed but sat at `df60f81`
+   with zero commits, while C1's allowlist files were being modified on `main`. Phase work must never
+   land on `main` — the owner gates every merge.
+2. **`console/soc.py` held the foreign hunk mixed with C1 work.** The foreign `metrics()` edit
+   (`assetsAtRisk`/`usersAtRisk` severity weighting, from the separate `inbox/` queue) sits in the same
+   file C1-T1 legitimately edits, so `git add console/soc.py` would have committed the owner's reserved
+   work along with ours.
+
+An exact, non-improvised procedure was issued: back up the file first; restore the foreign hunk to its
+HEAD form (both forms quoted verbatim in the message); `git checkout -B stage-c/c1-consolidation` to
+repoint the branch and switch **while keeping the working tree**; commit only allowlist files by
+explicit path; verify the other three foreign files are still listed as modified; then re-apply the
+foreign hunk so the owner's pending work is preserved uncommitted. Stop-and-ask if any step deviates —
+losing someone else's uncommitted work is worse than a delay.
+
+**The work itself is sound.** Pam correctly identified the silent-killer tripwire and is carrying
+`origin` and `cases` across every re-derivation in the preserve block, with a comment naming exactly why.
+One code note raised: `_try_absorb_cases()` appears twice in the current diff — flagged as a possible
+duplicate insertion to check before it ships.
