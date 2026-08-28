@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import App from "@/App";
-import { renderApp, mockFetch } from "./helpers";
+import { renderApp, mockFetch, DEFAULT_AUTH_ME, DEFAULT_AUTH_STATUS } from "./helpers";
 import type { Incident } from "@/lib/api";
 
 function incident(over: Partial<Incident> = {}): Incident {
@@ -228,5 +228,227 @@ describe("Incidents ← Cases merge (C1-T2)", () => {
     mockFetch({ "/api/incidents": { incidents: [manualIncident({ cases: [embeddedCase({ notes: "" })] })] } });
     renderApp(<App />, { route: "/incidents?sel=inc-manual-abc" });
     expect(await screen.findByText("No notes on this case.")).toBeInTheDocument();
+  });
+});
+
+// ── C2-T4: the Investigation file section (deterministic case + advisory) ────
+const TL = (n: number, isFinding: boolean, raw: string) => ({
+  n, ts: "2026-08-13T02:16:44+00:00", level: "ERROR", host: "server-01",
+  msg: raw, raw, isFinding, findingId: isFinding ? "detector-0" : null,
+});
+
+/** The deterministic INC-4a7f case as investigate.assemble() returns it. */
+function invFixture() {
+  return {
+    entity: "203.0.113.44", entityKind: "ip",
+    timeline: [
+      TL(5, true, "2026-08-13T02:16:44Z ERROR server-01 auth failed for user 'admin' from 203.0.113.44 (invalid password)"),
+      TL(6, false, "2026-08-13T02:16:45Z ERROR server-01 auth failed for user 'admin' from 203.0.113.44 (invalid password)"),
+      TL(11, true, "2026-08-13T02:16:50Z ERROR server-01 auth failed for user 'admin' from 203.0.113.44 (invalid password)"),
+      TL(12, false, "2026-08-13T02:16:52Z INFO server-01 auth success for user 'admin' from 203.0.113.44"),
+    ],
+    correlation: {
+      entity: "203.0.113.44", entityKind: "ip",
+      assets: [{ name: "server-01", kind: "host", role: "target", records: [5, 6, 11, 12], firstRecord: 5, eventCount: 4 }],
+    },
+    iocs: [
+      { type: "account", value: "admin", records: [5, 6, 11, 12], firstRecord: 5, count: 4 },
+      { type: "ipv4", value: "203.0.113.44", records: [5, 6, 11, 12], firstRecord: 5, count: 4 },
+    ],
+    blastRadius: {
+      sourceEntity: "203.0.113.44", assets: ["server-01"], accounts: ["admin"],
+      assetCount: 1, accountCount: 1, records: [5, 6, 11, 12],
+    },
+    recordsConsidered: [5, 6, 11, 12], note: null,
+  };
+}
+
+function rcaWithInvestigation() {
+  return {
+    incidentId: "inc-abc123",
+    facts: { incidentId: "inc-abc123", rules: ["auth_bruteforce_success"], firstSeen: "2026-08-13T02:16:44+00:00", lastSeen: "2026-08-13T02:16:52+00:00", timeline: [] },
+    runbook: { matched: false, note: "no runbook matched" },
+    hypothesis: { text: null, label: "advisory · hypothesis · not a verdict", note: "advisory analysis pending", status: "pending" },
+    investigation: invFixture(),
+    advisory: { status: "pending", label: "advisory · hypothesis · not a verdict", text: null, note: "dispatched separately" },
+    deterministic: true, assembledInMs: 0.8,
+  };
+}
+
+const advComplete = {
+  incidentId: "inc-abc123", label: "ADVISORY", status: "complete",
+  blocks: [
+    { kind: "narrative", label: "ADVISORY · narrative", status: "complete",
+      text: "A sustained brute-force from 203.0.113.44 succeeded. {5} {11}",
+      sentences: [{ text: "A sustained brute-force from 203.0.113.44 succeeded against admin.", records: [5, 11] }],
+      rejected: [], grounding: { factual_sentences: 1, cited_and_resolvable: 1, ratio: 1 }, note: null },
+    { kind: "attack", label: "ADVISORY · attack", status: "complete",
+      text: "Credential access via T1110. {5}",
+      sentences: [{ text: "Credential access via brute force (T1110).", records: [5] }],
+      rejected: [], grounding: { factual_sentences: 1, cited_and_resolvable: 1, ratio: 1 }, note: null },
+    { kind: "pivots", label: "ADVISORY · pivots", status: "complete",
+      text: "Pivot on the source IP. {99}",
+      // cites record 99, which is NOT in the deterministic timeline — the UI must
+      // mark it as unresolvable, never let it pass as grounded.
+      sentences: [{ text: "Pivot on other logins from this source.", records: [99] }],
+      rejected: [], grounding: { factual_sentences: 1, cited_and_resolvable: 0, ratio: 0 }, note: null },
+  ],
+  grounding: { factual_sentences: 3, cited_and_resolvable: 2, ratio: 0.667 },
+  note: "ADVISORY · model prose; never a verdict or control signal",
+};
+
+const advTimedOut = {
+  incidentId: "inc-abc123", label: "ADVISORY", status: "timed_out",
+  blocks: [
+    { kind: "narrative", label: "ADVISORY · narrative", status: "timed_out", text: null,
+      sentences: [], rejected: [], grounding: { factual_sentences: 0, cited_and_resolvable: 0, ratio: 0 },
+      note: "ADVISORY · timed out — retry" },
+    { kind: "attack", label: "ADVISORY · attack", status: "timed_out", text: null,
+      sentences: [], rejected: [], grounding: { factual_sentences: 0, cited_and_resolvable: 0, ratio: 0 },
+      note: "ADVISORY · timed out — retry" },
+    { kind: "pivots", label: "ADVISORY · pivots", status: "timed_out", text: null,
+      sentences: [], rejected: [], grounding: { factual_sentences: 0, cited_and_resolvable: 0, ratio: 0 },
+      note: "ADVISORY · timed out — retry" },
+  ],
+  grounding: { factual_sentences: 0, cited_and_resolvable: 0, ratio: 0 },
+  note: "ADVISORY · timed out — retry",
+};
+
+describe("Incidents investigation file (C2-T4)", () => {
+  it("(a) renders the deterministic case — timeline, correlation, IOCs, blast radius — for the INC-4a7f scenario", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/rca": rcaWithInvestigation(),
+      "/api/incidents/inc-abc123/advisory": advComplete,
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    // Timeline reconstructed from the events store (all four records, not 2).
+    // (await the loaded content, not the same-testid loading placeholder.)
+    const tl = await screen.findByTestId("investigation-timeline");
+    expect(within(tl).getByTestId("tl-5")).toBeInTheDocument();
+    expect(within(tl).getByTestId("tl-12")).toHaveTextContent("auth success for user 'admin'");
+    // Correlation → host server-01.
+    expect(within(screen.getByTestId("investigation-correlation")).getByText("server-01")).toBeInTheDocument();
+    // IOCs — attacker IP + targeted account.
+    const iocs = screen.getByTestId("investigation-iocs");
+    expect(within(iocs).getByText("203.0.113.44")).toBeInTheDocument();
+    expect(within(iocs).getByText("admin")).toBeInTheDocument();
+    // Blast radius.
+    const blast = screen.getByTestId("investigation-blast");
+    expect(within(blast).getByText("server-01")).toBeInTheDocument();
+    expect(within(blast).getByText("admin")).toBeInTheDocument();
+  });
+
+  it("(b) every deterministic fact carries a resolvable record {n} citation", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/rca": rcaWithInvestigation(),
+      "/api/incidents/inc-abc123/advisory": advComplete,
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    // Correlation, IOC and blast rows each carry {n} chips that RESOLVE.
+    const corr = await screen.findByTestId("investigation-correlation");
+    const cite5 = within(corr).getAllByTestId("cite-5")[0];
+    expect(cite5).toHaveAttribute("data-resolves", "true");
+    expect(cite5).toHaveTextContent("{5}");
+    // Not one deterministic citation is unresolvable.
+    for (const box of ["investigation-correlation", "investigation-iocs", "investigation-blast"]) {
+      const cites = within(screen.getByTestId(box)).queryAllByText(/^\{\d+\}$/);
+      expect(cites.length).toBeGreaterThan(0);
+      for (const c of cites) expect(c).toHaveAttribute("data-resolves", "true");
+    }
+    // Honesty guard: an ADVISORY citation to a record NOT in the case (99) is
+    // marked unresolvable — an ungrounded claim can never masquerade as cited.
+    const miss = screen.getByTestId("cite-99");
+    expect(miss).toHaveAttribute("data-resolves", "false");
+    expect(miss.className).toMatch(/miss/);
+  });
+
+  it("(c) deterministic and advisory blocks are VISUALLY DISTINCT (asserted, not merely styled)", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/rca": rcaWithInvestigation(),
+      "/api/incidents/inc-abc123/advisory": advComplete,
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    const det = await screen.findByTestId("investigation-deterministic");
+    const adv = await screen.findByTestId("investigation-adv-narrative");
+    // Different composition classes — the distinction is structural.
+    expect(det.className).toMatch(/\bis-det\b/);
+    expect(det.className).not.toMatch(/\bis-adv\b/);
+    expect(adv.className).toMatch(/\bis-adv\b/);
+    // The advisory block carries the ADVISORY chip; the deterministic one never does.
+    expect(within(adv).getByText(/ADVISORY · narrative/)).toBeInTheDocument();
+    expect(det.querySelector(".is-chip--adv")).toBeNull();
+  });
+
+  it("(d-filled) advisory FILLED state renders the grounded model prose", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/rca": rcaWithInvestigation(),
+      "/api/incidents/inc-abc123/advisory": advComplete,
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+    expect(await within(await screen.findByTestId("investigation-adv-narrative"))
+      .findByText(/A sustained brute-force from 203.0.113.44 succeeded against admin/)).toBeInTheDocument();
+  });
+
+  it("(d-timeout) advisory TIMEOUT is VISIBLE with a retry — never silently omitted, never prose", async () => {
+    // The timeout is the state that silently degrades if done wrong, so it is
+    // asserted explicitly and in its own single-render test.
+    mockFetch({
+      "/api/incidents/inc-abc123/rca": rcaWithInvestigation(),
+      "/api/incidents/inc-abc123/advisory": advTimedOut,
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    const timeoutNote = await screen.findByTestId("advisory-timeout-narrative");
+    expect(timeoutNote).toHaveTextContent("ADVISORY · timed out — retry");
+    // The deterministic case is STILL fully present alongside the timeout.
+    expect(screen.getByTestId("investigation-timeline")).toBeInTheDocument();
+    // A retry affordance is offered; the timeout is never replaced by fabricated prose.
+    expect(screen.getAllByTestId("advisory-retry").length).toBeGreaterThan(0);
+    expect(within(screen.getByTestId("investigation-adv-narrative"))
+      .queryByText(/succeeded against admin/)).toBeNull();
+  });
+
+  it("(e) the screen never BLOCKS on advisory — the deterministic file renders while advisory is pending", async () => {
+    // /advisory is held OPEN (in-flight) while we assert, then released before the
+    // test ends so no pending promise or fetch stub leaks into a shuffled sibling.
+    let releaseAdvisory!: (r: Response) => void;
+    const advisoryGate = new Promise<Response>((res) => { releaseAdvisory = res; });
+    const routes: Record<string, unknown> = {
+      "/api/incidents/inc-abc123/rca": rcaWithInvestigation(),
+      "/api/incidents": { incidents: [incident()] },
+      "/api/auth/me": DEFAULT_AUTH_ME, "/api/auth/status": DEFAULT_AUTH_STATUS,
+    };
+    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/advisory")) return advisoryGate;      // held open
+      for (const [k, v] of Object.entries(routes)) {
+        if (u.includes(k)) return Promise.resolve({ ok: true, status: 200, json: async () => v } as Response);
+      }
+      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) } as Response);
+    }));
+
+    try {
+      renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+      // Deterministic content is fully rendered even though advisory has not returned.
+      expect(await screen.findByTestId("investigation-timeline")).toBeInTheDocument();
+      expect(within(screen.getByTestId("investigation-correlation")).getByText("server-01")).toBeInTheDocument();
+      // Advisory shows an HONEST pending state, not a spinner that blocks the file.
+      expect(screen.getByTestId("advisory-pending")).toHaveTextContent(/ADVISORY · pending/);
+    } finally {
+      // Release the held request and let React settle it, so nothing is left
+      // pending; then drop the fetch stub for the next (shuffled) test.
+      releaseAdvisory({ ok: true, status: 200, json: async () => advTimedOut } as Response);
+      await screen.findByTestId("advisory-timeout-narrative");
+      vi.unstubAllGlobals();
+    }
   });
 });
