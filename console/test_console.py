@@ -27,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from pathlib import Path
 
@@ -5055,11 +5056,13 @@ def main():
     audit_ = check_audit()
     migration_ = check_cases_incidents_migration()
     inc4a7f_ = check_inc4a7f_scenario()
+    investigate_ = check_investigation_engine()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
-            or askview_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_):
+            or askview_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
+            or investigate_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
@@ -5067,7 +5070,7 @@ def main():
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
           "+ ask-view + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
-          "+ inc-4a7f-scenario "
+          "+ inc-4a7f-scenario + investigation-engine "
           "checks green")
     return 0
 
@@ -5345,6 +5348,188 @@ def check_inc4a7f_scenario():
             check("RCA resolves through the alias to the real incident",
                   rca is not None and rca.get("incidentId") == derived_id, str(bool(rca)))
     finally:
+        soc.SOC_DIR = real_dir
+
+    return 0 if all(results) else 1
+
+
+def check_investigation_engine():
+    """C2-T1 — the DETERMINISTIC investigation engine (console/investigate.py),
+    and the D2 split that keeps it off the LLM's critical path.
+
+    investigate.assemble EXTENDS soc.derive_rca with a full events-store timeline,
+    entity/asset correlation, deterministic IOC extraction and a blast-radius set,
+    every fact cited by a resolvable record {n}. This test proves, over the seeded
+    INC-4a7f brute-force scenario (203.0.113.44 -> server-01):
+
+      (a) it assembles well under the 2-minute target — timed, real number;
+      (b) every emitted fact carries a record {n} that resolves in the events store;
+      (c) THE KILL-THE-LLM TEST (the card's most important check): with the model
+          patched to be unreachable, the deterministic case is STILL COMPLETE and
+          the advisory layer is an honest `pending` — never fabricated, never
+          silently omitted — and the model is never even called;
+      (d) the assembled path (what GET /api/incidents/:id/rca now calls) makes NO
+          model call at all — demonstrated by a tripwire on la.chat_completion.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import normalize
+    import log_analyzer as la
+    from anomaly_detector import detect
+    import adapter
+    import soc
+    import investigate
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\ndeterministic investigation engine + D2 LLM split (C2-T1):")
+
+    FIXTURE = ROOT / "sample-2.log"
+    records, stats = normalize.load(str(FIXTURE))
+    anomalies = detect(records)
+    report = {"source_file": str(FIXTURE), "generated_at": "2026-08-13T00:00:00+00:00",
+              "lines_parsed": stats["parsed"], "lines_unparsed": stats["unparsed"],
+              "findings": la.detector_to_findings(anomalies)}
+    state = adapter.adapt(report)
+
+    # A tripwire on the ONLY LLM entry point derive_rca/investigate could reach.
+    # If the deterministic path ever calls it, this records the call — and (c)/(d)
+    # would fail. We also make it raise, i.e. simulate the model being unreachable.
+    real_chat = la.chat_completion
+    calls = []
+
+    def _tripwire(*a, **k):
+        calls.append(a)
+        raise ConnectionError("model unreachable (kill-the-LLM test)")
+
+    real_dir = soc.SOC_DIR
+    try:
+        la.chat_completion = _tripwire
+        with tempfile.TemporaryDirectory(prefix="c2-investigate-") as tmp:
+            soc.SOC_DIR = Path(tmp) / ".soc"
+            soc.SOC_DIR.mkdir(parents=True, exist_ok=True)
+            soc.sync_incidents(state)
+
+            # --- (a) assembles fast, timed with the REAL number ----------------
+            t0 = time.perf_counter()
+            case = investigate.assemble("INC-4a7f", state)
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            print(f"    assembled INC-4a7f in {elapsed_ms:.2f} ms "
+                  f"(engine self-report {case.get('assembledInMs') if case else 'n/a'} ms; "
+                  f"target < 120000 ms)")
+            check("(a) assemble returns a case for the seeded INC-4a7f scenario",
+                  case is not None and case.get("incidentId") is not None)
+            check("(a) assembles well under the 2-minute target",
+                  elapsed_ms < 120000 and elapsed_ms < 5000, f"{elapsed_ms:.2f} ms")
+
+            inv = case["investigation"]
+
+            # --- extends derive_rca: facts + runbook preserved, timeline richer -
+            check("extends derive_rca — incidentId/facts/runbook carried through",
+                  case.get("facts") and case.get("runbook") is not None
+                  and case["incidentId"] == case["facts"]["incidentId"])
+            check("timeline RECONSTRUCTED from the events store is richer than the "
+                  "sparse finding-level timeline",
+                  len(inv["timeline"]) > len(case["facts"]["timeline"])
+                  and len(inv["timeline"]) >= 8,
+                  f"{len(inv['timeline'])} vs {len(case['facts']['timeline'])}")
+
+            # --- the four deterministic layers are present and REAL ------------
+            check("correlation maps the entity to host server-01 (target asset)",
+                  any(a["name"] == "server-01" and a["kind"] == "host"
+                      for a in inv["correlation"]["assets"]))
+            check("IOC extraction finds the attacker IP and the targeted account",
+                  any(i["type"] == "ipv4" and i["value"] == "203.0.113.44" for i in inv["iocs"])
+                  and any(i["type"] == "account" and i["value"] == "admin" for i in inv["iocs"]))
+            check("blast-radius names source 203.0.113.44, asset server-01, account admin",
+                  inv["blastRadius"]["sourceEntity"] == "203.0.113.44"
+                  and inv["blastRadius"]["assets"] == ["server-01"]
+                  and inv["blastRadius"]["accounts"] == ["admin"])
+
+            # --- (b) EVERY emitted fact carries a resolvable record {n} --------
+            cited = set()
+            for e in inv["timeline"]:
+                cited.add(e["n"])
+            for a in inv["correlation"]["assets"]:
+                cited.update(a["records"])
+            for i in inv["iocs"]:
+                cited.update(i["records"])
+            cited.update(inv["blastRadius"]["records"])
+            unresolved = [n for n in cited if investigate.resolve_record(state, n) is None]
+            check("(b) every cited record {n} resolves in the events store",
+                  len(cited) > 0 and unresolved == [], f"unresolved={unresolved}")
+            check("(b) a resolved citation is the verbatim source line (raw carried)",
+                  investigate.resolve_record(state, 5)["raw"].startswith("2026-08-13T02:16:44Z")
+                  and "203.0.113.44" in investigate.resolve_record(state, 5)["raw"])
+
+            # --- (c) KILL-THE-LLM: deterministic case COMPLETE, advisory honest -
+            complete = (inv["timeline"] and inv["iocs"] and inv["correlation"]["assets"]
+                        and inv["blastRadius"]["assets"])
+            check("(c) with the model unreachable, the deterministic case is COMPLETE",
+                  bool(complete))
+            check("(c) advisory layer is an HONEST pending — no fabricated narrative",
+                  case["advisory"]["status"] == "pending"
+                  and case["advisory"]["text"] is None
+                  and bool(case["advisory"]["note"]))
+            check("(c) advisory is present, not silently omitted",
+                  "advisory" in case and case["hypothesis"].get("status") == "pending"
+                  and case["hypothesis"]["text"] is None)
+
+            # --- (d) DEMONSTRATE the assembled path never calls the model ------
+            check("(d) the model was NEVER called during deterministic assembly",
+                  calls == [], f"chat_completion calls={len(calls)}")
+
+            # And prove the tripwire actually fires when the LLM path IS taken,
+            # so (d) is a real demonstration and not a vacuous assertion.
+            try:
+                soc.derive_rca("INC-4a7f", state,
+                               hypothesis_fn=lambda p: la.chat_completion("b", "k", "m", "s", p))
+            except Exception:
+                pass
+            # derive_rca swallows the hypothesis_fn exception (honest degrade), so
+            # the call is recorded even though no exception surfaces here.
+            check("(d) tripwire is live — the OLD blocking path would have hit the model",
+                  len(calls) >= 1, f"calls now={len(calls)}")
+
+            # --- (d) DEMONSTRATE over the REAL route, not in prose -------------
+            # GET /api/incidents/INC-4a7f/rca against a live in-process server with
+            # the model tripwire armed: the route must return the complete
+            # deterministic case and NEVER touch chat_completion.
+            import http.server
+            import threading
+            import serve
+            calls_before = len(calls)
+            real_state = serve.STATE
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                serve.STATE = state
+                t0 = time.perf_counter()
+                with urllib.request.urlopen(
+                        f"http://127.0.0.1:{port}/api/incidents/INC-4a7f/rca", timeout=10) as r:
+                    body = json.loads(r.read())
+                route_ms = (time.perf_counter() - t0) * 1000
+                print(f"    GET /api/incidents/INC-4a7f/rca returned in {route_ms:.1f} ms "
+                      f"with the model tripwire armed")
+                check("(d) the /rca route returns the deterministic case (facts + investigation)",
+                      body.get("incidentId") is not None and "investigation" in body
+                      and len(body["investigation"]["timeline"]) >= 8)
+                check("(d) the /rca route did NOT block on / call the model",
+                      len(calls) == calls_before and route_ms < 5000,
+                      f"model calls during route={len(calls) - calls_before}, {route_ms:.1f} ms")
+                check("(d) the route's advisory layer is honest pending, not omitted",
+                      body["advisory"]["status"] == "pending" and body["advisory"]["text"] is None)
+            finally:
+                serve.STATE = real_state
+                srv.shutdown()
+    finally:
+        la.chat_completion = real_chat
         soc.SOC_DIR = real_dir
 
     return 0 if all(results) else 1
