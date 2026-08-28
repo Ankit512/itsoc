@@ -416,3 +416,37 @@ out at an unexpected commit. That is the adoption paying for itself a second tim
 > only from tagged Stage C merge points; (C) the concurrent queue moves to its own branch and merges on
 > your gate like everything else. Also: should the duplicated at-risk implementation be reconciled, or is
 > carrying both acceptable? The orchestrator will not unilaterally revert another actor's merge.
+
+## OPEN-11 — Guardrail 4 ("all egress through redact.py") narrowed for provider-directed TI/OEM traffic
+**Status:** ratified by the orchestrator so work could resume; **owner ratification requested**, because
+this narrows the literal text of a §4 guardrail.
+
+**Origin.** Jim, holding C3-T2b, stopped with zero edits and reported a genuine contradiction in the
+card. His words: "Literal requirement: every outbound body and URL/query must pass through redact.py
+before leaving. Functional requirement: do not cripple a request that legitimately must carry an
+indicator upstream. Current redact.py necessarily changes those values." He enumerated the fields that
+must survive intact on the wire: the OTX IPv4 indicator in the URL path and its API key header; the
+AbuseIPDB IPv4 indicator in the query and its API key header; the Check Point username/password login
+JSON, session id header and query/filter body; the Splunk bearer token and SPL form body; the PAN-OS API
+key and optional query in the URL; and the generic OEM bearer token plus configured params. He also
+observed that "redact.py also is not a general credential masker, so merely calling it does not protect
+arbitrary keys/passwords."
+
+**Ruling.** Interpretation A: provider-directed request bytes may carry the minimum required
+indicator/auth/query values over the configured HTTPS transport; `_http_request` builds a parallel
+sanitized representation used exclusively for logs, stored and displayed errors, and exception wrapping,
+and no raw URL, body or header value reaches those surfaces. The contradiction was in the orchestrator's
+card wording, not in the guardrail's intent — Guardrail 4 exists to stop leakage onto observable and
+stored surfaces, and a TI connector that cannot transmit the indicator is not a TI connector.
+
+**Two additions made binding on the card:** (1) credential material must be masked in the sanitized
+representation BY FIELD NAME, not by value matching, and handled inside ti_oem.py since redact.py is
+call-only; (2) the card must deliver an EGRESS INVENTORY naming, per provider, exactly which fields
+leave the process and why each is functionally required — so the permitted egress is visible rather
+than trusted.
+
+**What the owner is being asked to ratify:** that provider API traffic is a narrow, configured,
+functional exception to literal transformation, with its observable representation still fully redacted.
+If the owner instead requires that no customer indicator may leave the process at all, the TI/OEM
+connectors must be disabled by default rather than fixed, and that is a product decision, not a
+code one.
