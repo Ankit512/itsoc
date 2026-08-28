@@ -56,6 +56,7 @@ from pathlib import Path
 # correlation can run over formats its own regexes were never written for.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import normalize  # noqa: E402
+import formats_universal  # noqa: E402
 import rule_context  # noqa: E402
 import rules_syslog  # noqa: E402
 from anomaly_detector import detect, to_llm_context  # noqa: E402
@@ -2015,7 +2016,16 @@ def run_nmap_scan(target, vuln=False, extra_args=None, timeout=300):
 def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
         base_url: str, api_key: str, compare: bool = False, deep_scan: bool = False,
         rules_only: bool = False, nmap_target: str = None, nmap_vuln: bool = False,
-        nmap_extra_args=None, nmap_timeout: int = 300):
+        nmap_extra_args=None, nmap_timeout: int = 300,
+        unrecognized_mode: str = None):
+    # unrecognized_mode is an INGESTION switch only — it never touches severity,
+    # correlation or verdicts (the rules still own those, over whatever records
+    # ingestion hands them). Default None keeps every existing caller on the
+    # historical loader, byte for byte. "honest" routes ingestion through the
+    # formats_universal seam so a genuinely unrecognized input stays
+    # "0 of N parsed" instead of being coerced into generic_text records that
+    # read as a clean run, and an empty input yields an honest 0-parsed report
+    # instead of a bare exit code with no report at all.
     # rules_only is a COMPUTE switch, not an analysis switch: the deterministic
     # pass below runs identically; only the model calls (and their preflight)
     # are skipped. The console uses it when explanations are produced later
@@ -2032,15 +2042,25 @@ def run(input_path: str, output_prefix: str, lines_per_chunk: int, model: str,
         print(f"ERROR: input is not a file: {path}")
         return 2
     if path.stat().st_size == 0:
-        print(f"ERROR: input log is empty: {path}")
-        return 2
+        if unrecognized_mode != "honest":
+            print(f"ERROR: input log is empty: {path}")
+            return 2
+        # Honest mode: an empty input is a REPORTABLE outcome, not an error to
+        # swallow. Fall through so a real report is written with 0 lines parsed —
+        # the console/intake banner then says "EMPTY INPUT — NOT an all-clear".
+        print(f"Input log is empty: {path} — reporting 0 line(s) parsed "
+              "(this is NOT an all-clear).")
 
     output_parent = Path(output_prefix).expanduser().parent
     if str(output_parent) not in ("", "."):
         output_parent.mkdir(parents=True, exist_ok=True)
 
     # --- Deterministic pre-pass: rules run over the WHOLE file before any LLM call ---
-    records, stats = load_log_file(path)
+    if unrecognized_mode:
+        records, stats = formats_universal.load_log_file(path, mode=unrecognized_mode)
+        stats.setdefault("unparsed_examples", [])
+    else:
+        records, stats = load_log_file(path)
     print(f"Format: {stats['format']} — {stats['parsed']}/{stats['total_lines']} line(s) parsed"
           + (f", {stats['unparsed']} unparsed" if stats["unparsed"] else ""))
     if stats["unparsed"]:
