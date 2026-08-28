@@ -244,7 +244,7 @@ Header disclosure stands; a clean checked-in ATT&CK fixture remains parked with 
 
 ---
 
-## OPEN-6 · `INC-4a7f` does not exist — two acceptance criteria reference it — **OPEN, not gating C1**
+## OPEN-6 · `INC-4a7f` — **RULED 2026-08-28: SEED IT, do not rename it**
 
 Worker Oscar's C5 fact-base prep established that **`INC-4a7f` is illustrative shorthand in the build
 doc, not a real fixture id.** Real incident ids are `inc-<hash[:12]>`. The actual brute-force incident on
@@ -266,7 +266,7 @@ That keeps the acceptance executable without pinning it to a volatile value.
 > its source fixture and entity, instead of the non-existent `INC-4a7f`? Also confirm whether the C5
 > demo script should capture the id at runtime (orchestrator recommends yes).
 
-## OPEN-7 · The battle card's headline number has no evidence in this repo — **OPEN, C5 scope**
+## OPEN-7 · Battle-card headline figure — **RULED 2026-08-28: literature citation, pinned**
 
 Oscar fact-checked every claim the build doc implies for `docs/BATTLECARD_TORQ.md`:
 
@@ -287,3 +287,44 @@ prevent.
 > **THE ASK:** Supply (or authorise sourcing) a real citation for the ~3.8% figure before C5 drafts the
 > battle card — or direct that the claim be dropped. The orchestrator will not let an unsourced number
 > into a competitive document.
+
+
+# Ruling record — 2026-08-28 (third batch). REGISTER IS NOW CLEAR OF OWNER GATES.
+
+## OPEN-6 — RULED: seed the scenario, do not rename it
+The orchestrator proposed renaming to a dynamic identifier. **The owner overruled that, correctly.**
+`INC-4a7f` comes from the design kit: it is the canonical demo scenario (brute-force,
+**203.0.113.44 -> server-01**) named by the prototype, the sample-data plan and the C5 demo script. So the
+name stays and the fixture gets created.
+
+**C2 gains an explicit fixture obligation as its FIRST card**, landing before the investigation-engine
+cards run against it: seed the INC-4a7f scenario as deterministic sample data — a log fixture that fires
+the brute-force rule and correlates to an incident carrying that id, or an id-mapping since ids are
+derived as `inc-<hash[:12]>`. Both C2 acceptance criteria now read **"the seeded INC-4a7f brute-force
+scenario (203.0.113.44 -> server-01)"**, so it is self-evidently a fixture rather than an assumed
+pre-existing record. **The acceptance scenario and the C5 demo scenario are now the same object** — which
+is the point, and is better than the orchestrator's proposal.
+
+## OPEN-7 — RULED: it is a literature citation, and the battle card must say so
+The figure is **not** a claim about itsoc, which is why no in-repo evidence exists. It is evidence against
+**LLM-owned verdicts generally** — the very thing itsoc's architecture rejects.
+
+Source: **arXiv 2604.19533**, Cyber Defense Benchmark. Claim, precisely: the best frontier LLM flagged
+**~3.8% of malicious events**; **no model passed 50% per-tactic**.
+
+Binding representation rules, now recorded in `docs/research/CITATIONS.md`: cite the arXiv id; state the
+claim precisely; **do not round it**; **do not invert it into "LLMs miss 96%"**; never imply it was
+measured in-repo. C5's card gains the obligation to archive title, id, retrieval date and the exact
+sentence relied on.
+
+**Standing rule for all future figures:** repo-provable claims get repo evidence; literature claims get
+pinned citations; **nothing floats.**
+
+## Out-of-allowlist defects — ratified as doctrine
+Fix at an **owned seam** when one exists; otherwise **report**. Never edit a foreign component. Precedent:
+the `severity: null` sidebar crash, fixed at the `normIncident` api seam with a null-path test rather than
+by reaching into `AppShell.tsx`. Written into `hive/stage-c/GUARDRAILS.md`.
+
+## Register status
+OPEN-1 ruled · OPEN-2 ruled · OPEN-3 ruled · OPEN-4 ruled · OPEN-5 open by design, pointing at C3 ·
+OPEN-6 ruled · OPEN-7 ruled. **Nothing gates on the owner.**
