@@ -788,3 +788,60 @@ losing someone else's uncommitted work is worse than a delay.
 `origin` and `cases` across every re-derivation in the preserve block, with a comment naming exactly why.
 One code note raised: `_try_absorb_cases()` appears twice in the current diff — flagged as a possible
 duplicate insertion to check before it ships.
+
+---
+
+## PHASE C1 — COMPLETE. Auto-merged to local `main` (owner standing rule: clean gates do not wait).
+
+Merge commit **`09f73f0`**, plus `2a743ff` rebuilding `web/dist`. `main` is now **49 commits ahead of
+`origin/main`**, all local (Q1 = (c) never push). Detector `364577c5…a4a876` unchanged throughout.
+
+| Card | Commit | Worker | Outcome |
+|---|---|---|---|
+| C1-T1 Cases->Incidents migration | `a8fa7ae` | Pam | ACCEPTED |
+| C1-T2 Incidents merged screen (TEMPLATE) | `069ff19` | Pam | ACCEPTED |
+| C1-T3 Intel (ThreatIntel + Enrichment) | `dec8c27` | Toby | ACCEPTED |
+| C1-T4 Network (Discovery + Vulnerabilities) | `67d16cf` | Oscar | ACCEPTED after C1-T4a |
+| C1-T5 Sources (Collectors folded in) | `0b2c4f9` | Pam | ACCEPTED |
+| C1-T6 nav reduction + Cmd-K aliases | `5154d19` | Toby | ACCEPTED |
+
+**Phase gate, god-run on the integrated branch and again on `main`:** vitest **30 files / 138 tests**
+(from 107 at phase start) · `npm run build` clean · `run_eval` 17/17 f1 1.000 · `console/test_console.py`
+PASSED · `console/test_fsafe.py` PASSED · `tests/test_intake.py` 4/4 · `itsoc_mcp/test_mcp.py` 93/0 ·
+`threat_intel/test_threat_intel.py` 0 failures / 3 reasoned skips · detector frozen · tree clean.
+
+### The honesty surfaces C1 actually delivered
+
+- **Manual incidents cannot masquerade as rule verdicts.** Proven by asserting *absence*:
+  `expect(document.querySelector(".is-tag--crit, .is-tag--high, .is-tag--med, .is-tag--low")).toBeNull()`,
+  alongside the MANUAL badge and analyst-assigned labelling, with a distinct detail composition carrying
+  no RCA/evidence rail to fabricate.
+- **Intel keeps TWO DISTINCT egress labels.** Feeds is offline ("Surfaced, not generated — offline STIX
+  bundle"); Live Enrichment genuinely calls out ("Real provider responses — never fabricated"). A single
+  shared label would have claimed egress that does not happen or hidden egress that does.
+- **Network consolidates three scanning notices into one** while preserving the authorization wording
+  verbatim — a safety notice, not decorative copy — and re-points the formerly dangling `/discovery` link.
+- **Sources keeps the honest `host:port` bind display**, asserted including the null path, with the suite
+  checking the literal string `undefined` appears nowhere.
+- **Old names still work.** Cmd-K aliases Cases->Incidents, Threat Intel/Enrichment->Intel,
+  Discovery/Vulnerabilities->Network, Collectors->Sources — each asserted to *navigate*, not merely exist.
+- **Approvals holds a nav slot only**, labelled "Not built yet — the page says so honestly". Its screen is C4.
+
+### Integration notes
+
+All three fan-out branches merged with **zero conflicts** despite each touching `App.tsx`,
+`AppShell.tsx` and `CommandPalette.tsx` — worktree isolation plus tight allowlists kept them in
+disjoint regions. Workers were forbidden from committing `web/dist`; regenerating it at integration is
+the orchestrator's step (`2a743ff`).
+
+**One defect caught pre-merge by diff inspection rather than by trusting a report:** C1-T4 had committed
+five `web/dist` build files outside its allowlist and had tab markup missing `role="tablist"`,
+`role="tab"` and `aria-selected`. Its report said ".is-tabs styling", which was true but incomplete.
+Reconciliation card C1-T4a fixed both.
+
+### Carried into C2
+
+C2 opens with its **fixture obligation** as the first card: seed the **INC-4a7f** brute-force scenario
+(203.0.113.44 -> server-01) as deterministic sample data, before the investigation-engine cards run
+against it. Also carried: **OPEN-8**, the pre-existing `shell.test.tsx` order-dependence — recommended
+fix during C2 with `--sequence.shuffle` added to the standing gate afterwards.
