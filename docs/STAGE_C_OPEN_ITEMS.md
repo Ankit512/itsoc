@@ -159,3 +159,46 @@ Owner's assumption: *"the C1 migration found case records with no incident linka
 possibility the data model permits**, not an observed record set, and C1 has not run. The ruling is
 sound as a **forward design**, but its premise is prospective, not retrospective. Held; quoted verbatim
 to the owner.
+
+
+# OPEN-8 — ROOT CAUSE FOUND (Toby, read-only diagnosis)
+
+**The leaked state:** the zustand store singleton **`useUi`** (`web/src/store/ui.ts:47-71`) — specifically
+`commandPaletteOpen`, `experimentalEnabled`, and `theme` (which also writes
+`localStorage['itsoc-theme']` and mutates `document.documentElement`).
+
+**Who leaves it dirty:** `theme.test.tsx` (toggles theme, writes localStorage), `logout.test.tsx`
+(`useUi.setState({theme:'dark', search:'leftover'})`), and **`shell.test.tsx` itself across its own
+tests** — one test clicks the ⌘K trigger and leaves `commandPaletteOpen` true; another toggles
+Experimental and leaves `experimentalEnabled` true.
+
+**Why `shell.test.tsx` specifically breaks** — and this is the satisfying part:
+1. With `commandPaletteOpen` leaked true, `<CommandPalette/>` mounts and renders its own
+   "Refresh Dashboard Queries" item. The shell test's
+   `getByRole('button', {name: /refresh/i})` then matches **two** buttons and throws
+   *"Found multiple elements"*. The test is not wrong; the DOM genuinely contains a second Refresh.
+2. With `experimentalEnabled` leaked true, the test asserting the default `'Command Center · off'`
+   sees the expanded experimental nav instead.
+3. Other files query specific headings or testids rather than regex-matching top-bar buttons across the
+   whole shell, so they never collide.
+
+**The fix — minimal, at an owned test-harness seam, using a helper that already exists.**
+`resetUi()` is already implemented at `web/src/store/ui.ts:66-70`. Extend the existing `afterEach` in
+`web/src/test/setup.ts`:
+
+```ts
+afterEach(() => {
+  useJobs.getState()._reset();
+  useUi.getState().resetUi();
+  try { localStorage.clear(); } catch {}
+});
+```
+
+No foreign component is touched — consistent with the out-of-allowlist doctrine. It also strengthens
+isolation for every other file, exactly as the earlier `useJobs` reset did.
+
+**Status:** fix is written and ready, but **deliberately NOT dispatched** — a migration/store-touching
+card (C2-T0, the INC-4a7f fixture) is currently running **exclusive**, and under the owner's worktree
+doctrine nothing else executes while one is live. It dispatches the moment that clears. Recommendation
+still stands to add `--sequence.shuffle` to the standing gate afterwards so order-dependence cannot
+silently return.
