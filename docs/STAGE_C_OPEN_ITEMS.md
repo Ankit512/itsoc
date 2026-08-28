@@ -241,3 +241,49 @@ card inventory** and recorded here so it cannot be lost between phases.
 
 ## Defect 4 (fabricated revocation date in the doctored cache) — disclosure sufficient
 Header disclosure stands; a clean checked-in ATT&CK fixture remains parked with future TI work.
+
+---
+
+## OPEN-6 · `INC-4a7f` does not exist — two acceptance criteria reference it — **OPEN, not gating C1**
+
+Worker Oscar's C5 fact-base prep established that **`INC-4a7f` is illustrative shorthand in the build
+doc, not a real fixture id.** Real incident ids are `inc-<hash[:12]>`. The actual brute-force incident on
+`203.0.113.44` in `sample-2.log` is **`inc-d5e79b3ca9b5`** (CRITICAL, T1110).
+
+This matters because **two acceptance criteria name it**, and both become unmeasurable as written:
+
+1. **C2:** *"INC-4a7f case assembles < 2 min"*.
+2. **C2, as amended under OPEN-3 by owner ruling:** *"the acceptance metric is the aggregate ratio over
+   the INC-4a7f investigation >= 0.95"*. This is the same class of defect OPEN-3 itself fixed — an
+   acceptance that cannot be executed against reality.
+
+Orchestrator recommendation: amend both to name the incident **dynamically** — "the brute-force incident
+derived from `sample-2.log` for entity `203.0.113.44`" — rather than hardcoding either `INC-4a7f` or
+`inc-d5e79b3ca9b5`, since the hash id is derived and would change if the fixture or clustering changed.
+That keeps the acceptance executable without pinning it to a volatile value.
+
+> **THE ASK:** Approve amending the two C2 acceptance criteria to identify the incident dynamically by
+> its source fixture and entity, instead of the non-existent `INC-4a7f`? Also confirm whether the C5
+> demo script should capture the id at runtime (orchestrator recommends yes).
+
+## OPEN-7 · The battle card's headline number has no evidence in this repo — **OPEN, C5 scope**
+
+Oscar fact-checked every claim the build doc implies for `docs/BATTLECARD_TORQ.md`:
+
+- **"Cyber Defense Benchmark ~3.8%"** — **NO in-repo evidence whatsoever.** Nothing in this repo computes
+  or contains that figure. It requires a **real external citation** to a published source, and must never
+  be presented as something evaluated in-repo.
+- **"Under-5-minute demo with the human gate"** — unassertable in advance; must be **measured live** and
+  recorded honestly even if it misses.
+- **Verdict trust**, **data sovereignty**, and **provable gating** are all **fully supported in-repo**,
+  with named backing files.
+
+One caveat the orchestrator adds: the *data sovereignty / all-egress-through-redact* claim currently has
+a real exception — `console/ti_oem.py` sends connector bodies without importing `redact.py` at all (see
+the OPEN-5 ruling record). That exception must be closed, or the claim qualified, before it appears in a
+competitive document. Overstating it there would be exactly the failure mode the honesty rules exist to
+prevent.
+
+> **THE ASK:** Supply (or authorise sourcing) a real citation for the ~3.8% figure before C5 drafts the
+> battle card — or direct that the claim be dropped. The orchestrator will not let an unsourced number
+> into a competitive document.
