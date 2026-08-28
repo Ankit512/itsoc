@@ -1431,6 +1431,11 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             # which blocked the whole response on la.chat_completion.)
             rca = investigate.assemble(path.split("/")[3], STATE)
             self._json(rca) if rca else self._json({"error": "no such incident"}, 404)
+        elif path.startswith("/api/incidents/") and path.endswith("/advisory"):
+            # Separate by construction: /rca above returns the deterministic case
+            # without touching a model; only this opt-in route waits for advisory.
+            advisory = investigate.dispatch_advisory(path.split("/")[3], STATE)
+            self._json(advisory) if advisory else self._json({"error": "no such incident"}, 404)
         elif path.startswith("/api/incidents/") and path.endswith("/bruteforce"):
             iid = path.split("/")[3]
             inc = next((i for i in soc.list_incidents(STATE)

@@ -24,15 +24,54 @@ never allowed to block, delay, or fabricate the facts. Rules own severity; nothi
 here reads back or changes a verdict.
 """
 
+import concurrent.futures
+import json
 import re
 import time
 
+import explanation_guard
+import log_analyzer as la
 import redact
 import soc
 
 # The advisory chip label the console already uses for the model layer, kept
 # identical so the split is invisible to the frontend contract.
 ADVISORY_LABEL = "advisory · hypothesis · not a verdict"
+ADVISORY_TIMEOUT = 45
+
+_ADVISORY_AGENTS = {
+    "narrative": "Summarize what happened and the likely sequence. Do not invent causality.",
+    "attack": "Map only ATT&CK techniques supported by the cited records; explain the mapping.",
+    "pivots": "Suggest concrete analyst pivots supported by the cited records, not remediation actions.",
+}
+
+_ADVISORY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "sentences": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "records": {"type": "array", "items": {"type": "integer"}},
+                },
+                "required": ["text", "records"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["sentences"],
+    "additionalProperties": False,
+}
+
+_ADVISORY_SYSTEM = (
+    "You are one of three parallel SOC advisory agents. Rules own every verdict, "
+    "severity, priority, correlation and eligibility; you may not change them. "
+    "Use only the supplied deterministic case. Return JSON matching the schema. "
+    "Each item must be exactly one factual sentence and must list every source "
+    "record number that supports it. Omit a sentence when no record supports it."
+)
 
 # Username IOCs are pulled with the SAME patterns the redaction choke point uses,
 # so what we surface as an account IOC is exactly what egress would mask — one
@@ -164,6 +203,159 @@ def resolve_record(state, n):
     """The events-store row a citation `{n}` points at, or None. Callers (and the
     test) use this to prove every emitted citation is resolvable."""
     return _events_by_n(state).get(n)
+
+
+def _redacted_case(case, state):
+    """The only model input: a redacted, bounded projection of deterministic data."""
+    projection = {
+        "incidentId": case.get("incidentId"),
+        "facts": case.get("facts"),
+        "runbook": case.get("runbook"),
+        "investigation": case.get("investigation"),
+    }
+    hosts = {e.get("host") for e in (state or {}).get("events", []) if e.get("host")}
+    scope = redact.Redactor(hosts=hosts)
+
+    def walk(value):
+        if isinstance(value, dict):
+            return {key: walk(sub) for key, sub in value.items()}
+        if isinstance(value, list):
+            return [walk(sub) for sub in value]
+        if isinstance(value, str):
+            return scope.redact(value)
+        return value
+
+    # Redact values before serialization: applying the text sanitizer to encoded
+    # JSON can remove escape characters and make the payload syntactically invalid.
+    return walk(projection)
+
+
+def _sentence_guard(sentence, records, redacted_case, state):
+    """Require citations to exist, then ground prose in the cited record corpus."""
+    by_n = _events_by_n(state)
+    cited = [by_n.get(n) for n in records]
+    if not records or any(row is None for row in cited):
+        return {"ok": False, "reasons": ["one or more citations do not resolve"]}
+
+    # Guard against the same redacted representation the model saw. Limiting the
+    # evidence field to cited rows prevents an unrelated record from grounding a
+    # claim. Deterministic incident facts remain available for incident-wide facts.
+    redacted_rows = {e.get("n"): e for e in redacted_case["investigation"]["timeline"]}
+    guard_input = {
+        "facts": redacted_case.get("facts"),
+        "runbook": redacted_case.get("runbook"),
+        "evidence": [redacted_rows[n] for n in records if n in redacted_rows],
+    }
+    return explanation_guard.verify_explanation(guard_input, sentence)
+
+
+def _run_advisory_agent(kind, instruction, case, state, chat_fn, timeout):
+    redacted_case = _redacted_case(case, state)
+    prompt = instruction + "\n\nDeterministic case:\n" + json.dumps(redacted_case, sort_keys=True)
+    raw = chat_fn(la.LLM_BASE_URL, la.LLM_API_KEY, la.LLM_MODEL,
+                  _ADVISORY_SYSTEM, prompt, timeout=timeout,
+                  response_schema=_ADVISORY_SCHEMA)
+    parsed = json.loads(la.strip_fences(raw))
+    candidates = parsed.get("sentences", []) if isinstance(parsed, dict) else []
+    factual = 0
+    accepted = []
+    rejected = []
+    for item in candidates:
+        if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+            continue
+        text = item["text"].strip()
+        if not text:
+            continue
+        factual += 1
+        records = item.get("records")
+        if not isinstance(records, list) or any(type(n) is not int for n in records):
+            verdict = {"ok": False, "reasons": ["citations are not integer record numbers"]}
+            records = []
+        else:
+            records = sorted(set(records))
+            verdict = _sentence_guard(text, records, redacted_case, state)
+        if verdict["ok"]:
+            accepted.append({"text": text, "records": records})
+        else:
+            rejected.append({"text": text, "records": records,
+                             "reasons": verdict["reasons"]})
+
+    cited = len(accepted)
+    ratio = cited / factual if factual else 0.0
+    rendered = " ".join(f'{s["text"]} ' + " ".join(f'{{{n}}}' for n in s["records"])
+                        for s in accepted) or None
+    return {
+        "kind": kind,
+        "label": f"ADVISORY · {kind}",
+        "status": "complete" if rendered else "rejected",
+        "text": rendered,
+        "sentences": accepted,
+        "rejected": rejected,
+        "grounding": {"factual_sentences": factual,
+                      "cited_and_resolvable": cited,
+                      "ratio": round(ratio, 3)},
+        "note": (None if rendered else
+                 "ADVISORY · unverified — all model prose was withheld by the grounding guard"),
+    }
+
+
+def dispatch_advisory(iid, state=None, chat_fn=None, timeout=ADVISORY_TIMEOUT):
+    """Run three advisory agents separately from deterministic case assembly.
+
+    Bounded to three workers and a 45-second production deadline per worker.
+    This function is called only by the separate advisory route; `assemble()`
+    remains model-free and cannot wait on this executor.
+    """
+    state = state or {}
+    case = assemble(iid, state)
+    if case is None:
+        return None
+    chat_fn = chat_fn or la.chat_completion
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=3,
+                                                       thread_name_prefix="itsoc-advisory")
+    futures = {
+        executor.submit(_run_advisory_agent, kind, instruction, case, state,
+                        chat_fn, timeout): kind
+        for kind, instruction in _ADVISORY_AGENTS.items()
+    }
+    done, unfinished = concurrent.futures.wait(futures, timeout=timeout)
+    blocks = []
+    for future, kind in futures.items():
+        if future in unfinished:
+            future.cancel()
+            blocks.append({
+                "kind": kind, "label": f"ADVISORY · {kind}", "status": "timed_out",
+                "text": None, "sentences": [], "rejected": [],
+                "grounding": {"factual_sentences": 0, "cited_and_resolvable": 0,
+                              "ratio": 0.0},
+                "note": "ADVISORY · timed out — retry",
+            })
+            continue
+        try:
+            blocks.append(future.result())
+        except Exception as exc:
+            blocks.append({
+                "kind": kind, "label": f"ADVISORY · {kind}", "status": "timed_out",
+                "text": None, "sentences": [], "rejected": [],
+                "grounding": {"factual_sentences": 0, "cited_and_resolvable": 0,
+                              "ratio": 0.0},
+                "note": f"ADVISORY · timed out — retry ({type(exc).__name__})",
+            })
+    executor.shutdown(wait=False, cancel_futures=True)
+    blocks.sort(key=lambda b: list(_ADVISORY_AGENTS).index(b["kind"]))
+    factual = sum(b["grounding"]["factual_sentences"] for b in blocks)
+    cited = sum(b["grounding"]["cited_and_resolvable"] for b in blocks)
+    timed_out = any(b["status"] == "timed_out" for b in blocks)
+    return {
+        "incidentId": case["incidentId"],
+        "label": "ADVISORY",
+        "status": "timed_out" if timed_out else "complete",
+        "blocks": blocks,
+        "grounding": {"factual_sentences": factual, "cited_and_resolvable": cited,
+                      "ratio": round(cited / factual, 3) if factual else 0.0},
+        "note": ("ADVISORY · timed out — retry" if timed_out else
+                 "ADVISORY · model prose; never a verdict or control signal"),
+    }
 
 
 def assemble(iid, state=None, now=None):

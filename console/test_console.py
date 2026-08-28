@@ -5057,12 +5057,13 @@ def main():
     migration_ = check_cases_incidents_migration()
     inc4a7f_ = check_inc4a7f_scenario()
     investigate_ = check_investigation_engine()
+    advisory_ = check_parallel_advisory()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
             or askview_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
-            or investigate_):
+            or investigate_ or advisory_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
@@ -5070,7 +5071,7 @@ def main():
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
           "+ ask-view + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
-          "+ inc-4a7f-scenario + investigation-engine "
+          "+ inc-4a7f-scenario + investigation-engine + parallel-advisory "
           "checks green")
     return 0
 
@@ -5530,6 +5531,143 @@ def check_investigation_engine():
                 srv.shutdown()
     finally:
         la.chat_completion = real_chat
+        soc.SOC_DIR = real_dir
+
+    return 0 if all(results) else 1
+
+
+def check_parallel_advisory():
+    """C2-T2 — three guarded agents, separate from deterministic assembly."""
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import normalize
+    import log_analyzer as la
+    from anomaly_detector import detect
+    import adapter
+    import soc
+    import investigate
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" +
+              ("" if cond or not detail else f" — {detail}"))
+
+    print("\nparallel guarded advisory agents (C2-T2):")
+    records, stats = normalize.load(str(ROOT / "sample-2.log"))
+    state = adapter.adapt({
+        "source_file": str(ROOT / "sample-2.log"),
+        "generated_at": "2026-08-13T00:00:00+00:00",
+        "lines_parsed": stats["parsed"], "lines_unparsed": stats["unparsed"],
+        "findings": la.detector_to_findings(detect(records)),
+    })
+    real_dir = soc.SOC_DIR
+    try:
+        with tempfile.TemporaryDirectory(prefix="c2-advisory-") as tmp:
+            soc.SOC_DIR = Path(tmp) / ".soc"
+            soc.SOC_DIR.mkdir(parents=True, exist_ok=True)
+            soc.sync_incidents(state)
+
+            starts = []
+            seen_timeouts = []
+            prompts = []
+
+            def grounded_chat(*args, **kwargs):
+                starts.append(time.perf_counter())
+                seen_timeouts.append(kwargs.get("timeout"))
+                prompts.append(args[4])
+                time.sleep(.05)
+                return json.dumps({"sentences": [{
+                    "text": "The cited record contains an authentication event.",
+                    "records": [5],
+                }]})
+
+            t0 = time.perf_counter()
+            advisory = investigate.dispatch_advisory(
+                "INC-4a7f", state, chat_fn=grounded_chat)
+            elapsed = time.perf_counter() - t0
+            print(f"    three agents returned in {elapsed * 1000:.1f} ms; "
+                  f"grounding={advisory['grounding']['cited_and_resolvable']}/"
+                  f"{advisory['grounding']['factual_sentences']} "
+                  f"({advisory['grounding']['ratio']:.3f})")
+            check("(a) exactly narrative/attack/pivots blocks are returned",
+                  [b["kind"] for b in advisory["blocks"]] ==
+                  ["narrative", "attack", "pivots"])
+            check("(a) bounded parallelism completes near one worker duration",
+                  len(starts) == 3 and elapsed < .14 and max(starts) - min(starts) < .04,
+                  f"elapsed={elapsed:.3f}, spread={max(starts)-min(starts):.3f}")
+            check("(a) production per-agent timeout is exactly 45 seconds",
+                  investigate.ADVISORY_TIMEOUT == 45 and seen_timeouts == [45, 45, 45],
+                  str(seen_timeouts))
+            check("all rendered blocks are explicitly labelled ADVISORY",
+                  advisory["label"] == "ADVISORY" and
+                  all(b["label"].startswith("ADVISORY ·") for b in advisory["blocks"]))
+            check("all model egress is redacted through the shared choke point",
+                  len(prompts) == 3 and all("203.0.113.44" not in p and
+                      "server-01" not in p and "[IP-1]" in p and "[HOST-1]" in p
+                      for p in prompts))
+            check("(d) measured grounding clears 0.95 over INC-4a7f",
+                  advisory["grounding"]["factual_sentences"] == 3 and
+                  advisory["grounding"]["cited_and_resolvable"] == 3 and
+                  advisory["grounding"]["ratio"] >= .95,
+                  str(advisory["grounding"]))
+            check("every rendered sentence carries a resolvable record citation",
+                  all(s["records"] and all(investigate.resolve_record(state, n)
+                                           for n in s["records"])
+                      for b in advisory["blocks"] for s in b["sentences"]))
+
+            def ungrounded_chat(*args, **kwargs):
+                return json.dumps({"sentences": [{
+                    "text": "The attack came from 198.51.100.250.", "records": [5]
+                }]})
+
+            rejected = investigate.dispatch_advisory(
+                "INC-4a7f", state, chat_fn=ungrounded_chat)
+            check("(e) guard rejects/strips an advisory sentence with an invented entity",
+                  all(b["status"] == "rejected" and b["text"] is None and
+                      len(b["rejected"]) == 1 for b in rejected["blocks"]))
+
+            calls = []
+
+            def unreachable(*args, **kwargs):
+                calls.append(1)
+                raise ConnectionError("model unreachable")
+
+            deterministic = investigate.assemble("INC-4a7f", state)
+            timed = investigate.dispatch_advisory(
+                "INC-4a7f", state, chat_fn=unreachable)
+            check("(b) deterministic assemble remains complete and model-free",
+                  deterministic["deterministic"] is True and
+                  deterministic["investigation"]["timeline"] and len(calls) == 3)
+            check("(c) kill-the-LLM is an honest visible timeout for all agents",
+                  timed["status"] == "timed_out" and
+                  all(b["status"] == "timed_out" and b["text"] is None and
+                      "timed out — retry" in b["note"] for b in timed["blocks"]))
+
+            # Route seam: advisory is opt-in and distinct from the immediate /rca.
+            import http.server
+            import threading
+            import serve
+            real_state = serve.STATE
+            real_dispatch = investigate.dispatch_advisory
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                serve.STATE = state
+                investigate.dispatch_advisory = lambda iid, state: advisory
+                with urllib.request.urlopen(
+                        f"http://127.0.0.1:{srv.server_address[1]}/api/incidents/INC-4a7f/advisory",
+                        timeout=5) as response:
+                    routed = json.loads(response.read())
+                check("separate /advisory route returns guarded advisory blocks",
+                      routed["label"] == "ADVISORY" and len(routed["blocks"]) == 3)
+            finally:
+                investigate.dispatch_advisory = real_dispatch
+                serve.STATE = real_state
+                srv.shutdown()
+    finally:
         soc.SOC_DIR = real_dir
 
     return 0 if all(results) else 1
