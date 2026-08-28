@@ -4740,6 +4740,255 @@ def check_runbooks():
     return 0 if all(results) else 1
 
 
+def check_audit():
+    """Stage C C0-T2 — the append-only, hash-chained audit ledger
+    (console/audit.py) and its DERIVED sqlite index (store.audit_index).
+
+    The load-bearing property here is guardrail 2, honesty: the chain REPORTS
+    its own breaks and can never quietly fix one. That is asserted twice —
+    behaviourally (tamper a MIDDLE entry, verify_chain names that exact index,
+    and the file's bytes are unchanged afterwards) and structurally (audit.py's
+    real AST contains no write/replace/truncate/unlink call at all; its only
+    mutation of the ledger is a single append).
+
+    Also asserted: the JSONL is the source of truth and the sqlite table is
+    rebuildable from it alone; the migration is ADDITIVE — a COPY of the real
+    console/.soc/soc_history.db opens with every pre-existing table and row
+    still there; and concurrent appenders from separate processes still produce
+    a chain that verifies.
+    """
+    import ast
+    import shutil as _shutil
+    import sqlite3
+    import subprocess as _sp
+
+    print("\nAudit chain — append-only + hash-chained (the chain reports its own breaks):")
+    sys.path.insert(0, str(HERE))
+    import audit
+    import runbooks
+    import store
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(bool(cond))
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    real = (store.SOC_DIR, store.DB_PATH, audit.SOC_DIR, audit.AUDIT_DIR)
+    try:
+        with tempfile.TemporaryDirectory(prefix="audit-test-") as tmp:
+            tmp = Path(tmp)
+            store.SOC_DIR = tmp
+            store.DB_PATH = tmp / "soc_history.db"
+            audit.SOC_DIR = tmp
+            audit.AUDIT_DIR = tmp / "audit"
+            store.init_db()
+
+            # ---- a) a clean chain verifies ------------------------------
+            rbs = runbooks.load_runbooks()
+            rb = rbs["rb-block-ip"]
+            proof = runbooks.eligible(rb, {"id": "INC-1", "entityKind": "ip",
+                                           "severity": "CRITICAL", "findings": []}, [])
+            entries = []
+            entries.append(audit.append("analyst@soc", "INC-1", "rb-block-ip", "eligibility",
+                                        "approved", eligibility_proof=proof,
+                                        evidence_refs=["evt:1", "evt:2"],
+                                        request_redacted={"ip": "203.0.113.44"},
+                                        response_verbatim=None))
+            entries.append(audit.append("analyst@soc", "INC-1", "rb-block-ip", "block",
+                                        "executed", eligibility_proof=proof,
+                                        evidence_refs=["evt:2"],
+                                        request_redacted={"ip": "203.0.113.44"},
+                                        response_verbatim={"http": 200}))
+            entries.append(audit.append("analyst@soc", "INC-2", "rb-draft-notify", "draft",
+                                        "rejected", eligibility_proof={"eligible": False,
+                                                                       "missing": ["severity_floor"]}))
+            v = audit.verify_chain()
+            check("verify_chain() on a clean 3-entry chain is ok", v["ok"] and v["break"] is None, str(v))
+            check("verify_chain() counts every entry", v["count"] == 3, str(v["count"]))
+            check("every entry carries exactly the D4 field contract",
+                  all(tuple(e) == audit.FIELDS for e in entries),
+                  str(tuple(entries[0])))
+            check("the first entry chains from GENESIS and each entry links to its predecessor",
+                  entries[0]["prev_hash"] == audit.GENESIS
+                  and entries[1]["prev_hash"] == entries[0]["entry_hash"]
+                  and entries[2]["prev_hash"] == entries[1]["entry_hash"])
+            check("eligibility_proof carries what runbooks.eligible() returned, verbatim",
+                  entries[0]["eligibility_proof"] == proof, str(proof))
+            check("an unknown status is rejected, never stored as an invented one",
+                  _raises(lambda: audit.append("a", "i", "r", "s", "totally-fine")))
+
+            # an append only ADDS bytes
+            before_bytes = audit.chain_path().read_bytes()
+            entries.append(audit.append("analyst@soc", "INC-2", "rb-draft-notify", "draft",
+                                        "failed"))
+            after_bytes = audit.chain_path().read_bytes()
+            check("appending never rewrites a byte already in the ledger",
+                  after_bytes.startswith(before_bytes))
+
+            # ---- c) the sqlite index is DERIVED and rebuildable ----------
+            rows = store.audit_rows()
+            check("every appended entry is mirrored into the derived sqlite index",
+                  [r["entry_hash"] for r in rows] == [e["entry_hash"] for e in entries],
+                  str(len(rows)))
+            check("the derived index round-trips the structured fields",
+                  rows[0]["eligibility_proof"] == proof
+                  and rows[0]["evidence_refs"] == ["evt:1", "evt:2"])
+            with store._connect() as c:
+                c.execute("DELETE FROM audit_index")       # simulate a lost/corrupt index
+            check("the index can be wiped (it is a cache, not the source of truth)",
+                  store.audit_rows() == [])
+            rebuilt = audit.rebuild_index()
+            check("rebuild_index() reconstructs the whole index from the JSONL alone",
+                  rebuilt["rebuilt"] and rebuilt["indexed"] == len(entries)
+                  and [r["entry_hash"] for r in store.audit_rows()]
+                      == [e["entry_hash"] for e in entries], str(rebuilt))
+            check("a wiped-and-rebuilt index does not disturb the ledger",
+                  audit.chain_path().read_bytes() == after_bytes)
+
+            # ---- f) real concurrent appenders still produce a valid chain -
+            worker = tmp / "appender.py"
+            worker.write_text(
+                "import sys\n"
+                f"sys.path.insert(0, {str(HERE)!r})\n"
+                "import audit, store\n"
+                f"audit.SOC_DIR = store.SOC_DIR = {str(tmp)!r}\n"
+                f"audit.AUDIT_DIR = {str(tmp / 'audit')!r}\n"
+                f"store.DB_PATH = {str(tmp / 'soc_history.db')!r}\n"
+                "import os\n"
+                "for i in range(6):\n"
+                "    audit.append('w%d' % os.getpid(), 'INC-C', 'rb-block-ip', 'step%d' % i,\n"
+                "                 'executed', index=False)\n")
+            procs = [_sp.Popen([sys.executable, str(worker)]) for _ in range(5)]
+            codes = [p.wait() for p in procs]
+            v2 = audit.verify_chain()
+            check("5 concurrent appender PROCESSES all exited 0", set(codes) == {0}, str(codes))
+            check("the chain still verifies after 30 concurrent appends "
+                  "(no two entries chained off the same predecessor)",
+                  v2["ok"] and v2["count"] == len(entries) + 30, str(v2))
+
+            # ---- b) TAMPER a MIDDLE entry -------------------------------
+            lines = audit.chain_path().read_text().split("\n")
+            lines = [ln for ln in lines if ln]
+            orig_lines = list(lines)
+            victim = 1                              # a middle entry, not the head/tail
+            doctored = json.loads(lines[victim])
+            doctored["actor"] = "someone-else@evil"  # content changed, hash left alone
+            lines[victim] = json.dumps(doctored, sort_keys=True, separators=(",", ":"))
+            audit.chain_path().write_text("\n".join(lines) + "\n")
+            tampered_bytes = audit.chain_path().read_bytes()
+
+            v3 = audit.verify_chain()
+            check("verify_chain() REPORTS the break on a tampered chain", not v3["ok"], str(v3))
+            check(f"...at the CORRECT index ({victim}, the entry that was edited)",
+                  v3["break"] and v3["break"]["index"] == victim, str(v3["break"]))
+            check("...naming the reason (the entry_hash no longer matches its contents)",
+                  v3["break"] and "entry_hash does not match" in v3["break"]["reason"],
+                  str(v3["break"]))
+            check("verify_chain() did NOT touch the file — no silent re-chaining",
+                  audit.chain_path().read_bytes() == tampered_bytes)
+            check("verify_chain() is stable: a second call reports the SAME break, "
+                  "it does not 'heal' on re-read",
+                  audit.verify_chain() == v3)
+            check("rebuild_index() REFUSES to build an index over a broken chain "
+                  "(a corrupt ledger is never laundered into the UI)",
+                  audit.rebuild_index() == {"rebuilt": False, "indexed": 0,
+                                            "verification": v3})
+            check("...and the derived index still holds only the pre-break rebuild",
+                  len(store.audit_rows()) == len(entries))
+
+            # a CUT chain: from the UNTAMPERED ledger, delete entry 2. Entry 3
+            # then sits at index 2 with a prev_hash pointing at a line that is
+            # no longer there — the cut is reported exactly there.
+            cut = [ln for i, ln in enumerate(orig_lines) if i != 2]
+            audit.chain_path().write_text("\n".join(cut) + "\n")
+            v4 = audit.verify_chain()
+            check("deleting a middle entry is reported as a cut at that index",
+                  not v4["ok"] and v4["break"]["index"] == 2
+                  and "prev_hash does not match" in v4["break"]["reason"], str(v4["break"]))
+
+            # ---- structural proof: audit.py has NO repair path -----------
+            tree = ast.parse((HERE / "audit.py").read_text())
+            called = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    f = node.func
+                    called.add(f.attr if isinstance(f, ast.Attribute)
+                               else getattr(f, "id", ""))
+            forbidden = {"write_text", "write_bytes", "atomic_write_text", "durable_append_line",
+                         "replace", "truncate", "unlink", "remove", "rename", "rmtree", "open"}
+            check("audit.py calls NO file-rewriting primitive at all "
+                  "(no write/replace/truncate/unlink/rename/open)",
+                  not (called & forbidden), str(sorted(called & forbidden)))
+            check("its only ledger mutation is a single append through fsafe",
+                  sum(1 for n in ast.walk(tree)
+                      if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                      and n.func.attr == "append_line_holding_lock") == 1)
+            check("no function in audit.py is named like a repair",
+                  not [n.name for n in ast.walk(tree)
+                       if isinstance(n, ast.FunctionDef)
+                       and re.search(r"repair|fix|heal|rechain|re_chain|rewrite|patch", n.name, re.I)])
+
+            # ---- d) the store migration is ADDITIVE ----------------------
+            live_db = HERE / ".soc" / "soc_history.db"
+            if live_db.exists():
+                copy_dir = tmp / "fixture"
+                copy_dir.mkdir()
+                copy_db = copy_dir / "soc_history.db"
+                _shutil.copy2(live_db, copy_db)      # a COPY — never the live store
+
+                def snapshot(db):
+                    with sqlite3.connect(str(db)) as c:
+                        names = [r[0] for r in c.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table' "
+                            "AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+                        return names, {n: c.execute(f"SELECT COUNT(*) FROM {n}").fetchone()[0]
+                                       for n in names}
+
+                before_tables, before_counts = snapshot(copy_db)
+                store.SOC_DIR = copy_dir
+                store.DB_PATH = copy_db
+                store._INIT_DONE.discard(str(copy_db))
+                store.init_db()                      # the migration under test
+                after_tables, after_counts = snapshot(copy_db)
+
+                print(f"  [info] tables BEFORE init_db(): {before_tables}")
+                print(f"  [info] tables AFTER  init_db(): {after_tables}")
+                expected = {"events", "assets", "vulnerabilities", "iocs",
+                            "connectors", "settings", "investigations"}
+                check("the real .soc DB copy already carried the 7 pre-existing tables",
+                      expected <= set(before_tables), str(sorted(before_tables)))
+                check("the migration DROPS nothing — every prior table survives",
+                      set(before_tables) <= set(after_tables),
+                      str(sorted(set(before_tables) - set(after_tables))))
+                check("the migration ADDS exactly audit_index",
+                      set(after_tables) - set(before_tables) == {"audit_index"},
+                      str(sorted(set(after_tables) - set(before_tables))))
+                check("no prior table lost or gained a row",
+                      all(after_counts[t] == before_counts[t] for t in before_tables),
+                      str({t: (before_counts[t], after_counts[t]) for t in before_tables
+                           if after_counts[t] != before_counts[t]}))
+                check("audit_index is not in HISTORY_TABLES/ALL_DATA_TABLES — "
+                      "retention cleanup and purge can never reach audit evidence",
+                      "audit_index" not in store.HISTORY_TABLES
+                      and "audit_index" not in store.ALL_DATA_TABLES)
+            else:
+                check("a real console/.soc/soc_history.db was available to test the "
+                      "migration against", False, f"{live_db} does not exist — NOT TESTED")
+    finally:
+        store.SOC_DIR, store.DB_PATH, audit.SOC_DIR, audit.AUDIT_DIR = real
+
+    return 0 if all(results) else 1
+
+
+def _raises(fn):
+    try:
+        fn()
+        return False
+    except Exception:
+        return True
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -4803,18 +5052,19 @@ def main():
     askview_ = check_ask_view()
     bfseries_ = check_bruteforce_series()
     runbooks_ = check_runbooks()
+    audit_ = check_audit()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
-            or askview_ or bfseries_ or runbooks_):
+            or askview_ or bfseries_ or runbooks_ or audit_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
-          "+ ask-view + bruteforce-series + runbooks checks green")
+          "+ ask-view + bruteforce-series + runbooks + audit-chain checks green")
     return 0
 
 

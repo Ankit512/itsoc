@@ -108,6 +108,31 @@ CREATE TABLE IF NOT EXISTS investigations (
     ts TEXT NOT NULL,
     question TEXT, model TEXT, context TEXT, answer TEXT
 );
+
+-- DERIVED index over the append-only audit ledger (console/audit.py).
+-- The SOURCE OF TRUTH is console/.soc/audit/chain.jsonl; this table exists
+-- only so the console can query/filter the ledger without parsing JSONL, and
+-- it is fully rebuildable from that file (audit.rebuild_index()). Nothing here
+-- is authoritative: if the two disagree, the JSONL wins. Deliberately NOT in
+-- HISTORY_TABLES/ALL_DATA_TABLES — retention cleanup and purge must never
+-- reach into audit evidence, and this table is additive to the existing
+-- schema (CREATE TABLE IF NOT EXISTS only; no ALTER, no DROP of anything).
+CREATE TABLE IF NOT EXISTS audit_index (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    seq INTEGER NOT NULL,           -- 0-based line number in chain.jsonl
+    ts TEXT NOT NULL,
+    actor TEXT, incident_id TEXT, runbook_id TEXT, step TEXT,
+    status TEXT,                    -- approved|rejected|executed|failed
+    eligibility_proof TEXT,         -- JSON, verbatim from runbooks.eligible()
+    evidence_refs TEXT,             -- JSON array
+    request_redacted TEXT,          -- JSON (already through redact.py upstream)
+    response_verbatim TEXT,         -- JSON, verbatim
+    prev_hash TEXT,
+    entry_hash TEXT UNIQUE          -- the ledger line's identity
+);
+CREATE INDEX IF NOT EXISTS idx_audit_seq ON audit_index(seq);
+CREATE INDEX IF NOT EXISTS idx_audit_incident ON audit_index(incident_id);
+CREATE INDEX IF NOT EXISTS idx_audit_status ON audit_index(status);
 """
 
 
@@ -219,6 +244,78 @@ def insert_investigation(question, model, context, answer):
         return cur.lastrowid
 
 
+# ---------------------------------------------------------------------------
+# Derived audit index (console/audit.py owns the source of truth)
+# ---------------------------------------------------------------------------
+# Everything below mirrors chain.jsonl into `audit_index` for querying. It is a
+# CACHE: it can be dropped and rebuilt at any time from the ledger, and it can
+# never be the reason a ledger entry is accepted or rejected. Nothing here is
+# allowed to write back to the ledger, and rebuild_audit_index() clearing this
+# table touches ONLY this derived table — never the ledger, never another table.
+
+_AUDIT_JSON_COLS = ("eligibility_proof", "evidence_refs",
+                    "request_redacted", "response_verbatim")
+
+
+def _audit_row(entry, seq):
+    def enc(v):
+        return None if v is None else json.dumps(v, sort_keys=True,
+                                                 separators=(",", ":"),
+                                                 ensure_ascii=False)
+    return (int(seq), str(entry.get("ts") or ""), entry.get("actor"),
+            entry.get("incident_id"), entry.get("runbook_id"), entry.get("step"),
+            entry.get("status"),
+            enc(entry.get("eligibility_proof")), enc(entry.get("evidence_refs")),
+            enc(entry.get("request_redacted")), enc(entry.get("response_verbatim")),
+            entry.get("prev_hash"), entry.get("entry_hash"))
+
+
+_AUDIT_INSERT = """INSERT OR REPLACE INTO audit_index
+    (seq,ts,actor,incident_id,runbook_id,step,status,eligibility_proof,
+     evidence_refs,request_redacted,response_verbatim,prev_hash,entry_hash)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+
+
+def index_audit_entry(entry, seq):
+    """Mirror one already-committed ledger entry into the derived index.
+    Keyed by entry_hash, so re-indexing the same entry is a no-op, not a dupe."""
+    init_db()
+    with _LOCK, _connect() as c:
+        c.execute(_AUDIT_INSERT, _audit_row(entry, seq))
+
+
+def rebuild_audit_index(entries):
+    """Drop and rebuild the DERIVED index from `entries` (the parsed ledger, in
+    ledger order). Returns the row count. The ledger itself is not read, not
+    written and not passed anywhere by this function — the caller
+    (audit.rebuild_index()) has already verified it."""
+    init_db()
+    with _LOCK, _connect() as c:
+        c.execute("DELETE FROM audit_index")     # derived cache only
+        c.executemany(_AUDIT_INSERT,
+                      [_audit_row(e, i) for i, e in enumerate(entries)])
+        return c.execute("SELECT COUNT(*) FROM audit_index").fetchone()[0]
+
+
+def audit_rows(limit=1000):
+    """The derived index in ledger order (display/UI reads)."""
+    init_db()
+    with _LOCK, _connect() as c:
+        rows = c.execute("SELECT * FROM audit_index ORDER BY seq LIMIT ?",
+                         (int(limit),)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        for col in _AUDIT_JSON_COLS:
+            if d.get(col) is not None:
+                try:
+                    d[col] = json.loads(d[col])
+                except (ValueError, json.JSONDecodeError):
+                    pass                          # keep the raw text, honestly
+        out.append(d)
+    return out
+
+
 def upsert_connector(name, kind="", config=None, enabled=None, interval=None,
                      last_run=None, last_error=None):
     """Create or update a connector row by name. Only the fields you pass change."""
@@ -300,6 +397,9 @@ _QUERYABLE = {
              "text": ("ioc", "details")},
     "connectors": {"exact": {"kind", "name"}, "text": ("name", "kind")},
     "investigations": {"exact": {"model"}, "text": ("question", "answer")},
+    "audit_index": {"exact": {"actor", "incident_id", "runbook_id", "step",
+                              "status", "entry_hash"},
+                    "text": ("actor", "incident_id", "runbook_id", "step")},
 }
 
 
