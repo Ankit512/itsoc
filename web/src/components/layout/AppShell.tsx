@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Antenna, Bell, Cable, Database, FileText, Folder, House, Link as LinkIcon, LogOut, Monitor,
-  Radar, RefreshCw, Search, Settings, Shield, ShieldAlert, Sparkles, TriangleAlert, Upload, X,
+  Radar, RefreshCw, Search, Settings, Shield, Sparkles, TriangleAlert, Upload, X,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -36,8 +36,7 @@ export const EXPERIMENTAL_NAV = [
   { to: "/intel", label: "Intel", icon: Shield, ready: true },
   { to: "/assets", label: "Assets", icon: Monitor, ready: true },
   { to: "/threat-intel", label: "Threat Intel", icon: Shield, ready: true },
-  { to: "/discovery", label: "Discovery", icon: Radar, ready: true },
-  { to: "/vulnerabilities", label: "Vulnerabilities", icon: ShieldAlert, ready: true },
+  { to: "/network", label: "Network", icon: Radar, ready: true },
   { to: "/history", label: "History", icon: Database, ready: true },
   { to: "/enrichment", label: "Enrichment", icon: Search, ready: true },
   { to: "/oem", label: "OEM Engine", icon: Cable, ready: true },
@@ -61,8 +60,9 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/settings": { title: "Settings", subtitle: "only settings that do something" },
   "/threat-intel": { title: "Threat Intel", subtitle: "derived tags — not verdicts" },
   "/assets": { title: "Assets", subtitle: "observed entities only" },
-  "/discovery": { title: "Discovery", subtitle: "active scan — user-initiated" },
-  "/vulnerabilities": { title: "Vulnerabilities", subtitle: "CVSS band as reported · empty = unknown" },
+  "/network": { title: "Network", subtitle: "active nmap discovery & vulnerabilities" },
+  "/discovery": { title: "Network", subtitle: "active nmap discovery & vulnerabilities" },
+  "/vulnerabilities": { title: "Network", subtitle: "active nmap discovery & vulnerabilities" },
   "/enrichment": { title: "Enrichment", subtitle: "real provider responses only" },
   "/oem": { title: "OEM Engine", subtitle: "read-only connectors · credentials masked" },
   "/history": { title: "History", subtitle: "persistent event store" },
