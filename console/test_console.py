@@ -5054,11 +5054,12 @@ def main():
     runbooks_ = check_runbooks()
     audit_ = check_audit()
     migration_ = check_cases_incidents_migration()
+    inc4a7f_ = check_inc4a7f_scenario()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
-            or askview_ or bfseries_ or runbooks_ or audit_ or migration_):
+            or askview_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
@@ -5066,6 +5067,7 @@ def main():
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
           "+ ask-view + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
+          "+ inc-4a7f-scenario "
           "checks green")
     return 0
 
@@ -5224,6 +5226,124 @@ def check_cases_incidents_migration():
             empty = json.loads(export.build_legacy_cases([]))
             check("legacy export is honest when empty (no invented fill)",
                   empty["count"] == 0 and empty["cases"] == [])
+    finally:
+        soc.SOC_DIR = real_dir
+
+    return 0 if all(results) else 1
+
+
+def check_inc4a7f_scenario():
+    """C2-T0 — the canonical demo scenario INC-4a7f is a REAL, deterministic
+    rule incident, addressable by its design-kit id (owner ruling 2026-08-28).
+
+    INC-4a7f names the brute-force scenario 203.0.113.44 -> server-01 across the
+    prototype, the C2 acceptance and the C5 demo script. Incident ids are DERIVED
+    from a content hash and are not human-chosen, so we do NOT fabricate a record
+    with that id — we run the REAL rules over the seeded fixture (sample-2.log,
+    the same object C5 drives) and make the resulting REAL incident addressable by
+    an alias. This test proves: (a) the real rules produce a brute-force finding
+    on 203.0.113.44; (b) the derived incident carries entity 203.0.113.44 and host
+    server-01 and is reachable as INC-4a7f; (c) re-deriving from a FRESH store
+    yields the SAME id (deterministic); (d) the alias touches no other incident's
+    derived id — normal lookups are byte-for-byte unaffected and an unmatched
+    alias is an honest None, never a minted record.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import normalize
+    import log_analyzer as la
+    from anomaly_detector import detect
+    import adapter
+    import soc
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nINC-4a7f canonical demo scenario (C2-T0):")
+
+    FIXTURE = ROOT / "sample-2.log"
+
+    # --- (a) REAL rules over the seeded fixture produce the brute-force finding ---
+    records, stats = normalize.load(str(FIXTURE))
+    anomalies = detect(records)
+    bf = [a for a in anomalies
+          if "bruteforce" in (a.get("type") or "")
+          and a.get("entities", {}).get("ip") == "203.0.113.44"]
+    check("real rules fire a brute-force finding on 203.0.113.44 (not fabricated)",
+          len(bf) >= 1, str([(a.get("type"), a.get("entities")) for a in anomalies]))
+
+    # A FIXED generated_at pins runId so the derived id is stable and assertable;
+    # the source_file points at the real fixture so host is derived from real lines.
+    report = {"source_file": str(FIXTURE), "generated_at": "2026-08-13T00:00:00+00:00",
+              "lines_parsed": stats["parsed"], "lines_unparsed": stats["unparsed"],
+              "findings": la.detector_to_findings(anomalies)}
+    state = adapter.adapt(report)
+
+    real_dir = soc.SOC_DIR
+    try:
+        with tempfile.TemporaryDirectory(prefix="c2-inc4a7f-") as tmp:
+            soc.SOC_DIR = Path(tmp) / ".soc"
+            soc.SOC_DIR.mkdir(parents=True, exist_ok=True)
+
+            store = soc.sync_incidents(state)
+            derived_id = next((k for k in store if store[k].get("entity") == "203.0.113.44"), None)
+            check("a real incident is derived for entity 203.0.113.44",
+                  derived_id is not None, str(list(store)))
+
+            inc = store.get(derived_id, {})
+            member_hosts = sorted({f.get("host") for f in state["findings"]
+                                   if f.get("id") in set(inc.get("findingIds", []))})
+            check("(b) derived incident carries entity 203.0.113.44 and host server-01",
+                  inc.get("entity") == "203.0.113.44" and "server-01" in member_hosts,
+                  str((inc.get("entity"), member_hosts)))
+            check("(b) incident is REAL rule output — brute-force technique T1110 present",
+                  any(t.get("id") == "T1110" for t in inc.get("techniques") or []),
+                  str(inc.get("techniques")))
+
+            # --- (b) addressable as INC-4a7f -----------------------------------
+            aliased = soc.get_incident("INC-4a7f")
+            check("(b) INC-4a7f resolves to the real derived incident, annotated `alias`",
+                  aliased is not None and aliased.get("id") == derived_id
+                  and aliased.get("alias") == "INC-4a7f"
+                  and aliased.get("entity") == "203.0.113.44", str(aliased))
+
+            # --- (c) DETERMINISTIC across a FRESH store ------------------------
+            soc.SOC_DIR = Path(tmp) / ".soc-fresh"
+            soc.SOC_DIR.mkdir(parents=True, exist_ok=True)
+            store2 = soc.sync_incidents(adapter.adapt(report))
+            id2 = next((k for k in store2 if store2[k].get("entity") == "203.0.113.44"), None)
+            alias2 = soc.get_incident("INC-4a7f")
+            check("(c) re-deriving from a fresh store yields the SAME id",
+                  id2 == derived_id and alias2 is not None and alias2.get("id") == derived_id,
+                  str((derived_id, id2)))
+
+            # --- (d) the alias changes NO other incident's id behaviour --------
+            check("(d) an ordinary id lookup is byte-for-byte unaffected (no `alias` key)",
+                  soc.get_incident(derived_id) is not None
+                  and soc.get_incident(derived_id).get("id") == derived_id
+                  and "alias" not in soc.get_incident(derived_id))
+            check("(d) an unknown id is an honest None (no minted record)",
+                  soc.get_incident("inc-does-not-exist") is None)
+
+            # An unmatched alias (scenario not present) is an honest None, never faked.
+            soc.SOC_DIR = Path(tmp) / ".soc-empty"
+            soc.SOC_DIR.mkdir(parents=True, exist_ok=True)
+            check("(d) INC-4a7f is None when the scenario has not been analyzed",
+                  soc.get_incident("INC-4a7f") is None)
+
+            # Lifecycle + RCA also honour the alias (the C5 demo drives them).
+            soc.SOC_DIR = Path(tmp) / ".soc"
+            upd = soc.set_incident_state("INC-4a7f", "acknowledged")
+            check("lifecycle transition works through the alias",
+                  upd is not None and upd.get("id") == derived_id
+                  and upd.get("state") == "acknowledged")
+            rca = soc.derive_rca("INC-4a7f", state)
+            check("RCA resolves through the alias to the real incident",
+                  rca is not None and rca.get("incidentId") == derived_id, str(bool(rca)))
     finally:
         soc.SOC_DIR = real_dir
 
