@@ -41,3 +41,17 @@ state.json
 node_modules
 web/node_modules
 
+# --- fleet infrastructure & foreign queues (HK-1) ---
+inbox/
+hive/
+.hive/
+fleet.json
+registry.json
+log.jsonl
+cost-ledger.jsonl
+tasks.json
+board.md
+hooks.sock
+spawn-requests/
+agents/
+
