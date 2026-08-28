@@ -358,3 +358,25 @@ been reporting a slightly optimistic result all along.
 > `web/src/test/`. Orchestrator recommends folding it into the C1 integration rather than blocking a
 > fan-out unit, and adding `--sequence.shuffle` to the standing gate afterwards so the suite cannot
 > silently regress to order-dependence again.
+
+---
+
+## OPEN-9 · C3 prerequisite: the Docker daemon is not running — **human action, not gating until C3**
+
+Oscar's C3 feasibility established that the Docker **CLI is installed (28.1.1)** but the **daemon is not
+running** — `docker info` fails to connect. No code dependency is blocked and nothing in C0/C1/C2 needs
+it, but **C3's live end-to-end acceptance cannot run without it**, and starting Docker Desktop is an
+action only the owner can take on their own machine.
+
+Recorded now rather than discovered mid-C3. Everything else about the target is settled: Alpine 3.20
+recommended, the nft bootstrap/preview/execute/verify/revoke bodies are written, revoke is provably
+atomic and cannot touch a bystander (blocks are elements of a dedicated `itsoc` set, each tagged
+`comment "itsoc:appr-<id>"`), `console/.soc/` is confirmed gitignored so keys stay untracked, and only
+`key_path` ever enters config — never the key value.
+
+**Host firewall risk assessed as ZERO**, conditional on one hard rule now recorded in
+`hive/stage-c/GUARDRAILS.md`: the container **must never** be started with `--net=host`. The entire
+isolation argument depends on the container having its own network namespace.
+
+> **THE ASK (no action needed until C3 opens):** start the Docker daemon before C3's live acceptance,
+> or tell me to mark that item BLOCKED and build C3 against the abstract connector with a mock.
