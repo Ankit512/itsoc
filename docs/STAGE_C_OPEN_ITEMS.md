@@ -380,3 +380,39 @@ isolation argument depends on the container having its own network namespace.
 
 > **THE ASK (no action needed until C3 opens):** start the Docker daemon before C3's live acceptance,
 > or tell me to mark that item BLOCKED and build C3 against the abstract connector with a mock.
+
+---
+
+## OPEN-10 · `main` moved outside Stage C; concurrent queue is active again — **OPEN, owner decision**
+
+While the orchestrator was idle, local `main` advanced **outside Stage C**: a concurrent task queue
+merged `feat/asset-risk-weight` (`b6a4d53`, merge commit `a79791a`).
+
+**Stage C is intact — verified, not assumed.** All Stage C commits remain ancestors of `main`
+(`18b03dd` C0 merge, `63e201d` oob merge, `09f73f0` C1 merge, `c30588d` and `3c11674` docs). The gate on
+`main` is green — eval 17/17 f1 1.000, `console/test_console.py` PASSED, detector `364577c5…a4a876`
+frozen. Nothing was lost.
+
+**Two consequences the owner should rule on.**
+
+**1. Probable duplicate implementation.** `b6a4d53` changes `console/soc.py`, `OpsMetrics.tsx`,
+`Assets.tsx` and `assets.test.tsx` — the *same four files*, implementing the *same* severity-weighted
+asset risk, that the owner already ratified and the orchestrator rehomed to `oob/at-risk-nuance`
+(merged as `63e201d`). `main` may now carry that feature twice, applied through two routes. It currently
+reconciles cleanly and the gate is green, so this is not breakage — but it is duplicated provenance, and
+the rehoming exercise it duplicates was done at the owner's explicit direction.
+
+**2. New foreign work is in the integration checkout again.** `normalize.py` is modified (+16) and
+`console/formats/jsonlog.py` and `console/formats/rfc5424.py` are new and untracked — that queue's card
+`007-rfc5424-json-parsers`. The "uncommitted foreign changes" state that OPEN-4 retired has therefore
+returned, because the queue that produces it is still running.
+
+**Worktree isolation contained this exactly as intended.** Every Stage C worker is in its own worktree,
+so none of this reached our branches, and the orchestrator noticed only because a new worktree checked
+out at an unexpected commit. That is the adoption paying for itself a second time.
+
+> **THE ASK:** how should Stage C coexist with the concurrent queue on shared `main`? Options: (A) the
+> concurrent queue pauses while Stage C runs; (B) Stage C stops treating `main` as stable and branches
+> only from tagged Stage C merge points; (C) the concurrent queue moves to its own branch and merges on
+> your gate like everything else. Also: should the duplicated at-risk implementation be reconciled, or is
+> carrying both acceptable? The orchestrator will not unilaterally revert another actor's merge.
