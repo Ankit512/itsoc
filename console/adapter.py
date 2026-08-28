@@ -31,6 +31,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "threat_intel"))
 
 import normalize  # noqa: E402
+import log_analyzer  # noqa: E402  # universal multi-format loader (JSON/CSV/XML/text/…)
 from rule_mitre_map import techniques_for_rule  # noqa: E402
 
 # Fallback mappings for newer deterministic rules that may not yet exist in
@@ -125,14 +126,54 @@ RULE_REF = {
 }
 
 
+def _bridge_record(r):
+    """Coerce ONE load_log_file record into the console envelope shape the
+    dashboard expects: {n, ts, level, host, msg, raw}.
+
+    load_log_file records vary by format. Syslog records (normalize.load, run
+    first inside load_log_file) already carry every field, so this is a no-op
+    for them — syslog stays bit-for-bit as before. Universal records instead
+    carry {line, timestamp, msg, raw, …} and may lack n / ts / level / host;
+    fill only what is missing, never overwriting a value the parser set.
+    """
+    out = dict(r)
+    out["n"] = r.get("n") if r.get("n") is not None else r.get("line")
+    ts = r.get("ts")
+    if ts is None:
+        ts = log_analyzer._coerce_timestamp(r.get("timestamp"))
+    out["ts"] = ts
+    if not out.get("level"):
+        out["level"] = r.get("severity") or ""
+    if not out.get("host"):
+        out["host"] = ""
+    if not out.get("msg"):
+        out["msg"] = r.get("message") or ""
+    return out
+
+
+def load_console_records(source_file):
+    """(records, stats) for the console: parse the source log through the
+    universal loader (so non-syslog formats hydrate too) and bridge every
+    record into the console envelope shape. Shared by hydration and live-tail."""
+    path = Path(source_file)
+    if not path.is_absolute():
+        path = ROOT / path
+    if not path.exists():
+        return [], {}
+    records, stats = log_analyzer.load_log_file(path)
+    return [_bridge_record(r) for r in records], stats
+
+
 def _load_records(source_file):
-    """Index the source log by line number, using the project's own parser."""
+    """Index the source log by line number, using the project's universal
+    loader (load_log_file) so JSON/CSV/XML/access-log/text files hydrate too —
+    not only syslog, which normalize.load alone could parse."""
     path = Path(source_file)
     if not path.is_absolute():
         path = ROOT / path
     if not path.exists():
         return {}, False
-    records, _stats = normalize.load(path)
+    records, _stats = load_console_records(source_file)
     return {r["n"]: r for r in records}, True
 
 
@@ -365,7 +406,16 @@ def adapt(report, threat_report=None):
     # readable there is nothing honest to show, so events stays empty rather
     # than reconstructed; the existing unrecognized/emptyInput flags are
     # untouched and still drive the honest banner.
-    events, severity_counts = _events(by_line, findings, report.get("findings", []))
+    # Honest-empty contract: when the analyzer's own run parsed nothing
+    # (unrecognized format or empty input, i.e. lines_parsed == 0), emit no
+    # events — even though the universal loader can coerce arbitrary readable
+    # text into "records", showing them would contradict the
+    # unrecognized/emptyInput banner. When lines were parsed, every record is
+    # surfaced exactly as before.
+    if report.get("lines_parsed") == 0:
+        events, severity_counts = [], {b: 0 for b in BUCKETS}
+    else:
+        events, severity_counts = _events(by_line, findings, report.get("findings", []))
 
     source_name = Path(report.get("source_file", "run")).stem
     return {

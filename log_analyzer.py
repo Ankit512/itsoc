@@ -374,7 +374,13 @@ def _parse_timestamp(msg):
         r"\b\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}:\d{2}(?:[.,]\d+)?\s*(?:AM|PM)\b",
         r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?\b",
         r"\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}\b",
+        # Apache/nginx common-log time, e.g. "10/Oct/2000:13:55:36 -0700".
+        r"\b\d{1,2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2}\s*[+-]\d{4}\b",
         r"\b[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\b",
+        # Epoch millis then epoch seconds (leading 1 keeps this to ~2001-2286
+        # so ordinary large integers are not mistaken for a timestamp).
+        r"\b1\d{12}\b",
+        r"\b1\d{9}\b",
     ]
     for pattern in patterns:
         m = re.search(pattern, msg)
@@ -389,7 +395,17 @@ def _coerce_timestamp(value):
     if hasattr(value, "isoformat"):
         return value
     text = str(value).strip()
-    from datetime import datetime
+    from datetime import datetime, timezone
+    # Epoch seconds / milliseconds. Epoch is an absolute instant (UTC), so this
+    # honours the real time rather than guessing a year or a local zone.
+    if text.isdigit():
+        try:
+            iv = int(text)
+            if len(text) >= 13:      # milliseconds
+                iv = iv / 1000.0
+            return datetime.fromtimestamp(iv, tz=timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            return None
     for fmt in (
         "%m/%d/%Y %I:%M:%S.%f %p",
         "%m/%d/%Y %I:%M:%S %p",
@@ -399,6 +415,9 @@ def _coerce_timestamp(value):
         "%Y-%m-%dT%H:%M:%S",
         "%Y-%m-%d %H:%M:%S.%f",
         "%Y-%m-%d %H:%M:%S",
+        # Apache/nginx common-log time; %z honours the embedded offset instead
+        # of forcing UTC.
+        "%d/%b/%Y:%H:%M:%S %z",
     ):
         try:
             return datetime.strptime(text.replace("Z", "+00:00"), fmt)
@@ -922,13 +941,28 @@ def load_log_file(path: Path):
     """
     try:
         native_records, native_stats = normalize.load(path)
-        if native_stats.get("parsed", 0) > 0:
+        parsed = native_stats.get("parsed", 0)
+        total = native_stats.get("total_lines", 0) or 0
+        # Accept the native (syslog) parse ONLY when it covers a high fraction of
+        # the non-blank lines. A weak partial match — e.g. a JSON/CSV/access log
+        # where a handful of lines happen to look syslog-ish — falls through to
+        # the universal parser instead of leaving most lines unparsed. Pure
+        # syslog covers ~all lines, so its behaviour is unchanged.
+        native_fraction = (parsed / total) if total > 0 else 0.0
+        if parsed > 0 and native_fraction >= 0.6:
             native_stats.setdefault("encoding", "native")
             return native_records, native_stats
-        print(
-            f"WARNING: native parser recognized 0 records in {path.name}; "
-            "using universal multi-format ingestion."
-        )
+        if parsed > 0:
+            print(
+                f"WARNING: native parser recognized only {parsed}/{total} lines "
+                f"({native_fraction:.0%}) in {path.name}; using universal "
+                "multi-format ingestion."
+            )
+        else:
+            print(
+                f"WARNING: native parser recognized 0 records in {path.name}; "
+                "using universal multi-format ingestion."
+            )
     except Exception as exc:
         print(f"WARNING: native parser failed for {path.name}: {exc}")
         print("         Using universal multi-format ingestion.")

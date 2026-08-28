@@ -959,7 +959,11 @@ def tail_stream(path, queue, stop, start_after):
         last_size = size
 
         lines = path.read_text(errors="replace").splitlines()
-        records, stats = normalize.load(path)
+        # Route the tail through the SAME universal loader the console hydration
+        # uses (load_log_file + envelope bridge), so a live-tailed non-syslog
+        # file (JSON/CSV/access-log/text) shows real levels/hosts instead of an
+        # UNKNOWN blank; syslog still flows through normalize.load inside it.
+        records, stats = adapter.load_console_records(path)
         by_n = {r["n"]: r for r in records}
         appended = False
         for n in range(last_n + 1, len(lines) + 1):
