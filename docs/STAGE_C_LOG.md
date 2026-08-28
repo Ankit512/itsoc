@@ -255,3 +255,111 @@ Bonus: `python3 console/test_fsafe.py` -> `PASSED — 10 fsafe checks green`.
     `_STORE_TABLES` map, untouched. Correct for C0 (no UI); C4 must wire it.
 16. **`graphify update .` was not run.** CLAUDE.md asks for it after code changes, but it writes
     `graphify-out/`, outside every allowlist. Deferred to whoever owns that step.
+
+### C0-T3 · TI severity cap + TAXII token/cert auth — **BUILT, NOT ACCEPTED — HALTED FOR OWNER SIGN-OFF** (commit `cbd3099`)
+
+Code is committed and the security work is sound, but C0 **cannot auto-gate**: one build-doc deviation
+and one out-of-allowlist regression both require the owner. Autonomous mode: "any deviation needing
+sign-off -> halt, write the report, ask the owner." Halted. C0-T4 NOT dispatched.
+
+**New severity mapping (the substance is good).** Two steps. Rule policy sets a CEILING from locally
+corroborable evidence (`RULE_SEVERITY_POLICY`, keyed on known-malicious label × ATT&CK technique
+actually resolved): corroborated -> high, labelled_only -> medium, technique_only -> medium,
+uncorroborated -> low. The feed's declared level then applies **only if strictly lower** — the feed may
+de-escalate, never escalate. `TI_SEVERITY_CEILING = "high"` makes **CRITICAL unreachable from threat
+intel alone**, so it stays with the rule engine. Findings carry `severity_tier`, `severity_ceiling`,
+`feed_declared_severity`, `severity_source` so a rule assignment can never be mistaken for feed data.
+A numeric `confidence: 95` deliberately yields no severity word rather than inventing one.
+
+**No eval-measured severity moved.** `run_eval.py` scores `anomaly_detector.py`; TI severity is out of
+its scope. 17/17, f1 1.000, `git diff -- tests/eval/manifest.json` **empty** (god-verified). The
+owner's severity STOP therefore did not trigger for the eval suite. TI-internal severities did move by
+design (demo bundle CRITICAL -> HIGH).
+
+| # | Acceptance | Result (god-verified) |
+|---|---|---|
+| a | no `--password`/`taxii_password` in `threat_intel/` | **PASS** — grep exit 1, no output |
+| b | severity units incl. feed-critical capped lower | **PASS** — 14 checks; "CRITICAL is unreachable from threat intel" |
+| c | no credential in CLI arg or log, proven by test | **PASS** — 46 checks |
+| d | `threat_intel/test_threat_intel.py` | **FAIL — PRE-EXISTING, zero delta (god-verified)** — see below |
+| e | `run_eval.py` + empty manifest diff | **PASS** — 17/17, f1 1.000, manifest diff empty |
+| f | `console/test_console.py` | **PASS** — ti-oem not regressed |
+| g | `tests/test_intake.py` | **PASS** — 4/4 OK |
+| h | vitest / build | **PASS** — 26 files, 107/107; built 4.71s |
+| i | detector sha | **PASS** — `364577c5…a4a876` |
+| j | diff inside allowlist | **PASS** — 4 files, +900/-71 |
+
+**god independent proof that (d) is pre-existing.** Built a throwaway worktree at the parent commit
+`b88304d` and diffed the failure sets:
+```
+BASELINE (b88304d, WITHOUT the change): FAILED — 16 check(s)
+HEAD     (cbd3099, WITH the change):    FAILED — 16 check(s)
+diff of the two failure lists -> IDENTICAL FAILURE SET, delta from C0-T3 is ZERO
+```
+The 16 are stale `~/.cache/mitre_attack` data (e.g. official 'Service Exhaustion Flood' vs table
+'Service Exhaustion'; 'Network Service Scanning' vs 'Network Service Discovery'; `T1070.001` -> None)
+plus 3 `rule_mitre_map`/`ioc_observed` checks. `mitre_attack.py` and `rule_mitre_map.py` were outside
+the allowlist. Likely fixed by `python3 threat_intel/mitre_attack.py --refresh`, which needs network.
+**Recommend a dedicated card; this is not C0-T3's failure.**
+
+---
+
+## ⛔ HALT — two items require the owner before C0 can close
+
+**HALT-1 · Build-doc deviation: `--taxii-token` was NOT shipped.**
+Build doc §C0.3 (line 49) says verbatim: *"replace `--taxii-password` with token/cert auth
+(`--taxii-token` / client-cert paths)"*. The worker did **not** ship `--taxii-token`; it is in the
+**reject** list. What shipped instead is path-only: `--taxii-config`, `--taxii-token-file`,
+`--taxii-client-cert`, `--taxii-client-key`, plus `$ITSOC_TAXII_TOKEN_FILE` / `$ITSOC_TAXII_TOKEN`.
+
+*The worker's reasoning, which the orchestrator judges correct:* a value-taking `--taxii-token` puts
+the secret in `argv`, visible to any user via `ps`. That contradicts §4 guardrail 4 ("connector
+credentials are token/cert, **config-file only**") and this card's own acceptance (c). The build doc
+contradicts itself here, and the prompt states §4 guardrails are **binding** — so the worker resolved
+toward the guardrail. It also hardened the path: `reject_secret_bearing_argv()` runs *before* argparse,
+because argparse's own "unrecognized arguments" error would echo the secret value; the guard names only
+the flag and prints "(the value you passed has NOT been echoed here)". `TaxiiCredentials.__repr__` and
+`_BearerAuth.__repr__` render `***redacted***`.
+
+**This is a deviation from the build doc's literal text and is never silently absorbed.**
+> **Owner decision:** (A) ratify the deviation — keep path-only auth, amend the build doc line; or
+> (B) require the literal `--taxii-token` flag as written, accepting the `ps` exposure.
+> Orchestrator recommends **(A)**.
+
+**HALT-2 · Regression outside the allowlist: `itsoc_mcp/test_mcp.py`.**
+god-verified by running both revisions:
+```
+BASELINE b88304d : 93 passed, 0 failed
+HEAD     cbd3099 : 92 passed, 1 failed
+```
+`itsoc_mcp/test_mcp.py:436` hardcodes
+`check("severity from threat_detector (critical)", m["severity"] == "critical")`. That assertion is now
+**correct-by-design to fail** — TI can no longer emit `critical`, which is the entire point of the cap.
+`itsoc_mcp/` was outside C0-T3's allowlist, so the worker correctly did not touch it and flagged it
+instead. It is not in the canonical green-bar suites, so no listed acceptance criterion caught it; the
+worker ran it deliberately because it imports `severity_for`.
+> **Owner decision:** (A) authorize a one-line follow-up card updating that assertion to `"high"`
+> (allowlist `itsoc_mcp/test_mcp.py` only); or (B) reconsider the cap. Orchestrator recommends **(A)**.
+
+### Findings carried forward from C0-T3
+
+17. **Live TAXII is unexercised.** `taxii2client` is not installed and was not installed. The
+    `_conn_kwargs()` handoff (`auth=` callable, `cert=` tuple) is written to the requests/taxii2client
+    contract but never round-tripped against a real server; the `auth=` kwarg is the worker's read of
+    the signature, unverified. Same class of gap as C3's OPNsense VM.
+18. **Docs outside the allowlist are now stale**: `docs/`, `RUNBOOK.md`, `CONTRIBUTING.md`,
+    `PROJECT_HANDOFF.md` still describe `--taxii-password` and the "flattens to CRITICAL" behavior.
+    Worth a docs sweep card (could fold into C0-T4's sweep if the owner widens that allowlist).
+19. `threat_intel/test_threat_intel.py`'s 16 pre-existing failures need an owner. Likely a
+    `mitre_attack.py --refresh` (needs network), but the ATT&CK table rename
+    ('Network Service Scanning' -> 'Network Service Discovery') may be a real content update.
+
+### Orchestration note (logged for the owner)
+
+The named hive roster (Toby, Pam, Jim, Oscar, Meredith) is **not reachable**. A liveness probe to
+`toby-mtcnvnwu` returned *"No agent named 'toby-mtcnvnwu' is reachable"*, and `ListAgents` shows only
+this session plus an idle peer session and one offline Remote Control session — none of the five. They
+appear in `fleet.json` with 0 tokens and `lastTool: null` but are not addressable. Every C0 card was
+therefore dispatched to a Claude Code worker under kickoff Q4's unavailable-tier rule (route up, log
+the substitution, no stop). C0-T0/T1/T2/T3 were each built by a separate dispatched worker; the
+orchestrator wrote the cards, verified every result independently, and kept the board.
