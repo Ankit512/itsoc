@@ -144,3 +144,89 @@ describe("Incidents page", () => {
     expect(screen.getByText(/some member findings are not in the loaded run/)).toBeInTheDocument();
   });
 });
+
+// ── C1-T2: Cases absorbed into the merged Incidents screen ──────────────────
+import type { EmbeddedCase } from "@/lib/api";
+
+function embeddedCase(over: Partial<EmbeddedCase> = {}): EmbeddedCase {
+  return {
+    caseId: "case-2", title: "Analyst-only triage note",
+    notes: "no rule fired — following a hunch on host web-07",
+    assignee: "lee", caseStatus: "open",
+    caseCreatedAt: "2026-08-20T12:00:00+00:00", caseUpdatedAt: "2026-08-20T12:00:00+00:00",
+    linkedFindings: [], linkedIncidents: [], ...over,
+  };
+}
+
+/** A manual incident as it arrives on the wire: severity is null (no rule
+ *  verdict). We deliberately keep `severity: null` here to exercise the api
+ *  wrapper's coercion — without it the shell's sevVar/sevWord would crash. */
+function manualIncident(over: Record<string, unknown> = {}) {
+  return {
+    id: "inc-manual-abc", runId: "", entity: "lee", entityKind: "manual",
+    title: "Analyst-only triage note", severity: null, state: "new",
+    findingIds: [], findingCount: 0, techniques: [], attackerStatus: "",
+    createdAt: "2026-08-20T12:00:00+00:00", firstSeen: null, lastSeen: null,
+    acknowledgedAt: null, resolvedAt: null, timeUncertain: false,
+    origin: "manual", manualBadge: "MANUAL — analyst-created, no rule verdict",
+    analystSeverity: null, cases: [embeddedCase()], ...over,
+  } as unknown as Incident;
+}
+
+describe("Incidents ← Cases merge (C1-T2)", () => {
+  it("a manual incident shows the MANUAL badge and never a rule-severity verdict (list)", async () => {
+    // severity:null on the wire — if the wrapper didn't coerce it, the shell's
+    // RECENT INCIDENTS sidebar (sevVar/sevWord) would throw and this would crash.
+    mockFetch({ "/api/incidents": { incidents: [manualIncident()] } });
+    renderApp(<App />, { route: "/incidents" });
+
+    const rows = await screen.findAllByTestId("incident-row");
+    expect(rows.length).toBe(1);
+    expect(within(rows[0]).getByTestId("manual-badge")).toHaveTextContent("MANUAL");
+    // No rule-severity word renders for the manual incident's row.
+    for (const sev of ["CRITICAL", "HIGH", "MEDIUM", "LOW"]) {
+      expect(within(rows[0]).queryByText(sev)).toBeNull();
+    }
+  });
+
+  it("a manual incident detail carries the full badge + analyst-assigned severity, no rule verdict", async () => {
+    mockFetch({ "/api/incidents": { incidents: [manualIncident({ analystSeverity: "HIGH" })] } });
+    renderApp(<App />, { route: "/incidents?sel=inc-manual-abc" });
+
+    expect(await screen.findByText("MANUAL — analyst-created, no rule verdict")).toBeInTheDocument();
+    expect(screen.getByTestId("analyst-severity")).toHaveTextContent(/analyst-assigned: HIGH/);
+    // The absorbed case surface renders its real notes.
+    expect(screen.getByTestId("incident-cases")).toBeInTheDocument();
+    expect(screen.getByText(/following a hunch on host web-07/)).toBeInTheDocument();
+    // Crucial honesty assertion: NO rule-severity verdict tag anywhere.
+    expect(document.querySelector(".is-tag--crit, .is-tag--high, .is-tag--med, .is-tag--low")).toBeNull();
+    // Analyst-owned lifecycle is available on the manual incident too.
+    expect(screen.getByText(/Lifecycle · analyst-owned/)).toBeInTheDocument();
+  });
+
+  it("a rule incident surfaces its linked analyst case (title, notes, status, analyst-linked findings)", async () => {
+    const withCase = incident({
+      cases: [embeddedCase({
+        caseId: "case-1", title: "Investigate 203.0.113.44", notes: "checked the firewall",
+        assignee: "sam", caseStatus: "investigating", linkedFindings: ["detector-9"],
+      })],
+    });
+    mockFetch({ "/api/incidents": { incidents: [withCase] } });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    expect(await screen.findByTestId("incident-cases")).toBeInTheDocument();
+    expect(screen.getByText("Investigate 203.0.113.44")).toBeInTheDocument();
+    expect(screen.getByText(/checked the firewall/)).toBeInTheDocument();
+    expect((screen.getByLabelText("Case status of case-1") as HTMLSelectElement).value).toBe("investigating");
+    // analyst-linked finding surfaced, kept SEPARATE from derived findingIds.
+    expect(screen.getByText("detector-9")).toBeInTheDocument();
+    // The rule incident STILL shows its rule-owned severity verdict.
+    expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
+  });
+
+  it("shows an honest empty note when a manual incident's case has no notes", async () => {
+    mockFetch({ "/api/incidents": { incidents: [manualIncident({ cases: [embeddedCase({ notes: "" })] })] } });
+    renderApp(<App />, { route: "/incidents?sel=inc-manual-abc" });
+    expect(await screen.findByText("No notes on this case.")).toBeInTheDocument();
+  });
+});

@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Check, Sparkles } from "lucide-react";
-import { api, INCIDENT_STATES, type AttemptPoint, type Incident, type IncidentState, type Rca } from "@/lib/api";
+import { Check, Sparkles, Pencil, X } from "lucide-react";
+import { api, INCIDENT_STATES, CASE_STATUSES, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /** Open the shell's real (streaming) analyst — the inline card is a grounded
@@ -25,6 +25,275 @@ function SevTag({ sev }: { sev: string }) {
 }
 function StateChip({ state }: { state: IncidentState }) {
   return <span className="is-state" style={{ textTransform: "capitalize" }}>{state}</span>;
+}
+
+const MANUAL_BADGE_FALLBACK = "MANUAL — analyst-created, no rule verdict";
+const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
+  open: "Open", investigating: "Investigating", closed: "Closed",
+};
+
+/** A manual incident (origin "manual") is an analyst-created case with no rule
+ *  verdict. The owner's core C1 honesty constraint: it must be visually
+ *  unmistakable and NEVER read as a rule-detected one. */
+function isManual(inc: Incident): boolean {
+  return inc.origin === "manual";
+}
+
+/** Severity presentation that can never misrepresent a manual incident. Rule
+ *  incidents show their rule-owned severity tag; manual incidents show a MANUAL
+ *  badge and, ONLY when the case actually carried one, an explicitly
+ *  analyst-assigned severity — rendered so it can never pass as a rule verdict.
+ *  `full` renders the whole badge sentence (detail header); otherwise a compact
+ *  MANUAL tag (list rows). */
+function IncidentSeverity({ inc, full = false }: { inc: Incident; full?: boolean }) {
+  if (!isManual(inc)) return <SevTag sev={inc.severity} />;
+  return (
+    <span className="is-manual-sev" data-testid="manual-badge">
+      <span className="is-tag is-tag--manual" title={inc.manualBadge || MANUAL_BADGE_FALLBACK}>
+        {full ? (inc.manualBadge || MANUAL_BADGE_FALLBACK) : "MANUAL"}
+      </span>
+      {inc.analystSeverity && (
+        <span className="is-anasev" data-testid="analyst-severity"
+              title="Assigned by an analyst — not a rule verdict">
+          analyst-assigned: {inc.analystSeverity.toUpperCase()}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** One analyst case absorbed onto an incident (C1-T1 migration). Surfaces the
+ *  full pre-merge Cases capability on the merged screen: title, notes, assignee,
+ *  case status, and the analyst-chosen linked findings/incidents — kept SEPARATE
+ *  from the incident's derived findings. Notes/assignee/status stay editable and
+ *  persist through the real PATCH /api/cases/<id>. */
+function EmbeddedCaseCard({ c }: { c: EmbeddedCase }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [notes, setNotes] = useState(c.notes);
+  const [assignee, setAssignee] = useState(c.assignee);
+  const [err, setErr] = useState("");
+  const patch = useMutation({
+    mutationFn: (p: Parameters<typeof api.patchCase>[1]) => api.patchCase(c.caseId, p),
+    onSuccess: (out) => {
+      if (!out.ok) { setErr(out.error ?? "Could not save."); return; }
+      setErr(""); setEditing(false); qc.invalidateQueries({ queryKey: ["incidents"] });
+    },
+  });
+
+  return (
+    <div className="is-case" data-testid="embedded-case">
+      <div className="is-case__h">
+        <div style={{ minWidth: 0 }}>
+          <div className="is-case__ttl">{c.title || "(untitled case)"}</div>
+          <div className="is-mono is-mut2" style={{ fontSize: 10.5 }}>{c.caseId}</div>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span className="is-visually-hidden">Case status of {c.caseId}</span>
+          <select className="is-select" style={{ width: "auto", padding: "5px 8px" }}
+                  aria-label={`Case status of ${c.caseId}`} value={c.caseStatus} disabled={patch.isPending}
+                  onChange={(e) => patch.mutate({ status: e.target.value as CaseStatus })}>
+            {CASE_STATUSES.map((s) => <option key={s} value={s}>{CASE_STATUS_LABEL[s]}</option>)}
+          </select>
+        </label>
+        {!editing && (
+          <button className="is-icobtn" style={{ width: 26, height: 26 }} aria-label={`Edit ${c.caseId}`}
+                  onClick={() => setEditing(true)}><Pencil size={12} aria-hidden /></button>
+        )}
+      </div>
+
+      {editing ? (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          <label className="is-field"><span>Assignee</span>
+            <input className="is-input" value={assignee} onChange={(e) => setAssignee(e.target.value)}
+                   aria-label={`Edit assignee of ${c.caseId}`} /></label>
+          <label className="is-field"><span>Notes</span>
+            <textarea className="is-input" style={{ minHeight: 60, resize: "vertical" }} value={notes}
+                      onChange={(e) => setNotes(e.target.value)} aria-label={`Edit notes of ${c.caseId}`} /></label>
+          {err && <p style={{ color: "var(--crit)", fontSize: 11.5, margin: 0 }}>{err}</p>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="is-btn is-btn--primary" disabled={patch.isPending}
+                    onClick={() => patch.mutate({ notes, assignee })}>{patch.isPending ? "Saving…" : "Save"}</button>
+            <button className="is-btn" onClick={() => { setEditing(false); setNotes(c.notes); setAssignee(c.assignee); setErr(""); }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {c.notes
+            ? <p className="is-mut" style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.55 }}>{c.notes}</p>
+            : <p className="is-mut2" style={{ marginTop: 8, fontSize: 11.5 }}>No notes on this case.</p>}
+          <div className="is-case__meta">
+            {c.assignee
+              ? <span>Assignee: <b style={{ color: "var(--ink)" }}>{c.assignee}</b></span>
+              : <span className="na">Unassigned</span>}
+            {c.caseCreatedAt && <span>Created {c.caseCreatedAt.slice(0, 16).replace("T", " ")}</span>}
+            {c.caseUpdatedAt && <span>Updated {c.caseUpdatedAt.slice(0, 16).replace("T", " ")}</span>}
+            {c.linkedFindings.length > 0 && (
+              <span className="is-case__links">Findings (analyst-linked):
+                {c.linkedFindings.map((f) => (
+                  <a key={f} href={`/alerts?sel=${encodeURIComponent(f)}`} className="is-mono lk"
+                     title="Open this analyst-linked finding">{f}</a>
+                ))}
+              </span>
+            )}
+            {c.linkedIncidents.length > 0 && (
+              <span className="is-case__links">Incidents:
+                {c.linkedIncidents.map((i) => <span key={i} className="is-mono lk">{i}</span>)}
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** The absorbed Cases surface on an incident. For a manual incident this is the
+ *  incident's own case; for a rule incident it lists any analyst cases linked to
+ *  it (many-to-many is fine). Honest empty when nothing is linked. */
+function CasesPanel({ inc }: { inc: Incident }) {
+  const cases = inc.cases ?? [];
+  const manual = isManual(inc);
+  if (!manual && cases.length === 0) return null;
+  return (
+    <section className="is-panel" data-testid="incident-cases">
+      <div className="is-panel__h" style={{ justifyContent: "space-between" }}>
+        <h3>{manual ? "Analyst case" : "Linked analyst cases"}</h3>
+        <span className="is-chip">{manual ? "analyst-created" : "absorbed from Cases"}</span>
+      </div>
+      {cases.length === 0 ? (
+        <p className="is-mut2" style={{ fontSize: 11.5 }}>No analyst case is linked to this incident.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {cases.map((c) => <EmbeddedCaseCard key={c.caseId} c={c} />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Create a new analyst case from the merged Incidents screen (create parity
+ *  with the pre-merge Cases page). It posts the real POST /api/cases; the
+ *  backend migration then surfaces it here as a manual incident (incident-less)
+ *  or as an embedded case on the incident it links. */
+function NewCase() {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [notes, setNotes] = useState("");
+  const [err, setErr] = useState("");
+  const create = useMutation({
+    mutationFn: () => api.createCase({ title, assignee, notes }),
+    onSuccess: (out) => {
+      if (!out.ok) { setErr(out.error ?? "Could not create the case."); return; }
+      setTitle(""); setAssignee(""); setNotes(""); setErr(""); setOpen(false);
+      qc.invalidateQueries({ queryKey: ["incidents"] });
+    },
+  });
+
+  if (!open) return <button className="is-btn is-btn--primary" onClick={() => setOpen(true)}>+ New case</button>;
+
+  return (
+    <div className="is-panel" style={{ width: "100%" }}>
+      <form style={{ display: "flex", flexDirection: "column", gap: 12 }}
+            onSubmit={(e) => { e.preventDefault(); if (title.trim()) create.mutate(); }}>
+        <div className="is-panel__h">
+          <h3>New case</h3>
+          <button type="button" className="is-icobtn" aria-label="Cancel new case" style={{ width: 26, height: 26 }}
+                  onClick={() => { setOpen(false); setErr(""); }}><X size={14} aria-hidden /></button>
+        </div>
+        <label className="is-field"><span>Title (required)</span>
+          <input className="is-input" value={title} onChange={(e) => setTitle(e.target.value)}
+                 aria-label="Case title" placeholder="e.g. Investigate brute-force from 203.0.113.44" /></label>
+        <label className="is-field"><span>Assignee</span>
+          <input className="is-input" value={assignee} onChange={(e) => setAssignee(e.target.value)}
+                 aria-label="Case assignee" placeholder="who is looking at this" /></label>
+        <label className="is-field"><span>Notes</span>
+          <textarea className="is-input" style={{ minHeight: 64, resize: "vertical" }} value={notes}
+                    onChange={(e) => setNotes(e.target.value)} aria-label="Case notes" /></label>
+        {err && <p style={{ color: "var(--crit)", fontSize: 11.5, margin: 0 }}>{err}</p>}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button className="is-btn is-btn--primary" type="submit" disabled={!title.trim() || create.isPending}>
+            {create.isPending ? "Creating…" : "Create case"}
+          </button>
+          <span className="is-mut" style={{ fontSize: 11 }}>Status starts as “open”. An unlinked case appears as a manual incident.</span>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/** A manual incident's detail: analyst-created, no rule verdict, so it gets a
+ *  deliberately DIFFERENT, honest composition from a rule incident — the case
+ *  is the content; there is no RCA/evidence/timeline to fabricate. The lifecycle
+ *  stepper is the same analyst-owned control. */
+function ManualIncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) {
+  return (
+    <div className="is-rca-layout is-single">
+      <div className="is-rca-center">
+        <div className="is-crumb">
+          <button className="is-crumb__link" onClick={onBack}>Incidents</button>
+          <span className="sep">/</span>
+          <span className="is-mono is-mut">{inc.id}</span>
+        </div>
+
+        <div className="is-rca-head">
+          <IncidentSeverity inc={inc} full />
+          <h2 className="ttl">{inc.title || `Manual case ${inc.id}`}</h2>
+          <StateChip state={inc.state} />
+        </div>
+        <div className="is-detail-meta" data-testid="manual-meta">
+          {inc.entity && inc.entity !== "—" && <><span className="is-mono">{inc.entity}</span>{" · "}</>}
+          created {inc.createdAt ? inc.createdAt.slice(0, 16).replace("T", " ") : "n/a"}
+          <span className="is-ro">analyst-created — no rule verdict</span>
+        </div>
+
+        <CasesPanel inc={inc} />
+        <LifecycleStepper inc={inc} />
+      </div>
+    </div>
+  );
+}
+
+/** The analyst-owned lifecycle stepper. Renders only the states that exist in
+ *  the backend lifecycle (INCIDENT_STATES) — the three deferred states
+ *  (pending-approval / contained / closed) are intentionally NOT introduced;
+ *  they land in C3/C4. Shared by rule and manual incidents so the template is
+ *  consistent. */
+function LifecycleStepper({ inc }: { inc: Incident }) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: (state: IncidentState) => api.setIncidentState(inc.id, state),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["incidents"] });
+      qc.invalidateQueries({ queryKey: ["metrics"] });
+    },
+  });
+  return (
+    <div className="is-lifecycle">
+      <div className="cap">Lifecycle · analyst-owned</div>
+      <div className="steps">
+        {INCIDENT_STATES.map((s) => (
+          <button key={s} className={cn("step", s === inc.state && "on")}
+                  style={{ textTransform: "capitalize" }}
+                  disabled={s === inc.state || mutation.isPending}
+                  onClick={() => mutation.mutate(s)}
+                  title={s === inc.state ? "Current state" : `Move to ${s}`}>
+            {s}
+          </button>
+        ))}
+      </div>
+      {mutation.isError && (
+        <p style={{ marginTop: 8, fontSize: "11.5px", color: "var(--crit)" }}>{(mutation.error as Error).message}</p>
+      )}
+      {inc.timeUncertain && (
+        <p className="is-mut" style={{ marginTop: 8, fontSize: 11 }}>
+          A member finding had no timestamp — it joined this cluster's first group.
+        </p>
+      )}
+    </div>
+  );
 }
 
 /** Layered RCA (soc.derive_rca): deterministic facts + runbook citation +
@@ -460,15 +729,6 @@ function IncidentRail({ inc }: { inc: Incident }) {
 }
 
 function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) {
-  const qc = useQueryClient();
-  const mutation = useMutation({
-    mutationFn: (state: IncidentState) => api.setIncidentState(inc.id, state),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["incidents"] });
-      qc.invalidateQueries({ queryKey: ["metrics"] });
-    },
-  });
-
   const spanLabel = (() => {
     const a = toMs(inc.firstSeen), b = toMs(inc.lastSeen);
     if (a == null || b == null || b < a) return null;
@@ -488,7 +748,7 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
 
         {/* Header: severity pill + title + state */}
         <div className="is-rca-head">
-          <SevTag sev={inc.severity} />
+          <IncidentSeverity inc={inc} full />
           <h2 className="ttl">{inc.title || `${inc.entity} — ${inc.findingCount} correlated finding(s)`}</h2>
           <StateChip state={inc.state} />
         </div>
@@ -537,7 +797,7 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
         {/* Verbatim evidence */}
         <EvidenceCard inc={inc} />
 
-        {/* Correlated findings + lifecycle (analyst-owned, real stamps) */}
+        {/* Correlated findings (rule-derived — kept SEPARATE from analyst-linked) */}
         <section className="is-panel">
           <div className="is-panel__h"><h3>{inc.findingCount} correlated finding(s)</h3></div>
           <div className="flex flex-wrap gap-1.5">
@@ -550,31 +810,10 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
           </div>
         </section>
 
-        <div className="is-lifecycle">
-          <div className="cap">Lifecycle · analyst-owned</div>
-          <div className="steps">
-            {INCIDENT_STATES.map((s) => (
-              <button
-                key={s}
-                className={cn("step", s === inc.state && "on")}
-                style={{ textTransform: "capitalize" }}
-                disabled={s === inc.state || mutation.isPending}
-                onClick={() => mutation.mutate(s)}
-                title={s === inc.state ? "Current state" : `Move to ${s}`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-          {mutation.isError && (
-            <p style={{ marginTop: 8, fontSize: "11.5px", color: "var(--crit)" }}>{(mutation.error as Error).message}</p>
-          )}
-          {inc.timeUncertain && (
-            <p className="is-mut" style={{ marginTop: 8, fontSize: 11 }}>
-              A member finding had no timestamp — it joined this cluster's first group.
-            </p>
-          )}
-        </div>
+        {/* Absorbed Cases surface — any analyst case(s) linked to this incident */}
+        <CasesPanel inc={inc} />
+
+        <LifecycleStepper inc={inc} />
       </div>
 
       <IncidentRail inc={inc} />
@@ -601,10 +840,15 @@ export function Incidents() {
     return <div className="is-note">Couldn't load incidents — {(error as Error).message}</div>;
   }
 
-  // Selected → the v3 single-incident RCA composition (center + right rail).
-  if (selected) return <IncidentDetail inc={selected} onBack={clearSel} />;
+  // Selected → the v3 single-incident composition. Manual incidents get a
+  // deliberately different, honest layout so they can never read as rule ones.
+  if (selected) {
+    return isManual(selected)
+      ? <ManualIncidentDetail inc={selected} onBack={clearSel} />
+      : <IncidentDetail inc={selected} onBack={clearSel} />;
+  }
 
-  // Otherwise → the incident index: filter + list, honest empty state.
+  // Otherwise → the incident index: filter + list + case creation, honest empty.
   return (
     <>
       <div className="flex flex-wrap items-center gap-2.5">
@@ -618,16 +862,17 @@ export function Incidents() {
           <option value="">All states</option>
           {INCIDENT_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <span className="is-panel__sub">
-          {incidents.length} incident(s){stateFilter && ` · ${stateFilter}`} · correlated clusters of real findings
+        <span className="is-panel__sub" style={{ flex: 1 }}>
+          {incidents.length} incident(s){stateFilter && ` · ${stateFilter}`} · rule-detected clusters + analyst-created cases
         </span>
+        <NewCase />
       </div>
 
       {incidents.length === 0 ? (
         <div className="is-note">
           {stateFilter
             ? `No incidents in the "${stateFilter}" state.`
-            : "No incidents yet — an incident is a correlated cluster of the current run's findings. Analyze a log with findings and they'll appear here."}
+            : "No incidents yet — an incident is a correlated cluster of the current run's findings, or an analyst-created case. Analyze a log with findings, or add a case, and they'll appear here."}
         </div>
       ) : (
         <div className="is-md !grid-cols-1">
@@ -650,11 +895,16 @@ export function Incidents() {
                       onClick={() => setParams({ sel: inc.id })}
                       className="cursor-pointer"
                     >
-                      <td><SevTag sev={inc.severity} /></td>
+                      <td><IncidentSeverity inc={inc} /></td>
                       <td><StateChip state={inc.state} /></td>
                       <td className="col-mono" style={{ color: "var(--ink)" }}>
                         {inc.entity}
                         {inc.isRollup && <span className="is-tag is-tag--info" style={{ marginLeft: 6 }}>rollup</span>}
+                        {(inc.cases?.length ?? 0) > 0 && !isManual(inc) && (
+                          <span className="is-chip" style={{ marginLeft: 6 }} title="This incident has analyst case(s) linked">
+                            {inc.cases!.length} case{inc.cases!.length > 1 ? "s" : ""}
+                          </span>
+                        )}
                       </td>
                       <td className="is-tnum">{inc.findingCount}</td>
                     </tr>
