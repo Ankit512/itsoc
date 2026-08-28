@@ -328,3 +328,33 @@ by reaching into `AppShell.tsx`. Written into `hive/stage-c/GUARDRAILS.md`.
 ## Register status
 OPEN-1 ruled · OPEN-2 ruled · OPEN-3 ruled · OPEN-4 ruled · OPEN-5 open by design, pointing at C3 ·
 OPEN-6 ruled · OPEN-7 ruled. **Nothing gates on the owner.**
+
+---
+
+## OPEN-8 · Pre-existing cross-file test isolation bug in `shell.test.tsx` — **OPEN, non-gating**
+
+Surfaced by the owner-mandated shuffled-order verification on C1-T5. **The owner's instinct to demand
+that run was right — it found something the normal-order gate cannot see.**
+
+**Measured (god, on `stage-c/c1-fanout-sources`, T5's branch):** normal order 115/115 green; shuffled
+order green on one seed but **FAILED on two of three seeds**, with `src/test/shell.test.tsx` failing
+("houses Experimental group and toggles its visibility", "renders the top bar header actions and ⌘K
+trigger").
+
+**Measured on the TEMPLATE BASE `069ff19`, WITHOUT T5:** shuffled order failed on **three of three**
+seeds — `shell.test.tsx` every time, plus `unrecognized-honesty.test.tsx` on one.
+
+**Conclusion: PRE-EXISTING, and T5 strictly IMPROVED it.** Zero delta introduced; the base is worse than
+the branch. Pam's global `afterEach(useJobs.getState()._reset())` in `web/src/test/setup.ts` genuinely
+fixed the upload-store leak she diagnosed. A **second, independent** isolation bug remains in
+`shell.test.tsx` — some module-level state it neither resets nor owns.
+
+**Why this matters beyond tidiness:** a suite that only passes in one file order is not really green. It
+means at least one existing test depends on state leaked from another file, so the standing gate has
+been reporting a slightly optimistic result all along.
+
+> **THE ASK (non-gating, C1 can proceed):** authorise a small card to find and reset the remaining
+> module-level state `shell.test.tsx` depends on — same shape as Pam's fix, at an owned seam in
+> `web/src/test/`. Orchestrator recommends folding it into the C1 integration rather than blocking a
+> fan-out unit, and adding `--sequence.shuffle` to the standing gate afterwards so the suite cannot
+> silently regress to order-dependence again.
