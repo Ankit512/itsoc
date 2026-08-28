@@ -936,3 +936,23 @@ checkout.
 - **C3-T2** (Pam) — approvals API + per-action step-up auth per D3, on `stage-c/c3-gated-response`.
 - **C3-T2b** (Jim) — `console/ti_oem.py` egress redaction gap (OPEN-5), on `fix/c3-tioem-egress-redact`.
 - Held pending T2's API: C3-T3 gated MCP `propose_block_ip`, C3-T4 copilot recommendation.
+
+### C3-T2b · TI/OEM observable egress sanitized (OPEN-5) — ACCEPTED, merge HELD
+- Commit `5694f6e` on `fix/c3-tioem-egress-redact`. Worker: Jim. 2 files, +235/-11.
+- Diff exactly on allowlist (`console/ti_oem.py`, `tests/test_ti_oem_egress.py`); `redact.py` untouched;
+  detector sha unchanged.
+- **Verified by an independent orchestrator probe the worker never saw** — a novel header
+  `X-Totally-New-Token`, a novel body field `x-vendor-quirk-secret`, a raw IP and a username, with the
+  stubbed transport echoing every raw field back in its exception:
+  - wire retained the marker, the raw IP, the auth header and the body (functionality preserved —
+    non-vacuous);
+  - the propagated error carried `[REDACTED]` for all three secret-named fields, `[IP-1]` for the
+    address and `[USER-1]` for the username;
+  - marker, raw IP and username all absent from the exception, stdout and stderr.
+- `raise ... from None` correctly suppresses the chained transport exception, which is the usual leak.
+- Only two egress sites exist in the module (`ti_oem.py:381,384`), both inside `_http_request` — no bypass.
+- Green: console suite fully green (35 check groups incl. ti-oem and the migration check once the
+  copied `.soc` fixture was supplied); eval 19/19, precision/f1 1.000; egress tests 3/3.
+- **MERGE HELD, deliberately.** This commit embodies interpretation A of OPEN-11, which narrows the
+  literal text of Guardrail 4 and is awaiting owner ratification. Merging first would bake an
+  unratified guardrail narrowing into `main`. The code is accepted; the merge waits on OPEN-11.
