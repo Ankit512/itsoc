@@ -95,6 +95,24 @@ class BaseAuthProvider(abc.ABC):
         """Invalidate session token."""
         pass
 
+    @abc.abstractmethod
+    def verify_stepup_passphrase(self, passphrase: str) -> tuple[bool, str | None]:
+        """Per-action step-up verification (D3).
+
+        Validate the passphrase for ONE privileged action. Returns
+        (True, username) on a match, (False, None) otherwise.
+
+        Invariants (each proven by a test in tests/test_approvals.py):
+          * ZERO session creation — it mints no token and grants no grace, so
+            every gated action must re-verify. It is NOT login.
+          * The passphrase is never logged, never returned over the API, and is
+            discarded the moment verification finishes.
+          * Only the verified profile USERNAME is exposed, so a caller can stamp
+            it into the audit `actor` field — nothing else about the credential
+            leaves this method.
+        """
+        pass
+
 
 class LocalDemoAuth(BaseAuthProvider):
     """Local single-profile demo stub storing salt+hash in .soc/auth.json."""
@@ -205,6 +223,23 @@ class LocalDemoAuth(BaseAuthProvider):
             del self._sessions[token]
             return True
         return False
+
+    def verify_stepup_passphrase(self, passphrase: str) -> tuple[bool, str | None]:
+        """Constant-time step-up check for one action — see BaseAuthProvider.
+
+        Reuses the existing `_verify_passphrase` (hmac.compare_digest). It never
+        calls `_create_session`, so no token is minted and no grace is granted:
+        the session dict is untouched and the next action must verify again. The
+        passphrase is only ever passed to the constant-time comparator and is
+        neither stored nor returned; only the verified username comes back.
+        """
+        profile = self._load_profile()
+        if not profile:
+            return (False, None)
+        ok = _verify_passphrase(passphrase or "",
+                                profile.get("hash", ""), profile.get("salt", ""))
+        # Deliberately NO _create_session(...) here — zero session creation.
+        return (True, profile.get("username")) if ok else (False, None)
 
 
 # Singleton provider instance
