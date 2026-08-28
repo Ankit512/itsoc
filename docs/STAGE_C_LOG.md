@@ -400,3 +400,72 @@ via **file-path or env references only** (`--taxii-config`, `--taxii-token-file`
 
 **Status of C0-T3 acceptance:** HALT-1 is CLEARED. **HALT-2 (the `itsoc_mcp/test_mcp.py` 93->92
 regression) remains OPEN** — C0-T3 is still not accepted and C0 is still not closed.
+
+### C0-T4 · Runbook terminology sweep — **ACCEPTED WITH AN ORCHESTRATOR CORRECTION** (commit `141db71`, worker Toby; correction `<this commit>`)
+
+Worker Toby (named hive agent, dispatched via the outbox channel) swept "playbook" -> "runbook" per D5.
+Genuine sweep sites were correct: `rules_syslog.py` and `console/test_console.py`, both the same
+analyst-guidance string ("…contain according to the incident runbook."). Zero behavioral change.
+
+**DEFECT CAUGHT IN VERIFICATION — the sweep edited the governing spec.** Toby also rewrote the
+build doc's own §0 decisions-log entry:
+```
+- | D5 | Terminology | … Sweep any "playbook" strings. |
++ | D5 | Terminology | … Sweep legacy references. |
+```
+That line legitimately contains the word *because it names the term being swept* — a meta-occurrence.
+Rewriting it to satisfy the sweep's own grep destroyed the specificity of a **binding** §0 decision.
+The orchestrator has **restored the original D5 text**.
+
+**Root cause is the orchestrator's card, not the worker.** C0-T4's allowlist read "only files a fresh
+`grep -rli playbook` reports at dispatch time" — and `docs/ITSOC_STAGE_C_BUILD.md` genuinely matched,
+so Toby stayed inside the letter of its allowlist. The card failed to exclude the spec that *defines*
+the sweep. **Lesson recorded: a terminology-sweep card must always exclude the governing spec and the
+execution log, which necessarily quote the term.** Future sweep cards will carry that exclusion.
+
+**Correct end state (god-verified):** `grep -rli playbook` across `*.py/*.ts/*.tsx/*.html/*.css`
+(excluding node_modules, `__pycache__`, `web/dist`) -> **exit 1, no matches**. The only remaining hit
+repo-wide is `docs/ITSOC_STAGE_C_BUILD.md`'s D5 line, which is correct and must stay.
+
+Also confirmed: Toby's commit landed *before* the D-1 amendment (`c2418fb`), which applied cleanly on
+top — **line 49's ratified path-only-auth wording is intact**, not clobbered.
+
+| # | Acceptance | Result (god-verified) |
+|---|---|---|
+| a | sweep clean in code | **PASS** — grep exit 1 after the D5 restoration |
+| b | `run_eval.py` | **PASS** — 17/17, f1 1.000 |
+| c | `console/test_console.py` | **PASS** |
+| d | `console/test_fsafe.py` | **PASS** — 10 checks |
+| e | `tests/test_intake.py` | **PASS** — 4/4 OK |
+| f | vitest / build | **PASS** — 107/107; clean build |
+| g | detector sha | **PASS** — `364577c5…a4a876` |
+| h | diff inside allowlist | **PASS by the letter; card was under-specified** — see defect above |
+
+### Diagnostic · 16 pre-existing `test_threat_intel.py` failures — **worker Pam, READ-ONLY, delivered**
+
+Pam **corrected the orchestrator's framing**, which is exactly what the card asked for. My "stale
+cache" hypothesis was wrong for most of the set. The 16 split into **three independent causes**:
+
+- **Group 1 (10 failures) — the TABLE is genuinely stale; the cache already holds the CORRECT modern
+  name, so `--refresh` fixes NOTHING here.** `T1499.002` table says 'Service Exhaustion' vs real
+  'Service Exhaustion Flood' (8 rules, `rule_mitre_map.py` L6,7,8,40-44); `T1046` says 'Network Service
+  Scanning' vs the real upstream rename 'Network Service Discovery' (L22); `T1136.001` parent:sub vs
+  bare-sub naming mismatch (L38).
+- **Group 2 (3 failures) — the CACHE FIXTURE IS DOCTORED and the table is CORRECT.** The local
+  `~/.cache/mitre_attack` has **no `defense-evasion` tactic at all**; real 'Defense Evasion' has been
+  renamed into two invented tactics **'Stealth'** and **'Defense Impairment'**, and `T1070.001` is
+  marked `revoked: True` with a **fabricated modified date of 2026-04-14**. Pam's warning is important:
+  **do NOT "fix" these by writing 'Stealth' into the production table** — that would corrupt real data
+  to match a bad fixture.
+- **Group 3 (3 failures) — code/test drift, entirely cache-independent.** `techniques_for_rule`
+  (L46-48) returns the table's OWN list/dict objects so callers can mutate the table (real defect, fix
+  = deepcopy); an `'ioc_observed': []` sentinel (L12) fails a well-formedness check; and the test's
+  "unmapped rules" examples (L111-115) are stale because the table has since grown to map all three.
+
+**Answering the owner's question directly: `mitre_attack.py --refresh` would fix only 3 of 16**, it
+requires **network** (urllib against raw.githubusercontent.com/mitre/cti), and it mutates the 48 MB
+cache in place — a network dependency Stage C's offline posture otherwise avoids. Pam did not run it.
+
+**Scope safety confirmed:** `test_threat_intel.py` is not a canonical green-bar suite, and the only
+canonical-suite consumer of the cache is `console/soc.py:769` — a boolean `attackCacheWarm` that reads
+no technique names. So this is genuinely non-gating for Stage C.
