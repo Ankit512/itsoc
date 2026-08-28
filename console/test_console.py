@@ -5053,19 +5053,181 @@ def main():
     bfseries_ = check_bruteforce_series()
     runbooks_ = check_runbooks()
     audit_ = check_audit()
+    migration_ = check_cases_incidents_migration()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
-            or askview_ or bfseries_ or runbooks_ or audit_):
+            or askview_ or bfseries_ or runbooks_ or audit_ or migration_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
-          "+ ask-view + bruteforce-series + runbooks + audit-chain checks green")
+          "+ ask-view + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
+          "checks green")
     return 0
+
+
+def check_cases_incidents_migration():
+    """C1-T1 — Cases absorb into Incidents ADDITIVELY (owner-ratified 2026-08-28).
+
+    Runs entirely against a COPY of a seeded .soc/ (soc.SOC_DIR is repointed to a
+    tempdir), NEVER the live fixture. The seeded fixture carries BOTH an
+    incident-less case and a multi-incident-linked case, because a migration that
+    passes vacuously against an empty store proves nothing. Proves: no data loss;
+    an incident-less case becomes an honestly-badged MANUAL incident with no rule
+    verdict; a many-to-many case lands on EVERY incident it links; the migration
+    is additive and idempotent; the legacy export is honest and redacted; and —
+    the single most important check (acceptance d) — the extended sync_incidents
+    preserve block carries the absorbed case metadata across a re-derivation.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import soc
+    import export
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\ncases -> incidents additive migration (C1-T1):")
+
+    real_dir = soc.SOC_DIR
+    try:
+        with tempfile.TemporaryDirectory(prefix="c1-migration-") as tmp:
+            copy_soc = Path(tmp) / "copy.soc"     # a COPY location, not the live .soc
+            copy_soc.mkdir(parents=True, exist_ok=True)
+            soc.SOC_DIR = copy_soc
+
+            # Two REAL rule incidents, so we can prove additivity + the preserve
+            # block against genuinely-derived records (not hand-forged ids).
+            state_a = {"runId": "run-1", "findings": [
+                {"id": "f1", "stamp": "2026-08-20T10:00:00+00:00", "sev": "HIGH",
+                 "chips": [{"text": "203.0.113.44"}],
+                 "mitre": [{"id": "T1110", "name": "Brute Force",
+                            "tactic": "Credential Access"}]}]}
+            state_b = {"runId": "run-1", "findings": [
+                {"id": "f2", "stamp": "2026-08-20T11:00:00+00:00", "sev": "MEDIUM",
+                 "chips": [{"text": "198.51.100.7"}], "mitre": []}]}
+            soc.sync_incidents(state_a)
+            store = soc.sync_incidents(state_b)
+            iid = next(k for k in store if store[k].get("entity") == "203.0.113.44")
+            iid2 = next(k for k in store if store[k].get("entity") == "198.51.100.7")
+            check("two real rule incidents derived",
+                  iid != iid2 and store[iid]["severity"] == "HIGH")
+            check("fresh derived incident: origin 'rule', empty cases (additive default)",
+                  store[iid].get("origin") == "rule" and store[iid].get("cases") == [])
+
+            # Seed cases.json on the COPY: one MULTI-INCIDENT case + one
+            # INCIDENT-LESS case. Case-1 notes carry an IP + username to prove
+            # the legacy export redacts.
+            cases = {
+                "case-1": {
+                    "id": "case-1", "title": "Investigate 203.0.113.44",
+                    "notes": "brute-force from 203.0.113.44 targeting user admin",
+                    "assignee": "sam", "status": "investigating",
+                    "links": {"findings": ["f1"], "incidents": [iid, iid2]},
+                    "createdAt": "2026-08-20T09:00:00+00:00",
+                    "updatedAt": "2026-08-20T09:30:00+00:00"},
+                "case-2": {
+                    "id": "case-2", "title": "Analyst-only triage note",
+                    "notes": "no rule fired — following a hunch on host web-07",
+                    "assignee": "lee", "status": "open",
+                    "links": {"findings": [], "incidents": []},
+                    "createdAt": "2026-08-20T12:00:00+00:00",
+                    "updatedAt": "2026-08-20T12:00:00+00:00"},
+            }
+            (copy_soc / "cases.json").write_text(json.dumps(cases))
+
+            summary = soc.migrate_cases_to_incidents()
+            check("migration summary is honest",
+                  summary == {"cases": 2, "attachedLinks": 2, "manualIncidents": 1,
+                              "orphanedIncidentLinks": []}, str(summary))
+
+            merged = json.loads((copy_soc / "incidents.json").read_text())
+
+            # --- NO DATA LOSS: many-to-many case lands on BOTH incidents ---
+            def embedded(inc_id):
+                return next((c for c in merged[inc_id].get("cases", [])
+                             if c.get("caseId") == "case-1"), None)
+            e1, e2 = embedded(iid), embedded(iid2)
+            check("many-to-many: case-1 embedded on BOTH linked incidents",
+                  e1 is not None and e2 is not None)
+            check("no data loss: every case-1 field carried verbatim",
+                  e1 and e1["title"] == "Investigate 203.0.113.44"
+                  and e1["notes"] == cases["case-1"]["notes"]
+                  and e1["assignee"] == "sam" and e1["caseStatus"] == "investigating"
+                  and e1["caseCreatedAt"] == "2026-08-20T09:00:00+00:00"
+                  and e1["caseUpdatedAt"] == "2026-08-20T09:30:00+00:00", str(e1))
+
+            # --- ADDITIVE: derived fields untouched; findings kept separate ---
+            check("additive: incident keeps its derived rule fields + origin 'rule'",
+                  merged[iid]["severity"] == "HIGH"
+                  and merged[iid]["findingIds"] == ["f1"]
+                  and merged[iid]["origin"] == "rule")
+            check("case.links.findings kept SEPARATE from derived findingIds",
+                  e1["linkedFindings"] == ["f1"]
+                  and merged[iid]["findingIds"] == ["f1"]
+                  and "case-1" not in merged[iid]["findingIds"])
+
+            # --- INCIDENT-LESS case -> honest MANUAL incident ---
+            manual = [v for v in merged.values() if v.get("origin") == "manual"]
+            check("exactly one manual incident created", len(manual) == 1, str(len(manual)))
+            m = manual[0] if manual else {}
+            check("manual incident is honestly badged, carries NO rule verdict",
+                  m.get("origin") == "manual"
+                  and m.get("manualBadge") == soc.MANUAL_INCIDENT_BADGE
+                  and m.get("severity") is None
+                  and m.get("analystSeverity") is None
+                  and m.get("findingIds") == [] and m.get("findingCount") == 0
+                  and m.get("entityKind") == "manual", str(m))
+            check("manual incident preserves case data + maps status (open->new)",
+                  m.get("title") == "Analyst-only triage note"
+                  and m.get("state") == "new"
+                  and m.get("cases", [{}])[0].get("notes") == cases["case-2"]["notes"]
+                  and m.get("cases", [{}])[0].get("assignee") == "lee")
+
+            # --- IDEMPOTENT: re-running attaches nothing new ---
+            soc.migrate_cases_to_incidents()
+            merged2 = json.loads((copy_soc / "incidents.json").read_text())
+            manual2 = [v for v in merged2.values() if v.get("origin") == "manual"]
+            check("idempotent: no duplicate manual incident, no duplicate embed",
+                  len(manual2) == 1
+                  and len([c for c in merged2[iid]["cases"] if c["caseId"] == "case-1"]) == 1)
+
+            # --- ACCEPTANCE (d): the preserve block survives re-derivation ---
+            # sync_incidents does NOT call the migration, so if the absorbed
+            # case metadata is still on the re-derived incident, ONLY the
+            # extended preserve block (soc.py:221-230) could have carried it.
+            before = json.loads((copy_soc / "incidents.json").read_text())[iid]["cases"]
+            soc.sync_incidents(state_a)           # re-derive iid from the same run
+            after = json.loads((copy_soc / "incidents.json").read_text())[iid]
+            check("SILENT-KILLER FIX: absorbed case metadata survives re-derivation",
+                  after.get("cases") == before and after.get("origin") == "rule"
+                  and after.get("cases") and after["cases"][0]["caseId"] == "case-1",
+                  str(after.get("cases")))
+
+            # --- honest, redacted legacy export ---
+            blob = export.build_legacy_cases(soc.list_cases())
+            data = json.loads(blob)
+            check("legacy export lists the real records, count honest",
+                  data["kind"] == "legacy_cases_export" and data["count"] == 2)
+            check("legacy export routes free-text through redact.py (IP masked)",
+                  "203.0.113.44" not in blob
+                  and any("[IP-1]" in c["notes"] or "[IP-1]" in c["title"]
+                          for c in data["cases"]))
+            empty = json.loads(export.build_legacy_cases([]))
+            check("legacy export is honest when empty (no invented fill)",
+                  empty["count"] == 0 and empty["cases"] == [])
+    finally:
+        soc.SOC_DIR = real_dir
+
+    return 0 if all(results) else 1
 
 
 if __name__ == "__main__":

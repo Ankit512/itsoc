@@ -28,6 +28,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 
 import adapter  # noqa: E402
+import redact  # noqa: E402  # C1-T1: legacy case export routes through the choke point
 
 CONSOLE_HTML = HERE / "anomaly_console.html"
 RUNS_DIR = HERE / ".runs"
@@ -173,6 +174,44 @@ def build_markdown(state):
     if not state.get("findings"):
         table.append("| _no findings in this run_ |" + " |" * len(headers))
     return run + "\n".join(table) + "\n"
+
+
+def build_legacy_cases(cases):
+    """C1-T1 — the read-only HONEST legacy export of the pre-merge case records.
+
+    `cases` is the list of case dicts (soc.list_cases()). Every free-text field
+    that could carry log-derived identifiers (title, notes, assignee) is routed
+    through console/redact.py — the single egress choke point — before it lands
+    in the export, so IPs/usernames/hostnames are masked. The export is honest:
+    it reports the REAL records or an explicit empty marker, never a fabricated
+    fill. It is one-way and read-only; it mutates nothing.
+    """
+    r = redact.Redactor()
+    exported = []
+    for c in cases or []:
+        links = c.get("links") or {}
+        exported.append({
+            "id": c.get("id"),
+            "title": r.redact(str(c.get("title") or "")),
+            "notes": r.redact(str(c.get("notes") or "")),
+            "assignee": r.redact(str(c.get("assignee") or "")),
+            "status": c.get("status"),
+            "links": {
+                "findings": [str(x) for x in (links.get("findings") or [])],
+                "incidents": [str(x) for x in (links.get("incidents") or [])],
+            },
+            "createdAt": c.get("createdAt"),
+            "updatedAt": c.get("updatedAt"),
+        })
+    payload = {
+        "kind": "legacy_cases_export",
+        "note": ("Read-only pre-merge case records. Free-text fields are "
+                 "redacted through console/redact.py. Empty means no cases "
+                 "existed — nothing is invented."),
+        "count": len(exported),
+        "cases": exported,
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 # format -> (serializer, content-type, extension). serve.py branches on this.

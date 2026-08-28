@@ -221,6 +221,14 @@ def sync_incidents(state):
         inc["state"] = prev.get("state", "new")
         inc["acknowledgedAt"] = prev.get("acknowledgedAt")
         inc["resolvedAt"] = prev.get("resolvedAt")
+        # C1-T1 (Cases->Incidents merge): case metadata absorbed onto a rule
+        # incident is ANALYST data, not derived. derive_incidents() rebuilds the
+        # dict from findings alone and knows nothing about it, so it MUST be
+        # carried across every re-derivation here — otherwise the next analyze
+        # silently drops it (the "silent killer" tripwire). See migrate_cases_
+        # to_incidents(). Defaults keep pre-migration incidents unchanged.
+        inc["origin"] = prev.get("origin", "rule")
+        inc["cases"] = prev.get("cases", [])
         store[inc["id"]] = inc
     _save("incidents.json", store)
     return store
@@ -678,6 +686,7 @@ def create_case(payload):
     }
     store[cid] = case
     _save("cases.json", store)
+    _try_absorb_cases()                        # keep incidents in sync (C1-T1)
     return case
 
 
@@ -709,7 +718,157 @@ def patch_case(cid, payload):
         }
     case["updatedAt"] = _now()
     _save("cases.json", store)
+    _try_absorb_cases()                        # keep incidents in sync (C1-T1)
     return case
+
+
+# ---------------------------------------------------------------------------
+# Cases -> Incidents additive migration (C1-T1) — OWNER-RATIFIED 2026-08-28
+# ---------------------------------------------------------------------------
+# Cases absorb into incidents ADDITIVELY. Nothing is derived, suppressed, or
+# escalated here — this is display/linkage metadata only; rules still own every
+# real verdict (guardrail 1). Two paths, both loss-free:
+#
+#   * A case LINKED to incident(s) is projected onto each linked incident as an
+#     embedded record under incident["cases"], keyed by caseId so re-running is
+#     idempotent. Many-to-many is handled explicitly: the WHOLE case travels to
+#     every incident it names (never folded arbitrarily into one). The incident
+#     keeps origin "rule".
+#   * An INCIDENT-LESS case (no resolvable incident link) becomes a FIRST-CLASS
+#     MANUAL incident: origin "manual", no findings, no rule verdict. The owner
+#     ruled these are manual incidents, NOT a separate store. Honesty is the
+#     point: a manual incident must NEVER be confusable with a rule-detected one
+#     — it is badged, and a severity is shown ONLY if the analyst assigned one
+#     (labelled analyst-assigned), never as a rule verdict.
+#
+# Case status is the analyst's lifecycle. Incidents keep their existing
+# operational states; the analyst's real case status is preserved verbatim as
+# caseStatus and never flattened away. The EXPLICIT, documented status map
+# (case status -> incident operational state) — the 5-state target lifecycle
+# (…-> pending-approval -> contained -> …) is NOT introduced as incident states
+# here: those belong to the C3/C4 approval/containment flow (phase order), and
+# an incident 'closed' state would require editing metrics(), which carries a
+# foreign uncommitted change. Reported to god as a precedence note.
+CASE_STATUS_TO_INCIDENT_STATE = {
+    "open": "new",
+    "investigating": "investigating",
+    "closed": "resolved",
+}
+MANUAL_INCIDENT_BADGE = "MANUAL — analyst-created, no rule verdict"
+
+
+def _embed_case(case):
+    """The additive, loss-free projection of a case kept on an incident. Every
+    case field is carried verbatim; the analyst's real case status stays as
+    caseStatus. links.findings is preserved as linkedFindings — deliberately
+    SEPARATE from the incident's derived findingIds (analyst-chosen vs derived,
+    and findingIds is recomputed every sync)."""
+    links = case.get("links") or {}
+    return {
+        "caseId": case.get("id"),
+        "title": case.get("title", ""),
+        "notes": case.get("notes", ""),
+        "assignee": case.get("assignee", ""),
+        "caseStatus": case.get("status", "open"),
+        "caseCreatedAt": case.get("createdAt"),
+        "caseUpdatedAt": case.get("updatedAt"),
+        "linkedFindings": [str(x) for x in (links.get("findings") or [])],
+        "linkedIncidents": [str(x) for x in (links.get("incidents") or [])],
+    }
+
+
+def _manual_incident_from_case(case, prev=None):
+    """A first-class MANUAL incident for an incident-less case. It carries the
+    case lifecycle, notes and assignee, and is honestly marked so it can NEVER
+    be mistaken for a rule-detected incident: no findings, no rule verdict, and
+    a severity ONLY if the analyst assigned one. Any analyst lifecycle already
+    recorded on a prior migration (prev) is preserved so re-running is safe."""
+    prev = prev or {}
+    cid = case.get("id") or "case"
+    inc_id = "inc-manual-" + hashlib.sha1(str(cid).encode()).hexdigest()[:10]
+    analyst_sev = case.get("severity")         # cases carry none today -> None
+    mapped = CASE_STATUS_TO_INCIDENT_STATE.get(case.get("status", "open"), "new")
+    return {
+        "id": inc_id,
+        "runId": "",
+        "entity": case.get("assignee") or "—",
+        "entityKind": "manual",
+        "title": case.get("title", "") or f"Manual case {cid}",
+        "severity": None,                       # never a rule verdict
+        "analystSeverity": analyst_sev,         # shown ONLY if set, labelled
+        "origin": "manual",
+        "manualBadge": MANUAL_INCIDENT_BADGE,
+        "findingIds": [],
+        "findingCount": 0,
+        "techniques": [],
+        "attackerStatus": "",
+        "createdAt": case.get("createdAt"),
+        "firstSeen": None,
+        "lastSeen": None,
+        "timeUncertain": False,
+        "isRollup": False,
+        # analyst lifecycle: seeded from the case status map, then preserved
+        "state": prev.get("state", mapped),
+        "acknowledgedAt": prev.get("acknowledgedAt"),
+        "resolvedAt": prev.get("resolvedAt"),
+        "cases": [_embed_case(case)],
+    }
+
+
+def migrate_cases_to_incidents(soc_dir=None):
+    """ADDITIVE, idempotent one-way migration: project every case in cases.json
+    into incidents.json. Never deletes an incident and never overwrites a
+    derived field — only attaches case metadata and creates manual incidents.
+    Returns an honest summary (counts + any incident links that did not
+    resolve). Operates on soc_dir when given (a COPY, in tests)."""
+    global SOC_DIR
+    prev_dir = SOC_DIR
+    if soc_dir is not None:
+        SOC_DIR = Path(soc_dir)
+    try:
+        cases = _load("cases.json")
+        incidents = _load("incidents.json")
+        attached = 0
+        manual = 0
+        orphaned_links = []
+        for case in cases.values():
+            wanted = [str(x) for x in ((case.get("links") or {}).get("incidents") or [])]
+            targets = [i for i in wanted if i in incidents]
+            orphaned_links.extend([i for i in wanted if i not in incidents])
+            if targets:
+                embedded = _embed_case(case)
+                for iid in targets:
+                    inc = incidents[iid]
+                    bucket = inc.setdefault("cases", [])
+                    bucket[:] = [c for c in bucket if c.get("caseId") != case.get("id")]
+                    bucket.append(embedded)
+                    inc.setdefault("origin", "rule")
+                    attached += 1
+            else:
+                # No resolvable incident link -> host it as a manual incident so
+                # the case's title/notes/assignee/lifecycle are never dropped.
+                man = _manual_incident_from_case(case, prev=incidents.get(
+                    "inc-manual-" + hashlib.sha1(str(case.get("id") or "case").encode()).hexdigest()[:10]))
+                incidents[man["id"]] = man
+                manual += 1
+        _save("incidents.json", incidents)
+        return {
+            "cases": len(cases),
+            "attachedLinks": attached,
+            "manualIncidents": manual,
+            "orphanedIncidentLinks": sorted(set(orphaned_links)),
+        }
+    finally:
+        SOC_DIR = prev_dir
+
+
+def _try_absorb_cases():
+    """Run the migration but never let a merge failure break a case write or the
+    server boot — honest degradation, not a crash."""
+    try:
+        migrate_cases_to_incidents()
+    except Exception as exc:                    # pragma: no cover - defensive
+        print(f"  cases->incidents migration skipped: {exc}", flush=True)
 
 
 # ---------------------------------------------------------------------------

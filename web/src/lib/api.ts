@@ -208,6 +208,38 @@ export interface Incident {
   resolvedAt: string | null;
   timeUncertain: boolean;
   isRollup?: boolean;
+  // --- C1-T1: Cases absorbed into Incidents (all additive/optional) ---
+  /** "rule" (detector-derived, the default) or "manual" (analyst-created from
+   *  an incident-less case). A manual incident must NEVER be rendered as a
+   *  rule-detected one. */
+  origin?: "rule" | "manual";
+  /** Honest badge for a manual incident — analyst-created, carries no rule
+   *  verdict. Present only when origin === "manual". */
+  manualBadge?: string;
+  /** Severity an analyst assigned to the underlying case, if any. Shown ONLY
+   *  when present and MUST be labelled "analyst-assigned" — never as a rule
+   *  verdict. `severity` is null for manual incidents. */
+  analystSeverity?: string | null;
+  /** Case records absorbed onto this incident (many-to-many is fine: a case
+   *  can appear on several incidents). Empty/absent when no case links here. */
+  cases?: EmbeddedCase[];
+}
+
+/** A pre-merge Case projected onto an Incident (C1-T1). Loss-free: every case
+ *  field travels. `caseStatus` is the analyst's real case lifecycle, kept
+ *  separate from the incident's operational `state`. `linkedFindings` is the
+ *  analyst's chosen findings — deliberately separate from `Incident.findingIds`
+ *  (which is derived and recomputed). */
+export interface EmbeddedCase {
+  caseId: string;
+  title: string;
+  notes: string;
+  assignee: string;
+  caseStatus: CaseStatus;
+  caseCreatedAt: string | null;
+  caseUpdatedAt: string | null;
+  linkedFindings: string[];
+  linkedIncidents: string[];
 }
 
 export interface RcaFactEvent { t: string; label: string; line?: number; findingId?: string; rule?: string }
