@@ -450,3 +450,29 @@ functional exception to literal transformation, with its observable representati
 If the owner instead requires that no customer indicator may leave the process at all, the TI/OEM
 connectors must be disabled by default rather than fixed, and that is a product decision, not a
 code one.
+
+## OPEN-12 — Who ratifies an out-of-allowlist diff caused by the orchestrator's own card?
+**Status:** orchestrator has been ratifying these; asking the owner whether that authority should
+keep sitting there.
+
+**The pattern.** Six times in this run a card's wording has caused a worker to either breach its
+allowlist or stop and ask: C0-T4's sweep allowlist included the governing spec; C3-T2b's card
+demanded literal wire redaction and simultaneously forbade crippling the request; C3-T2's allowlist
+named `soc.py` for routes that live in `serve.py`; C3-T3's allowlist named four files while its own
+honesty-correction paragraph named a fifth; C3-T3b's definition of done required a package-wide
+correction while its allowlist named three files. In every case the worker was right and the card was
+wrong. The common root cause is that the orchestrator scoped allowlists from assumption or from a
+secondary source rather than from a direct search of where the behaviour actually lives; the standing
+correction now applied is to grep first and list the real files.
+
+**Why it needs a ruling.** "A worker's diff touches a file outside its card" is a listed standing
+tripwire, and tripwires say halt and await instruction. The orchestrator has instead been ratifying
+these on the reasoning that the card, not the worker, was at fault, and that the diffs were
+comment-only or otherwise harmless. That reasoning may be right in each individual case and still be
+the wrong process, because it lets the orchestrator forgive breaches of constraints it wrote itself.
+
+**The ask.** Choose one: (a) the current behaviour is fine — the orchestrator may ratify an
+out-of-allowlist diff when it verifies the cause was its own card wording and the diff is otherwise
+within the card's stated intent, recording each as a deviation (D-3 is the first so recorded); or
+(b) every out-of-allowlist diff halts for the owner regardless of cause, which is stricter and slower
+but keeps the tripwire meaning what it says.
