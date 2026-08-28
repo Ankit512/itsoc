@@ -46,7 +46,7 @@ Branch `stage-c/c0-foundations`. Backend only, no UI.
    - `eligible(incident) -> {eligible: bool, missing: [...]}` computed **only** from rule verdicts + evidence. No LLM input parameter exists in the signature — make ineligibility structural.
    - Ship two runbooks: `rb-block-ip` (brute-force / compromise trigger) and `rb-draft-notify` (notification draft only).
 2. **Audit chain** per D4: `console/audit.py` (append/verify via `fsafe.py`), sqlite index table in `store.py`. Entry fields: `{ts, actor, incident_id, runbook_id, step, eligibility_proof, evidence_refs, request_redacted, response_verbatim, status: approved|rejected|executed|failed, prev_hash, entry_hash}`.
-3. **TI fixes (P0.5):** replace `threat_intel/severity_for()`'s flatten-to-CRITICAL with rule-mapped severities (feed-declared level → capped by rule policy); replace `--taxii-password` with token/cert auth (`--taxii-token` / client-cert paths). Update tests.
+3. **TI fixes (P0.5):** replace `threat_intel/severity_for()`'s flatten-to-CRITICAL with rule-mapped severities (feed-declared level → capped by rule policy); replace `--taxii-password` with token/cert auth via **file-path or env references only** (`--taxii-config`, `--taxii-token-file`, `--taxii-client-cert`/`--taxii-client-key`); secret values never appear in argv or logs. Update tests.
 4. **Runbooks terminology sweep** (D5).
 
 Acceptance: unit tests for eligibility (including the no-override property), chain append/verify/tamper-detection, TI severity mapping; all existing tests green.

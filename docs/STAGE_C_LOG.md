@@ -363,3 +363,40 @@ appear in `fleet.json` with 0 tokens and `lastTool: null` but are not addressabl
 therefore dispatched to a Claude Code worker under kickoff Q4's unavailable-tier rule (route up, log
 the substitution, no stop). C0-T0/T1/T2/T3 were each built by a separate dispatched worker; the
 orchestrator wrote the cards, verified every result independently, and kept the board.
+
+---
+
+## Deviation register
+
+### D-1 · Build doc self-contradiction (§0/§2 C0.3 line vs §4 guardrail 4) — **RESOLVED TOWARD THE GUARDRAIL, OWNER-RATIFIED 2026-08-28**
+
+**The contradiction.** Build doc line 49 (Phase C0, item 3) instructed: *"replace `--taxii-password`
+with token/cert auth (`--taxii-token` / client-cert paths)"*. A value-taking `--taxii-token <secret>`
+places the credential in `argv`, where any user can read it via `ps`. That directly contradicts §4
+guardrail 4 — *"connector credentials are token/cert, **config-file only**"* — and defeats the purpose
+of the TAXII fix itself, which exists precisely to stop credentials travelling in the clear.
+
+**Resolution.** The C0-T3 worker implemented the §4-honoring form: **path-only auth**
+(`--taxii-config`, `--taxii-token-file`, `--taxii-client-cert`/`--taxii-client-key`, plus
+`$ITSOC_TAXII_TOKEN_FILE` / `$ITSOC_TAXII_TOKEN`), and placed `--taxii-token` on the **reject** list
+rather than shipping it. It did not silently absorb the difference — it reported the deviation, and the
+orchestrator halted C0 for ratification rather than auto-gating.
+
+**Owner ruling (2026-08-28): RATIFIED.** The owner's words: *"`--taxii-token <value>` was a defect in
+my build doc — a value-taking flag puts the secret in argv, visible to any `ps`, which contradicts §4
+guardrail 4 and the very TAXII fix's purpose. Path-only auth is the correct shape."*
+
+**Build doc amended in-branch.** Line 49 now reads: *"replace `--taxii-password` with token/cert auth
+via **file-path or env references only** (`--taxii-config`, `--taxii-token-file`,
+`--taxii-client-cert`/`--taxii-client-key`); secret values never appear in argv or logs."*
+
+**Precedent, now explicit for all workers** (written into
+`hive/stage-c/GUARDRAILS.md`, which every worker reads before its first commit):
+> Where the build doc's letter contradicts §4, **§4 wins**. Implement the guardrail-honoring form —
+> but do NOT silently absorb the difference: stop, report the contradiction naming both the build-doc
+> line and the guardrail, and wait for owner ratification. The contradiction halts the phase for
+> ratification, exactly as happened here. Reporting a contradiction is never treated as failure to
+> complete the card.
+
+**Status of C0-T3 acceptance:** HALT-1 is CLEARED. **HALT-2 (the `itsoc_mcp/test_mcp.py` 93->92
+regression) remains OPEN** — C0-T3 is still not accepted and C0 is still not closed.
