@@ -845,3 +845,64 @@ C2 opens with its **fixture obligation** as the first card: seed the **INC-4a7f*
 (203.0.113.44 -> server-01) as deterministic sample data, before the investigation-engine cards run
 against it. Also carried: **OPEN-8**, the pre-existing `shell.test.tsx` order-dependence — recommended
 fix during C2 with `--sequence.shuffle` added to the standing gate afterwards.
+
+---
+
+## PHASE C2 — COMPLETE. Auto-merged to local `main` (`b231163`).
+
+Detector `364577c5…a4a876` unchanged throughout. `main` is now **67 commits ahead of `origin/main`**,
+nothing pushed (Q1 = (c)).
+
+| Card | Commit | Worker |
+|---|---|---|
+| C2-T0 seed the INC-4a7f scenario | `1d02663` | Pam |
+| C2-T1 deterministic engine + D2 LLM split | `00af9c8` | Pam |
+| C2-T2 parallel grounded advisory agents | `b397efb` | Jim |
+| C2-T3 org-context priority rules | `1ec6721` | Oscar |
+| C2-T4 Incidents investigation-file section | `f53785f` | Pam |
+| C2-FIX `_correlation` guard (audit finding) | `1e23d65` | Oscar |
+
+**Phase gate, god-run on the integrated branch and again on `main`:** web **144/144 shuffled** ·
+`npm run build` clean · `run_eval` **19/19** f1 1.000 · `console/test_console.py` PASSED ·
+`console/test_fsafe.py` PASSED · `tests/test_intake.py` 4/4 · `itsoc_mcp/test_mcp.py` 93/0 ·
+`threat_intel/test_threat_intel.py` 0 failures / 3 reasoned skips · detector frozen.
+(The eval suite grew 17 -> 19 cases via the concurrent non-Stage-C queue's parser work; f1 still 1.000.)
+
+### What C2 actually guarantees
+
+**D2 is honoured structurally, not by convention.** `investigate.assemble()` makes **zero model calls** —
+proven adversarially by patching both transport functions to throw *and* to sleep, running the advisory
+route concurrently, and counting attempts. It returns in **~2.5 ms** against a 120,000 ms target. The
+`serve.py` rca route no longer waits on `la.chat_completion`.
+
+**Advisory content cannot fabricate.** Three agents, bounded concurrency 3, 45s each, every block
+guard-checked. Measured grounding ratio **1.000** against the ≥0.95 bar. Hallucinated IPs, hostnames,
+record numbers and a string citation were all intercepted and stripped. On model failure the block shows
+`ADVISORY · timed out — retry` — visible, never silent, never replaced by prose.
+
+**Fact and hypothesis are distinguishable at a glance**, asserted structurally rather than styled. An
+unresolvable citation renders as a `.miss` so an ungrounded claim cannot masquerade as cited.
+
+**Priority never mutates severity** — a second rule-owned axis, asserted byte-identical across all three
+criticality tags.
+
+### Independent adversarial audit
+
+A separate worker attacked all six guarantees on the integrated branch and reported them holding, naming
+each attack attempted. It surfaced one real defect — `_correlation` indexing `e["n"]` unguarded while its
+three siblings guarded — which was fixed by its finder with a regression test and a clean sweep for the
+same pattern elsewhere. **C2 was deliberately not completed until that landed**, though it was a
+robustness finding rather than a failed acceptance item.
+
+### Incident during integration — orchestrator error, caught and repaired
+
+The first C2 merge landed on the **wrong branch**. The concurrent non-Stage-C queue switched the shared
+integration checkout to `feat/efficacy-harness` between commands, and the merge went there instead of
+`main`. Detected immediately by checking `git merge-base --is-ancestor` rather than trusting the merge
+output. Repaired: nothing had built on the stray merge, `feat/efficacy-harness` was restored to `8a13e6e`
+(its pre-merge tip), and the merge was redone on `main` **with an explicit branch guard that aborts if
+HEAD is not `main`**. That guard is now standard for every integration merge.
+
+This is the second time the shared integration checkout has caused a real incident (see OPEN-10). Worker
+worktrees are isolated and were unaffected both times; the exposure is entirely in the orchestrator's own
+checkout.
