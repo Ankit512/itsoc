@@ -8,7 +8,7 @@ answerable without reference to prior conversation._
 
 ---
 
-## OPEN-1 · Product-code allowlist for `threat_intel/rule_mitre_map.py` — **CONDITIONALLY RULED; HELD on assumption mismatch**
+## OPEN-1 · Product-code allowlist for `threat_intel/rule_mitre_map.py` — **RATIFIED 2026-08-28 — dispatched**
 _Gates: Phase C1 (owner required a zero-known-red baseline before C1 opens)._
 
 **Background.** Card C0-T6 (worker Oscar, commit `7db891b`) cleared the test-side portion of the 16
@@ -41,7 +41,7 @@ not determine severity/verdict."* Oscar has prepared exact before→after string
 
 ---
 
-## OPEN-2 · C1-T1 design ruling: cases with no linked incident — **CONDITIONALLY RULED; HELD on assumption mismatch**
+## OPEN-2 · C1-T1 design ruling: cases with no linked incident — **RATIFIED 2026-08-28 — dispatched**
 _Gates: Phase C1 card C1-T1 (backend migration)._
 
 **Background.** Worker Pam's read-only inventory established that build doc §1 — *"Existing case records
@@ -159,3 +159,33 @@ Owner's assumption: *"the C1 migration found case records with no incident linka
 possibility the data model permits**, not an observed record set, and C1 has not run. The ruling is
 sound as a **forward design**, but its premise is prospective, not retrospective. Held; quoted verbatim
 to the owner.
+
+
+## OPEN-1 — RESOLVED 2026-08-28: approved as re-scoped. Dispatched as card C0-T7 (Oscar).
+Owner accepted the re-scope: this is a data-and-hygiene repair to an existing grounding module, not new
+product surface. Allowlist granted for the threat_intel mapping module plus its tests. Constraints carry
+over unchanged — static declarative table, no scoring, no LLM input, annotations never touch severity,
+verdict or eligibility. Three additions were imposed. First, every name correction must cite the ATT&CK
+version it is corrected against in a comment at the table head, because "correct" needs an anchor.
+Second, the mutable-reference fix must return defensive copies; the owner's framing is that callers
+mutating a guardrail-bearing table is the same disease as the DEFAULT_MODE finding and must be fixed the
+same way. Third, eval and the TI severity-cap tests must be byte-identical green afterwards, and if any
+name correction shifts a severity outcome that is a hard stop, not a manifest edit. investigate.py
+wiring stays deferred to C2, confirmed.
+
+## OPEN-2 — RESOLVED 2026-08-28: confirmed on both counts. Dispatched as card C1-T1 (Pam).
+The manual-incident ruling applies structurally: the migration handles the incident-less-case shape
+whether or not any instance exists today, with origin manual, the badge, and additive semantics all as
+ruled. This supersedes Pam's own recommendation (iii) of keeping a separate cases store. C1-T1 must seed
+fixtures — at minimum one incident-less case and one multi-incident-linked case — because a migration
+acceptance that passes vacuously against an empty store proves nothing. The owner credited Pam's
+read-only reconnaissance for surfacing the distinction between "found none" and "handled none".
+
+## OPEN-5 — NEW, raised 2026-08-28 by Pam's C3 inventory. Not blocking C1.
+Two C3 findings worth the owner's awareness now rather than at C3. First, per-action step-up auth does
+not exist: the auth surface is session and token only, so D3's "step-up required every time, no session
+grace" needs new plumbing. The right primitive already exists — _verify_passphrase at auth.py:49-67,
+constant-time via hmac.compare_digest — but it is module-private and wired to nothing; login() is its
+only caller and it also mints a session. Second, and more serious: redact.py currently covers only the
+LLM path. Connector request bodies bypass it entirely, masked today only by an off-by-default fence.
+Guardrail 4 requires all egress through redact.py, so C3 must close this rather than inherit it.
