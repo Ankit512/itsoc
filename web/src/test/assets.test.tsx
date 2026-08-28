@@ -12,7 +12,7 @@ const USERS: UserEntity[] = [
 ];
 
 describe("Assets page", () => {
-  it("renders observed assets and users at risk from real data", async () => {
+  it("renders observed assets and users with severity-weighted risk from real data", async () => {
     mockFetch({ "/api/assets": { assets: ASSETS }, "/api/users": { users: USERS } });
     renderApp(<App />, { route: "/assets" });
 

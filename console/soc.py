@@ -961,7 +961,7 @@ def metrics(state, run_labels=()):
         "mttdSeconds": mttd, "mttdBasis": mttd_basis,
         "mttrSeconds": mttr, "mttrBasis": mttr_basis,
         # HIGH+ risk only — counting all atRisk dilutes the signal when most
-        # entities have at least one LOW finding (ITSOC_REDESIGN_SPEC section Phase 4).
+        # entities have at least one LOW finding (ITSOC_REDESIGN_SPEC §Phase 4).
         "assetsAtRisk": None if idle else sum(
             1 for a in derive_assets(state)
             if (a.get("maxSeverity") or "").upper() in ("CRITICAL", "HIGH")),
