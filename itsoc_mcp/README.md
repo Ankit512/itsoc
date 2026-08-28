@@ -44,7 +44,7 @@ verdicts), plus the running detector's `detector_sha256`.
 | `explain_finding(finding_id, run_id='')` | Advisory LLM explanation via `/api/explain`. | Advisory only; redacted by default; an unreachable model is an honest error. |
 | `export_run(format, run_id='')` | Proxies `/api/export` (`csv\|html\|xml\|json\|md`). | Idle → honest 409 ("nothing to export yet"), never an empty file. Content carries raw log text, so it is **withheld by default** (real size + sha256 returned); set the trusted-local flag to receive it inline. |
 | `threat_intel_lookup(ip, bundle_path=None)` | **Offline** STIX→MITRE lookup for one IPv4, reusing `threat_intel/` (match + severity from `threat_detector.py`, MITRE from the cached ATT&CK DB). No network egress. | No bundle configured → honest n/a; no match → honest "no match", not an all-clear. |
-| `propose_block_ip(incident_id, runbook_id='rb-block-ip', ip=None, note=None)` | Proposes a perimeter IP block by creating a **pending** approval record on the backend console. | Proposal creation only: zero execution authority, zero approval authority. State is strictly `pending`; step-up auth on console is required to approve/execute. |
+| `propose_block_ip(incident_id, runbook_id='rb-block-ip')` | Proposes a perimeter IP block by creating a **pending** approval record on the backend console. | Proposal creation only: zero execution authority, zero approval authority. Step-up auth on console is required to approve/execute. |
 
 ## Install
 

@@ -185,14 +185,6 @@ TOOLS = [
                     "description": "Runbook definition ID (default: 'rb-block-ip').",
                     "default": "rb-block-ip",
                 },
-                "ip": {
-                    "type": "string",
-                    "description": "Optional IPv4 address to verify against incident entity.",
-                },
-                "note": {
-                    "type": "string",
-                    "description": "Optional analyst proposal rationale.",
-                },
             },
             "required": ["incident_id"],
         },
@@ -200,8 +192,6 @@ TOOLS = [
             client,
             incident_id=args.get("incident_id", ""),
             runbook_id=args.get("runbook_id", "rb-block-ip"),
-            ip=args.get("ip"),
-            note=args.get("note"),
         ),
     },
 ]

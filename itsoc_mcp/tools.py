@@ -565,7 +565,7 @@ def _provenance_ti(client, detector_sha):
 # ---------------------------------------------------------------------------
 # TOOL 8 — propose_block_ip
 # ---------------------------------------------------------------------------
-def propose_block_ip(client, incident_id, runbook_id="rb-block-ip", ip=None, note=None):
+def propose_block_ip(client, incident_id, runbook_id="rb-block-ip"):
     """Propose a perimeter IP block action for an incident by creating a PENDING
     approval record in the backend console.
 
@@ -577,8 +577,8 @@ def propose_block_ip(client, incident_id, runbook_id="rb-block-ip", ip=None, not
       * Proposal facts only reach the backend create endpoint: incidentId and runbookId.
       * No credential path/value, no actor, no passphrase, and no step-up material
         is accepted or forwarded.
-      * Created record is always in the 'pending' state; this tool cannot set or
-        request any other state.
+      * Created record state is reported honestly from the backend response, never
+        defaulted or assumed.
     """
     incident_id = (incident_id or "").strip()
     if not incident_id:
@@ -602,7 +602,7 @@ def propose_block_ip(client, incident_id, runbook_id="rb-block-ip", ip=None, not
         "approval_id": resp.get("id"),
         "incident_id": resp.get("incidentId") or incident_id,
         "runbook_id": resp.get("runbookId") or runbook_id,
-        "state": resp.get("state", "pending"),
+        "state": resp.get("state"),
         "connector": resp.get("connector"),
         "request_redacted": resp.get("requestRedacted"),
         "evidence_refs": resp.get("evidenceRefs", []),

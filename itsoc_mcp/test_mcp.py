@@ -605,37 +605,57 @@ def test_propose_block_ip_ineligible_409():
 
 
 def test_propose_block_ip_negative_authority():
-    print("propose_block_ip — NEGATIVE-AUTHORITY GUARANTEES")
+    print("propose_block_ip — NEGATIVE-AUTHORITY & HONESTY GUARANTEES")
     import inspect
     from itsoc_mcp import server
 
-    # 1. Signature boundary: proposal facts only
+    # 1. Signature boundary: exact proposal facts only (client, incident_id, runbook_id)
     sig = inspect.signature(tools.propose_block_ip)
     param_names = list(sig.parameters.keys())
-    check("signature has exactly (client, incident_id, runbook_id, ip, note)",
-          param_names == ["client", "incident_id", "runbook_id", "ip", "note"])
-    forbidden_params = {"actor", "passphrase", "token", "password", "approve", "reject",
+    check("signature has exactly (client, incident_id, runbook_id)",
+          param_names == ["client", "incident_id", "runbook_id"])
+    forbidden_params = {"ip", "note", "actor", "passphrase", "token", "password", "approve", "reject",
                         "execute", "revoke", "action", "state", "stepup"}
-    check("signature has NO credential, actor, approval, or execution parameters",
+    check("signature has NO unused, credential, actor, approval, or execution parameters",
           not any(p in forbidden_params for p in param_names))
     check("signature has NO variadic *args or **kwargs (smuggling closed)",
           all(p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
               for p in sig.parameters.values()))
 
-    # 2. Payload boundary: backend receives ONLY proposal facts
+    # 2. Rejection of unsupported parameters: TypeError raised, cannot be silently accepted
     c = FakeClient()
-    tools.propose_block_ip(c, incident_id="INC-4a7f", runbook_id="rb-block-ip", ip="203.0.113.44", note="suspicious")
+    for param_name, param_val in [("ip", "203.0.113.44"),
+                                   ("note", "block this"),
+                                   ("passphrase", "secret"),
+                                   ("actor", "admin"),
+                                   ("approve", True),
+                                   ("execute", True),
+                                   ("state", "approved")]:
+        rejected = False
+        try:
+            tools.propose_block_ip(c, incident_id="INC-4a7f", **{param_name: param_val})
+        except TypeError:
+            rejected = True
+        check(f"unsupported parameter '{param_name}' raises TypeError (cannot be silently accepted)", rejected)
+
+    # 3. Payload boundary: backend receives ONLY proposal facts
+    c = FakeClient()
+    tools.propose_block_ip(c, incident_id="INC-4a7f", runbook_id="rb-block-ip")
     sent_payload = c.calls[0][2]
     check("sent payload contains ONLY incidentId and runbookId",
           set(sent_payload.keys()) == {"incidentId", "runbookId"})
     check("no actor/passphrase/state/approve/execute in sent payload",
           not any(k in sent_payload for k in ("actor", "passphrase", "state", "approve", "execute")))
 
-    # 3. State invariant: returned state is strictly pending
-    r = tools.propose_block_ip(c, incident_id="INC-4a7f")
-    check("created record state is strictly pending", r.get("state") == "pending")
+    # 4. State honest reporting: not fabricated or defaulted
+    c_no_state = FakeClient(approval_record={"id": "appr-no-state", "incidentId": "INC-4a7f"})
+    r_no_state = tools.propose_block_ip(c_no_state, incident_id="INC-4a7f")
+    check("missing state is NOT defaulted to 'pending' (honestly None)", r_no_state.get("state") is None)
 
-    # 4. Server tool roster: NO approve, reject, execute, or revoke tools exist
+    r_real = tools.propose_block_ip(c, incident_id="INC-4a7f")
+    check("backend state 'pending' reported faithfully", r_real.get("state") == "pending")
+
+    # 5. Server tool roster & schema honesty
     tool_names = [t["name"] for t in server.TOOLS]
     check("server tools include propose_block_ip", "propose_block_ip" in tool_names)
     check("server tools contain NO approve_* tool", not any("approve" in name for name in tool_names))
@@ -644,7 +664,12 @@ def test_propose_block_ip_negative_authority():
     check("server tools contain NO revoke_* tool", not any("revoke" in name for name in tool_names))
     check("server tools contain NO remediate_* tool", not any("remediate" in name for name in tool_names))
 
-    # 5. Isolation: itsoc_mcp.tools does not import subprocess, socket, or actions
+    prop_tool = next(t for t in server.TOOLS if t["name"] == "propose_block_ip")
+    schema_props = list(prop_tool["inputSchema"]["properties"].keys())
+    check("inputSchema properties are strictly ['incident_id', 'runbook_id'] (no dropped params advertised)",
+          schema_props == ["incident_id", "runbook_id"])
+
+    # 6. Isolation: itsoc_mcp.tools does not import subprocess, socket, or actions
     import itsoc_mcp.tools as mcp_tools
     check("itsoc_mcp.tools does not import subprocess", not hasattr(mcp_tools, "subprocess"))
     check("itsoc_mcp.tools does not import socket", not hasattr(mcp_tools, "socket"))
