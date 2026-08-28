@@ -469,3 +469,87 @@ cache in place — a network dependency Stage C's offline posture otherwise avoi
 **Scope safety confirmed:** `test_threat_intel.py` is not a canonical green-bar suite, and the only
 canonical-suite consumer of the cache is `console/soc.py:769` — a boolean `attackCacheWarm` that reads
 no technique names. So this is genuinely non-gating for Stage C.
+
+### C0-T5 · Align `itsoc_mcp` severity assertion with the ratified cap — **ACCEPTED** (commit `261f226`, worker Jim)
+
+Owner-ratified fix for HALT-2. Exactly one line, exactly one file:
+```
+- check("severity from threat_detector (critical)", m["severity"] == "critical")
++ check("severity from threat_detector (high)",     m["severity"] == "high")
+```
+`itsoc_mcp/test_mcp.py` -> **93 passed, 0 failed** (was 92/1). god-verified.
+
+**The security-relevant check:** the card forbade weakening the cap to make the test pass.
+`git diff --stat cbd3099..HEAD -- threat_intel/` is **EMPTY** — the TI severity cap is untouched. The
+worker aligned the stale assertion rather than eroding the ratified behavior, which is the correct
+resolution.
+
+---
+
+## PHASE C0 — COMPLETE. Awaiting the owner's merge gate.
+
+Branch `stage-c/c0-foundations`, **11 commits**, local only (Q1 = (c) never push). Detector frozen at
+`364577c5…a4a876` across every commit.
+
+| Card | Commit | Worker | Outcome |
+|---|---|---|---|
+| C0-T0 intake/`run()` reconciliation | `c963b20` | Claude Code | ACCEPTED — env gate 7/8 -> 8/8 |
+| C0-T1 runbook schema + eligibility | `0e7af92` | Claude Code | ACCEPTED |
+| C0-T2 fsafe port + audit chain | `4ba2530` | Claude Code | ACCEPTED — deviation D-1's sibling resolved on path (A) |
+| C0-T3 TI severity cap + TAXII auth | `cbd3099` | Claude Code | ACCEPTED (after D-1 ratified + HALT-2 cleared) |
+| C0-T4 runbook terminology sweep | `141db71` | **Toby** (hive) | ACCEPTED with orchestrator correction `649aea4` |
+| C0-T5 MCP assertion alignment | `261f226` | **Jim** (hive) | ACCEPTED |
+| — mitre diagnosis (read-only) | n/a | **Pam** (hive) | DELIVERED — corrected the orchestrator's framing |
+
+### C0 exit gate — god-run, not claimed
+
+| Check | Result |
+|---|---|
+| `tests/eval/run_eval.py` | 17/17 · precision 1.000 · recall 1.000 · **f1 1.000** |
+| `console/test_console.py` | PASSED (incl. new `runbooks` + `audit-chain` groups) |
+| `console/test_fsafe.py` | PASSED — 10 checks |
+| `tests/test_intake.py` | 4/4 OK *(was 3 errors at pre-flight)* |
+| `itsoc_mcp/test_mcp.py` | 93 passed, 0 failed |
+| vitest | 26 files, **107/107** |
+| `npm run build` | clean |
+| detector sha | `364577c5…a4a876` unchanged |
+| working tree | clean |
+
+### Standing invariants for C0, grep/test-verified
+
+- **No LLM parameter in `eligible()`'s signature** — live `inspect.signature` -> `(runbook, incident,
+  findings)`, no `*args`/`**kwargs`, no advisory-ish names. Reinforced by data-closure projection,
+  adversarial poisoning, and a non-vacuity check.
+- **`--taxii-password` gone** — `grep -rn "taxii.password\|taxii_password\|--password" threat_intel/`
+  returns nothing. No credential can reach argv or logs.
+- **Audit chain honest under attack** — tamper reported at the correct index, no self-heal, no laundering.
+- **Migration additive** — `+audit_index` only, zero drops, zero row changes, live DB untouched.
+
+### The one item NOT green — owner decision required
+
+`threat_intel/test_threat_intel.py` fails **16 checks**. god PROVED these pre-existing (identical
+failure set at parent `b88304d`, delta ZERO), and Pam's read-only diagnosis established they are **three
+independent causes**, not one stale cache: 10 = genuine table staleness fixable OFFLINE; 3 = the local
+ATT&CK cache fixture is **doctored** (invented 'Stealth'/'Defense Impairment' tactics, `T1070.001`
+revoked with a fabricated 2026-04-14 date) and the table is CORRECT; 3 = code/test drift including a
+real defect (`techniques_for_rule` returns the table's own mutable objects).
+
+It is **non-gating** for Stage C — not a canonical suite, and the only canonical consumer of that cache
+is `console/soc.py:769`, a boolean `attackCacheWarm` that reads no technique names. But under the
+autonomous-mode rule "every acceptance item passes (run, not claimed)", this item does not pass, so
+**C0 does NOT auto-gate. Halting for the owner's merge decision.**
+
+> **Owner decisions outstanding:**
+> 1. Merge `stage-c/c0-foundations` into local `main`? Exact command below.
+> 2. The 16 `test_threat_intel` failures — dedicated offline card, or documented known-red?
+> 3. Kickoff **Q2** (OPNsense VM) and **Q3** (step-up identity) are still unanswered and are needed
+>    before C3. Not blocking C1.
+
+### Exact merge command the owner would run
+
+```sh
+cd ~/Projects/log-analyzer
+git checkout main
+git merge --no-ff stage-c/c0-foundations -m "Stage C phase C0: foundations (runbooks, audit chain, TI fixes)"
+# NOT pushed — Q1 push authority is (c) never.
+```
