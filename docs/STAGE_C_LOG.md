@@ -160,3 +160,98 @@ not an invented default. Unparseable file -> loud `RunbookError`, not a silently
 9. `required_evidence` vocabulary is closed but unvalidated: a typo'd key (`record_ref`) would validate
    and then be permanently ineligible. Fails **safe** (never falsely eligible) but fails quietly.
    Worth a key-vocabulary check in a follow-up.
+
+### C0-T2 · Audit chain + fsafe recovery — **ACCEPTED** (commit `4ba2530`, Claude Code worker)
+
+**Deviation resolution (build doc, recorded per owner instruction):**
+> build doc assumed `fsafe.py` existed; it was archive-only; resolved by owner-authorized **port**.
+
+**PART A — path (A), zero adaptation.** god verified port fidelity directly:
+`diff <(git show c36d03d:console/fsafe.py) <(head -102 console/fsafe.py)` -> **IDENTICAL, zero changes**.
+Not one import needed adapting, exactly as the pre-assessment predicted; fallback (B) did not trigger.
+Archived API preserved: `locked(path)` (flock with an O_EXCL spin-lock fallback) + `atomic_write_text`.
+
+**Durable APPEND (the gap the archive did not cover).** `atomic_write_text` is a whole-file rewrite —
+O(n) per entry and it puts already-committed history back on the write path, which is wrong for a
+ledger. The worker added a separate append path on the same `locked()` primitive (fsafe.py:103-165):
+`append_line_holding_lock()` (O_APPEND + `fsync`, + directory fsync on create; caller already holds the
+lock because `locked()` is **not** reentrant — flock is per-fd, and the chain must read its tail and
+append its successor inside ONE critical section) and `durable_append_line()` (lock-taking form).
+Existing bytes are never reopened for writing, truncated, or replaced.
+
+**god independent verification of the chain (not trusted from the report):**
+```
+a) CLEAN VERIFY        -> {'ok': True, 'count': 4, 'break': None, 'head': 'c092f765…'}
+b) TAMPER MIDDLE (i=1) -> {'ok': False, 'break': {'index': 1,
+                            'reason': "entry_hash does not match the entry's contents…",
+                            'expected': '8ccbbfae…', 'found': '112b78c2…'}}
+   idempotent (no self-heal): True   |   file bytes unchanged: True
+c) APPEND-ON-BROKEN    -> break STILL reported at index 1; earlier entries NOT rewritten; count 4->5
+```
+So the D4 requirement "never silently re-chain" holds under direct attack: a break is reported at the
+correct index, re-reading does not heal it, and appending afterward does not launder it.
+
+**No auto-repair path.** Worker proved it structurally against `audit.py`'s real AST (no
+`write_text/atomic_write_text/replace/truncate/unlink/rename/open` among called names; the only ledger
+mutation is one `fsafe.append_line_holding_lock`). god confirmed by grep and by reading
+`rebuild_index()`, which **refuses** on a broken chain and returns the verification verdict instead of
+laundering corruption into the index.
+
+**god independent additive-migration proof, on a `shutil.copy2` COPY of the live 7.9 MB store:**
+```
+BEFORE : assets, connectors, events, investigations, iocs, settings, sqlite_sequence, vulnerabilities
+AFTER  : … + audit_index
+ADDED  : ['audit_index']      DROPPED: []
+ROW CHANGES ON PRIOR TABLES: NONE     (events stayed 2500)
+>>> ADDITIVE: True            >>> LIVE DB UNTOUCHED: True (mtime unchanged)
+```
+`CREATE TABLE IF NOT EXISTS` only; no `ALTER`, no `DROP`. **Retention can never reach audit evidence** —
+god confirmed `audit_index` is absent from both `HISTORY_TABLES` and `ALL_DATA_TABLES` (so `cleanup()`
+and `purge()` cannot touch it) while present in `_QUERYABLE` for the eventual UI. Migration tripwire
+did NOT fire.
+
+**Diff:** 5 files, +1009 / -2 — `audit.py` (291), `fsafe.py` (165), `store.py` (100),
+`test_console.py` (+254/-2), `test_fsafe.py` (201). Allowlist-clean. The 2 deletions are again only the
+runner-wiring line and the banner string (god-verified via `git diff -U0 | grep '^-'`).
+
+| # | Acceptance | Result (god-verified) |
+|---|---|---|
+| a | clean chain verifies | **PASS** — `ok: True`, count 4, head hash present |
+| b | tamper middle -> correct index, no repair | **PASS** — break at index 1; bytes unchanged; idempotent. Deleting a middle entry reports index 2 "prev_hash does not match" |
+| c | sqlite derived + rebuildable from JSONL alone | **PASS** — table wiped, `rebuild_index()` reconstructs; refuses on a broken chain |
+| d | additive migration on a COPY | **PASS** — god re-ran independently, see above |
+| e | atomic write survives interrupt | **PASS** — deterministic swap-point interrupt + **12 real SIGKILLs**; target always complete-old or complete-new |
+| f | concurrent append, real concurrency | **PASS** — 8 processes × 25 × 60 KB lines -> 200/200 whole, none interleaved; 5 concurrent `audit.append()` processes -> chain still verifies |
+| g | `console/test_console.py` | **PASS** — `… + runbooks + audit-chain checks green` |
+| h | `tests/eval/run_eval.py` | **PASS** — 17/17, f1 1.000 |
+| i | `tests/test_intake.py` | **PASS** — 4/4 OK |
+| j | vitest / build | **PASS** — 26 files, 107/107; built in 4.14s |
+| k | detector sha | **PASS** — `364577c5…a4a876` |
+| l | diff inside allowlist | **PASS** |
+
+Bonus: `python3 console/test_fsafe.py` -> `PASSED — 10 fsafe checks green`.
+
+### Findings carried forward from C0-T2 (logged, not absorbed)
+
+10. **`console/test_fsafe.py` is not wired into any runner** — nothing invokes it automatically, so
+    acceptance (e) and (f) are proven once but not *enforced* going forward. **Orchestrator action:**
+    god has added it to the standing Stage C gate and runs it every phase. A permanent fix (wiring it
+    into the canonical runner) is a follow-up card, as it is outside every current allowlist.
+11. **`append()` deliberately extends an already-broken chain** rather than refusing. Rationale: refusing
+    would let one corrupted byte silently stop the ledger from recording the next action. god verified
+    it links to the real tail and the earlier break stays reported at its own index — appending is not
+    repairing, and D4 is not violated. **This is a judgement call on underspecified behavior and is
+    cleanly reversible if the owner prefers refuse-on-broken.**
+12. **Stale `.tmp` debris after SIGKILL.** A SIGKILLed writer cannot clean up, so `atomic_write_text` can
+    leave a `*.tmp` sibling (10 across 12 kills). The target is never torn and no reader ever opens a tmp
+    file, so this is debris, not corruption. No reaper exists. Flagged, not hidden.
+13. **`test_fsafe.py` kill test is timing-sensitive** (sleeps 4-45 ms to land inside a write). On a very
+    fast/slow machine some kills may land outside the write window; the assertion still holds, but the
+    test could weaken silently rather than fail loudly.
+14. `store.index_audit_entry` failure is **non-fatal** in `append()` (the JSONL is already committed, so a
+    derived-index error is surfaced on the returned entry as `_index_error` rather than raised). Surfaced,
+    not swallowed — but a caller ignoring the return value would miss it.
+15. `audit_index` is queryable via `store.query()` but **not** exposed over HTTP — `serve.py` has its own
+    `_STORE_TABLES` map, untouched. Correct for C0 (no UI); C4 must wire it.
+16. **`graphify update .` was not run.** CLAUDE.md asks for it after code changes, but it writes
+    `graphify-out/`, outside every allowlist. Deferred to whoever owns that step.
