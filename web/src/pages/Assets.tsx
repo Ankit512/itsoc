@@ -9,10 +9,19 @@ function hasError(v: unknown): v is { error: string } {
   return !!v && typeof v === "object" && "error" in v;
 }
 
-function RiskTag({ atRisk }: { atRisk: boolean }) {
-  return atRisk
-    ? <span className="is-tag is-tag--high">at risk</span>
-    : <span className="is-tag is-tag--info">clean</span>;
+/** Severity-weighted risk tag: shows the highest finding severity touching this
+ *  entity (CRITICAL/HIGH/MEDIUM/LOW), or "clean" when no findings exist. The
+ *  backend already computes maxSeverity; if absent, falls back to the binary
+ *  atRisk flag for backward compatibility. */
+function RiskTag({ atRisk, maxSeverity }: { atRisk: boolean; maxSeverity?: string | null }) {
+  if (!atRisk) return <span className="is-tag is-tag--info">clean</span>;
+  const sev = (maxSeverity || "HIGH").toUpperCase();
+  const cls =
+    sev.startsWith("CRIT") ? "is-tag--crit" :
+    sev.startsWith("HIGH") ? "is-tag--high" :
+    sev.startsWith("MED")  ? "is-tag--med"  :
+                             "is-tag--low";
+  return <span className={`is-tag ${cls}`}>{sev.startsWith("CRIT") ? "CRITICAL" : sev.startsWith("MED") ? "MEDIUM" : sev}</span>;
 }
 
 function AssetsTable({ assets }: { assets: Asset[] }) {
@@ -20,7 +29,7 @@ function AssetsTable({ assets }: { assets: Asset[] }) {
     <div className="is-table-wrap" style={{ overflowX: "auto" }}>
       <table className="is-table">
         <thead>
-          <tr><th>Asset</th><th>Kind</th><th>Events</th><th>Findings</th><th>Risk</th><th>Last seen</th></tr>
+          <tr><th>Asset</th><th>Kind</th><th>Events</th><th>Findings</th><th>Risk</th><th>Score</th><th>Last seen</th></tr>
         </thead>
         <tbody>
           {assets.map((a) => (
@@ -29,7 +38,8 @@ function AssetsTable({ assets }: { assets: Asset[] }) {
               <td style={{ fontSize: 11, textTransform: "uppercase", color: "var(--mut)" }}>{a.kind}</td>
               <td className="is-tnum">{a.events}</td>
               <td className="is-tnum" style={{ fontWeight: 600 }}>{a.findings}</td>
-              <td><RiskTag atRisk={a.atRisk} /></td>
+              <td><RiskTag atRisk={a.atRisk} maxSeverity={a.maxSeverity} /></td>
+              <td className="is-tnum" style={{ color: "var(--mut)" }}>{a.riskScore ?? 0}</td>
               <td className="col-mono">{a.lastSeen ?? "n/a"}</td>
             </tr>
           ))}
@@ -44,7 +54,7 @@ function UsersTable({ users }: { users: UserEntity[] }) {
     <div className="is-table-wrap" style={{ overflowX: "auto" }}>
       <table className="is-table">
         <thead>
-          <tr><th>User</th><th>Events</th><th>Findings</th><th>Risk</th></tr>
+          <tr><th>User</th><th>Events</th><th>Findings</th><th>Risk</th><th>Score</th></tr>
         </thead>
         <tbody>
           {users.map((u) => (
@@ -52,7 +62,8 @@ function UsersTable({ users }: { users: UserEntity[] }) {
               <td className="col-mono">{u.name}</td>
               <td className="is-tnum">{u.events}</td>
               <td className="is-tnum" style={{ fontWeight: 600 }}>{u.findings}</td>
-              <td><RiskTag atRisk={u.atRisk} /></td>
+              <td><RiskTag atRisk={u.atRisk} maxSeverity={u.maxSeverity} /></td>
+              <td className="is-tnum" style={{ color: "var(--mut)" }}>{u.riskScore ?? 0}</td>
             </tr>
           ))}
         </tbody>
@@ -81,15 +92,22 @@ export function Assets() {
 
   const assets = (assetsData as { assets: Asset[] } | undefined)?.assets ?? [];
   const users = hasError(usersData) ? [] : (usersData?.users ?? []);
-  const assetsAtRisk = assets.filter((a) => a.atRisk).length;
-  const usersAtRisk = users.filter((u) => u.atRisk).length;
+  const assetsHighPlus = assets.filter((a) => {
+    const s = (a.maxSeverity || "").toUpperCase();
+    return s.startsWith("CRIT") || s.startsWith("HIGH");
+  }).length;
+  const usersHighPlus = users.filter((u) => {
+    const s = (u.maxSeverity || "").toUpperCase();
+    return s.startsWith("CRIT") || s.startsWith("HIGH");
+  }).length;
 
   return (
     <>
       <div className="is-note">
         <b>Observed entities only — nothing inventoried, nothing assumed.</b> Hosts come from parsed
         events, IPs from finding entities, usernames from event messages and finding titles.{" "}
-        {assetsAtRisk} of {assets.length} asset(s) and {usersAtRisk} of {users.length} user(s) at risk (≥1 finding).
+        {assetsHighPlus} of {assets.length} asset(s) and {usersHighPlus} of {users.length} user(s) at HIGH+ risk.
+        Risk level reflects the highest-severity finding per entity.
       </div>
 
       <div className="is-panel">
