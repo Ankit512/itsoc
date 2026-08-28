@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   House, Bell, TriangleAlert, Antenna, Settings, FileText, Folder,
-  Shield, Monitor, Database, Radar, ShieldAlert, Search, Cable,
+  Shield, Monitor, Database, Radar, Search, Cable,
   Sun, Moon, Upload, RefreshCw, Sparkles, LogOut, CornerDownLeft
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -80,8 +80,7 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
     { id: "nav-reports", label: "Reports", group: "Navigation", icon: FileText, onSelect: () => go("/reports"), keywords: ["export", "pdf", "markdown"] },
     { id: "nav-cases", label: "Cases", group: "Navigation", icon: Folder, onSelect: () => go("/cases"), keywords: ["tracking", "ticket", "workflow"] },
     { id: "nav-history", label: "History (EVTX Store)", group: "Navigation", icon: Database, onSelect: () => go("/history"), keywords: ["sqlite", "evtx", "retention"] },
-    { id: "nav-discovery", label: "Discovery (Nmap)", group: "Navigation", icon: Radar, onSelect: () => go("/discovery"), keywords: ["network", "scan", "hosts"] },
-    { id: "nav-vulnerabilities", label: "Vulnerabilities", group: "Navigation", icon: ShieldAlert, onSelect: () => go("/vulnerabilities"), keywords: ["vuln", "cve", "ports"] },
+    { id: "nav-network", label: "Network (Discovery & Vulns)", group: "Navigation", icon: Radar, onSelect: () => go("/network"), keywords: ["network", "discovery", "vulnerabilities", "nmap", "scan", "cve", "ports"] },
     { id: "nav-enrichment", label: "Enrichment (OTX/AbuseIPDB)", group: "Navigation", icon: Search, onSelect: () => go("/enrichment"), keywords: ["threat intel", "ip", "reputation"] },
     { id: "nav-oem", label: "OEM Engine", group: "Navigation", icon: Cable, onSelect: () => go("/oem"), keywords: ["connectors", "cisco", "api"] },
     { id: "nav-logout", label: "Logout (Honest Reset)", group: "Navigation", icon: LogOut, onSelect: () => go("/logout"), keywords: ["sign out", "clear"] },

@@ -6,8 +6,7 @@ import { Alerts } from "@/pages/Alerts";
 import { Incidents } from "@/pages/Incidents";
 import { ThreatIntel } from "@/pages/ThreatIntel";
 import { Assets } from "@/pages/Assets";
-import { Discovery } from "@/pages/Discovery";
-import { Vulnerabilities } from "@/pages/Vulnerabilities";
+import { Network } from "@/pages/Network";
 import { Enrichment } from "@/pages/Enrichment";
 import { OemEngine } from "@/pages/OemEngine";
 import { History } from "@/pages/History";
@@ -45,8 +44,9 @@ export default function App() {
           <Route path="incidents" element={<Incidents />} />
           <Route path="threat-intel" element={<ThreatIntel />} />
           <Route path="assets" element={<Assets />} />
-          <Route path="discovery" element={<Discovery />} />
-          <Route path="vulnerabilities" element={<Vulnerabilities />} />
+          <Route path="network" element={<Network />} />
+          <Route path="discovery" element={<Network defaultTab="discovery" />} />
+          <Route path="vulnerabilities" element={<Network defaultTab="vulnerabilities" />} />
           <Route path="enrichment" element={<Enrichment />} />
           <Route path="oem" element={<OemEngine />} />
           <Route path="history" element={<History />} />
