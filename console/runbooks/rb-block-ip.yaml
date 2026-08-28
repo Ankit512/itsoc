@@ -1,0 +1,50 @@
+{
+  "id": "rb-block-ip",
+  "name": "Block source IP at the perimeter",
+
+  "trigger": {
+    "rule_ids": ["auth_bruteforce", "auth_bruteforce_success", "possible_break_in"],
+    "entity_types": ["ip"]
+  },
+
+  "preconditions": {
+    "required_evidence": [
+      "entity",
+      "entity_kind:ip",
+      "record_refs",
+      "timestamps",
+      "occurrences"
+    ]
+  },
+
+  "steps": [
+    {
+      "type": "action",
+      "connector": "firewall",
+      "params_template": {
+        "operation": "deny",
+        "address": "{{incident.entity}}",
+        "direction": "inbound",
+        "ttl_minutes": 240,
+        "comment": "ITSOC {{incident.id}} - rule verdict {{incident.rules}}"
+      },
+      "rollback": {
+        "operation": "allow",
+        "address": "{{incident.entity}}",
+        "note": "remove the deny rule created by this step"
+      }
+    },
+    {
+      "type": "notify_draft",
+      "connector": "notify",
+      "params_template": {
+        "channel": "soc-actions",
+        "subject": "Blocked {{incident.entity}} ({{incident.id}})",
+        "body": "Source {{incident.entity}} was denied at the perimeter. Evidence: records {{incident.record_refs}}, {{incident.firstSeen}} to {{incident.lastSeen}}."
+      },
+      "rollback": null
+    }
+  ],
+
+  "severity_floor": "HIGH"
+}

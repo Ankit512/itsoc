@@ -4525,6 +4525,221 @@ def check_bruteforce_series():
     return 0 if all(results) else 1
 
 
+def check_runbooks():
+    """Stage C C0-T1 — the declarative runbook schema and the STRUCTURAL
+    eligibility engine (console/runbooks.py).
+
+    The load-bearing assertion here is the NO-OVERRIDE PROPERTY of guardrail 1:
+    rules own eligibility and the LLM can never be an eligibility input. That is
+    checked against the REAL `inspect.signature(runbooks.eligible)` — parameters
+    exactly (runbook, incident, findings), no *args, no **kwargs, no advisory
+    name — so an advisory signal cannot be passed, not merely should not be.
+    A companion behavioural check mutates every LLM field on the findings and
+    asserts the verdict is byte-identical.
+
+    Also asserted: both shipped runbooks load and validate; schema violations
+    raise rather than being coerced; an unmet precondition produces a `missing`
+    list that NAMES what is absent; and an incident matching nothing returns an
+    honest empty list rather than a default-to-eligible.
+    """
+    print("\nRunbooks — schema + structural eligibility (rules own eligibility; LLM can never be an input):")
+    sys.path.insert(0, str(HERE))
+    import runbooks
+    results = []
+
+    def check(label, cond, detail=""):
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + (f"  ({detail})" if detail and not cond else ""))
+        results.append(bool(cond))
+
+    # ---- a) the no-override property, proved on the live signature ----------
+    sig = inspect.signature(runbooks.eligible)
+    names = tuple(sig.parameters)
+    check("eligible() signature is exactly (runbook, incident, findings)",
+          names == ("runbook", "incident", "findings"), str(sig))
+    kinds = [p.kind for p in sig.parameters.values()]
+    check("eligible() declares no *args and no **kwargs — an advisory argument "
+          "cannot be smuggled in under any name",
+          inspect.Parameter.VAR_POSITIONAL not in kinds
+          and inspect.Parameter.VAR_KEYWORD not in kinds, str(sig))
+    advisory_word = re.compile(r"llm|advisory|narrative|hypoth|explan|model|prose|summary|rca",
+                               re.IGNORECASE)
+    check("no eligible() parameter name reads as an LLM/advisory/narrative input",
+          not any(advisory_word.search(n) for n in names), str(names))
+    try:
+        runbooks.assert_no_llm_input()
+        check("runbooks.assert_no_llm_input() agrees (same signature, checked at runtime)", True)
+    except AssertionError as exc:
+        check("runbooks.assert_no_llm_input() agrees (same signature, checked at runtime)",
+              False, str(exc))
+    check("the rule-owned projection allowlists never overlap the advisory keys",
+          not (runbooks.RULE_OWNED_INCIDENT_KEYS | runbooks.RULE_OWNED_FINDING_KEYS)
+          & runbooks.ADVISORY_KEYS)
+
+    # ---- shipped runbooks load and validate --------------------------------
+    rbs = runbooks.load_runbooks()
+    check("exactly the two shipped runbooks load",
+          sorted(rbs) == ["rb-block-ip", "rb-draft-notify"], str(sorted(rbs)))
+    for rid, rb in rbs.items():
+        check(f"{rid} validates against the schema",
+              runbooks.validate_runbook(rb) is rb)
+        check(f"{rid} declares every schema field",
+              set(rb) == {"id", "name", "trigger", "preconditions", "steps", "severity_floor"},
+              str(sorted(rb)))
+        check(f"{rid} steps are only action|notify_draft with connector/params_template/rollback",
+              all(s["type"] in runbooks.STEP_TYPES and "connector" in s
+                  and "params_template" in s and "rollback" in s for s in rb["steps"]))
+    check("rb-draft-notify drafts only — it declares no action step",
+          all(s["type"] == "notify_draft" for s in rbs["rb-draft-notify"]["steps"]))
+    check("rb-block-ip carries a real rollback on its action step",
+          isinstance(rbs["rb-block-ip"]["steps"][0]["rollback"], dict))
+
+    # ---- c) schema violations are rejected honestly, never coerced ---------
+    import copy
+    def rejects(label, mutate):
+        bad = copy.deepcopy(rbs["rb-block-ip"])
+        mutate(bad)
+        try:
+            runbooks.validate_runbook(bad)
+        except runbooks.RunbookError:
+            check(label, True)
+            return
+        check(label, False, "accepted an invalid runbook")
+
+    rejects("missing field rejected (not defaulted)", lambda d: d.pop("severity_floor"))
+    rejects("unknown top-level field rejected", lambda d: d.update({"escalate": True}))
+    rejects("bad severity_floor rejected (not coerced)",
+            lambda d: d.update({"severity_floor": "SEVERE"}))
+    rejects("unknown step type rejected", lambda d: d["steps"][0].update({"type": "execute"}))
+    rejects("step missing rollback rejected (absent != safe)",
+            lambda d: d["steps"][0].pop("rollback"))
+    rejects("wrong type for trigger.rule_ids rejected",
+            lambda d: d["trigger"].update({"rule_ids": "auth_bruteforce"}))
+    rejects("empty trigger.rule_ids rejected (a runbook that could never fire)",
+            lambda d: d["trigger"].update({"rule_ids": []}))
+    rejects("extra field inside trigger rejected",
+            lambda d: d["trigger"].update({"llm_hint": "block it"}))
+
+    # ---- the fixtures: real incident/finding shape (soc.derive_incidents) ---
+    def _finding(fid, typ, sev, n, host="LabSZ", occ=6):
+        return {"id": fid, "type": typ, "sev": sev, "ruleSev": sev, "host": host,
+                "occurrences": occ, "lines": [{"n": n, "a": "Dec 24 11:03:53 LabSZ sshd[1]: x"}],
+                "llmSev": None, "llmWhy": None, "explanation": ""}
+
+    inc_ok = {"id": "inc-aaa", "entity": "203.0.113.44", "entityKind": "ip",
+              "severity": "CRITICAL", "findingIds": ["detector-0"],
+              "firstSeen": "2025-12-24T11:03:53+00:00",
+              "lastSeen": "2025-12-24T11:19:02+00:00"}
+    f_ok = [_finding("detector-0", "auth_bruteforce", "CRITICAL", 1869)]
+
+    v = runbooks.eligible(rbs["rb-block-ip"], inc_ok, f_ok)
+    check("a triggering, fully-evidenced CRITICAL ip incident is eligible for rb-block-ip",
+          v == {"eligible": True, "missing": []}, str(v))
+
+    # ---- the no-override property, behaviourally ---------------------------
+    f_llm = [dict(f, llmSev="CRITICAL", llmWhy="the model says block this now",
+                  explanation="model prose", hypothesis="model prose", rca="model prose")
+             for f in f_ok]
+    inc_llm = dict(inc_ok, llmSev="CRITICAL", hypothesis="model prose",
+                   explanation="model prose", advisory="escalate")
+    check("advisory fields on the incident and findings change nothing — "
+          "they are projected out before any predicate runs",
+          runbooks.eligible(rbs["rb-block-ip"], inc_llm, f_llm) == v)
+    inc_low = dict(inc_ok, severity="LOW")
+    f_low = [dict(f, sev="LOW", ruleSev="LOW", llmSev="CRITICAL",
+                  llmWhy="model wants to escalate this") for f in f_ok]
+    low_v = runbooks.eligible(rbs["rb-block-ip"], inc_low, f_low)
+    check("an LLM 'CRITICAL' cannot lift a LOW incident over the severity floor",
+          low_v["eligible"] is False
+          and any("severity_floor" in m and "LOW" in m for m in low_v["missing"]),
+          str(low_v))
+    inc_hi = dict(inc_ok, severity="CRITICAL")
+    f_hi = [dict(f, llmSev="INFO", llmWhy="model says benign") for f in f_ok]
+    check("an LLM 'INFO' cannot suppress an otherwise eligible incident",
+          runbooks.eligible(rbs["rb-block-ip"], inc_hi, f_hi)["eligible"] is True)
+
+    # ---- b) missing-evidence path names what is absent ---------------------
+    inc_bare = {"id": "inc-bbb", "entity": "203.0.113.44", "entityKind": "ip",
+                "severity": "CRITICAL", "findingIds": ["detector-9"],
+                "firstSeen": None, "lastSeen": None}
+    f_bare = [{"id": "detector-9", "type": "auth_bruteforce", "sev": "CRITICAL",
+               "lines": [], "occurrences": 0}]
+    m = runbooks.eligible(rbs["rb-block-ip"], inc_bare, f_bare)
+    check("no record {n} refs, no timestamps, no occurrences -> ineligible", m["eligible"] is False)
+    check("missing names record_refs explicitly",
+          "required_evidence: record_refs" in m["missing"], str(m["missing"]))
+    check("missing names timestamps explicitly",
+          "required_evidence: timestamps" in m["missing"], str(m["missing"]))
+    check("missing names occurrences explicitly",
+          "required_evidence: occurrences" in m["missing"], str(m["missing"]))
+    check("missing is a list of strings, one per unmet requirement",
+          isinstance(m["missing"], list) and all(isinstance(x, str) for x in m["missing"])
+          and len(m["missing"]) == 3, str(m["missing"]))
+
+    # every precondition unmet at once — nothing is invented, nothing defaults true
+    inc_empty = {"id": "inc-ccc", "entity": "", "entityKind": None,
+                 "severity": None, "findingIds": []}
+    allmiss = runbooks.eligible(rbs["rb-block-ip"], inc_empty, [])
+    check("an incident with no evidence at all is ineligible, never default-eligible",
+          allmiss["eligible"] is False)
+    check("every unmet requirement is named: trigger, entity type, severity, all 5 evidence keys",
+          len(allmiss["missing"]) == 8
+          and any(x.startswith("trigger.rule_ids") for x in allmiss["missing"])
+          and any(x.startswith("trigger.entity_types") for x in allmiss["missing"])
+          and any(x.startswith("severity_floor") for x in allmiss["missing"])
+          and sum(x.startswith("required_evidence") for x in allmiss["missing"]) == 5,
+          str(allmiss["missing"]))
+    check("the unknown-severity case says so rather than assuming a severity",
+          any("severity is unknown" in x for x in allmiss["missing"]), str(allmiss["missing"]))
+
+    # ---- trigger mismatch --------------------------------------------------
+    inc_wrong = dict(inc_ok, entityKind="host", entity="LabSZ")
+    f_wrong = [_finding("detector-0", "error_rate_spike", "CRITICAL", 12)]
+    w = runbooks.eligible(rbs["rb-block-ip"], inc_wrong, f_wrong)
+    check("a non-triggering rule is named in missing, with the rules the incident does have",
+          any(x.startswith("trigger.rule_ids") and "error_rate_spike" in x for x in w["missing"]),
+          str(w["missing"]))
+    check("a wrong entity kind is named in missing",
+          any(x.startswith("trigger.entity_types") and "host" in x for x in w["missing"]),
+          str(w["missing"]))
+
+    # ---- evidence keys are computed from rule output only ------------------
+    keys = runbooks.evidence_keys(inc_ok, f_ok)
+    check("evidence keys are the rule-derived vocabulary, record {n} refs included",
+          {"entity", "entity_kind:ip", "record_refs", "timestamps", "occurrences",
+           "host", "rule_verdict:auth_bruteforce"} == keys, str(sorted(keys)))
+    check("a finding not in findingIds contributes no evidence",
+          "rule_verdict:port_scan" not in runbooks.evidence_keys(
+              inc_ok, f_ok + [_finding("other-1", "port_scan", "HIGH", 5)]))
+
+    # ---- honest empty: an incident matching NO runbook ---------------------
+    inc_none = {"id": "inc-ddd", "entity": "LabSZ", "entityKind": "host",
+                "severity": "INFO", "findingIds": ["detector-7"],
+                "firstSeen": None, "lastSeen": None}
+    f_none = [{"id": "detector-7", "type": "some_unmapped_rule", "sev": "INFO", "lines": []}]
+    matched = runbooks.match_runbooks(inc_none, f_none, rbs)
+    check("an incident matching no runbook returns [] — empty is empty, no fallback runbook",
+          matched == [], str(matched))
+    ev = runbooks.evaluate_all(inc_none, f_none, rbs)
+    check("evaluate_all still explains why each runbook did not match",
+          set(ev) == set(rbs) and all(v["eligible"] is False and v["missing"] for v in ev.values()),
+          str(ev))
+    check("match_runbooks over the eligible incident names only what really matched",
+          runbooks.match_runbooks(inc_ok, f_ok, rbs) == ["rb-block-ip", "rb-draft-notify"],
+          str(runbooks.match_runbooks(inc_ok, f_ok, rbs)))
+    check("no runbooks on disk -> {} and no matches, not an invented default",
+          runbooks.load_runbooks(HERE / "no-such-runbook-dir") == {}
+          and runbooks.match_runbooks(inc_ok, f_ok, {}) == [])
+
+    # ---- eligible() itself rejects an invalid runbook rather than guessing --
+    try:
+        runbooks.eligible({"id": "x"}, inc_ok, f_ok)
+        check("eligible() on a malformed runbook raises rather than answering", False)
+    except runbooks.RunbookError:
+        check("eligible() on a malformed runbook raises rather than answering", True)
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -4587,18 +4802,19 @@ def main():
     auth_ = check_auth()
     askview_ = check_ask_view()
     bfseries_ = check_bruteforce_series()
+    runbooks_ = check_runbooks()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
-            or askview_ or bfseries_):
+            or askview_ or bfseries_ or runbooks_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
-          "+ ask-view + bruteforce-series checks green")
+          "+ ask-view + bruteforce-series + runbooks checks green")
     return 0
 
 

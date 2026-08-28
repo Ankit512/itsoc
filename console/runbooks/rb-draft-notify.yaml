@@ -1,0 +1,44 @@
+{
+  "id": "rb-draft-notify",
+  "name": "Draft a notification for analyst review",
+
+  "trigger": {
+    "rule_ids": [
+      "auth_bruteforce",
+      "auth_bruteforce_success",
+      "possible_break_in",
+      "generic_auth_failure",
+      "infra_linux_critical",
+      "infra_linux_high",
+      "critical_service_event",
+      "error_rate_spike"
+    ],
+    "entity_types": ["ip", "user", "host"]
+  },
+
+  "preconditions": {
+    "required_evidence": [
+      "entity",
+      "record_refs"
+    ]
+  },
+
+  "steps": [
+    {
+      "type": "notify_draft",
+      "connector": "notify",
+      "params_template": {
+        "channel": "soc-review",
+        "subject": "{{incident.severity}} - {{incident.entity}} ({{incident.id}})",
+        "body": "Rule verdicts: {{incident.rules}}. Evidence: records {{incident.record_refs}}. Draft only - no action taken.",
+        "requires_review": true
+      },
+      "rollback": {
+        "operation": "discard_draft",
+        "note": "delete the unsent draft"
+      }
+    }
+  ],
+
+  "severity_floor": "LOW"
+}
