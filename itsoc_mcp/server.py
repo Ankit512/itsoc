@@ -165,6 +165,45 @@ TOOLS = [
         "handler": lambda client, args: tools.threat_intel_lookup(
             client, ip=args.get("ip", ""), bundle_path=args.get("bundle_path")),
     },
+    {
+        "name": "propose_block_ip",
+        "description": (
+            "Propose a perimeter IP block action for an incident by creating a PENDING "
+            "approval record in the backend console. Proposal creation ONLY: this tool "
+            "has ZERO authority to approve, execute, or revoke actions. Human-in-the-loop "
+            "step-up authentication on the console is strictly required before any action "
+            "can be approved or executed."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "incident_id": {
+                    "type": "string",
+                    "description": "Incident ID (e.g. 'INC-4a7f') from findings or incident list.",
+                },
+                "runbook_id": {
+                    "type": "string",
+                    "description": "Runbook definition ID (default: 'rb-block-ip').",
+                    "default": "rb-block-ip",
+                },
+                "ip": {
+                    "type": "string",
+                    "description": "Optional IPv4 address to verify against incident entity.",
+                },
+                "note": {
+                    "type": "string",
+                    "description": "Optional analyst proposal rationale.",
+                },
+            },
+            "required": ["incident_id"],
+        },
+        "handler": lambda client, args: tools.propose_block_ip(
+            client,
+            incident_id=args.get("incident_id", ""),
+            runbook_id=args.get("runbook_id", "rb-block-ip"),
+            ip=args.get("ip"),
+            note=args.get("note"),
+        ),
+    },
 ]
 
 _BY_NAME = {t["name"]: t for t in TOOLS}

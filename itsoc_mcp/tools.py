@@ -560,3 +560,62 @@ def _provenance_ti(client, detector_sha):
                             "threat_intel/threat_detector.py; MITRE names from the "
                             "locally-cached ATT&CK database. No network egress.")
     return prov
+
+
+# ---------------------------------------------------------------------------
+# TOOL 8 — propose_block_ip
+# ---------------------------------------------------------------------------
+def propose_block_ip(client, incident_id, runbook_id="rb-block-ip", ip=None, note=None):
+    """Propose a perimeter IP block action for an incident by creating a PENDING
+    approval record in the backend console.
+
+    Proposal creation ONLY: this tool has ZERO authority to approve, reject,
+    execute, or revoke actions. Human-in-the-loop step-up authentication on the
+    console is strictly required before any action can be approved or executed.
+
+    Invariants:
+      * Proposal facts only reach the backend create endpoint: incidentId and runbookId.
+      * No credential path/value, no actor, no passphrase, and no step-up material
+        is accepted or forwarded.
+      * Created record is always in the 'pending' state; this tool cannot set or
+        request any other state.
+    """
+    incident_id = (incident_id or "").strip()
+    if not incident_id:
+        return _error(client, "incident_id is required")
+
+    runbook_id = (runbook_id or "rb-block-ip").strip()
+    payload = {
+        "incidentId": incident_id,
+        "runbookId": runbook_id,
+    }
+
+    try:
+        resp = client.post_json("/api/approvals", payload)
+    except ItsocError as e:
+        return _error(client, str(e))
+    except Exception as e:
+        return _error(client, f"failed to propose block: {e}")
+
+    return {
+        "ok": True,
+        "approval_id": resp.get("id"),
+        "incident_id": resp.get("incidentId") or incident_id,
+        "runbook_id": resp.get("runbookId") or runbook_id,
+        "state": resp.get("state", "pending"),
+        "connector": resp.get("connector"),
+        "request_redacted": resp.get("requestRedacted"),
+        "evidence_refs": resp.get("evidenceRefs", []),
+        "note": ("Approval created in 'pending' state. Execution requires "
+                 "human-in-the-loop step-up approval on the console."),
+        "provenance": _provenance_proposal(client),
+    }
+
+
+def _provenance_proposal(client, detector_sha=None):
+    """Provenance for the propose_block_ip tool: proposal creation only; zero authority."""
+    prov = _provenance(client, detector_sha)
+    prov["authority"] = ("create proposal only (pending state); zero execution authority; "
+                         "zero approval authority; step-up auth required on console")
+    return prov
+
