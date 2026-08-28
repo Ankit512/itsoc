@@ -906,3 +906,33 @@ HEAD is not `main`**. That guard is now standard for every integration merge.
 This is the second time the shared integration checkout has caused a real incident (see OPEN-10). Worker
 worktrees are isolated and were unaffected both times; the exposure is entirely in the orchestrator's own
 checkout.
+
+## Phase C3 — Gated response (in progress)
+
+### C3-T1 · Action connector layer + nftables-over-SSH + demo target — ACCEPTED
+- Commit `e646ac8` on `stage-c/c3-gated-response`. Worker: Toby.
+- Verified by the orchestrator by running, not by reading the report:
+  - Redaction: `preview()` for `203.0.113.44` renders
+    `nft add element inet itsoc blacklist '{ [IP-1] comment "itsoc:appr-a1" }'`;
+    the raw IP is absent from the whole preview dict. Unredacted values reach only the SSH pipe.
+  - Private-key-as-text is rejected at `console/actions/ssh_firewall.py:140`, inside `execute()`.
+  - Container: `--cap-add=NET_ADMIN` only, `-p 127.0.0.1:<port>:22`, default seccomp,
+    no `--privileged`, no `--net=host`, no Docker socket mount.
+  - Gate: eval 19/19 f1 1.000; all python suites green; web 144/144; detector sha unchanged.
+- **BLOCKED acceptance item:** live end-to-end nftables block. Docker daemon is not running (OPEN-9).
+  Recorded as BLOCKED, not as passed.
+
+### Ops notes on C3-T1
+- Orchestrator error, self-corrected: private-key rejection was first probed against `preview()`,
+  which never touches the key, and was nearly reported as a security gap. The check was wrong,
+  not the code.
+- Worker report imprecision: "no host filesystem mounts" — `run.sh` performs a single-file
+  read-only bind of the **public** key. Design is sound; the claim was not exact.
+- Guardrail refined rather than enforced as written: the host-mount prohibition targets socket
+  mounts, host directory mounts, and writable mounts. A read-only public-key file bind is
+  permitted and preferred over baking a key into the image.
+
+### In flight
+- **C3-T2** (Pam) — approvals API + per-action step-up auth per D3, on `stage-c/c3-gated-response`.
+- **C3-T2b** (Jim) — `console/ti_oem.py` egress redaction gap (OPEN-5), on `fix/c3-tioem-egress-redact`.
+- Held pending T2's API: C3-T3 gated MCP `propose_block_ip`, C3-T4 copilot recommendation.
