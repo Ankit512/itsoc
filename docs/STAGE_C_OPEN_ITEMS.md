@@ -181,7 +181,7 @@ fixtures — at minimum one incident-less case and one multi-incident-linked cas
 acceptance that passes vacuously against an empty store proves nothing. The owner credited Pam's
 read-only reconnaissance for surfacing the distinction between "found none" and "handled none".
 
-## OPEN-5 — NEW, raised 2026-08-28 by Pam's C3 inventory. Not blocking C1.
+## OPEN-5 — RECLASSIFIED 2026-08-28 by owner: a POINTER, not a deviation. Stays open, non-gating.
 Two C3 findings worth the owner's awareness now rather than at C3. First, per-action step-up auth does
 not exist: the auth surface is session and token only, so D3's "step-up required every time, no session
 grace" needs new plumbing. The right primitive already exists — _verify_passphrase at auth.py:49-67,
@@ -189,3 +189,55 @@ constant-time via hmac.compare_digest — but it is module-private and wired to 
 only caller and it also mints a session. Second, and more serious: redact.py currently covers only the
 LLM path. Connector request bodies bypass it entirely, masked today only by an off-by-default fence.
 Guardrail 4 requires all egress through redact.py, so C3 must close this rather than inherit it.
+
+
+# Ruling record — 2026-08-28 (second batch)
+
+## C1 merge gate — DECLINED as premature, by design
+Owner: C1-T1 is the first card of an in-progress phase; merging the phase branch now would land partial
+phase work on main. Under autonomous mode the phase branch auto-merges **at phase completion**, when
+acceptance is fully green with zero tripwires and zero unratified deviations — **not per card**. a8fa7ae
+stays on the branch; the sequence continues T2 -> fan-out -> T6. Orchestrator note: this corrects my
+framing — I had offered a per-card gate, which was the wrong unit.
+
+## oob/at-risk-nuance — MERGED (owner-approved)
+Suite verified green on the branch first (eval 17/17 f1 1.000, console PASSED, fsafe PASSED, intake 4/4,
+itsoc_mcp 93/0, threat_intel 0 failures/3 skips, vitest 107/107, build clean, detector frozen). Merged
+no-ff to main as **`63e201d`** with the carded message. Then main was brought forward into the phase
+branch as **`88b5d96`** so C1 tracks current reality before T2 proceeds; gate re-run green there.
+
+## Pam's lifecycle deferral — APPROVED
+`pending-approval` and `contained` belong to C3/C4 flows; `closed` would have forced a `metrics()` edit
+outside her card. Deferring was correct scope discipline, and preserving the analyst lifecycle verbatim
+as `caseStatus` means nothing was lost. **The three states are now added explicitly to the C3 and C4
+card inventories**, so the deferral has a named landing site rather than being a hope.
+
+## Worktrees — ADOPTED before any further dispatch
+One worktree per active worker; orchestrator owns lifecycle (create at dispatch, prune at close);
+migration/store-touching cards run **exclusive**; the branch pre-check stays, now per worktree. Written
+into `hive/stage-c/GUARDRAILS.md`. Live: `log-analyzer-wt/pam-c1-t2` (phase branch) and
+`log-analyzer-wt/oscar-readonly` (detached — an accidental commit is impossible). The orchestrator's own
+checkout at `~/Projects/log-analyzer` is now integration-only.
+
+## OPEN-5 — RECLASSIFIED as a pointer, and one REAL finding the owner asked for
+The owner's reclassification is correct: per-action step-up not existing, and connector bodies not being
+redact-routed, are **what C3 exists to build**, not deviations. OPEN-5 stays as a pointer and closes when
+C3's acceptance proves both.
+
+**But the owner asked specifically whether any CURRENT egress path ships connector-like bodies
+un-redacted today. It does.** `console/ti_oem.py:_http_request` (lines ~303-310) accepts a `data=` body,
+encodes it, and sends it via `urllib.request.urlopen` — and **`ti_oem.py` does not import `redact.py` at
+all** (grep is clean). Its consumer is the Check Point Management API connector (`_checkpoint_poll`:
+login -> show-logs -> logout), so the body it posts is a **login containing credentials**. Connectors are
+gated behind an `enabled` flag and are off by default, so nothing is egressing today unless a user
+enables one — but the code path is live and shipping, not hypothetical. This is a **pre-existing
+guardrail-4 gap in the OEM connector**, distinct from the C3 work, and it is the thing the owner said
+"that's different — say so."
+
+## Defect 5 (mislabelled metric) — logged so it cannot slip
+`console/soc.py:793` exposes `mttdSeconds`, which is actually **MTTA** (`acknowledgedAt - createdAt`).
+An honestly-mislabelled metric is still a dishonest surface. A one-line rename is **folded into C5's KPI
+card inventory** and recorded here so it cannot be lost between phases.
+
+## Defect 4 (fabricated revocation date in the doctored cache) — disclosure sufficient
+Header disclosure stands; a clean checked-in ATT&CK fixture remains parked with future TI work.
