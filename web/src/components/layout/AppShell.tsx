@@ -25,7 +25,7 @@ export const CORE_NAV = [
   { to: "/", label: "Overview", icon: House, ready: true },
   { to: "/alerts", label: "Findings", icon: Bell, ready: true },
   { to: "/incidents", label: "Incidents", icon: TriangleAlert, ready: true },
-  { to: "/collectors", label: "Sources", icon: Antenna, ready: true },
+  { to: "/sources", label: "Sources", icon: Antenna, ready: true },
   { to: "/settings", label: "Settings", icon: Settings, ready: true },
 ] as const;
 
