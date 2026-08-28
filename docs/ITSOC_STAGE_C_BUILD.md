@@ -9,7 +9,7 @@ _Read `CLAUDE.md` first. Every non-negotiable applies. Detector stays at sha `36
 
 | # | Question | Decision |
 |---|----------|----------|
-| D1 | Reference write-connector | **OPNsense firewall** via its REST API (key/secret token auth over HTTPS — satisfies the cert/token principle; runs in a VM for demos). Connector interface is abstract (`console/actions/base.py`) so an iptables-over-SSH adapter can follow without core changes. First action: **block IP / unblock IP** on a named alias. |
+| D1 | Reference write-connector | **iptables/nftables-over-SSH** against a local **Docker demo target** (stock Debian/Alpine container running sshd + nftables with `NET_ADMIN`; SSH **key** auth — satisfies the cert/token principle; disposable/resettable between demo runs). Connector interface is abstract (`console/actions/base.py`: `preview()`/`execute()`/`revoke()`); runbooks bind connectors by name, so an **OPNsense REST adapter is the designated follow-on** — added when a design partner (or demo optics) calls for it, with zero changes to approvals, audit, eligibility, or UI. First action: **block IP / unblock IP** (dedicated nft chain, rules tagged for clean revoke). _[Amended from OPNsense-first by owner ruling, Aug 2026 — provisioning-effort trade; swappability preserved by construction.]_ |
 | D2 | Advisory latency | **qwen3:8b stays the default narrator** (post-Phase-4 fixes + `reasoning_effort=none` + json_schema). Investigation agents run **parallel, bounded concurrency 3, per-agent timeout 45s**. Deterministic case assembly NEVER waits on the LLM: advisory sections render "ADVISORY · pending" then fill or honestly time out ("ADVISORY · timed out — retry"). Settings gains an optional "fast narration model" field (advisory-path only). |
 | D3 | Auth for approvals | **Step-up gate on the Approvals surface only.** App stays ungated (design-v3 decision holds). Approving/rejecting any action requires re-entering the Phase-6 scrypt passphrase (the `auth.ts` swap-seam); the verified identity is stamped into the audit entry. No approval without an authenticated actor, ever. |
 | D4 | Audit store | **Append-only hash-chained JSONL** written through `fsafe.py` (`console/.soc/audit/chain.jsonl`; each entry carries `prev_hash`, `entry_hash` = sha256 of canonical JSON + prev). A derived **sqlite index** in `store.py` for querying/UI. The JSONL chain is the source of truth; `verify_chain()` runs on read and any break renders an honest "CHAIN BROKEN at entry N" banner — never silently re-chain. |
@@ -70,15 +70,15 @@ Branch `stage-c/c2-investigation`.
 
 Acceptance: INC-4a7f case assembles < 2 min; ≥ 95% advisory citation coverage measured by the guard; kill-the-LLM test → deterministic file still complete, advisory shows honest timeout; priority never mutates severity (test).
 
-### Phase C3 — Gated response: approvals + OPNsense connector
+### Phase C3 — Gated response: approvals + SSH-firewall connector
 Branch `stage-c/c3-gated-response`.
 
-1. **Action layer**: `console/actions/base.py` (abstract connector: `preview()`, `execute()`, `revoke()`), `console/actions/opnsense.py` per D1. All request bodies pass `console/redact.py` before logging/preview. Key/secret from local config — never CLI args, never logged.
+1. **Action layer**: `console/actions/base.py` (abstract connector: `preview()`, `execute()`, `revoke()`), `console/actions/ssh_firewall.py` per D1 (nftables over SSH, key auth; key path from local config — never CLI args, never logged; command previews pass `console/redact.py`). `console/actions/opnsense.py` is the designated follow-on adapter behind the same interface (not in this phase).
 2. **Approval flow** (`/api/approvals`): create-on-recommend, approve/reject with **step-up auth** per D3 (server verifies the scrypt passphrase per action; identity stamped into the audit entry). Approve → execute → append `executed|failed` with verbatim connector response. Failed = FAILED state + revoke offered where applicable; never fake-contained.
 3. **Gated MCP write tool**: `itsoc_mcp` gains `propose_block_ip` — creates a *pending approval only*; the MCP layer cannot execute. Document in `itsoc_mcp/PUBLISHING.md` provenance.
 4. AI copilot may *recommend* among **eligible** runbooks and draft justifications; recommendation payloads are advisory-typed and carry no executable handle.
 
-Acceptance: end-to-end on a live OPNsense VM (block → audit entry with real response → unblock); rejection path audited; step-up required every time (no session grace in v1); tamper test breaks the chain banner; attempting to execute an ineligible runbook via raw API returns 409 with missing-evidence body.
+Acceptance: end-to-end against the live Docker demo target (block → nft ruleset shows the rule + audit entry with verbatim command output → unblock/revoke removes it); rejection path audited; step-up required every time (no session grace in v1); tamper test breaks the chain banner; attempting to execute an ineligible runbook via raw API returns 409 with missing-evidence body.
 
 ### Phase C4 — UI: Response rail + Approvals screen (design changes)
 Branch `stage-c/c4-response-ui`. All at design-v3 fidelity; extend `TOKENS.md`/`itsoc-design-system.css` — do not fork styles.
@@ -102,7 +102,7 @@ Acceptance: approval control exists in exactly one component; both themes; keybo
 ### Phase C5 — Demo hardening + collector back-pressure
 Branch `stage-c/c5-demo`.
 
-1. **Torq-comparison scenario**: script the full arc on sample data — brute-force INC-4a7f fires → investigation file assembles → `rb-block-ip` recommended → approve (step-up) → OPNsense blocks 203.0.113.44 → audit export. Target: **under 5 minutes wall-clock with the human gate included**. Record the timing honestly in the demo notes (real number, not the target).
+1. **Torq-comparison scenario**: script the full arc on sample data — brute-force INC-4a7f fires → investigation file assembles → `rb-block-ip` recommended → approve (step-up) → the demo target's firewall blocks 203.0.113.44 (live `nft list` shown) → audit export. Target: **under 5 minutes wall-clock with the human gate included**. Record the timing honestly in the demo notes (real number, not the target).
 2. **Collector back-pressure**: bounded queue + honest counters (`ingested / dropped / lagging`) surfaced on Sources; drops are counted and shown, never silent.
 3. **Battle card** (`docs/BATTLECARD_TORQ.md`): concede orchestration breadth; win on verdict trust, sovereignty, provable gating; cite the Cyber Defense Benchmark ~3.8% figure and the under-5-min-with-approval demo.
 4. KPI panel (P1): MTTD/MTTA/time-to-approval/time-to-contain from real timestamps; `n/a` without priors.
@@ -119,7 +119,7 @@ Three worker tiers execute this document. The owner (or the orchestrating sessio
 - All of **C0** (eligibility engine, audit chain, TI severity/auth fixes — trust-model core, no exceptions).
 - C1 backend migrations (cases→incidents, store changes) and route aliasing.
 - All of **C2** (investigation pipeline, advisory-agent orchestration, `explanation_guard` integration, org-context rules).
-- All of **C3** (action layer, OPNsense connector, step-up auth, MCP write tool — everything that can touch the outside world).
+- All of **C3** (action layer, SSH-firewall connector, step-up auth, MCP write tool — everything that can touch the outside world).
 - C4 components that carry security semantics: `is-approval-modal`, `is-audit-timeline`, the rail's no-approve constraint and its tests.
 - Any change involving `redact.py`, `fsafe.py`, `store.py` schema, `explanation_guard.py`, auth, or anything within one import of `anomaly_detector.py`.
 
@@ -132,7 +132,7 @@ Three worker tiers execute this document. The owner (or the orchestrating sessio
 
 **Gemini — light-to-medium work.** Self-contained, spec-bounded, low-blast-radius, single-unit tasks:
 - Singleton screen tweaks and nav reduction where the composition already exists at design-v3 fidelity.
-- The D5 runbook terminology sweep; page-subtitle updates; copy changes.
+- The D5 "playbook→runbook" terminology sweep; page-subtitle updates; copy changes.
 - Presentational polish without security semantics: Reports export line, empty states, both-theme passes on individual screens.
 - C5 documentation work: battle card draft, demo notes; KPI panel display wiring (calculation itself is C2/Claude Code).
 - Sample-data preparation, honest-state copy review.

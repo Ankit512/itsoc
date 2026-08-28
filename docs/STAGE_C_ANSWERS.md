@@ -9,14 +9,25 @@ Everything stays local. Nothing reaches GitHub during this run. Owner reaffirmed
 "The two unpushed local commits are acknowledged; stacking Stage C on them is fine and consistent
 with the never-push default." Stage C branches stack on local `main` (2 commits ahead of `origin/main`).
 
-**Q2 · OPNsense VM (Phase C3) — OPEN.**
-Not answered at kickoff. Not required until C3. The orchestrator will STOP and re-ask before C3 begins.
-If still unanswered then, C3 builds against the abstract connector with a mock and the live end-to-end
-acceptance item is marked **BLOCKED — VM required** (never claimed as passed).
+**Q2 · Reference write-connector — ANSWERED 2026-08-28. NOT an OPNsense VM. (See deviation D-2.)**
+The reference target is **iptables/nftables-over-SSH** (`console/actions/ssh_firewall.py`) against a
+**local Docker demo target**: stock Debian/Alpine container running sshd + nftables with `NET_ADMIN`,
+**SSH key auth** (satisfies the cert/token principle), disposable between runs. First action:
+block/unblock IP via a dedicated nft chain, rules tagged for clean revoke.
+`console/actions/opnsense.py` becomes the designated **follow-on** adapter behind the same abstract
+interface — out of scope this run; runbooks bind connectors by name, so it lands later with zero
+changes to approvals, audit, eligibility, or UI.
+**Provisioning is the orchestrator's, inside C3**: a `demo/target/` Dockerfile or run-script committed
+to the repo, plus a **fresh SSH keypair generated locally into a gitignored path** (e.g.
+`console/.soc/keys/`). Only the **key PATH** goes in local config — the key value never appears in
+argv, logs, commits, or reports.
+**"BLOCKED — VM required" is RETIRED.** C3's live end-to-end item is no longer blockable on external
+provisioning.
 
-**Q3 · Step-up identity for approvals — OPEN.**
-Not answered at kickoff. Not required until C3. The orchestrator will STOP and re-ask before C3 begins.
-No passphrase will ever appear in chat, this file, task cards, or logs.
+**Q3 · Step-up identity for approvals — ANSWERED 2026-08-28: (a).**
+The **existing Phase-6 local profile's passphrase** is the step-up approver identity. Its **verified
+profile name** is what lands in audit entries. The passphrase itself never appears in chat, this file,
+task cards, logs, or audit entries — only the verified profile name is stamped.
 
 ## Defaults (applied — no override given)
 
@@ -46,3 +57,14 @@ No passphrase will ever appear in chat, this file, task cards, or logs.
   `npm run build`.
 - **Routing conflict resolved.** The C0 phase note ("all Claude Code, no fan-out") supersedes §3's
   Gemini assignment for the terminology sweep *within C0*. §3 applies if a sweep recurs in a later phase.
+
+## Autonomous-mode clarification (owner, 2026-08-28)
+
+> "When a phase's acceptance is fully green with zero tripwires and zero unratified deviations, you
+> auto-merge and proceed without asking — this ask was fine given the open items, but don't wait on me
+> for clean gates."
+
+Recorded. The C0 ask was justified by a non-green acceptance item plus open kickoff questions. From C1
+onward: **a fully green phase auto-merges into local `main` and the next phase begins** — the
+stop-and-report becomes a `STAGE_C_LOG.md` entry, not a pause. Hard stops still stop: any tripwire, any
+**unratified** deviation, any BLOCKED item, any acceptance item still failing after two repair attempts.

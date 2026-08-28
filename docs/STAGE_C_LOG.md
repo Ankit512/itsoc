@@ -553,3 +553,61 @@ git checkout main
 git merge --no-ff stage-c/c0-foundations -m "Stage C phase C0: foundations (runbooks, audit chain, TI fixes)"
 # NOT pushed — Q1 push authority is (c) never.
 ```
+
+---
+
+## PHASE C0 — MERGED to local `main` (owner-gated 2026-08-28)
+
+```
+git checkout main
+git merge --no-ff stage-c/c0-foundations -m "Stage C phase C0: foundations (runbooks, audit chain, TI fixes)"
+```
+Merge commit **`18b03dd`**. NOT pushed (Q1 = (c)). `main` is now **17 commits ahead of `origin/main`**
+(2 pre-Stage-C + 14 C0 + the merge).
+
+**Post-merge gate on `main`, god-run:** eval 17/17 f1 1.000 · `console/test_console.py` PASSED ·
+`console/test_fsafe.py` PASSED · `tests/test_intake.py` 4/4 OK · `itsoc_mcp/test_mcp.py` 93/0 ·
+detector `364577c5…a4a876` · tree clean. (Run on principle: pre-gated work has previously exposed
+latent bugs only real on-`main` state reveals.)
+
+### D-2 · Reference write-connector changed from OPNsense to nftables-over-SSH — **OWNER-INITIATED AMENDMENT, RATIFIED**
+
+Unlike D-1 (a worker-found self-contradiction), D-2 is an **owner-initiated** scope amendment: a
+provisioning-effort trade that preserves swappability by construction.
+
+**Old D1:** OPNsense firewall via REST API, key/secret over HTTPS, running in a VM for demos.
+**New D1:** **iptables/nftables-over-SSH** (`console/actions/ssh_firewall.py`) against a local **Docker
+demo target** — stock Debian/Alpine container running sshd + nftables with `NET_ADMIN`, **SSH key
+auth** (satisfies the cert/token principle), disposable between runs. First action: block/unblock IP
+via a **dedicated nft chain, rules tagged for clean revoke**.
+`console/actions/opnsense.py` is now the **designated follow-on** adapter behind the same abstract
+interface — out of scope this run. Because runbooks bind connectors **by name**, it can land later with
+**zero changes to approvals, audit, eligibility, or UI**.
+
+**Amended in the same manner as D-1**: the owner's revised build doc was synced into
+`docs/ITSOC_STAGE_C_BUILD.md` (D1 line 12, C3 heading line 73, action layer line 76, C3 acceptance line
+81, C5 demo line 105, §3 routing line 122), and the **ratified D-1 line 49 was re-applied on top** —
+verified present after the sync, so the path-only TAXII auth wording was not reverted.
+
+**Consequences now binding:**
+- **C3 acceptance amended** — end-to-end against the **live Docker target**: block -> `nft list` shows
+  the rule + the audit entry carries **verbatim command output** -> revoke removes it.
+- **C5 demo line amended** — live block of `203.0.113.44` shown via `nft list`.
+- **Provisioning is the orchestrator's, inside C3** — a `demo/target/` Dockerfile or run-script in the
+  repo, plus a fresh SSH keypair generated locally into a **gitignored** path (e.g.
+  `console/.soc/keys/`). Only the key **path** enters local config; the key value never appears in
+  argv, logs, commits, or reports.
+- **"BLOCKED — VM required" is RETIRED.** C3's live end-to-end item is no longer blockable on external
+  provisioning.
+
+### Q3 answered: (a) — existing Phase-6 local profile
+
+The existing local profile's passphrase is the step-up approver identity; its **verified profile name**
+is what lands in audit entries. The passphrase never appears in chat, answers, cards, logs, or audit
+entries.
+
+### Autonomous-mode gate semantics restated (owner, 2026-08-28)
+
+A phase whose acceptance is **fully green** with zero tripwires and zero **unratified** deviations
+**auto-merges to local `main` and proceeds without asking**. The C0 ask was justified by a non-green
+acceptance item plus open kickoff questions; clean gates will not wait from C1 onward.
