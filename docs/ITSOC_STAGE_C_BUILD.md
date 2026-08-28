@@ -68,7 +68,7 @@ Branch `stage-c/c2-investigation`.
 3. **Org-context rules** (`console/org_context.py` + Settings-editable `org_context.json`): asset criticality tags (`crown-jewel|standard|low`) weight incident **priority** (a rule-owned, separate field — severity itself is untouched). Replaces the binary "at risk" flag with criticality-aware exposure.
 4. Incidents screen: Investigation file section (deterministic block visually distinct from advisory blocks — reuse the verdict/advisory composition).
 
-Acceptance: INC-4a7f case assembles < 2 min; ≥ 95% advisory citation coverage measured by the guard; kill-the-LLM test → deterministic file still complete, advisory shows honest timeout; priority never mutates severity (test).
+Acceptance: INC-4a7f case assembles < 2 min; advisory citation coverage **computed, not asserted** — the advisory pipeline emits per-block `{factual_sentences, cited_and_resolvable}` counts, the guard's grounding check ENFORCES (any advisory factual sentence lacking a resolvable citation is rejected/stripped before render), and the acceptance metric is the aggregate ratio over the INC-4a7f investigation **≥ 0.95**, reported in the C2 log entry with real numbers; kill-the-LLM test → deterministic file still complete, advisory shows honest timeout; priority never mutates severity (test).
 
 ### Phase C3 — Gated response: approvals + SSH-firewall connector
 Branch `stage-c/c3-gated-response`.
