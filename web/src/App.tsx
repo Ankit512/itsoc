@@ -43,6 +43,7 @@ export default function App() {
           <Route path="alerts" element={<Alerts />} />
           <Route path="findings" element={<Alerts />} />
           <Route path="incidents" element={<Incidents />} />
+          <Route path="approvals" element={<Placeholder title="Approvals" />} />
           <Route path="intel" element={<Intel />} />
           <Route path="threat-intel" element={<ThreatIntel />} />
           <Route path="assets" element={<Assets />} />
