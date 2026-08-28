@@ -33,6 +33,7 @@ export const CORE_NAV = [
  *  (Assets · Threat Intel · Discovery · Vulnerabilities · History), then the
  *  remaining real experimental pages so none is orphaned. */
 export const EXPERIMENTAL_NAV = [
+  { to: "/intel", label: "Intel", icon: Shield, ready: true },
   { to: "/assets", label: "Assets", icon: Monitor, ready: true },
   { to: "/threat-intel", label: "Threat Intel", icon: Shield, ready: true },
   { to: "/discovery", label: "Discovery", icon: Radar, ready: true },
@@ -50,6 +51,7 @@ export const NAV = [...CORE_NAV, ...EXPERIMENTAL_NAV];
  *  a mono provenance/intent line (what this screen is honest about), never a
  *  restatement of the title. */
 const TITLES: Record<string, { title: string; subtitle: string }> = {
+  "/intel": { title: "Intel", subtitle: "feeds & live enrichment — external context" },
   "/": { title: "Overview", subtitle: "" },
   "/alerts": { title: "Findings", subtitle: "" },
   "/findings": { title: "Findings", subtitle: "" },
