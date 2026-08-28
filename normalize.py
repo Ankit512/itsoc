@@ -44,6 +44,14 @@ try:
     import logcat  # noqa: E402
 except ImportError:
     logcat = None
+try:
+    import rfc5424  # noqa: E402
+except ImportError:
+    rfc5424 = None
+try:
+    import jsonlog  # noqa: E402
+except ImportError:
+    jsonlog = None
 
 
 # "Mon DD HH:MM:SS host proc[pid]: message" — day may be space-padded ("Jul  3").
@@ -133,6 +141,14 @@ def sniff_format(path, probe_lines=50):
     # clear majority match — so existing formats keep their exact prior behaviour.
     if logcat is not None and logcat.sniff(path, probe_lines=probe_lines):
         return "logcat"
+    # RFC 5424 structured syslog: <PRI>VERSION TIMESTAMP ... — strict enough
+    # that canonical and rfc3164 lines cannot match (requires <NN>1 prefix).
+    if rfc5424 is not None and rfc5424.sniff(path, probe_lines=probe_lines):
+        return "rfc5424"
+    # JSON-line / JSONL: one JSON object per line. Checked after all syslog
+    # variants so a syslog line that happens to be valid JSON is not stolen.
+    if jsonlog is not None and jsonlog.sniff(path, probe_lines=probe_lines):
+        return "jsonlog"
     canonical = rfc3164 = seen = 0
     with open(path, "r", errors="replace") as f:
         for line in f:
@@ -247,6 +263,14 @@ def load(path):
             year -= 1               # log predates the mtime calendar year
         base_year = year
         records, unparsed, total = _parse_rfc3164(path, year)
+    elif fmt == "rfc5424" and rfc5424 is not None:
+        records, p_stats = rfc5424.parse(path)
+        unparsed = []  # parser counts them internally
+        total = p_stats["total"]
+    elif fmt == "jsonlog" and jsonlog is not None:
+        records, p_stats = jsonlog.parse(path)
+        unparsed = []  # parser counts them internally
+        total = p_stats["total"]
     else:
         records, unparsed, total = [], [], sum(
             1 for line in open(path, errors="replace") if line.strip())

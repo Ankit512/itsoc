@@ -231,6 +231,52 @@
           "expected": false
         }
       ]
+    },
+    {
+      "id": "P18",
+      "file": "cases/pos_rfc5424_bruteforce.log",
+      "description": "7 auth failures + success from one IP (RFC 5424 structured syslog) + OOM kills",
+      "expected": [
+        {
+          "type": "auth_bruteforce_success",
+          "severity": "critical",
+          "entity": "198.51.100.10"
+        },
+        {
+          "type": "error_rate_spike",
+          "severity": "medium",
+          "entity": null
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "model_skipped",
+          "expected": false
+        }
+      ]
+    },
+    {
+      "id": "P19",
+      "file": "cases/pos_jsonlog_bruteforce.log",
+      "description": "7 auth failures + success from one IP (JSON-line) + OOM kills",
+      "expected": [
+        {
+          "type": "auth_bruteforce_success",
+          "severity": "critical",
+          "entity": "198.51.100.10"
+        },
+        {
+          "type": "infra_unknown_high",
+          "severity": "high",
+          "entity": "web-01"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "model_skipped",
+          "expected": false
+        }
+      ]
     }
   ]
 }

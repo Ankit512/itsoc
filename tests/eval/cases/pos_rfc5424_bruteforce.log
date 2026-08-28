@@ -1,0 +1,13 @@
+<34>1 2026-03-15T14:02:00+00:00 web-01 sshd 22980 - - Failed password for admin from 198.51.100.10 port 41200 ssh2
+<34>1 2026-03-15T14:02:05+00:00 web-01 sshd 22981 - - Failed password for admin from 198.51.100.10 port 41201 ssh2
+<34>1 2026-03-15T14:02:10+00:00 web-01 sshd 22982 - - Failed password for admin from 198.51.100.10 port 41202 ssh2
+<34>1 2026-03-15T14:02:15+00:00 web-01 sshd 22983 - - Failed password for admin from 198.51.100.10 port 41203 ssh2
+<34>1 2026-03-15T14:02:20+00:00 web-01 sshd 22984 - - Failed password for admin from 198.51.100.10 port 41204 ssh2
+<34>1 2026-03-15T14:02:25+00:00 web-01 sshd 22985 - - Failed password for admin from 198.51.100.10 port 41205 ssh2
+<34>1 2026-03-15T14:02:30+00:00 web-01 sshd 22986 - - Failed password for admin from 198.51.100.10 port 41206 ssh2
+<38>1 2026-03-15T14:03:00+00:00 web-01 sshd 22990 - - Accepted password for admin from 198.51.100.10 port 41210 ssh2
+<30>1 2026-03-15T14:03:05+00:00 web-01 kernel - - - Out of memory: Kill process 4521 (java) score 950 or sacrifice child
+<30>1 2026-03-15T14:03:06+00:00 web-01 kernel - - - Out of memory: Kill process 4522 (java) score 940 or sacrifice child
+<30>1 2026-03-15T14:03:07+00:00 web-01 kernel - - - Out of memory: Kill process 4523 (java) score 930 or sacrifice child
+<46>1 2026-03-15T14:05:00+00:00 web-01 crond 5001 - - (root) CMD (/usr/lib/sa/sa1 1 1)
+<46>1 2026-03-15T14:10:00+00:00 web-01 crond 5002 - - (root) CMD (/usr/lib/sa/sa1 1 1)

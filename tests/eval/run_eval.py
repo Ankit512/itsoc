@@ -51,9 +51,16 @@ def entity_of(anomaly):
 def analyze(path):
     """Run one file through the full deterministic path. Returns (findings, meta)."""
     records, stats = normalize.load(path)
+    # Syslog-family formats (rfc3164, rfc5424, jsonlog, log360_syslog) carry the
+    # same message vocabulary ("Failed password for ...") that rules_syslog
+    # translates into canonical form ("auth failed for user ...") for the
+    # detector's AUTH_FAIL_RE to match.
+    syslog_family = stats["format"] in (
+        "rfc3164", "rfc5424", "jsonlog", "log360_syslog",
+    )
     extra = []
     auth_events = 0
-    if stats["format"] == "rfc3164":
+    if syslog_family:
         records, _ = rules_syslog.canonicalize(records)
         extra = rules_syslog.detect_extra(records)
         records, _ = rules_syslog.dedupe_auth_attempts(records)
@@ -131,7 +138,7 @@ def llm_spot_check(path):
     """Not scored. Does the model return schema-valid output for one chunk?"""
     import log_analyzer as la
     records, stats = normalize.load(path)
-    if stats["format"] == "rfc3164":
+    if stats["format"] in ("rfc3164", "rfc5424", "jsonlog", "log360_syslog"):
         records, _ = rules_syslog.canonicalize(records)
     ctx = la.to_llm_context(la.dedupe_anomalies(detect(records)))
     chunk = open(path, errors="replace").readlines()

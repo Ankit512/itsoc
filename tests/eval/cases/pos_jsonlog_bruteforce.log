@@ -1,0 +1,13 @@
+{"timestamp":"2026-03-15T14:02:00Z","level":"warning","message":"Failed password for admin from 198.51.100.10 port 41200 ssh2","host":"web-01"}
+{"timestamp":"2026-03-15T14:02:05Z","level":"warning","message":"Failed password for admin from 198.51.100.10 port 41201 ssh2","host":"web-01"}
+{"timestamp":"2026-03-15T14:02:10Z","level":"warning","message":"Failed password for admin from 198.51.100.10 port 41202 ssh2","host":"web-01"}
+{"timestamp":"2026-03-15T14:02:15Z","level":"warning","message":"Failed password for admin from 198.51.100.10 port 41203 ssh2","host":"web-01"}
+{"timestamp":"2026-03-15T14:02:20Z","level":"warning","message":"Failed password for admin from 198.51.100.10 port 41204 ssh2","host":"web-01"}
+{"timestamp":"2026-03-15T14:02:25Z","level":"warning","message":"Failed password for admin from 198.51.100.10 port 41205 ssh2","host":"web-01"}
+{"timestamp":"2026-03-15T14:02:30Z","level":"warning","message":"Failed password for admin from 198.51.100.10 port 41206 ssh2","host":"web-01"}
+{"timestamp":"2026-03-15T14:03:00Z","level":"info","message":"Accepted password for admin from 198.51.100.10 port 41210 ssh2","host":"web-01"}
+{"timestamp":"2026-03-15T14:03:05Z","level":"error","message":"Out of memory: Kill process 4521 (java) score 950 or sacrifice child","host":"web-01"}
+{"timestamp":"2026-03-15T14:03:06Z","level":"error","message":"Out of memory: Kill process 4522 (java) score 940 or sacrifice child","host":"web-01"}
+{"timestamp":"2026-03-15T14:03:07Z","level":"error","message":"Out of memory: Kill process 4523 (java) score 930 or sacrifice child","host":"web-01"}
+{"timestamp":"2026-03-15T14:05:00Z","level":"info","message":"(root) CMD (/usr/lib/sa/sa1 1 1)","host":"web-01"}
+{"timestamp":"2026-03-15T14:10:00Z","level":"info","message":"(root) CMD (/usr/lib/sa/sa1 1 1)","host":"web-01"}
