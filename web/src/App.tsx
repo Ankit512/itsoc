@@ -14,7 +14,7 @@ import { History } from "@/pages/History";
 import { Reports } from "@/pages/Reports";
 import { Cases } from "@/pages/Cases";
 import { Settings } from "@/pages/Settings";
-import { Collectors } from "@/pages/Collectors";
+import { Sources } from "@/pages/Sources";
 import { Logout } from "@/pages/Logout";
 import { Login } from "@/pages/Login";
 import { Placeholder } from "@/pages/Placeholder";
@@ -55,8 +55,8 @@ export default function App() {
           <Route path="reports" element={<Reports />} />
           <Route path="cases" element={<Cases />} />
           <Route path="settings" element={<Settings />} />
-          <Route path="collectors" element={<Collectors />} />
-          <Route path="sources" element={<Collectors />} />
+          <Route path="collectors" element={<Sources />} />
+          <Route path="sources" element={<Sources />} />
           <Route path="*" element={<Placeholder title="Not found" />} />
         </Route>
       </Routes>
