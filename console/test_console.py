@@ -3903,7 +3903,7 @@ def check_rules_parity():
                     f"Deterministic threat pattern matched security telemetry: {rx.pattern}",
                     {"host": host, "ioc_ips": ips, "ioc_domains": domains,
                      "ioc_hashes": hashes},
-                    "Preserve evidence, identify the source and affected asset, correlate adjacent events, and contain according to the incident playbook."))
+                    "Preserve evidence, identify the source and affected asset, correlate adjacent events, and contain according to the incident runbook."))
                 break
         return out
 

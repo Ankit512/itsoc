@@ -13,7 +13,7 @@ _Read `CLAUDE.md` first. Every non-negotiable applies. Detector stays at sha `36
 | D2 | Advisory latency | **qwen3:8b stays the default narrator** (post-Phase-4 fixes + `reasoning_effort=none` + json_schema). Investigation agents run **parallel, bounded concurrency 3, per-agent timeout 45s**. Deterministic case assembly NEVER waits on the LLM: advisory sections render "ADVISORY · pending" then fill or honestly time out ("ADVISORY · timed out — retry"). Settings gains an optional "fast narration model" field (advisory-path only). |
 | D3 | Auth for approvals | **Step-up gate on the Approvals surface only.** App stays ungated (design-v3 decision holds). Approving/rejecting any action requires re-entering the Phase-6 scrypt passphrase (the `auth.ts` swap-seam); the verified identity is stamped into the audit entry. No approval without an authenticated actor, ever. |
 | D4 | Audit store | **Append-only hash-chained JSONL** written through `fsafe.py` (`console/.soc/audit/chain.jsonl`; each entry carries `prev_hash`, `entry_hash` = sha256 of canonical JSON + prev). A derived **sqlite index** in `store.py` for querying/UI. The JSONL chain is the source of truth; `verify_chain()` runs on read and any break renders an honest "CHAIN BROKEN at entry N" banner — never silently re-chain. |
-| D5 | Terminology | **Runbooks** everywhere (aligns with the existing copilot "runbook engine" citations). Sweep any "playbook" strings. |
+| D5 | Terminology | **Runbooks** everywhere (aligns with the existing copilot "runbook engine" citations). Sweep legacy references. |
 | D6 | Scope additions | Org-context priority rules (asset criticality), TI severity + TAXII auth fixes, "DORA-ready action trail" export line — all in (phased below). |
 
 ---
@@ -132,7 +132,7 @@ Three worker tiers execute this document. The owner (or the orchestrating sessio
 
 **Gemini — light-to-medium work.** Self-contained, spec-bounded, low-blast-radius, single-unit tasks:
 - Singleton screen tweaks and nav reduction where the composition already exists at design-v3 fidelity.
-- The D5 "playbook→runbook" terminology sweep; page-subtitle updates; copy changes.
+- The D5 runbook terminology sweep; page-subtitle updates; copy changes.
 - Presentational polish without security semantics: Reports export line, empty states, both-theme passes on individual screens.
 - C5 documentation work: battle card draft, demo notes; KPI panel display wiring (calculation itself is C2/Claude Code).
 - Sample-data preparation, honest-state copy review.
