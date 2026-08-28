@@ -1,10 +1,20 @@
 # MITRE ATT&CK rule mapping used by the SOC.
 # MITRE mappings are derived annotations only; they do not determine severity/verdict.
 #
-# Upstream source: MITRE ATT&CK Enterprise STIX 2.1 (https://github.com/mitre/cti/enterprise-attack).
-# Note: Overall bundle version is not recorded in the local cache fixture; individual pattern
-# object versions are referenced (e.g. T1499.002 v2.0 'Service Exhaustion Flood',
-# T1046 v3.2 'Network Service Discovery', T1136.001 v2.6 'Local Account').
+# Upstream anchor metadata:
+#   * STIX bundle id: bundle--6198013c-6f02-42a4-9713-38ea1301a1aa
+#   * STIX spec_version: "2.0"
+#   * x_mitre_attack_spec_version: "3.3.0"
+#   * Local cache retrieval date: 2026-08-14 (~/.cache/mitre_attack/enterprise-attack.json)
+#   * ATT&CK release number: not recorded in this bundle (contains no x-mitre-collection object).
+#
+# Provenance & Honesty:
+#   * The local cache is a known-doctored fixture: 'defense-evasion' is missing (renamed into
+#     'Stealth' and 'Defense Impairment') and T1070.001 is marked revoked with fabricated date 2026-04-14
+#     (explaining the 3 reasoned test skips in threat_intel/test_threat_intel.py).
+#   * Corrections for T1499.002 ('Service Exhaustion Flood'), T1046 ('Network Service Discovery'),
+#     and T1136.001 ('Local Account') were validated against this local bundle where those names
+#     match genuine upstream ATT&CK, but the bundle's T1070 region remains untrusted.
 
 import copy
 
