@@ -956,3 +956,32 @@ checkout.
 - **MERGE HELD, deliberately.** This commit embodies interpretation A of OPEN-11, which narrows the
   literal text of Guardrail 4 and is awaiting owner ratification. Merging first would bake an
   unratified guardrail narrowing into `main`. The code is accepted; the merge waits on OPEN-11.
+
+### C3-T2 · Approvals API + per-action step-up auth (D3) — ACCEPTED
+- Commit `a4e9178` on `stage-c/c3-gated-response`. Worker: Pam. 4 files, +886.
+  `console/auth.py`, `console/serve.py`, `console/soc.py`, `tests/test_approvals.py`.
+- Allowlist extended mid-card, by the orchestrator, to `console/serve.py` for route delegation only:
+  the original card named `soc.py (API routes)`, but all `/api/*` dispatch lives in `serve.py` and
+  `soc.py` has no HTTP handler, so the endpoints were unreachable as scoped. The worker raised this
+  rather than guessing, and built the soc.py functions HTTP-agnostic so no ruling could waste work.
+- Orchestrator verification, by running:
+  - Suite `tests/test_approvals.py` — 14 tests, OK.
+  - **Mutation test 1** — forced `verify_stepup_passphrase` to always return true: **4 tests failed**.
+    The step-up guarantee is genuinely bound by the suite, not merely accompanied by it.
+  - **Mutation test 2** — disabled the re-evaluation branch: **3 tests failed**. The owner-ratified
+    re-evaluation guarantee is likewise bound.
+  - **Independent fail-closed probe** of the step-up primitive: empty string, `None`, a wrong value,
+    and — the interesting cases — the stored `hash` and the stored `salt` submitted as the passphrase.
+    All returned `(False, None)`. `_sessions` byte-identical before and after, so zero session
+    creation holds. `approve_approval` with an empty and with a `None` passphrase both returned 401
+    with the spy connector at zero calls.
+  - `BaseAuthProvider` gained an abstract method; confirmed `LocalDemoAuth` is its only subclass, so
+    nothing else became uninstantiable.
+  - serve.py diff is three delegation hunks and nothing else; POST routes sit after the
+    `_api_authorized` gate (serve.py:1581), so step-up is additive to the bearer check, not a
+    substitute for it.
+- Gate: console suite fully green (35 groups incl. `action-layer-ssh-firewall`); approvals 14/14;
+  MCP 93/0; fsafe 10; intake 4/4; eval 19/19 f1 1.000; `npm run build` clean; detector sha unchanged.
+- Design notes recorded: a *pending* create is deliberately NOT audited (creating a proposal is not a
+  consequential act; `audit.STATUSES` covers approved/rejected/executed/failed), and approvals persist
+  to `.soc/approvals.json` via `soc._save`, leaving the SQLite store schema untouched.
