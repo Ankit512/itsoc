@@ -1527,3 +1527,191 @@ def approve_approval(approval_id, passphrase, state=None, connector_factory=None
     _audit(username, record, step="execute", status="failed",
            response_verbatim=record["responseVerbatim"])
     return 200, record
+
+
+# ===========================================================================
+# Copilot runbook recommendation — advisory-typed, no executable handle (C3-T4)
+# ===========================================================================
+# Build doc C3 item 4: "AI copilot may *recommend* among eligible runbooks and
+# draft justifications; recommendation payloads are advisory-typed and carry no
+# executable handle." Enforced here:
+#
+#   * RULES OWN ELIGIBILITY. The candidate set is exactly what runbooks.eligible()
+#     returns — computed with NO model input. The model may only rank and explain
+#     WITHIN that set; any id it names that is not eligible is dropped, so it can
+#     never widen the gate. (runbooks.eligible() is never modified — its signature
+#     stays closed to any LLM parameter.)
+#   * NO EXECUTABLE HANDLE. The payload carries no approval id, no connector name
+#     or config, no rendered command, no params, and no token — nothing a caller
+#     could replay as an approval. It names runbooks by their rule id only.
+#   * ADVISORY-TYPED. type == "runbook_recommendation", advisory == True, and the
+#     model's justifications sit under an advisory-labelled block, exactly as C2
+#     treats advisory prose.
+#   * D2. The eligible list is computed FIRST and returned regardless of the
+#     model. The advisory portion runs under a hard timeout in a worker; if the
+#     model raises or hangs, the eligible list still returns and the advisory is
+#     honestly `timed_out`/`absent` — never fabricated, never silently dropped.
+
+RECOMMENDATION_LABEL = "advisory · recommendation · not a verdict"
+_RECO_TIMEOUT = 30
+
+_RECO_SYSTEM = (
+    "You are a SOC copilot. Rules own eligibility, severity, priority and every "
+    "verdict; you may not change them. You are given the ONLY runbooks that are "
+    "already eligible for this incident. Rank them and justify each, using ONLY "
+    "the supplied rule facts. Never name a runbook that is not in the eligible "
+    "list. Never emit a command, a connector, or any executable detail. Return "
+    "JSON matching the schema."
+)
+
+_RECO_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ranking": {"type": "array", "items": {"type": "string"}},
+        "justifications": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "runbookId": {"type": "string"},
+                    "text": {"type": "string"},
+                },
+                "required": ["runbookId", "text"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["ranking", "justifications"],
+    "additionalProperties": False,
+}
+
+
+def eligible_runbooks(incident, state=None):
+    """DETERMINISTIC candidate set: every runbook runbooks.eligible() says YES to
+    for this incident, each with its rule-owned proof. No model, and deliberately
+    NO connector/params/command — an eligible entry is a reference, not a handle."""
+    import runbooks
+    members = _incident_members(incident, state)
+    out = []
+    for rid, rb in sorted(runbooks.load_runbooks().items()):
+        verdict = runbooks.eligible(rb, incident, members)
+        if verdict.get("eligible"):
+            out.append({
+                "runbookId": rid,                 # rule id — a reference, not a handle
+                "name": rb.get("name"),
+                "severityFloor": rb.get("severity_floor"),
+                "eligibilityProof": verdict,       # rule-owned, verbatim from eligible()
+            })
+    return out
+
+
+def _call_reco_model(chat_fn, prompt, timeout):
+    import log_analyzer as la
+    return chat_fn(la.LLM_BASE_URL, la.LLM_API_KEY, la.LLM_MODEL,
+                   _RECO_SYSTEM, prompt, timeout=timeout, response_schema=_RECO_SCHEMA)
+
+
+def _recommendation_advisory(facts, eligible, chat_fn, timeout):
+    """The ADVISORY half: a model ranking + justifications, bounded by a hard
+    timeout and filtered to the eligible ids. Returns an honest status —
+    complete | absent | timed_out — and never a fabricated recommendation."""
+    import concurrent.futures
+
+    eligible_ids = [e["runbookId"] for e in eligible]
+    base = {"label": RECOMMENDATION_LABEL, "ranking": [], "justifications": []}
+    if not eligible_ids:
+        return {**base, "status": "absent",
+                "note": "no eligible runbook — nothing for the model to rank"}
+    if chat_fn is None:
+        import log_analyzer as la
+        chat_fn = la.chat_completion
+
+    prompt = json.dumps({
+        "task": "Rank the eligible runbooks best-first and justify each in one "
+                "sentence, using only these rule facts.",
+        "incident": facts,
+        "eligible_runbooks": [{"runbookId": e["runbookId"], "name": e["name"],
+                               "severityFloor": e["severityFloor"]} for e in eligible],
+    }, sort_keys=True)
+
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1,
+                                                     thread_name_prefix="itsoc-reco")
+    future = executor.submit(_call_reco_model, chat_fn, prompt, timeout)
+    try:
+        raw = future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        executor.shutdown(wait=False, cancel_futures=True)
+        return {**base, "status": "timed_out",
+                "note": "ADVISORY · timed out — the eligible list above is complete without it"}
+    except Exception as exc:                       # noqa: BLE001 — reported honestly
+        executor.shutdown(wait=False, cancel_futures=True)
+        return {**base, "status": "timed_out",
+                "note": f"ADVISORY · model unavailable ({type(exc).__name__}) — "
+                        "the eligible list above is complete without it"}
+    executor.shutdown(wait=False, cancel_futures=True)
+
+    import log_analyzer as la
+    try:
+        parsed = json.loads(la.strip_fences(raw))
+    except Exception:
+        return {**base, "status": "absent",
+                "note": "model returned unparseable output — withheld"}
+    if not isinstance(parsed, dict):
+        return {**base, "status": "absent", "note": "model output was not an object — withheld"}
+
+    # FILTER to the eligible set — the single most important line: a model id that
+    # is not eligible is dropped, so the copilot can never widen the gate.
+    seen = set()
+    ranking = []
+    for rid in parsed.get("ranking") or []:
+        if rid in eligible_ids and rid not in seen:
+            seen.add(rid)
+            ranking.append(rid)
+    justifications = []
+    for j in parsed.get("justifications") or []:
+        if (isinstance(j, dict) and j.get("runbookId") in eligible_ids
+                and str(j.get("text", "")).strip()):
+            justifications.append({"runbookId": j["runbookId"],
+                                   "text": str(j["text"]).strip()})
+    if not ranking and not justifications:
+        return {**base, "status": "absent",
+                "note": "model produced nothing grounded in the eligible set — withheld"}
+    return {"label": RECOMMENDATION_LABEL, "status": "complete",
+            "ranking": ranking, "justifications": justifications, "note": None}
+
+
+def recommend_runbooks(incident, state=None, chat_fn=None, timeout=None):
+    """Advisory-typed runbook recommendation for one incident.
+
+    The `eligible` list is deterministic and rule-owned; `recommendation` is the
+    advisory (model) ranking + justifications, filtered to the eligible set and
+    honestly absent/timed-out when the model cannot answer. The payload carries
+    NO executable handle — it can never be replayed as an approval.
+    """
+    timeout = _RECO_TIMEOUT if timeout is None else timeout  # resolved live, so a
+    # test (or config) can shrink the model deadline without touching the default.
+    members = _incident_members(incident, state)
+    eligible = eligible_runbooks(incident, state)
+    facts = {
+        "incidentId": incident.get("id") if incident else None,
+        "entityKind": incident.get("entityKind") if incident else None,
+        "severity": incident.get("severity") if incident else None,
+        "rules": sorted({str(m.get("type")) for m in members if m.get("type")}),
+    }
+    recommendation = _recommendation_advisory(facts, eligible, chat_fn, timeout)
+    return {
+        "type": "runbook_recommendation",       # advisory-typed marker
+        "advisory": True,
+        "incidentId": incident.get("id") if incident else None,
+        "eligible": eligible,                    # deterministic, rule-owned
+        "recommendation": recommendation,        # advisory (model), honest states
+    }
+
+
+def recommend_for_incident(incident_id, state=None, chat_fn=None, timeout=None):
+    """(status, body) wrapper for the serve.py delegation — fetch the incident,
+    404 if unknown, else the advisory-typed recommendation."""
+    inc = get_incident(incident_id)
+    if not inc:
+        return 404, {"error": f"no such incident: {incident_id}"}
+    return 200, recommend_runbooks(inc, state, chat_fn=chat_fn, timeout=timeout)

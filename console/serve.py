@@ -1437,6 +1437,12 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             # without touching a model; only this opt-in route waits for advisory.
             advisory = investigate.dispatch_advisory(path.split("/")[3], STATE)
             self._json(advisory) if advisory else self._json({"error": "no such incident"}, 404)
+        elif path.startswith("/api/incidents/") and path.endswith("/runbook-recommendation"):
+            # C3-T4 delegation: the advisory-typed copilot recommendation. soc
+            # computes the deterministic eligible set and bounds the model itself;
+            # serve.py just parses the id, calls, and emits (status, body).
+            status, body = soc.recommend_for_incident(path.split("/")[3], STATE)
+            self._json(body, status)
         elif path.startswith("/api/incidents/") and path.endswith("/bruteforce"):
             iid = path.split("/")[3]
             inc = next((i for i in soc.list_incidents(STATE)
