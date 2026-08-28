@@ -130,11 +130,14 @@ def _correlation(entity, entity_kind, entity_events):
     evidence, not an assertion."""
     hosts = {}
     for e in entity_events:
+        n = e.get("n")
+        if n is None:
+            continue
         host = e.get("host") or ""
         if not host or host == entity:            # a host entity is not its own asset
             continue
         slot = hosts.setdefault(host, [])
-        slot.append(e["n"])
+        slot.append(n)
     assets = []
     for host in sorted(hosts):
         records = sorted(hosts[host])

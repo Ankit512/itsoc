@@ -5606,6 +5606,18 @@ def check_investigation_engine():
                   investigate.resolve_record(state, 5)["raw"].startswith("2026-08-13T02:16:44Z")
                   and "203.0.113.44" in investigate.resolve_record(state, 5)["raw"])
 
+            # --- (b) Regression test: _correlation guards missing 'n' gracefully -
+            corrupt_events = [
+                {"host": "server-01", "raw": "203.0.113.44 attacked server-01"},  # NO 'n' key
+                {"n": None, "host": "server-01", "raw": "203.0.113.44 attacked server-01"},  # n is None
+                {"n": 42, "host": "server-01", "raw": "203.0.113.44 legitimate event"},  # valid n
+            ]
+            corr = investigate._correlation("203.0.113.44", "ip", corrupt_events)
+            check("(b) _correlation skips events with missing/None 'n' without raising KeyError",
+                  len(corr["assets"]) == 1 and corr["assets"][0]["records"] == [42]
+                  and corr["assets"][0]["name"] == "server-01",
+                  f"correlation={corr}")
+
             # --- (c) KILL-THE-LLM: deterministic case COMPLETE, advisory honest -
             complete = (inv["timeline"] and inv["iocs"] and inv["correlation"]["assets"]
                         and inv["blastRadius"]["assets"])
