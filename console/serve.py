@@ -554,7 +554,9 @@ def overview_state(window=None):
         tactic_counts[t["tactic"]] = tactic_counts.get(t["tactic"], 0) + t["count"]
 
     latest = []
-    for f in sorted(findings, key=lambda f: f.get("stamp") or "", reverse=True)[:10]:
+    # Ship up to 25 so the Overview's client-side "Show more" can reveal a
+    # fuller list beyond the first 5 it renders by default.
+    for f in sorted(findings, key=lambda f: f.get("stamp") or "", reverse=True)[:25]:
         tactics = []
         for t in f.get("mitre") or []:
             if t.get("tactic") and t["tactic"] not in tactics:

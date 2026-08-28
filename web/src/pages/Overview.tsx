@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp } from "lucide-react";
@@ -7,8 +7,12 @@ import { sevVar } from "@/lib/severity";
 import { SeverityDonut } from "@/components/charts/SeverityDonut";
 import { AlertsOverTime } from "@/components/charts/AlertsOverTime";
 import { TacticBars } from "@/components/charts/TacticBars";
+import { OpsMetrics } from "@/components/OpsMetrics";
 import { UnrecognizedBanner } from "@/components/UnrecognizedBanner";
 import { useUi } from "@/store/ui";
+
+/** How many Latest-alerts rows to show before "Show more" expands the rest. */
+const LATEST_COLLAPSED = 5;
 
 /** Delta line: the real prior-run delta, or the honest "no prior run — no
  *  delta". Colors follow the design system (.delta.up green / .dn red). */
@@ -28,6 +32,7 @@ export function Overview() {
   // in /api/overview — needed to tell "nothing parsed" from "nothing found".
   const { data: state } = useQuery({ queryKey: ["consoleState"], queryFn: api.consoleState });
   const setTimeWindow = useUi((s) => s.setTimeWindow);
+  const [expanded, setExpanded] = useState(false);
 
   const overview = data && !("error" in data) ? (data as OverviewData) : null;
   const unparsed = !!state && !state.idle && (!!state.unrecognized || !!state.emptyInput);
@@ -166,17 +171,19 @@ export function Overview() {
                 <th>Rule</th>
                 <th>Host</th>
                 <th>Finding</th>
+                <th>Tactics</th>
+                <th>Source</th>
               </tr>
             </thead>
             <tbody>
               {overview.latestAlerts.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="is-mut" style={{ textAlign: "center", padding: "16px" }}>
+                  <td colSpan={7} className="is-mut" style={{ textAlign: "center", padding: "16px" }}>
                     No findings in this window.
                   </td>
                 </tr>
               )}
-              {overview.latestAlerts.map((a) => (
+              {(expanded ? overview.latestAlerts : overview.latestAlerts.slice(0, LATEST_COLLAPSED)).map((a) => (
                 <tr
                   key={a.id}
                   data-testid="latest-alert-row"
@@ -203,12 +210,42 @@ export function Overview() {
                       {a.name}
                     </Link>
                   </td>
+                  <td>
+                    {a.tactics.length > 0 && (
+                      <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 4 }}>
+                        {a.tactics.map((t) => (
+                          <span key={t} className="is-chip" title="Derived from the rule's MITRE annotation — a display aid, not a verdict">{t}</span>
+                        ))}
+                      </span>
+                    )}
+                  </td>
+                  <td className="is-mut">
+                    {a.source && (
+                      <span title={a.source}>{a.source.split("/").pop()}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {overview.latestAlerts.length > LATEST_COLLAPSED && (
+          <div style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="is-btn is-btn--ghost"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded
+                ? "Show less"
+                : `Show more (${overview.latestAlerts.length - LATEST_COLLAPSED} more)`}
+            </button>
+          </div>
+        )}
       </div>
+
+      <OpsMetrics />
     </>
   );
 }
