@@ -8,7 +8,7 @@ answerable without reference to prior conversation._
 
 ---
 
-## OPEN-1 · Product-code allowlist for `threat_intel/rule_mitre_map.py` — **OPEN**
+## OPEN-1 · Product-code allowlist for `threat_intel/rule_mitre_map.py` — **CONDITIONALLY RULED; HELD on assumption mismatch**
 _Gates: Phase C1 (owner required a zero-known-red baseline before C1 opens)._
 
 **Background.** Card C0-T6 (worker Oscar, commit `7db891b`) cleared the test-side portion of the 16
@@ -41,7 +41,7 @@ not determine severity/verdict."* Oscar has prepared exact before→after string
 
 ---
 
-## OPEN-2 · C1-T1 design ruling: cases with no linked incident — **OPEN**
+## OPEN-2 · C1-T1 design ruling: cases with no linked incident — **CONDITIONALLY RULED; HELD on assumption mismatch**
 _Gates: Phase C1 card C1-T1 (backend migration)._
 
 **Background.** Worker Pam's read-only inventory established that build doc §1 — *"Existing case records
@@ -76,7 +76,7 @@ Item (iii) departs from a literal "merge into incidents" reading, though it hono
 
 ---
 
-## OPEN-3 · C2 acceptance wording is unmeasurable as written — **OPEN**
+## OPEN-3 · C2 acceptance wording is unmeasurable as written — **RATIFIED 2026-08-28**
 _Gates: Phase C2 acceptance (not blocking C1)._
 
 Build doc Phase C2 acceptance says *"≥ 95% advisory citation coverage measured by the guard."* Worker
@@ -92,7 +92,7 @@ completeness. So "citation coverage measured by the guard" has no implementation
 
 ---
 
-## OPEN-4 · Foreign uncommitted work in the Stage C working tree — **OPEN**
+## OPEN-4 · Foreign uncommitted work in the Stage C working tree — **RATIFIED 2026-08-28**
 _Not a Stage C breach. Raised for the owner's decision because it affects gate integrity._
 
 `/Users/ankit/Projects/log-analyzer/` contains a **second, independent task queue** at `inbox/`
@@ -121,3 +121,41 @@ The orchestrator has **not** reverted or committed these — they are not Stage 
 > **THE ASK:** How should Stage C treat this concurrent queue? Options: (A) it is your other session,
 > leave it alone and I will stash-and-restore around each Stage C gate; (B) pause it while Stage C
 > runs; (C) something else. Also: should `inbox/` be gitignored to remove the `git add -A` hazard?
+
+
+---
+
+# Ruling record — 2026-08-28
+
+## OPEN-3 — RATIFIED and ACTIONED (commit `b6f5028`)
+Owner: *"Correct catch; the acceptance was under-specified."* C2 acceptance amended in the build doc to
+a measurable definition: the guard's grounding check ENFORCES (any advisory factual sentence lacking a
+resolvable citation is rejected/stripped before render); the pipeline emits per-block
+`{factual_sentences, cited_and_resolvable}`; the metric is the **aggregate ratio over the INC-4a7f
+investigation >= 0.95**, reported in the C2 log entry with real numbers. If the guard's parser cannot
+classify "factual sentence", the minimal extension is in-scope for C2's first card — **but the metric
+definition is FIXED and must not be redefined to whatever is convenient to measure.**
+
+## OPEN-4 — RATIFIED. Card HK-1 dispatched (Oscar)
+Owner confirmed the orchestrator's read: not Stage C's to touch, not Stage C's contamination.
+Authorized ONE housekeeping card: add `inbox/`, `hive/`, `fleet.json` and other fleet-infrastructure
+paths to `.gitignore`; **commit only the `.gitignore` change**; the foreign files stay **uncommitted and
+unreverted pending the owner's inspection**. The **`git add -A` prohibition is ratified as a standing
+guardrail**. Follow-on (deferred until current gates clear): write `docs/STAGE_C_FLEET.md` documenting
+roster, routing, liveness doctrine and inbox mechanics — fleet infrastructure operating inside the repo
+undocumented is itself a gap.
+
+## OPEN-1 — CONDITIONAL ruling received; **ASSUMPTION PARTIALLY MISMATCHES -> HELD**
+Owner's constraints (1)-(3) match reality and are already satisfied by the existing table. Constraint
+(4) does not: it presumes a **new module** wired into `console/investigate.py`. Reality: the mapping
+**already exists** at `threat_intel/rule_mitre_map.py` and is already wired; `console/investigate.py`
+does not exist (it is created in C2). This ask is a **C0 known-red repair of an existing table**, not
+the creation of a C2 grounding module. Held; quoted verbatim to the owner for a scope confirmation.
+
+## OPEN-2 — CONDITIONAL ruling received; **ASSUMPTION MISMATCHES -> HELD**
+Owner's assumption: *"the C1 migration found case records with no incident linkage."* Reality:
+**`console/.soc/cases.json` does not exist — there are ZERO case records.** (`console/.soc/` holds only
+`auth.json` and `incidents.json`.) Nothing has been "found"; the incident-less case is a **structural
+possibility the data model permits**, not an observed record set, and C1 has not run. The ruling is
+sound as a **forward design**, but its premise is prospective, not retrospective. Held; quoted verbatim
+to the owner.
