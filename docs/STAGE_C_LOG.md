@@ -1016,3 +1016,50 @@ removing a stale "read-only" claim; there is no executable change. The cause was
 card, whose definition of done required that no inaccurate claim survive anywhere in `itsoc_mcp/`
 while its allowlist named only three files. Ratified on that basis. This is the sixth card in this run
 whose wording caused a worker to breach or question its own allowlist — see OPEN-12.
+
+### C3-T4 · Copilot runbook recommendation — ACCEPTED
+- Commit `c549466` on `stage-c/c3-gated-response`. Worker: Pam. 3 files, +493.
+- Orchestrator verification, by running:
+  - **Prompt-injection probe (non-vacuous).** A model return carrying an invented runbook
+    (`rb-invented`), a forged `approvalId`, a `connector` name and a raw `nft` command was fed to
+    `recommend_for_incident`. None of the four appeared anywhere in the serialized payload.
+  - **The decisive case:** on a HOST incident where `rb-block-ip` is genuinely ineligible, a model that
+    ranks `rb-block-ip` anyway produced `eligible: ['rb-draft-notify']` and the string `rb-block-ip`
+    appears nowhere in the payload. Rules own eligibility; the model cannot widen the set.
+  - **Handle-freedom asserted on KEYS at any depth:** none of `approvalId, connector, config, command,
+    params, token, key_path, passphrase, host, port, user, transport` occurs anywhere. A recommendation
+    is structurally unable to be replayed as an approval.
+  - **D2 proven non-vacuously** — with a NON-EMPTY eligible set and the model sleeping 30s against a
+    0.25s bound, the call returned in **0.26s** with `eligible: ['rb-block-ip','rb-draft-notify']`
+    intact and `recommendation.status: "timed_out"`, note "ADVISORY · timed out — the eligible list
+    above is complete without it". Honest degradation, no fabrication, no silent drop.
+  - **Mutation tests** — disabling the eligibility filter killed 2 tests; disabling the model-ranking
+    membership guard killed 2 tests. Both guards are genuinely bound.
+  - `console/runbooks.py` untouched; `eligible()` signature still the closed
+    `(runbook, incident, findings)`.
+- Gate: console suite PASSED, approvals 14/14, recommendation 12/12, MCP 131/131, fsafe 10, intake 4/4,
+  eval 19/19 f1 1.000, `npm run build` clean, web 144/144, detector frozen.
+- Orchestrator note: an earlier probe of mine reported an empty eligible set and a 0.00s D2 result.
+  That was my own error — I passed no state, so no incident members existed and the model was never
+  called. Re-run with the proper fixture; the numbers above are the real ones.
+
+### C3 integration
+- `stage-c/c3-mcp` merged into `stage-c/c3-gated-response` at `6e2d8df` (branch-guarded merge; the
+  guard asserts HEAD is the phase branch before merging). Integrated gate green as listed above.
+
+## PHASE C3 — STOP AND REPORT (no auto-merge)
+Autonomous mode auto-merges a phase only when every acceptance item passes. **C3 has a BLOCKED
+acceptance item and therefore halts for the owner**, per the standing rule that a BLOCKED item is a
+hard stop and must never be marked passed.
+
+- BLOCKED: "end-to-end against the live Docker demo target (block → nft ruleset shows the rule + audit
+  entry with verbatim command output → unblock/revoke removes it)". The Docker daemon is not running
+  (OPEN-9). Everything else in C3 is built and verified against the mock.
+- Also held: `fix/c3-tioem-egress-redact` (`5694f6e`) is accepted but unmerged pending OPEN-11.
+- Cards accepted: C3-T1 `e646ac8`, C3-T2 `a4e9178`, C3-T2b `5694f6e` (merge held), C3-T3
+  `adf236d`+`19fcbf8`+`73167a5`, C3-T4 `c549466`. Phase branch head `6e2d8df`.
+- Deviations for sign-off: D-3 (out-of-allowlist comment-only edits, ratified by the orchestrator).
+- Open items for the owner: OPEN-9 (daemon), OPEN-11 (Guardrail 4 narrowing), OPEN-12 (ratification
+  authority).
+- Merge command the owner would run:
+  `git checkout main && git merge --no-ff stage-c/c3-gated-response`
