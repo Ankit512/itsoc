@@ -391,4 +391,40 @@ describe("AuditTimeline (is-audit-timeline)", () => {
     expect(screen.getByText("inc-9999")).toBeInTheDocument();
     expect(screen.queryByText("inc-4a7f")).not.toBeInTheDocument();
   });
+
+  it("DRIFT-GUARD: verifies canonical JSON and SHA256 match console/audit.py vectors", () => {
+    const vectorRaw = {
+      ts: "2026-08-29T12:00:00Z",
+      actor: "analyst",
+      incident_id: "inc-4a7f",
+      runbook_id: "rb-block-ip",
+      step: "approve",
+      eligibility_proof: null,
+      evidence_refs: ["T1110"],
+      request_redacted: "nft add element inet itsoc blacklist { [IP-1] }",
+      response_verbatim: null,
+      status: "approved" as AuditStatus,
+      prev_hash: GENESIS,
+    };
+    const canonical = canonicalJson({
+      actor: "analyst",
+      eligibility_proof: null,
+      evidence_refs: ["T1110"],
+      incident_id: "inc-4a7f",
+      prev_hash: GENESIS,
+      request_redacted: "nft add element inet itsoc blacklist { [IP-1] }",
+      response_verbatim: null,
+      runbook_id: "rb-block-ip",
+      status: "approved",
+      step: "approve",
+      ts: "2026-08-29T12:00:00Z",
+    });
+    // Expected canonical JSON from audit.py
+    expect(canonical).toBe(
+      '{"actor":"analyst","eligibility_proof":null,"evidence_refs":["T1110"],"incident_id":"inc-4a7f","prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","request_redacted":"nft add element inet itsoc blacklist { [IP-1] }","response_verbatim":null,"runbook_id":"rb-block-ip","status":"approved","step":"approve","ts":"2026-08-29T12:00:00Z"}',
+    );
+    const hash = computeHash(vectorRaw);
+    // Exact SHA256 verified against console/audit.py
+    expect(hash).toBe("3a5ce218f8aa99af25856af38965e5a1911b79192387a00596222b6880a280c6");
+  });
 });
