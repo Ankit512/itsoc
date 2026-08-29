@@ -31,6 +31,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
+import redact
 import store
 
 HTTP_TIMEOUT = 15
@@ -53,10 +54,8 @@ def _now_iso():
 def _http_get_json(url, headers, timeout=HTTP_TIMEOUT):
     """GET a URL and parse JSON. Raises urllib/OS/JSON errors to the caller,
     which turns them into an honest error string — never a fabricated result."""
-    req = urllib.request.Request(url, headers=headers, method="GET")
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        body = resp.read()
-    return json.loads(body.decode("utf-8", "replace") or "null")
+    body = _http_request(url, headers, "GET", timeout=timeout)
+    return json.loads(body or "null")
 
 
 # ---------------------------------------------------------------------------
@@ -301,14 +300,98 @@ def _read_config(name):
         return None
 
 
-def _http_request(url, headers=None, method="GET", data=None, timeout=HTTP_TIMEOUT):
-    req = urllib.request.Request(url, headers=headers or {}, method=method)
+_SECRET_FIELDS = frozenset({
+    "authorization", "proxyauthorization", "key", "apikey", "xotxapikey",
+    "xchkpsid", "token", "accesstoken", "password", "passwd", "secret",
+    "sid", "user", "username",
+})
+
+
+def _secret_field(name):
+    """Secret classification by FIELD NAME, never by today's secret value."""
+    compact = "".join(ch for ch in str(name).lower() if ch.isalnum())
+    return compact in _SECRET_FIELDS or any(
+        compact.endswith(suffix) for suffix in ("token", "password", "secret", "apikey"))
+
+
+def _sanitized_request(url, headers=None, data=None):
+    """Parallel safe representation for errors/logs; never used as wire bytes.
+
+    Provider-directed bytes must retain the minimum indicator/auth/query material
+    needed for the API to work. Every observable representation instead passes
+    through the shared redaction scope plus name-based credential masking here.
+    """
+    headers = headers or {}
+    scope = redact.Redactor()
+    parsed = urllib.parse.urlsplit(str(url))
+    safe_query = []
+    for key, value in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True):
+        safe_query.append((key, "[REDACTED]" if _secret_field(key) else scope.redact(value)))
+    safe_url = urllib.parse.urlunsplit((
+        parsed.scheme,
+        scope.redact(parsed.netloc),
+        scope.redact(parsed.path),
+        urllib.parse.urlencode(safe_query, doseq=True),
+        "",
+    ))
+    safe_headers = {
+        key: "[REDACTED]" if _secret_field(key) else scope.redact(str(value))
+        for key, value in headers.items()
+    }
+
+    def sanitize_value(value, field=None):
+        if field is not None and _secret_field(field):
+            return "[REDACTED]"
+        if isinstance(value, dict):
+            return {key: sanitize_value(sub, key) for key, sub in value.items()}
+        if isinstance(value, list):
+            return [sanitize_value(sub) for sub in value]
+        if isinstance(value, str):
+            return scope.redact(value)
+        return value
+
+    safe_body = None
     if data is not None:
-        if isinstance(data, str):
-            data = data.encode("utf-8")
-        req.data = data
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8", "replace")
+        raw = data.encode("utf-8") if isinstance(data, str) else bytes(data)
+        text = raw.decode("utf-8", "replace")
+        content_type = next((str(v).lower() for k, v in headers.items()
+                             if str(k).lower() == "content-type"), "")
+        try:
+            if "json" in content_type or text.lstrip().startswith(("{", "[")):
+                safe_body = json.dumps(sanitize_value(json.loads(text)),
+                                       separators=(",", ":"), sort_keys=True)
+            elif "x-www-form-urlencoded" in content_type or ("=" in text and "\n" not in text):
+                pairs = urllib.parse.parse_qsl(text, keep_blank_values=True)
+                safe_body = urllib.parse.urlencode([
+                    (key, "[REDACTED]" if _secret_field(key) else scope.redact(value))
+                    for key, value in pairs
+                ], doseq=True)
+            else:
+                safe_body = scope.redact(text)
+        except (ValueError, TypeError):
+            safe_body = scope.redact(text)
+    return {"url": safe_url, "headers": safe_headers, "body": safe_body}
+
+
+def _http_request(url, headers=None, method="GET", data=None, timeout=HTTP_TIMEOUT):
+    headers = headers or {}
+    safe = _sanitized_request(url, headers, data)
+    wire_data = data.encode("utf-8") if isinstance(data, str) else data
+    try:
+        req = urllib.request.Request(url, headers=headers, method=method)
+        if wire_data is not None:
+            req.data = wire_data
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8", "replace")
+    except Exception as exc:
+        # Never propagate the transport's message: urllib/vendor errors commonly
+        # echo their Request, including URL queries, bodies and auth headers.
+        detail = type(exc).__name__
+        if isinstance(exc, urllib.error.HTTPError):
+            detail += f" HTTP {exc.code}"
+        raise OSError(
+            f"provider request failed ({detail}); sanitized request="
+            f"{json.dumps(safe, sort_keys=True)}") from None
 
 
 def _checkpoint_poll(base, cfg, token, username, password):
