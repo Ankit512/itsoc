@@ -109,15 +109,15 @@ def _build_corpus_from_audit_py():
         audit.AUDIT_DIR = Path(tmp_dir) / "audit"
         audit.AUDIT_DIR.mkdir(parents=True, exist_ok=True)
         try:
-            # Scenario A: Clean 3-entry chain
+            # Scenario A: Clean 3-entry chain with fixed timestamps for deterministic zero-churn fixtures
             e0 = audit.append(actor="analyst", incident_id="inc-4a7f", runbook_id="rb-block-ip",
-                              step="approve", status="approved", index=False)
+                              step="approve", status="approved", ts="2026-08-29T12:00:00Z", index=False)
             e1 = audit.append(actor="analyst", incident_id="inc-4a7f", runbook_id="rb-block-ip",
                               step="execute", status="executed",
                               request_redacted="nft add element inet itsoc blacklist { [IP-1] }",
-                              response_verbatim="element added", index=False)
+                              response_verbatim="element added", ts="2026-08-29T12:05:00Z", index=False)
             e2 = audit.append(actor="analyst", incident_id="inc-4a7f", runbook_id="rb-isolate-host",
-                              step="reject", status="rejected", index=False)
+                              step="reject", status="rejected", ts="2026-08-29T12:10:00Z", index=False)
             clean_entries = [e0, e1, e2]
             v_clean = audit.verify_chain()
 
@@ -145,6 +145,10 @@ def _build_corpus_from_audit_py():
             # Scenario D: Empty ledger
             path.unlink()
             v_empty = audit.verify_chain()
+
+            # Normalize volatile temp path to stable canonical relative path
+            for v in (v_clean, v_tampered, v_severed, v_empty):
+                v["path"] = "console/.soc/audit/chain.jsonl"
         finally:
             audit.SOC_DIR = orig_soc
             audit.AUDIT_DIR = orig_audit

@@ -33,7 +33,7 @@
         {
           "actor": "analyst",
           "eligibility_proof": null,
-          "entry_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "entry_hash": "207429dda1ce93b414f1d80ce9e37e0e328c2fc7f150c86f9845fa438587bcfd",
           "evidence_refs": [],
           "incident_id": "inc-4a7f",
           "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -42,43 +42,43 @@
           "runbook_id": "rb-block-ip",
           "status": "approved",
           "step": "approve",
-          "ts": "2026-08-29T13:21:59.066870+00:00"
+          "ts": "2026-08-29T12:00:00Z"
         },
         {
           "actor": "analyst",
           "eligibility_proof": null,
-          "entry_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "entry_hash": "9c0bb426cfe432235ed86b31d2d7c28aaaf5dd43d6df00765ddbeb16ac6c2fb2",
           "evidence_refs": [],
           "incident_id": "inc-4a7f",
-          "prev_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "prev_hash": "207429dda1ce93b414f1d80ce9e37e0e328c2fc7f150c86f9845fa438587bcfd",
           "request_redacted": "nft add element inet itsoc blacklist { [IP-1] }",
           "response_verbatim": "element added",
           "runbook_id": "rb-block-ip",
           "status": "executed",
           "step": "execute",
-          "ts": "2026-08-29T13:21:59.070704+00:00"
+          "ts": "2026-08-29T12:05:00Z"
         },
         {
           "actor": "analyst",
           "eligibility_proof": null,
-          "entry_hash": "109dc11b9edcf4bd2ff45a61a318d2bc22ca0258e721d6853f7d799a754f7e50",
+          "entry_hash": "07d9bec011c2591c7a8b9894beb06f679b3948d3eb1895002651dc26fa4ccf2e",
           "evidence_refs": [],
           "incident_id": "inc-4a7f",
-          "prev_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "prev_hash": "9c0bb426cfe432235ed86b31d2d7c28aaaf5dd43d6df00765ddbeb16ac6c2fb2",
           "request_redacted": null,
           "response_verbatim": null,
           "runbook_id": "rb-isolate-host",
           "status": "rejected",
           "step": "reject",
-          "ts": "2026-08-29T13:21:59.075406+00:00"
+          "ts": "2026-08-29T12:10:00Z"
         }
       ],
       "verification": {
         "break": null,
         "count": 3,
-        "head": "109dc11b9edcf4bd2ff45a61a318d2bc22ca0258e721d6853f7d799a754f7e50",
+        "head": "07d9bec011c2591c7a8b9894beb06f679b3948d3eb1895002651dc26fa4ccf2e",
         "ok": true,
-        "path": "/var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/tmp1phlcq48/audit/chain.jsonl"
+        "path": "console/.soc/audit/chain.jsonl"
       }
     },
     "empty": {
@@ -88,7 +88,7 @@
         "count": 0,
         "head": null,
         "ok": true,
-        "path": "/var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/tmp1phlcq48/audit/chain.jsonl"
+        "path": "console/.soc/audit/chain.jsonl"
       }
     },
     "severed_link": {
@@ -96,7 +96,7 @@
         {
           "actor": "analyst",
           "eligibility_proof": null,
-          "entry_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "entry_hash": "207429dda1ce93b414f1d80ce9e37e0e328c2fc7f150c86f9845fa438587bcfd",
           "evidence_refs": [],
           "incident_id": "inc-4a7f",
           "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -105,26 +105,26 @@
           "runbook_id": "rb-block-ip",
           "status": "approved",
           "step": "approve",
-          "ts": "2026-08-29T13:21:59.066870+00:00"
+          "ts": "2026-08-29T12:00:00Z"
         },
         {
           "actor": "analyst",
           "eligibility_proof": null,
-          "entry_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "entry_hash": "9c0bb426cfe432235ed86b31d2d7c28aaaf5dd43d6df00765ddbeb16ac6c2fb2",
           "evidence_refs": [],
           "incident_id": "inc-4a7f",
-          "prev_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "prev_hash": "207429dda1ce93b414f1d80ce9e37e0e328c2fc7f150c86f9845fa438587bcfd",
           "request_redacted": "nft add element inet itsoc blacklist { [IP-1] }",
           "response_verbatim": "element added",
           "runbook_id": "rb-block-ip",
           "status": "executed",
           "step": "execute",
-          "ts": "2026-08-29T13:21:59.070704+00:00"
+          "ts": "2026-08-29T12:05:00Z"
         },
         {
           "actor": "analyst",
           "eligibility_proof": null,
-          "entry_hash": "109dc11b9edcf4bd2ff45a61a318d2bc22ca0258e721d6853f7d799a754f7e50",
+          "entry_hash": "07d9bec011c2591c7a8b9894beb06f679b3948d3eb1895002651dc26fa4ccf2e",
           "evidence_refs": [],
           "incident_id": "inc-4a7f",
           "prev_hash": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
@@ -133,12 +133,12 @@
           "runbook_id": "rb-isolate-host",
           "status": "rejected",
           "step": "reject",
-          "ts": "2026-08-29T13:21:59.075406+00:00"
+          "ts": "2026-08-29T12:10:00Z"
         }
       ],
       "verification": {
         "break": {
-          "expected": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "expected": "9c0bb426cfe432235ed86b31d2d7c28aaaf5dd43d6df00765ddbeb16ac6c2fb2",
           "found": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
           "index": 2,
           "reason": "prev_hash does not match the previous entry_hash (the chain is cut here)"
@@ -146,7 +146,7 @@
         "count": 3,
         "head": null,
         "ok": false,
-        "path": "/var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/tmp1phlcq48/audit/chain.jsonl"
+        "path": "console/.soc/audit/chain.jsonl"
       }
     },
     "tampered_content": {
@@ -154,7 +154,7 @@
         {
           "actor": "analyst",
           "eligibility_proof": null,
-          "entry_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "entry_hash": "207429dda1ce93b414f1d80ce9e37e0e328c2fc7f150c86f9845fa438587bcfd",
           "evidence_refs": [],
           "incident_id": "inc-4a7f",
           "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -163,48 +163,48 @@
           "runbook_id": "rb-block-ip",
           "status": "approved",
           "step": "approve",
-          "ts": "2026-08-29T13:21:59.066870+00:00"
+          "ts": "2026-08-29T12:00:00Z"
         },
         {
           "actor": "analyst",
           "eligibility_proof": null,
-          "entry_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "entry_hash": "9c0bb426cfe432235ed86b31d2d7c28aaaf5dd43d6df00765ddbeb16ac6c2fb2",
           "evidence_refs": [],
           "incident_id": "inc-4a7f",
-          "prev_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "prev_hash": "207429dda1ce93b414f1d80ce9e37e0e328c2fc7f150c86f9845fa438587bcfd",
           "request_redacted": "nft add element inet itsoc blacklist { 198.51.100.99 }",
           "response_verbatim": "element added",
           "runbook_id": "rb-block-ip",
           "status": "executed",
           "step": "execute",
-          "ts": "2026-08-29T13:21:59.070704+00:00"
+          "ts": "2026-08-29T12:05:00Z"
         },
         {
           "actor": "analyst",
           "eligibility_proof": null,
-          "entry_hash": "109dc11b9edcf4bd2ff45a61a318d2bc22ca0258e721d6853f7d799a754f7e50",
+          "entry_hash": "07d9bec011c2591c7a8b9894beb06f679b3948d3eb1895002651dc26fa4ccf2e",
           "evidence_refs": [],
           "incident_id": "inc-4a7f",
-          "prev_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "prev_hash": "9c0bb426cfe432235ed86b31d2d7c28aaaf5dd43d6df00765ddbeb16ac6c2fb2",
           "request_redacted": null,
           "response_verbatim": null,
           "runbook_id": "rb-isolate-host",
           "status": "rejected",
           "step": "reject",
-          "ts": "2026-08-29T13:21:59.075406+00:00"
+          "ts": "2026-08-29T12:10:00Z"
         }
       ],
       "verification": {
         "break": {
-          "expected": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
-          "found": "a19ec24411d4b3a8b1faba45f3775afd15163b1de07617379baa18b9a6fda0c2",
+          "expected": "9c0bb426cfe432235ed86b31d2d7c28aaaf5dd43d6df00765ddbeb16ac6c2fb2",
+          "found": "8af7e9030cc1a12d743a006788e704abd96ac7b89d32b707b9ba99622064f75f",
           "index": 1,
           "reason": "entry_hash does not match the entry's contents (this entry was modified after it was written)"
         },
         "count": 3,
         "head": null,
         "ok": false,
-        "path": "/var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/tmp1phlcq48/audit/chain.jsonl"
+        "path": "console/.soc/audit/chain.jsonl"
       }
     }
   },
