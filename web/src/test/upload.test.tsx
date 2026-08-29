@@ -24,10 +24,9 @@ describe("header upload -> /api/analyze -> /api/progress", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
-    expect(await screen.findByText(/server\.csv analyzed — 24 finding\(s\)/, undefined,
-      { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText(/server\.csv analyzed — 24 finding\(s\)/)).toBeInTheDocument();
     expect(screen.getByText(/rules-only run; verdicts are complete/)).toBeInTheDocument();
-  }, 10000);
+  });
 
   it("surfaces the job's own error instead of pretending it started", async () => {
     mockFetch({
@@ -41,9 +40,8 @@ describe("header upload -> /api/analyze -> /api/progress", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
-    expect(await screen.findByText(/Analysis of server\.csv failed: analysis failed: unreadable input/,
-      undefined, { timeout: 5000 })).toBeInTheDocument();
-  }, 10000);
+    expect(await screen.findByText(/Analysis of server\.csv failed: analysis failed: unreadable input/)).toBeInTheDocument();
+  });
 
   it("shows a REAL progress strip (stage + bar) from /api/progress, then done", async () => {
     // The poll answer advances across calls: running@2/5 -> running@5/5 -> done.
@@ -66,13 +64,12 @@ describe("header upload -> /api/analyze -> /api/progress", () => {
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
 
     // A real progressbar with the backend's own done/total, never a fake bar.
-    const bar = await screen.findByRole("progressbar", undefined, { timeout: 5000 });
+    const bar = await screen.findByRole("progressbar");
     expect(bar).toHaveAttribute("aria-valuenow", "40");
     expect(screen.getByText("explaining…")).toBeInTheDocument();
 
-    expect(await screen.findByText(/server\.csv analyzed — 5 finding\(s\)/, undefined,
-      { timeout: 5000 })).toBeInTheDocument();
-  }, 10000);
+    expect(await screen.findByText(/server\.csv analyzed — 5 finding\(s\)/)).toBeInTheDocument();
+  });
 
   it("shows the server's rejection when the file is not accepted", async () => {
     mockFetch({

@@ -66,11 +66,10 @@ describe("FIX B — notifier says 'couldn't parse', not 'analyzed — 0 findings
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
 
-    expect(await screen.findByText(/Couldn't parse page\.html — 0 of 598 lines recognized/,
-      undefined, { timeout: 6000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Couldn't parse page\.html — 0 of 598 lines recognized/)).toBeInTheDocument();
     // Never the misleading clean-run phrasing.
     expect(screen.queryByText(/analyzed — 0 finding/)).not.toBeInTheDocument();
-  }, 10000);
+  });
 });
 
 describe("FIX C — github/gitlab blob URL -> raw file URL", () => {

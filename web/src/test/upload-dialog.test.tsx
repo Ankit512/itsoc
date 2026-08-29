@@ -51,9 +51,8 @@ describe("upload dialog: files and a link, side by side (v3)", () => {
 
     // The URL was posted as {url}, and the job completes via the notifier.
     await waitFor(() => expect(postBody).toEqual({ url }));
-    expect(await screen.findByText(/app\.log analyzed — 3 finding\(s\)/, undefined,
-      { timeout: 6000 })).toBeInTheDocument();
-  }, 10000);
+    expect(await screen.findByText(/app\.log analyzed — 3 finding\(s\)/)).toBeInTheDocument();
+  });
 
   it("surfaces the backend's honest rejection of an unsafe URL", async () => {
     mockFetch({

@@ -43,7 +43,7 @@ describe("upload runs as a persistent background job", () => {
     expect(screen.getByRole("status", { name: "Upload notification" })).toBeInTheDocument();
     expect(within(screen.getByRole("status", { name: "Upload notification" }))
       .getByText("server.csv")).toBeInTheDocument();
-  }, 10000);
+  });
 
   it("fires a completion notification with click-to-view that opens the run", async () => {
     let progressN = 0;
@@ -65,10 +65,10 @@ describe("upload runs as a persistent background job", () => {
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
     await userEvent.upload(screen.getByTestId("ingest-file"), file);
 
-    const view = await screen.findByRole("button", { name: "View run" }, { timeout: 6000 });
+    const view = await screen.findByRole("button", { name: "View run" });
     expect(screen.getByText(/server\.csv analyzed — 5 finding\(s\)/)).toBeInTheDocument();
 
     await userEvent.click(view);
     await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
-  }, 10000);
+  });
 });
