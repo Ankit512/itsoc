@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Bot, Send, Square, X, Compass, TrendingUp, Sparkles, BookOpen,
-  ChevronRight, Activity
+  ChevronRight, Activity, ShieldCheck
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api, Finding, RunsSummaryEntry, AskView } from "@/lib/api";
@@ -166,6 +166,12 @@ export function CopilotRail({
     queryFn: () => api.incidentRca(selectedIncidentId!),
     enabled: Boolean(selectedIncidentId),
   });
+  const { data: approvalsData } = useQuery({
+    queryKey: ["approvals", "pending"],
+    queryFn: () => api.approvals("pending"),
+    refetchInterval: 5000,
+  });
+  const pendingApprovals = (approvalsData?.approvals ?? []).filter((a) => a.state === "pending");
 
   const effectiveModel =
     propModel ?? (overview && !("error" in overview) ? overview.model : null) ?? "not configured";
@@ -399,6 +405,40 @@ export function CopilotRail({
           Runbook
         </button>
       </div>
+
+      {/* Pending approvals read-only card (C4-F3) */}
+      {pendingApprovals.length > 0 && (
+        <div
+          data-testid="copilot-pending-approvals-card"
+          className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 space-y-1.5"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-primary" aria-hidden />
+              {pendingApprovals.length} pending approval{pendingApprovals.length > 1 ? "s" : ""}
+            </span>
+            <Link
+              to="/approvals"
+              className="text-[11px] font-medium text-primary hover:underline"
+            >
+              Open in Approvals →
+            </Link>
+          </div>
+          <div className="space-y-1">
+            {pendingApprovals.slice(0, 3).map((a) => (
+              <div key={a.id} className="flex items-center justify-between text-[11px] bg-background/80 rounded px-2 py-1 border">
+                <span className="font-mono">{a.runbookId} · {a.incidentId}</span>
+                <Link
+                  to={`/approvals?sel=${encodeURIComponent(a.id)}`}
+                  className="text-primary hover:underline font-mono text-[10.5px]"
+                >
+                  review →
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Role 1 & Q&A View: Interpret & Chat */}
       {activeTab === "ask" && (

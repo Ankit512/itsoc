@@ -62,4 +62,16 @@ describe("Reports page", () => {
     }
     expect(screen.getByText(/No run loaded — analyze a log/)).toBeInTheDocument();
   });
+
+  it("renders the DORA-ready action trail line verbatim", async () => {
+    mockFetch({
+      "/console_state.json": { idle: true },
+      "/api/reports": { reports: [] },
+    });
+    renderApp(<App />, { route: "/reports" });
+
+    expect(await screen.findByText(
+      "DORA-ready action trail — every action carries approver, rule eligibility, evidence, and connector response."
+    )).toBeInTheDocument();
+  });
 });
