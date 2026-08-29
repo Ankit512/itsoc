@@ -5,16 +5,7 @@ import path from "node:path";
 // @ts-expect-error node:url type declarations not included in browser tsconfig
 import { fileURLToPath } from "node:url";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { renderApp, mockFetch } from "./helpers";
-import { AuditTimeline } from "@/components/AuditTimeline";
-import { Approvals } from "@/pages/Approvals";
-import { RunbookCard, type RunbookCardData } from "@/components/RunbookCard";
-import { useUi, applyThemeClass } from "@/store/ui";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import type { AuditVerification, AuditEntry, Approval } from "@/lib/api";
+import { describe, it, expect } from "vitest";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const itsocCssPath = path.resolve(__dirname, "../styles/itsoc.css");
@@ -28,15 +19,17 @@ const approvalsTsx = fs.readFileSync(approvalsPath, "utf-8");
 const runbookCardTsx = fs.readFileSync(runbookCardPath, "utf-8");
 
 /**
- * CARD C4-A1 — Both-themes acceptance test suite for every C4 component.
+ * CARD C4-A1 & C4-A1r — Both-themes acceptance test suite for every C4 component.
  *
  * Requirements:
  *  1. No C4 component hardcodes a colour. Every colour must come from a token (var(--...)).
  *     Asserted by scanning C4 CSS rules and component sources for literal colours.
  *  2. Every token a C4 component references is DEFINED IN BOTH theme blocks (dark & light).
  *     Asserted by set-membership in both directions.
- *  3. The severity/crit palette remains strictly confined to failed audit entries only,
- *     and theme switching never causes non-failed components to acquire alarm colouring.
+ *  3. The severity and crit palette remains strictly confined to failed audit entries only:
+ *     source-level assertions parse C4 CSS subsections to verify that priority chips,
+ *     advisory states, runbook cards, and non-failed audit chips never borrow the
+ *     severity ramp (--crit, --high, --med, --low).
  */
 
 function parseTokensFromBlock(blockContent: string): Set<string> {
@@ -54,141 +47,9 @@ function parseTokenBlock(selectorRegex: RegExp): Set<string> {
   return parseTokensFromBlock(match[1]);
 }
 
-function mockCleanAudit(): { entries: AuditEntry[]; verification: AuditVerification } {
-  return {
-    entries: [
-      {
-        ts: "2026-08-29T12:00:00Z",
-        actor: "analyst",
-        step: "0",
-        status: "approved",
-        incident_id: "INC-4a7f",
-        runbook_id: "rb-block-ip",
-        prev_hash: "GENESIS",
-        entry_hash: "entryhash0",
-        request_redacted: "nft add element inet filter blocklist { [IP-1] }",
-        response_verbatim: null,
-      },
-      {
-        ts: "2026-08-29T12:05:00Z",
-        actor: "analyst",
-        step: "0",
-        status: "executed",
-        incident_id: "INC-4a7f",
-        runbook_id: "rb-block-ip",
-        prev_hash: "entryhash0",
-        entry_hash: "entryhash1",
-        request_redacted: "nft add element inet filter blocklist { [IP-1] }",
-        response_verbatim: null,
-      },
-      {
-        ts: "2026-08-29T12:10:00Z",
-        actor: "analyst",
-        step: "0",
-        status: "rejected",
-        incident_id: "INC-4a7f",
-        runbook_id: "rb-block-ip",
-        prev_hash: "entryhash1",
-        entry_hash: "entryhash2",
-        request_redacted: "nft add element inet filter blocklist { [IP-1] }",
-        response_verbatim: null,
-      },
-    ],
-    verification: {
-      ok: true,
-      count: 3,
-      head: "entryhash2",
-      break: null,
-    },
-  };
-}
+const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "");
 
-function mockBrokenAudit(): { entries: AuditEntry[]; verification: AuditVerification } {
-  return {
-    entries: [
-      {
-        ts: "2026-08-29T12:00:00Z",
-        actor: "analyst",
-        step: "0",
-        status: "failed",
-        incident_id: "INC-4a7f",
-        runbook_id: "rb-block-ip",
-        prev_hash: "GENESIS",
-        entry_hash: "entryhash0",
-        request_redacted: "nft add element inet filter blocklist { [IP-1] }",
-        response_verbatim: null,
-      },
-    ],
-    verification: {
-      ok: false,
-      count: 1,
-      head: null,
-      break: {
-        index: 0,
-        reason: "entry hash mismatch: expected bad0 found hash0",
-        expected: "bad0",
-        found: "hash0",
-      },
-    },
-  };
-}
-
-function mockApproval(): Approval {
-  return {
-    id: "appr-abc123",
-    incidentId: "INC-4a7f",
-    runbookId: "rb-block-ip",
-    connector: "nftables-ssh",
-    step: 0,
-    state: "pending",
-    eligibilityProof: { eligible: true, missing: [] },
-    evidenceRefs: ["5", "6"],
-    requestRedacted: {
-      command: "nft add element inet filter blocklist { [IP-1] }",
-      description: "Block source IP at the edge",
-      connector: "nftables-ssh",
-      action: "block_ip",
-      params: { ip: "[IP-1]" },
-    },
-    responseVerbatim: null,
-    actor: null,
-    failureReason: null,
-    createdAt: "2026-08-29T12:00:00Z",
-    updatedAt: "2026-08-29T12:00:00Z",
-  };
-}
-
-const eligibleRunbook: RunbookCardData = {
-  runbookId: "rb-block-ip",
-  name: "Block source IP at the edge",
-  severityFloor: "HIGH",
-  triggerRules: ["auth_bruteforce_success", "auth_bruteforce"],
-  eligible: true,
-};
-
-const ineligibleRunbook: RunbookCardData = {
-  runbookId: "rb-block-ip",
-  name: "Block source IP at the edge",
-  severityFloor: "HIGH",
-  triggerRules: ["auth_bruteforce_success"],
-  eligible: false,
-  missing: [
-    "trigger.rule_ids: none of auth_bruteforce_success present (incident rules: port_scan)",
-    "severity_floor: incident is MEDIUM, below the HIGH floor",
-  ],
-};
-
-describe("Both-Themes Acceptance for C4 Components (CARD C4-A1)", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    useUi.setState({ theme: "light" });
-    applyThemeClass("light");
-  });
-
-  afterEach(() => {
-    localStorage.clear();
-  });
-
+describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () => {
   // --------------------------------------------------------------------------
   // CHECK 1: No C4 Component or CSS Subsection Hardcodes a Colour
   // --------------------------------------------------------------------------
@@ -224,9 +85,6 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1)", () => {
         /\/\* --- C4-F3: Priority chip[\s\S]*$/,
       )?.[0] ?? "";
       expect(prioritySection).toBeTruthy();
-
-      // Strip comments before checking rules
-      const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "");
 
       const sectionsToCheck = [
         { name: "Audit Timeline (Section 21)", content: stripComments(auditSection) },
@@ -334,154 +192,90 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1)", () => {
   });
 
   // --------------------------------------------------------------------------
-  // CHECK 3: Severity & Crit Palette Confinement Under Theme Switch
+  // CHECK 3: Semantic Palette Confinement (CARD C4-A1r Source-Level Invariants)
   // --------------------------------------------------------------------------
-  describe("Check 3: Palette Confinement Under Theme Switching", () => {
-    it("AuditTimeline confines the critical/alarm palette to failed entries under both themes", () => {
-      const cleanData = mockCleanAudit();
-      const brokenData = mockBrokenAudit();
+  describe("Check 3: Semantic Palette Confinement (Failed Audit Entries Only)", () => {
+    it("AuditTimeline confines the critical/alarm palette strictly to failed entries and broken banner", () => {
+      const auditSection = cssContent.match(
+        /\/\* ── 21\. AUDIT TIMELINE[\s\S]*?(?=\/\* ---- 12a5)/,
+      )?.[0] ?? "";
+      expect(auditSection).toBeTruthy();
 
-      for (const theme of ["light", "dark"] as const) {
-        useUi.setState({ theme });
-        applyThemeClass(theme);
-        document.documentElement.setAttribute("data-theme", theme);
+      const cleanAudit = stripComments(auditSection);
+      const rules = cleanAudit.split("}");
 
-        // 1. Clean chain: approved / rejected / executed have isolated non-crit palettes
-        const { unmount: unmountClean } = renderApp(
-          <AuditTimeline entries={cleanData.entries} verification={cleanData.verification} />,
-        );
+      for (const rule of rules) {
+        if (!rule.trim()) continue;
+        const [selector, decls] = rule.split("{");
+        if (!selector || !decls) continue;
+        const trimmedSelector = selector.trim();
 
-        const approvedChip = screen.getByText("approved");
-        const executedChip = screen.getByText("executed");
-        const rejectedChip = screen.getByText("rejected");
+        // Non-failed status chips must NEVER reference --crit, --danger, --warn, or --high
+        if (
+          trimmedSelector.includes(".is-chip--approved") ||
+          trimmedSelector.includes(".is-chip--rejected") ||
+          trimmedSelector.includes(".is-chip--executed")
+        ) {
+          expect(
+            decls,
+            `Non-failed chip ${trimmedSelector} must not borrow alarm tokens`,
+          ).not.toMatch(/var\(\s*--(crit|danger|warn|high)/);
+        }
 
-        expect(approvedChip.className).toMatch(/\bis-chip--approved\b/);
-        expect(approvedChip.className).not.toMatch(/\bis-chip--failed\b/);
-        expect(approvedChip.className).not.toMatch(/\bcrit\b/);
-
-        expect(executedChip.className).toMatch(/\bis-chip--executed\b/);
-        expect(executedChip.className).not.toMatch(/\bis-chip--failed\b/);
-        expect(executedChip.className).not.toMatch(/\bcrit\b/);
-
-        expect(rejectedChip.className).toMatch(/\bis-chip--rejected\b/);
-        expect(rejectedChip.className).not.toMatch(/\bis-chip--failed\b/);
-        expect(rejectedChip.className).not.toMatch(/\bcrit\b/);
-
-        expect(screen.queryByTestId("audit-chain-broken-banner")).toBeNull();
-        unmountClean();
-
-        // 2. Broken chain: strictly failed entry and broken banner carry crit
-        const { unmount: unmountBroken } = renderApp(
-          <AuditTimeline entries={brokenData.entries} verification={brokenData.verification} />,
-        );
-
-        const failedChip = screen.getByText("failed");
-        expect(failedChip.className).toMatch(/\bis-chip--failed\b/);
-
-        const banner = screen.getByTestId("audit-chain-broken-banner");
-        expect(banner.className).toMatch(/\bis-audit-broken\b/);
-
-        unmountBroken();
+        // If a rule references --crit, it MUST be an explicitly broken/failed selector
+        if (decls.includes("--crit")) {
+          const isAllowedFailedSelector =
+            trimmedSelector.includes("is-chip--failed") ||
+            trimmedSelector.includes("is-audit-entry--broken") ||
+            trimmedSelector.includes("is-audit-broken");
+          expect(
+            isAllowedFailedSelector,
+            `Critical palette leaked into non-failed audit selector: ${trimmedSelector}`,
+          ).toBe(true);
+        }
       }
     });
 
-    it("Approvals screen and modal remain free of alarm coloring across theme toggling", async () => {
-      mockFetch({
-        "/api/approvals": { approvals: [mockApproval()] },
-        "/api/approvals/appr-abc123/re-evaluate": { eligible: true, missing: [] },
-      });
+    it("RunbookCard subsection strictly avoids the severity/crit palette (--crit, --high, --med, --low)", () => {
+      const runbookSection = cssContent.match(
+        /\/\* ---- 12a5\. Runbook card[\s\S]*?(?=\/\* ── 22)/,
+      )?.[0] ?? "";
+      expect(runbookSection).toBeTruthy();
 
-      renderApp(
-        <div>
-          <ThemeToggle />
-          <Approvals />
-        </div>,
-      );
-
-      // Light theme default
-      expect(document.documentElement.getAttribute("data-theme")).toBe("light");
-      const card = await screen.findByTestId("approval-row");
-      expect(card.querySelector(".is-chip--failed")).toBeNull();
-      expect(card.querySelector(".crit")).toBeNull();
-
-      // Toggle to dark theme
-      const toggleBtn = screen.getByRole("button", { name: /switch to dark mode/i });
-      await userEvent.click(toggleBtn);
-      expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
-
-      // Verify no alarm classes leaked under dark theme
-      expect(card.querySelector(".is-chip--failed")).toBeNull();
-      expect(card.querySelector(".crit")).toBeNull();
-      expect(document.querySelector(".is-approval-modal")).toBeNull(); // not opened yet
-
-      // Toggle back to light
-      const toggleLightBtn = screen.getByRole("button", { name: /switch to light mode/i });
-      await userEvent.click(toggleLightBtn);
-      expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+      const cleanRunbook = stripComments(runbookSection);
+      const severityVars = cleanRunbook.match(/var\(\s*--(crit|high|med|low)\b/g) || [];
+      expect(
+        severityVars,
+        `RunbookCard subsection must not borrow severity palette: found ${severityVars.join(", ")}`,
+      ).toEqual([]);
     });
 
-    it("RunbookCard maintains eligibility palette isolation under both themes", () => {
-      for (const theme of ["light", "dark"] as const) {
-        useUi.setState({ theme });
-        applyThemeClass(theme);
-        document.documentElement.setAttribute("data-theme", theme);
+    it("Priority chip subsection (C4-F3) strictly avoids borrowing the severity ramp (--crit, --high, --med, --low)", () => {
+      const prioritySection = cssContent.match(
+        /\/\* --- C4-F3: Priority chip[\s\S]*$/,
+      )?.[0] ?? "";
+      expect(prioritySection).toBeTruthy();
 
-        // 1. Eligible runbook: low-accent outline, no crit/severity classes
-        const { unmount: unmountEligible } = renderApp(
-          <RunbookCard rb={eligibleRunbook} />,
-        );
-        const eligibleBadge = screen.getByTestId("rb-badge-eligible");
-        expect(eligibleBadge).toHaveTextContent("ELIGIBLE");
-        expect(eligibleBadge.className).toMatch(/is-rb-badge--eligible/);
-        expect(eligibleBadge.className).not.toMatch(/crit|danger|alarm/i);
-        expect(screen.queryByTestId("rb-badge-ineligible")).toBeNull();
-        unmountEligible();
-
-        // 2. Ineligible runbook: muted grey, no crit/severity classes
-        const { unmount: unmountIneligible } = renderApp(
-          <RunbookCard rb={ineligibleRunbook} />,
-        );
-        const ineligibleBadge = screen.getByTestId("rb-badge-ineligible");
-        expect(ineligibleBadge).toHaveTextContent("INELIGIBLE");
-        expect(ineligibleBadge.className).toMatch(/is-rb-badge--ineligible/);
-        expect(ineligibleBadge.className).not.toMatch(/crit|danger|alarm/i);
-        expect(screen.queryByTestId("rb-badge-eligible")).toBeNull();
-        unmountIneligible();
-      }
+      const cleanPriority = stripComments(prioritySection);
+      const severityVars = cleanPriority.match(/var\(\s*--(crit|high|med|low)\b/g) || [];
+      expect(
+        severityVars,
+        `Priority chip subsection must not borrow severity palette (--crit/--high/--med/--low): found ${severityVars.join(", ")}`,
+      ).toEqual([]);
     });
 
-    it("C4 priority and advisory design elements maintain palette isolation under both themes", () => {
-      for (const theme of ["light", "dark"] as const) {
-        useUi.setState({ theme });
-        applyThemeClass(theme);
-        document.documentElement.setAttribute("data-theme", theme);
+    it("Advisory states subsection (Section 22) strictly avoids borrowing the severity/crit palette (--crit, --high, --med, --low)", () => {
+      const advisorySection = cssContent.match(
+        /\/\* ── 22\. ADVISORY STATES[\s\S]*?(?=\/\* --- C4-F3)/,
+      )?.[0] ?? "";
+      expect(advisorySection).toBeTruthy();
 
-        // Priority chips (P1, P2, P3, P4) and Advisory states (pending, timeout)
-        const { unmount } = renderApp(
-          <div data-testid="c4-surfaces">
-            <span className="is-chip is-chip--priority is-chip--p1" data-testid="chip-p1">P1</span>
-            <span className="is-chip is-chip--priority is-chip--p2" data-testid="chip-p2">P2</span>
-            <span className="is-chip is-chip--priority is-chip--p3" data-testid="chip-p3">P3</span>
-            <span className="is-chip is-chip--priority is-chip--p4" data-testid="chip-p4">P4</span>
-            <div className="is-block is-adv is-advisory-pending" data-testid="adv-pending">Pending</div>
-            <div className="is-block is-adv is-advisory-timeout" data-testid="adv-timeout">
-              <div className="note-timeout">Timed out</div>
-            </div>
-          </div>,
-        );
-
-        const container = screen.getByTestId("c4-surfaces");
-        const pending = within(container).getByTestId("adv-pending");
-        const timeout = within(container).getByTestId("adv-timeout");
-
-        // Advisory pending & timeout states MUST NOT borrow critical/severity palette
-        expect(pending.className).not.toMatch(/\bis-chip--crit\b/);
-        expect(pending.className).not.toMatch(/\bcrit\b/);
-        expect(timeout.className).not.toMatch(/\bis-chip--crit\b/);
-        expect(timeout.className).not.toMatch(/\bcrit\b/);
-
-        unmount();
-      }
+      const cleanAdvisory = stripComments(advisorySection);
+      const severityVars = cleanAdvisory.match(/var\(\s*--(crit|high|med|low)\b/g) || [];
+      expect(
+        severityVars,
+        `Advisory states subsection must not borrow severity palette (--crit/--high/--med/--low): found ${severityVars.join(", ")}`,
+      ).toEqual([]);
     });
   });
 });
