@@ -34,8 +34,11 @@ function DownloadPanel({ hasRun }: { hasRun: boolean }) {
           );
         })}
       </div>
+      <p className="is-mut" style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.5 }}>
+        DORA-ready action trail — every action carries approver, rule eligibility, evidence, and connector response.
+      </p>
       {!hasRun && (
-        <p className="is-mut" style={{ marginTop: 10, fontSize: 11.5 }}>
+        <p className="is-mut" style={{ marginTop: 6, fontSize: 11.5 }}>
           No run loaded — analyze a log from the Overview, then download it here.
         </p>
       )}

@@ -40,6 +40,21 @@ function isManual(inc: Incident): boolean {
   return inc.origin === "manual";
 }
 
+function PriorityChip({ priority }: { priority?: string }) {
+  if (!priority) return null;
+  const p = priority.toUpperCase();
+  const cls = p.toLowerCase();
+  return (
+    <span
+      className={`is-chip is-chip--priority is-chip--${cls}`}
+      data-testid="priority-chip"
+      title="priority is rule-owned, weighted by asset criticality"
+    >
+      {p}
+    </span>
+  );
+}
+
 /** Severity presentation that can never misrepresent a manual incident. Rule
  *  incidents show their rule-owned severity tag; manual incidents show a MANUAL
  *  badge and, ONLY when the case actually carried one, an explicitly
@@ -241,6 +256,7 @@ function ManualIncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => vo
 
         <div className="is-rca-head">
           <IncidentSeverity inc={inc} full />
+          <PriorityChip priority={(inc as { priority?: string }).priority} />
           <h2 className="ttl">{inc.title || `Manual case ${inc.id}`}</h2>
           <StateChip state={inc.state} />
         </div>
@@ -1082,9 +1098,10 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
           <span className="is-mono is-mut">{inc.id}</span>
         </div>
 
-        {/* Header: severity pill + title + state */}
+        {/* Header: severity pill + priority chip + title + state */}
         <div className="is-rca-head">
           <IncidentSeverity inc={inc} full />
+          <PriorityChip priority={(inc as { priority?: string }).priority} />
           <h2 className="ttl">{inc.title || `${inc.entity} — ${inc.findingCount} correlated finding(s)`}</h2>
           <StateChip state={inc.state} />
         </div>
@@ -1234,7 +1251,12 @@ export function Incidents() {
                       onClick={() => setParams({ sel: inc.id })}
                       className="cursor-pointer"
                     >
-                      <td><IncidentSeverity inc={inc} /></td>
+                      <td>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <IncidentSeverity inc={inc} />
+                          <PriorityChip priority={(inc as { priority?: string }).priority} />
+                        </div>
+                      </td>
                       <td><StateChip state={inc.state} /></td>
                       <td className="col-mono" style={{ color: "var(--ink)" }}>
                         {inc.entity}

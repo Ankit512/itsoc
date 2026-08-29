@@ -5,7 +5,7 @@ import App from "@/App";
 import { renderApp, mockFetch, DEFAULT_AUTH_ME, DEFAULT_AUTH_STATUS } from "./helpers";
 import type { Incident } from "@/lib/api";
 
-function incident(over: Partial<Incident> = {}): Incident {
+function incident(over: Partial<Incident & { priority?: string; priorityRationale?: string }> = {}): Incident {
   return {
     id: "inc-abc123", runId: "test-run", entity: "203.0.113.44", entityKind: "ip",
     title: "203.0.113.44 — 2 correlated finding(s)", severity: "CRITICAL", state: "new",
@@ -15,7 +15,7 @@ function incident(over: Partial<Incident> = {}): Incident {
     createdAt: "2026-08-13T02:16:44+00:00", firstSeen: "2026-08-13T02:16:44+00:00",
     lastSeen: "2026-08-13T02:18:00+00:00", acknowledgedAt: null, resolvedAt: null,
     timeUncertain: false, ...over,
-  };
+  } as Incident;
 }
 
 describe("Incidents page", () => {
@@ -452,3 +452,57 @@ describe("Incidents investigation file (C2-T4)", () => {
     }
   });
 });
+
+// ── C4-F3: Priority chip (org-context) ──────────────────────────────────────
+describe("Priority chip presentation (C4-F3)", () => {
+  it("renders priority chip BESIDE severity chip with the verbatim tooltip (never replacing severity)", async () => {
+    const incWithPriority = incident({
+      id: "inc-p1-test",
+      severity: "CRITICAL",
+      priority: "P1",
+      priorityRationale: "Priority P1 derived from CRITICAL severity on crown-jewel asset (server-01)",
+    });
+
+    mockFetch({
+      "/api/incidents": { incidents: [incWithPriority] },
+    });
+    renderApp(<App />, { route: "/incidents" });
+
+    const rows = await screen.findAllByTestId("incident-row");
+    expect(rows.length).toBe(1);
+
+    // Assert BOTH chips are present simultaneously:
+    const sevChip = within(rows[0]).getByText("CRITICAL");
+    expect(sevChip).toBeInTheDocument();
+    expect(sevChip.className).toMatch(/\bis-tag\b/);
+
+    const priChip = within(rows[0]).getByTestId("priority-chip");
+    expect(priChip).toBeInTheDocument();
+    expect(priChip).toHaveTextContent("P1");
+    expect(priChip.className).toMatch(/\bis-chip--priority\b/);
+    expect(priChip.className).toMatch(/\bis-chip--p1\b/);
+    expect(priChip).toHaveAttribute("title", "priority is rule-owned, weighted by asset criticality");
+  });
+
+  it("renders priority chip in incident detail header beside severity", async () => {
+    const incWithPriority = incident({
+      id: "inc-p2-test",
+      severity: "HIGH",
+      priority: "P2",
+      priorityRationale: "Priority P2 derived from HIGH severity on standard asset",
+    });
+
+    mockFetch({
+      "/api/incidents": { incidents: [incWithPriority] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-p2-test" });
+
+    // Header has both severity tag and priority chip
+    expect(await screen.findByText("HIGH")).toBeInTheDocument();
+    const priChip = await screen.findByTestId("priority-chip");
+    expect(priChip).toHaveTextContent("P2");
+    expect(priChip.className).toMatch(/\bis-chip--p2\b/);
+    expect(priChip).toHaveAttribute("title", "priority is rule-owned, weighted by asset criticality");
+  });
+});
+
