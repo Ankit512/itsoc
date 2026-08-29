@@ -14,21 +14,46 @@ Per **CARD C5-T1** directives, the scripted Torq-comparison demo was executed en
 
 Every timing recorded below represents **unmanipulated, live wall-clock measurements** using high-precision timers (`time.perf_counter()`). Zero caches were artificially pre-warmed, zero steps were trimmed, zero mock substitutions were made, and all exploratory and measurement runs are fully disclosed.
 
-### Live Benchmark Summary (5-Minute Target: 300,000 ms)
+### Live Benchmark Summary
 
-| Metric | Fresh-Store Run 1 | Fresh-Store Run 2 | 5-Min Target | Margin | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Total Wall-Clock Elapsed** | **1,397.70 ms** (1.398 s) | **1,947.95 ms** (1.948 s) | 300,000 ms (5.0 min) | **>150x faster** | **PASS** |
-| **Real Incident ID** | `inc-1f4f5d4074b3` | `inc-1f4f5d4074b3` | Real Hash ID | Identical | **VERIFIED** |
-| **Target Entity & Sev** | `203.0.113.44` (CRITICAL) | `203.0.113.44` (CRITICAL) | Rule-Derived | Identical | **VERIFIED** |
-| **Priority Assignment** | `P1` (Crown-Jewel server-01) | `P1` (Crown-Jewel server-01) | Rule-Derived | Identical | **VERIFIED** |
-| **Step-Up Verification** | Success (`analyst`) | Success (`analyst`) | Gated Auth | 0 Tokens Minted | **VERIFIED** |
-| **Host Firewall State** | Blacklisted in container | Blacklisted in container | Live `nftables` | Verified via SSH | **VERIFIED** |
-| **Audit Ledger Integrity** | `ok: True` (2 entries) | `ok: True` (2 entries) | Cryptographic SHA-256 | Verified from Genesis | **VERIFIED** |
+| Metric | Fresh-Store Run 1 | Fresh-Store Run 2 | Automated Pipeline Outcome | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Total Wall-Clock Elapsed** | **1,397.70 ms** (1.398 s) | **1,947.95 ms** (1.948 s) | Completed in <2.0s (machine speed) | **PASS** |
+| **Real Incident ID** | `inc-1f4f5d4074b3` | `inc-1f4f5d4074b3` | Real Hash ID (Identical) | **VERIFIED** |
+| **Target Entity & Sev** | `203.0.113.44` (CRITICAL) | `203.0.113.44` (CRITICAL) | Rule-Derived | **VERIFIED** |
+| **Priority Assignment** | `P1` (Crown-Jewel server-01) | `P1` (Crown-Jewel server-01) | Rule-Derived | **VERIFIED** |
+| **Step-Up Verification** | Success (`analyst`) | Success (`analyst`) | Gated Auth (0 Tokens Minted) | **VERIFIED** |
+| **Host Firewall State** | Blacklisted in container | Blacklisted in container | Live `nftables` Verified via SSH | **VERIFIED** |
+| **Audit Ledger Integrity** | `ok: True` (2 entries) | `ok: True` (2 entries) | Cryptographic SHA-256 to Genesis | **VERIFIED** |
 
 ---
 
-## 1. Fresh-Store Reset Procedure & Verification
+## 1. Measurement Scope & Boundary Qualifications
+
+To maintain complete product honesty and prevent ungrounded claims:
+
+### What this benchmark INCLUDES:
+- **Automated backend pipeline execution wall-clock time** measured via `time.perf_counter()`.
+- **Log intake & normalization:** Parsing raw syslog text, envelope normalization, rule vocabulary matching, and deterministic brute-force detection.
+- **Incident derivation & priority calculation:** Entity incident derivation and asset criticality priority weighting (`org_context.py`).
+- **Investigation file assembly:** Deterministic correlation, IOC extraction, and blast-radius synthesis (`investigate.assemble`).
+- **Runbook evaluation & approval creation:** Structural eligibility evaluation (`runbooks.eligible`) and creation of a pending approval record with an IP-redacted preview (`[IP-1]`).
+- **Programmatic step-up verification:** Constant-time passphrase verification against `console/.soc/auth.json` (zero session tokens minted).
+- **Live SSH containment execution:** Subprocess dispatch to local Docker container (`itsoc-demo-target` on `127.0.0.1:2222`), kernel `nftables` element insertion, and live verification via `nft list table inet itsoc`.
+- **Cryptographic ledger validation:** Appending to `console/.soc/audit/chain.jsonl` and full chain verification from genesis via `audit.verify_chain()`.
+
+### What this benchmark EXCLUDES:
+- **Human operator think time & review latency:** The time an analyst spends reading incident summaries, reviewing raw log evidence lines, and evaluating runbook recommendations.
+- **Human physical input latency:** The time required for an operator to type their step-up passphrase into the UI approval modal and submit the form.
+- **UI rendering & browser interaction latency:** React DOM rendering, state updates, SSE stream processing, and browser event loops.
+- **WAN network transit:** Network propagation delay to geographically remote target hosts (tests executed against local loopback bridge namespace).
+
+### Binding Non-Negotiable Rule:
+A 5-minute SOC response target in customer literature refers to the complete **human-paced workflow** (including human review, triage, and interactive authorization). Because human latency was not simulated or measured, **these automated backend timings (~1–2 seconds) MUST NOT be cited or used as a competitive speed claim (e.g. "150x faster than Torq").** A valid like-for-like comparison would require measuring a human-operated analyst workflow, which this benchmark does not measure.
+
+---
+
+## 2. Fresh-Store Reset Procedure & Verification
 
 Before each run, the store was reset to pristine initial state according to the verified checklist in `docs/C5_PREP.md` Section 1:
 
@@ -43,17 +68,7 @@ Before each run, the store was reset to pristine initial state according to the 
 
 ---
 
-## 2. Stage-by-Stage Breakdown & Timing Measurements
-
-### Stage Definitions
-- **Stage 1 (Ingest & Incident Derivation):** Raw syslog line parsing, envelope normalization, rule vocabulary matching, deterministic brute-force detection, and entity incident derivation with org-context asset priority weighting.
-- **Stage 2 (Investigation File Assembly):** Deterministic investigation assembly (`investigate.assemble`) mapping timeline events, IOC extraction, blast radius attribution to `server-01`, and asset correlation.
-- **Stage 3 (Runbook Recommendation & Approval Creation):** Structural eligibility evaluation (`runbooks.eligible`) recommending `rb-block-ip` and `soc.create_approval` generating a `pending` record with an IP-redacted command preview (`[IP-1]`).
-- **Stage 4 (Step-Up Authorization & Execution):** Human authorization gate: constant-time passphrase verification (`auth.LocalDemoAuth.verify_stepup_passphrase`), immediate pre-execution eligibility re-check, and transition to `approved`.
-- **Stage 5 (Target Host Firewall Execution & Live Confirmation):** Action execution over SSH (`ssh_firewall`) to `root@127.0.0.1:2222`, adding the blocked element to `table inet itsoc { set blacklist }` with comment `itsoc:appr-<id>`, and verifying element presence via live `nft list table inet itsoc`.
-- **Stage 6 (Audit Ledger Verification):** Verification of the append-only SHA-256 hash-chain ledger (`console/.soc/audit/chain.jsonl`) via `audit.verify_chain()`, validating chain continuity from genesis `0000000000000000...` to tail.
-
----
+## 3. Stage-by-Stage Breakdown & Timing Measurements
 
 ### Detailed Timing Comparison Table
 
@@ -69,7 +84,7 @@ Before each run, the store was reset to pristine initial state according to the 
 
 ---
 
-## 3. Detailed Verification of Security Gates
+## 4. Detailed Verification of Security Gates
 
 ### Gate 1: Deterministic Incident Derivation (No Shorthand Fabrication)
 - **Direct Observation:** The detector processed the brute-force authentication spike (`203.0.113.44` against `server-01` for account `admin`, MITRE ATT&CK `T1110`).
@@ -120,7 +135,7 @@ Before each run, the store was reset to pristine initial state according to the 
 
 ---
 
-## 4. Run-to-Run Comparison & Divergence Analysis
+## 5. Run-to-Run Comparison & Divergence Analysis
 
 A demo that only succeeds once or requires hand-holding across resets is a test fixture rather than production-grade software. The following differences and consistencies were observed between Run 1 and Run 2:
 
@@ -137,7 +152,7 @@ A demo that only succeeds once or requires hand-holding across resets is a test 
 
 ---
 
-## 5. Full Run Log & Exploration Disclosures
+## 6. Full Run Log & Exploration Disclosures
 
 In accordance with strict honesty rules ("if you run it more than twice, every run's time goes in the report"), all preliminary verification runs executed during test harness validation are documented below:
 
@@ -150,4 +165,11 @@ In accordance with strict honesty rules ("if you run it more than twice, every r
 | **Benchmark Run 1** | Fixed seeded scenario | `inc-1f4f5d4074b3` | **1,397.70 ms** | Official Fresh-Store Benchmark Run 1 (Reported Above) |
 | **Benchmark Run 2** | Fixed seeded scenario | `inc-1f4f5d4074b3` | **1,947.95 ms** | Official Fresh-Store Benchmark Run 2 (Reported Above) |
 
-**Conclusion:** Across all 6 executions from fresh stores, the complete end-to-end incident-to-containment pipeline consistently completed in **1.0 to 1.95 seconds**, achieving the 5-minute requirement with a >150x timing safety margin while maintaining strict cryptographic gating and non-repudiable audit logging.
+---
+
+## 7. Conclusion & Summary of Findings
+
+Across all 6 executions from verified fresh stores, the automated backend incident-to-containment pipeline consistently completed in **1.0 to 1.95 seconds**.
+
+- **Automated Pipeline Feasibility:** The backend execution (from log ingestion and deterministic detection through cryptographic step-up verification, container firewall mutation, and audit hash verification) is computationally lightweight and completes in ~1–2 seconds from a cold start. The 5-minute target was not a constraint on the automated path.
+- **Scope & Comparison Guardrail:** As established in the Scope section, this benchmark measures only the machine-speed backend pipeline on localhost. It does not measure human think time, UI rendering, or WAN network transit. A like-for-like comparison against human-paced SOC workflow benchmarks requires measuring a human-operated run, which has not been performed here. These timings establish pipeline feasibility and determinism from a fresh store, and must not be used as a competitive speed claim without a human-paced measurement.
