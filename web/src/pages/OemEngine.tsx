@@ -11,6 +11,9 @@ import { api, type OemConnector } from "@/lib/api";
  *  outcome; an event's severity is the level the vendor reported, never guessed.
  *  A placeholder base URL is never called. */
 
+export const EGRESS_DISCLOSURE =
+  "Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale.";
+
 const TEMPLATES: Record<string, { vendor: string; baseUrl: string; eventsPath: string }> = {
   "Cisco Firepower": { vendor: "cisco", baseUrl: "https://FIREPOWER", eventsPath: "/api/fdm/v6/events" },
   "Ruckus SmartZone": { vendor: "ruckus", baseUrl: "https://SMARTZONE", eventsPath: "/wsg/api/public/v11_0/events" },
@@ -99,7 +102,7 @@ function AddConnector() {
           {msg && <span className="is-mut" style={{ fontSize: 12 }}>{msg}</span>}
         </div>
         <p className="is-mut" style={{ fontSize: 11, margin: 0, lineHeight: 1.4 }}>
-          Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale.
+          {EGRESS_DISCLOSURE}
         </p>
       </div>
     </div>
@@ -148,7 +151,7 @@ function ConnectorRow({ c }: { c: OemConnector }) {
         {msg && <span className="is-mut" style={{ fontSize: 11.5 }}>{msg}</span>}
       </div>
       <p className="is-mut" style={{ fontSize: 11, margin: 0, lineHeight: 1.4 }}>
-        Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale.
+        {EGRESS_DISCLOSURE}
       </p>
     </div>
   );

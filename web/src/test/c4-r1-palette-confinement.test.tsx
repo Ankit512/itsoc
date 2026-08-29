@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
+// @ts-expect-error node:fs type declarations not included in browser tsconfig
 import fs from "node:fs";
+// @ts-expect-error node:path type declarations not included in browser tsconfig
 import path from "node:path";
+// @ts-expect-error node:url type declarations not included in browser tsconfig
+import { fileURLToPath } from "node:url";
 
 /**
  * C4-R1 — palette-confinement regression locks.
@@ -22,6 +26,7 @@ import path from "node:path";
  * back into .is-advisory-timeout) makes the relevant test FAIL. See C4-R1 report.
  */
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const css = fs.readFileSync(path.resolve(__dirname, "../styles/itsoc.css"), "utf-8");
 
 /** A severity-palette reference in its usable form, e.g. `var(--crit)`. Bare

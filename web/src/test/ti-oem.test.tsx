@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, vi } from "vitest";
 import App from "@/App";
+import { EGRESS_DISCLOSURE } from "@/pages/OemEngine";
 import { renderApp, mockFetch } from "./helpers";
 
 afterEach(() => vi.restoreAllMocks());
@@ -73,7 +74,7 @@ describe("OEM Engine — connectors (masked creds, real poll outcome)", () => {
     const saveBtn = screen.getByRole("button", { name: /save connector/i });
     expect(saveBtn).toBeInTheDocument();
     const addPanel = saveBtn.closest(".is-panel") as HTMLElement;
-    expect(within(addPanel).getByText(/Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale\./i)).toBeInTheDocument();
+    expect(within(addPanel).getByText(EGRESS_DISCLOSURE)).toBeInTheDocument();
   });
 
   it("renders a connector's real last-run/last-error and token presence only", async () => {
@@ -96,7 +97,7 @@ describe("OEM Engine — connectors (masked creds, real poll outcome)", () => {
     expect(disableBtn).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /poll now/i })).toBeInTheDocument();
     const row = disableBtn.closest("div[style*='flex-direction: column']") as HTMLElement;
-    expect(within(row).getByText(/Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale\./i)).toBeInTheDocument();
+    expect(within(row).getByText(EGRESS_DISCLOSURE)).toBeInTheDocument();
   });
 
   it("renders the honest egress disclosure beside both the add-connector form and the enable toggle", async () => {
@@ -114,13 +115,20 @@ describe("OEM Engine — connectors (masked creds, real poll outcome)", () => {
     // 1. In the AddConnector panel
     const saveBtn = await screen.findByRole("button", { name: /save connector/i });
     const addPanel = saveBtn.closest(".is-panel") as HTMLElement;
-    expect(within(addPanel).getByText(/Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale\./i)).toBeInTheDocument();
+    const addDisclosure = within(addPanel).getByText(EGRESS_DISCLOSURE);
+    expect(addDisclosure).toBeInTheDocument();
+    expect(addDisclosure.textContent?.trim()).toBe(EGRESS_DISCLOSURE);
 
     // 2. In the ConnectorRow beside the Enable toggle button
     expect(await screen.findByText("Cisco-Edge")).toBeInTheDocument();
     const enableBtn = await screen.findByRole("button", { name: /^enable$/i });
     const row = enableBtn.closest("div[style*='flex-direction: column']") as HTMLElement;
-    expect(within(row).getByText(/Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale\./i)).toBeInTheDocument();
+    const rowDisclosure = within(row).getByText(EGRESS_DISCLOSURE);
+    expect(rowDisclosure).toBeInTheDocument();
+    expect(rowDisclosure.textContent?.trim()).toBe(EGRESS_DISCLOSURE);
+
+    // 3. Proved identical: both sites render the exact same shared constant value
+    expect(addDisclosure.textContent?.trim()).toBe(rowDisclosure.textContent?.trim());
   });
 });
 

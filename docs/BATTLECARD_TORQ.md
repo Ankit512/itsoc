@@ -39,15 +39,15 @@ Security operations teams evaluate automation on two fundamental axes: **ecosyst
 
 | Capability / Architecture | Torq Hyperautomation | itsoc Sovereign SOC | itsoc Technical Provenance |
 | :--- | :--- | :--- | :--- |
-| **Primary Deployment** | Multi-tenant or dedicated Cloud SaaS | Self-hosted local/on-premise (Docker/VM) | Local SQLite (`console/store.py:36`), zero cloud runtime dependency. |
-| **Detection & Severity Ownership** | Vendor workflows / AI agent evaluations | Deterministic rule engine (frozen detector) | `anomaly_detector.py` (SHA-256 `364577c5...`), `console/org_context.py:40-65`. |
-| **Role of Generative AI / LLMs** | Workflow step execution, intent routing, dynamic agent actions | Strictly parallel **advisory** layer; zero control or verdict authority | `console/investigate.py:270-320` (`ADVISORY` label, `explanation_guard.py`). |
-| **Fact Grounding & Hallucination Defense** | Prompt engineering & model fine-tuning | Hard citation verification: every claim must cite record `{n}` or get stripped | `console/explanation_guard.py:1-120`, `console/test_console.py`. |
-| **Data Egress Boundary** | Telemetry and events route through cloud infrastructure | Sovereign local boundary by default; raw logs never leave the host | `console/redact.py:1-180` (Masks PII/IPs before any external call). |
-| **Threat Intel Egress Transparency** | Managed cloud integrations | **Explicitly disclosed:** TI lookups transmit only queried indicators over HTTPS | `web/src/pages/OemEngine.tsx:34, 185`, `console/ti_oem.py:1-40`. |
-| **Containment Action Gating** | Webhook / API trigger, policy-based approvals | Cryptographic step-up authorization with passphrase verification | `console/auth.py:26-27, 126`, `console/actions/base.py:45-80`. |
-| **Audit Trail & Accountability** | Cloud platform execution logs | Tamper-evident, append-only SHA-256 hash-chain ledger (`chain.jsonl`) | `console/audit.py:51-140` (`FIELDS`, hash over sorted keys, genesis block). |
-| **Honesty Under Missing Data** | Varies by workflow configuration | Hardcoded honesty: unrecognized formats, empty inputs, and null KPIs report `n/a` | `web/src/components/OpsMetrics.tsx:25-35`, `tests/test_intake.py`. |
+| **Primary Deployment** | Multi-tenant or dedicated Cloud SaaS | Self-hosted local/on-premise (Docker/VM) | Local SQLite (`console/store.py`: `DB_PATH`, `_SCHEMA`), zero cloud runtime dependency. |
+| **Detection & Severity Ownership** | Vendor workflows / AI agent evaluations | Deterministic rule engine (frozen detector) | `anomaly_detector.py` (SHA-256 `364577c5...`), `console/org_context.py` (`PRIORITY_MATRIX`, `calculate_priority`). |
+| **Role of Generative AI / LLMs** | Workflow step execution, intent routing, dynamic agent actions | Strictly parallel **advisory** layer; zero control or verdict authority | `console/investigate.py` (`ADVISORY_LABEL`, `dispatch_advisory`), `explanation_guard.py` (`UNVERIFIED_NOTE`). |
+| **Fact Grounding & Hallucination Defense** | Prompt engineering & model fine-tuning | Hard citation verification: every claim must cite record `{n}` or get stripped | `explanation_guard.py` (`_sentence_guard`, `_check_grounding`), `console/test_console.py`. |
+| **Data Egress Boundary** | Telemetry and events route through cloud infrastructure | Sovereign local boundary by default; raw logs never leave the host | `console/redact.py` (`Redactor.mask`, `redact_case`). |
+| **Threat Intel Egress Transparency** | Managed cloud integrations | **Explicitly disclosed:** TI lookups transmit only queried indicators over HTTPS | `web/src/pages/OemEngine.tsx` (`EGRESS_DISCLOSURE`), `console/ti_oem.py` (`enrich_ip`, `poll_connector`). |
+| **Containment Action Gating** | Webhook / API trigger, policy-based approvals | Cryptographic step-up authorization with passphrase verification | `console/auth.py` (`BaseAuthProvider.verify_stepup_passphrase`, `LocalDemoAuthProvider`), `console/actions/base.py` (`BaseConnector`). |
+| **Audit Trail & Accountability** | Cloud platform execution logs | Tamper-evident, append-only SHA-256 hash-chain ledger (`chain.jsonl`) | `console/audit.py` (`FIELDS`, `append`, `verify_chain`, `GENESIS`). |
+| **Honesty Under Missing Data** | Varies by workflow configuration | Hardcoded honesty: unrecognized formats, empty inputs, and null KPIs report `n/a` | `web/src/components/OpsMetrics.tsx` (`fmtDuration`, `OpsMetrics`), `tests/test_intake.py` (`test_unrecognized_format_is_honest`, `test_empty_input_is_honest`). |
 
 ---
 
@@ -73,12 +73,12 @@ In accordance with repo standards, every numerical figure is verified against in
 
 | Metric / Guarantee | Measured Value | Repository Evidence | Technical Description |
 | :--- | :--- | :--- | :--- |
-| **Evaluation Detection Score** | $F_1 = 1.000$<br>(Precision 1.000, Recall 1.000) | `tests/eval/run_eval.py:1-68` | Measured on the 19 standard deterministic test cases (SSH brute-force, web attacks, port scans, disk alerts). |
-| **Deterministic Assembly Speed** | $< 5\text{ ms}$<br>(Target $< 120\text{ s}$) | `console/investigate.py:32-40`<br>`console/test_console.py` | Assembles timeline, IOCs, affected entities, and blast radius from SQLite store without waiting on LLMs. |
-| **Advisory Grounding Rate** | $1.000$ ($100\%$ on test scenario)<br>(Target $\ge 0.95$) | `console/investigate.py:270-310`<br>`console/test_console.py` | Measured on canonical `INC-4a7f` scenario via `explanation_guard.py` verifying every sentence against source `{n}` lines. |
-| **Advisory Worker Timeout** | Exactly $45\text{ s}$ | `console/investigate.py:27`<br>`console/test_console.py` | Per-agent thread pool timeout ensuring advisory queries fail openly without hanging UI. |
-| **Rule Severity Mutation** | Exactly $0\%$ | `console/org_context.py:40-65`<br>`console/test_console.py` | Priority weighting rules adjust priority ($P1\dots P4$) based on asset criticality, leaving underlying severity immutable. |
-| **Redaction Coverage** | $100\%$ of private IPs/hosts/users | `console/redact.py:1-180`<br>`tests/test_intake.py:24-40` | Masks sensitive identifiers before LLM advisory dispatch and in command preview dialogs. |
+| **Evaluation Detection Score** | $F_1 = 1.000$<br>(Precision 1.000, Recall 1.000) | `tests/eval/run_eval.py` (`evaluate_case`, `score_predictions`) | Measured on the 19 standard deterministic test cases (SSH brute-force, web attacks, port scans, disk alerts). |
+| **Deterministic Assembly Speed** | $< 5\text{ ms}$<br>(Target $< 120\text{ s}$) | `console/investigate.py` (`assemble`)<br>`console/test_console.py` | Assembles timeline, IOCs, affected entities, and blast radius from SQLite store without waiting on LLMs. |
+| **Advisory Grounding Rate** | $1.000$ ($100\%$ on test scenario)<br>(Target $\ge 0.95$) | `console/investigate.py` (`_run_advisory_agent`)<br>`explanation_guard.py`<br>`console/test_console.py` | Measured on canonical `INC-4a7f` scenario via `explanation_guard.py` verifying every sentence against source `{n}` lines. |
+| **Advisory Worker Timeout** | Exactly $45\text{ s}$ | `console/investigate.py` (`ADVISORY_TIMEOUT`)<br>`console/test_console.py` | Per-agent thread pool timeout ensuring advisory queries fail openly without hanging UI. |
+| **Rule Severity Mutation** | Exactly $0\%$ | `console/org_context.py` (`PRIORITY_MATRIX`, `calculate_priority`)<br>`console/test_console.py` | Priority weighting rules adjust priority ($P1\dots P4$) based on asset criticality, leaving underlying severity immutable. |
+| **Redaction Coverage** | $100\%$ of private IPs/hosts/users | `console/redact.py` (`Redactor.mask`)<br>`tests/test_intake.py` (`test_redacted_by_default`) | Masks sensitive identifiers before LLM advisory dispatch and in command preview dialogs. |
 
 ---
 
@@ -89,13 +89,13 @@ To maintain epistemic honesty, the following candidate claims were **CUT** becau
 1. **CUT: "LLMs miss 96% of attacks" / "96.2% error rate":**  
    *Reason:* Paraphrasing or inverting arXiv 2604.19533 overstates the source. The paper measures event-level detection in a specific benchmark, not overall attack-level failure rates.
 2. **CUT: "Mean Time to Detect (MTTD) is reduced to X seconds / X%":**  
-   *Reason:* Codebase analysis of `console/soc.py:1019-1028` established that our stored metrics measure Mean Time to Acknowledge (MTTA), and true MTTD is not computable from heterogeneous raw event logs without universal UTC normalization. Publishing an unmeasurable MTTD claim is prohibited.
+   *Reason:* Codebase analysis of `console/soc.py` (`metrics` calculation) established that our stored metrics measure Mean Time to Acknowledge (MTTA), and true MTTD is not computable from heterogeneous raw event logs without universal UTC normalization. Publishing an unmeasurable MTTD claim is prohibited.
 3. **CUT: Competitor-specific latency or error rate claims (e.g., "Torq has X% false positive rate" or "Torq takes X hours to configure"):**  
    *Reason:* itsoc does not possess independent, peer-reviewed benchmarks of Torq production environments. Competitor capabilities are characterized by architectural properties (cloud vs. local, AI orchestration vs. rule determinism), not unsourced numbers.
 4. **CUT: "Processes up to 100,000 EPS" / "Enterprise-scale throughput":**  
    *Reason:* Vague sizing claims ("up to", "enterprise-scale") without an in-repo load benchmark harness are cut.
 5. **CUT: "Incident response completes in under 5 minutes" as a completed fact:**  
-   *Reason:* Sub-5-minute execution is a scripted benchmark target (`docs/ITSOC_STAGE_C_BUILD.md:107`), pending live measurement during Phase C5 runs.
+   *Reason:* Sub-5-minute execution is a scripted benchmark target (`docs/ITSOC_STAGE_C_BUILD.md`), pending live measurement during Phase C5 runs.
 
 ---
 
@@ -104,10 +104,10 @@ To maintain epistemic honesty, the following candidate claims were **CUT** becau
 A foundational principle of itsoc is that sovereignty claims must be transparent regarding edge exceptions:
 
 - **Default State (Zero Egress):** Normal log parsing, anomaly detection, incident correlation, investigation file assembly, and runbook eligibility run entirely locally without network transmission.
-- **The Egress Exception:** If an operator explicitly enables external Threat Intelligence connectors (e.g., AlienVault OTX, AbuseIPDB) via `web/src/pages/OemEngine.tsx` (`console/ti_oem.py:1-40`):
+- **The Egress Exception:** If an operator explicitly enables external Threat Intelligence connectors (e.g., AlienVault OTX, AbuseIPDB) via `web/src/pages/OemEngine.tsx` (`console/ti_oem.py`: `enrich_ip`, `poll_connector`):
   - Queries transmit **only specific queried indicators** (external IPs, domain names, hashes) and necessary API credentials over outbound HTTPS.
   - **Raw log files and internal host telemetry are NEVER sent wholesale.**
-  - An explicit transparency notice is displayed adjacent to connector toggles in the UI (`web/src/pages/OemEngine.tsx:34, 185`).
+  - An explicit transparency notice is displayed adjacent to connector toggles in the UI (`web/src/pages/OemEngine.tsx`: `EGRESS_DISCLOSURE`).
 
 ---
 
