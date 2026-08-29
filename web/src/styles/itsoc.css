@@ -558,3 +558,29 @@
   border:1px dashed var(--bd); border-radius:var(--radius-sm);
   padding:20px; text-align:center; color:var(--mut); font-size:12.5px;
 }
+
+/* ── 22. ADVISORY STATES (C4-F2): PENDING & TIMEOUT ──────────────────────── */
+/* The advisory family uses a dashed left border to visually and structurally
+   distinguish model hypothesis from deterministic, rule-derived facts.
+   Neither state borrows the critical/severity palette (--crit #f26d78). */
+.is-advisory-pending,
+.is-block.is-adv.is-advisory-pending {
+  border-left: 3px dashed color-mix(in srgb, var(--acc) 45%, transparent);
+  background: color-mix(in srgb, var(--acc) 3%, transparent);
+  color: var(--mut);
+}
+.is-advisory-pending p,
+.is-block.is-adv.is-advisory-pending p {
+  color: var(--mut);
+}
+
+.is-advisory-timeout,
+.is-block.is-adv.is-advisory-timeout {
+  border-left: 3px dashed color-mix(in srgb, var(--high) 60%, transparent);
+  background: color-mix(in srgb, var(--high) 5%, transparent);
+}
+.is-advisory-timeout .note-timeout {
+  color: var(--high);
+  font-weight: 600;
+  font-size: 11.5px;
+}
