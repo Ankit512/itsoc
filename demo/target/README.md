@@ -19,7 +19,7 @@ Per `hive/stage-c/GUARDRAILS.md`:
   nft add table inet itsoc
   nft add chain inet itsoc filter '{ type filter hook input priority -10; policy accept; }'
   nft add set inet itsoc blacklist '{ type ipv4_addr; flags interval; }'
-  nft add rule inet itsoc filter ip saddr @blacklist drop comment "itsoc:block-set-rule"
+  nft add rule inet itsoc filter ip saddr @blacklist drop comment "itsoc-block-set-rule"
   ```
 - **Execute (Block IP)**:
   ```bash
