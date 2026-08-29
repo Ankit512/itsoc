@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { Check, Sparkles, Pencil, X } from "lucide-react";
 import { api, INCIDENT_STATES, CASE_STATUSES, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport } from "@/lib/api";
+import { RunbookCard, type RunbookCardData } from "@/components/RunbookCard";
 import { cn } from "@/lib/utils";
 
 /** Open the shell's real (streaming) analyst — the inline card is a grounded
@@ -682,6 +683,111 @@ function ResponseChecklist({ inc }: { inc: Incident }) {
   );
 }
 
+/** Response panel (C4-F1): the rule-ELIGIBLE runbooks for this incident, each an
+ *  is-runbook-card, with a single Request-approval action.
+ *
+ *  Rule-owned only. The eligible list and every `missing` come straight from the
+ *  engine (/runbook-recommendation → runbooks.eligible()); the advisory model
+ *  ranking the same endpoint also returns is deliberately NOT surfaced here, so
+ *  this panel can never let advice widen eligibility. NO approve control lives
+ *  here: Request approval CREATES a pending approval record — approving happens
+ *  only in the Approvals screen, behind step-up. A Request that comes back 409
+ *  (eligibility drifted since load) flips that card to ineligible with the
+ *  engine's own `missing`, verbatim — the same discipline as the 409 body. */
+export function ResponsePanel({ inc }: { inc: Incident }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["runbook-recommendation", inc.id],
+    queryFn: () => api.incidentRunbookRecommendation(inc.id),
+  });
+  const reco = data && !("error" in data) ? data : null;
+  const eligible = reco?.eligible ?? [];
+
+  const [selId, setSelId] = useState<string | null>(null);
+  const selected = eligible.find((e) => e.runbookId === selId) ?? eligible[0] ?? null;
+
+  const [driftMissing, setDriftMissing] = useState<Record<string, string[]>>({});
+  const [created, setCreated] = useState<{ runbookId: string; id: string } | null>(null);
+
+  const request = useMutation({
+    mutationFn: (rid: string) => api.createApproval({ incidentId: inc.id, runbookId: rid }),
+    onSuccess: (res, rid) => {
+      if (res.ok && res.approval) setCreated({ runbookId: rid, id: res.approval.id });
+      else if (res.missing) setDriftMissing((m) => ({ ...m, [rid]: res.missing! }));
+    },
+  });
+
+  return (
+    <section className="is-panel" data-testid="response-panel">
+      <div className="is-panel__h" style={{ justifyContent: "space-between" }}>
+        <h3>Response</h3>
+        <span className="is-chip">rule-eligible runbooks</span>
+      </div>
+
+      {isLoading ? (
+        <p className="is-mut" style={{ fontSize: 11.5, margin: 0 }}>Loading eligible runbooks…</p>
+      ) : isError ? (
+        <p className="is-mut" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          The runbook engine is unreachable — no runbooks shown. Nothing is invented.
+        </p>
+      ) : eligible.length === 0 ? (
+        // Ineligibility is information, not alarm: no eligible runbook is a
+        // normal state, stated plainly and muted — never an error surface.
+        <p className="is-mut" data-testid="response-empty" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          No runbook is eligible for this incident yet — the rules cleared none of their requirements.
+          This is information, not a failure.
+        </p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {eligible.map((e) => {
+            const drift = driftMissing[e.runbookId];
+            const rb: RunbookCardData = drift
+              ? { runbookId: e.runbookId, name: e.name, severityFloor: e.severityFloor,
+                  triggerRules: e.triggerRules, eligible: false, missing: drift }
+              : { runbookId: e.runbookId, name: e.name, severityFloor: e.severityFloor,
+                  triggerRules: e.triggerRules, eligible: true };
+            return (
+              <RunbookCard
+                key={e.runbookId}
+                rb={rb}
+                selected={selected?.runbookId === e.runbookId}
+                onSelect={() => setSelId(e.runbookId)}
+              />
+            );
+          })}
+
+          <div className="is-response-actions">
+            {/* The SINGLE accent action in the Incidents view. It CREATES a
+                pending approval — it is not an approve control. */}
+            <button
+              type="button"
+              className="is-btn is-btn--primary"
+              data-testid="request-approval"
+              disabled={!selected || request.isPending
+                || Boolean(driftMissing[selected?.runbookId ?? ""])}
+              onClick={() => selected && request.mutate(selected.runbookId)}
+            >
+              {request.isPending ? "Requesting…" : "Request approval"}
+            </button>
+          </div>
+
+          {created && (
+            <div className="is-response-created" data-testid="approval-created">
+              <span>Pending approval created for <span className="is-mono">{created.runbookId}</span>.</span>{" "}
+              <Link
+                to={`/approvals?sel=${encodeURIComponent(created.id)}`}
+                data-testid="open-in-approvals"
+                className="is-response-link"
+              >
+                Open in Approvals →
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** Right rail for the selected incident: real Properties + the real cross-run
  *  brute-force sparkline + the inline itsoc-analyst card (v3 renders). */
 function IncidentRail({ inc }: { inc: Incident }) {
@@ -722,6 +828,7 @@ function IncidentRail({ inc }: { inc: Incident }) {
       </section>
 
       <BruteforceSparkline inc={inc} />
+      <ResponsePanel inc={inc} />
       <ResponseChecklist inc={inc} />
       <IncidentAnalyst inc={inc} />
     </aside>

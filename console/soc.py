@@ -1627,6 +1627,11 @@ def eligible_runbooks(incident, state=None):
                 "runbookId": rid,                 # rule id — a reference, not a handle
                 "name": rb.get("name"),
                 "severityFloor": rb.get("severity_floor"),
+                # C4-F1: additive, rule-owned field for the Response panel's
+                # trigger-rule chips — the runbook definition's trigger.rule_ids
+                # VERBATIM (a copy, no derivation/filtering). Same class of fact
+                # as severityFloor; carries no verdict semantics.
+                "triggerRules": list(rb.get("trigger", {}).get("rule_ids") or []),
                 "eligibilityProof": verdict,       # rule-owned, verbatim from eligible()
             })
     return out
