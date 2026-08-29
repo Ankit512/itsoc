@@ -1016,7 +1016,7 @@ def _mean_seconds(pairs):
 
 def metrics(state, run_labels=()):
     incidents = list(_load("incidents.json").values())
-    mttd, mttd_basis = _mean_seconds(
+    mtta, mtta_basis = _mean_seconds(
         (i.get("createdAt"), i.get("acknowledgedAt")) for i in incidents)
     mttr, mttr_basis = _mean_seconds(
         (i.get("createdAt"), i.get("resolvedAt"))
@@ -1025,7 +1025,7 @@ def metrics(state, run_labels=()):
     idle = not state or state.get("idle")
     return {
         "openIncidents": sum(1 for i in incidents if i.get("state") != "resolved"),
-        "mttdSeconds": mttd, "mttdBasis": mttd_basis,
+        "mttaSeconds": mtta, "mttaBasis": mtta_basis,
         "mttrSeconds": mttr, "mttrBasis": mttr_basis,
         # HIGH+ risk only — counting all atRisk dilutes the signal when most
         # entities have at least one LOW finding (ITSOC_REDESIGN_SPEC §Phase 4).

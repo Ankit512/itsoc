@@ -2090,9 +2090,9 @@ def check_soc_subsystems():
 
                 # --- metrics BEFORE any analyst action: honest nulls -----------
                 _, m = req("GET", "/api/metrics")
-                check("metrics: no acknowledgements -> mttd/mttr are null",
-                      m["mttdSeconds"] is None and m["mttrSeconds"] is None
-                      and m["mttdBasis"] == 0 and m["mttrBasis"] == 0, str(m))
+                check("metrics: no acknowledgements -> mtta/mttr are null",
+                      m["mttaSeconds"] is None and m["mttrSeconds"] is None
+                      and m["mttaBasis"] == 0 and m["mttrBasis"] == 0, str(m))
                 check("metrics: openIncidents/assets/users from real data",
                       m["openIncidents"] == 4 and m["assetsAtRisk"] == 3
                       and m["usersAtRisk"] == 1, str(m))
@@ -2118,9 +2118,9 @@ def check_soc_subsystems():
                 check("?state= filters the list",
                       [i["id"] for i in out["incidents"]] == [iid])
                 _, m = req("GET", "/api/metrics")
-                check("metrics: one resolved incident -> real mttd/mttr, basis 1",
+                check("metrics: one resolved incident -> real mtta/mttr, basis 1",
                       m["mttrSeconds"] is not None and m["mttrBasis"] == 1
-                      and m["mttdSeconds"] is not None and m["openIncidents"] == 3,
+                      and m["mttaSeconds"] is not None and m["openIncidents"] == 3,
                       str(m))
 
                 # --- assets & users: observed entities only --------------------

@@ -90,10 +90,10 @@ export const OVERVIEW: OverviewData = {
 };
 
 /** /api/metrics as soc.metrics() emits it: incidents exist but none carry
- *  acknowledge/resolve stamps yet, so MTTD/MTTR honestly have no basis. */
+ *  acknowledge/resolve stamps yet, so MTTA/MTTR honestly have no basis. */
 export const METRICS: Metrics = {
   openIncidents: 2,
-  mttdSeconds: null, mttdBasis: 0,
+  mttaSeconds: null, mttaBasis: 0,
   mttrSeconds: null, mttrBasis: 0,
   assetsAtRisk: 3, usersAtRisk: 1, dataSources: 4,
 };

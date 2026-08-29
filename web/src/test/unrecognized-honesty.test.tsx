@@ -20,7 +20,7 @@ describe("FIX A — Overview honest banner on an unrecognized run", () => {
   it("shows the 'format not recognized' banner above the zero KPIs, not a false all-clear", async () => {
     mockFetch({
       "/api/overview": ZERO_OVERVIEW,
-      "/api/metrics": { openIncidents: 0, mttdSeconds: null, mttdBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 },
+      "/api/metrics": { openIncidents: 0, mttaSeconds: null, mttaBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 },
       "/console_state.json": consoleState([], { unrecognized: true, linesParsed: 0, linesUnparsed: 598 }),
     });
     renderApp(<App />);
@@ -36,7 +36,7 @@ describe("FIX A — Overview honest banner on an unrecognized run", () => {
   it("does NOT show the banner for a normal run", async () => {
     mockFetch({
       "/api/overview": OVERVIEW,
-      "/api/metrics": { openIncidents: 0, mttdSeconds: null, mttdBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 },
+      "/api/metrics": { openIncidents: 0, mttaSeconds: null, mttaBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 },
       "/console_state.json": consoleState([], { unrecognized: false, linesParsed: 2000, linesUnparsed: 0 }),
     });
     renderApp(<App />);
@@ -51,7 +51,7 @@ describe("FIX B — notifier says 'couldn't parse', not 'analyzed — 0 findings
   it("reports an unsupported-format run honestly on completion", async () => {
     let progressN = 0;
     mockFetch({
-      "/api/overview": ZERO_OVERVIEW, "/api/metrics": { openIncidents: 0, mttdSeconds: null, mttdBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 },
+      "/api/overview": ZERO_OVERVIEW, "/api/metrics": { openIncidents: 0, mttaSeconds: null, mttaBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 },
       "/api/runs": { current: null, runs: [] },
       "/api/analyze": { status: "running" },
       "/api/progress": () => (progressN++ === 0
@@ -89,7 +89,7 @@ describe("FIX C — github/gitlab blob URL -> raw file URL", () => {
   });
 
   it("shows an inline hint in the link field when a blob URL is pasted", async () => {
-    mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": { openIncidents: 0, mttdSeconds: null, mttdBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 }, "/console_state.json": consoleState([]) });
+    mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": { openIncidents: 0, mttaSeconds: null, mttaBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 }, "/console_state.json": consoleState([]) });
     renderApp(<App />);
     await screen.findByTestId("chart-overtime");
     await userEvent.click(screen.getByRole("button", { name: /upload logs/i }));
