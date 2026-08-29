@@ -418,6 +418,37 @@ export interface Approval {
   updatedAt: string;
 }
 
+// ---- C4-F1: runbook recommendation (Incidents Response panel) ------------
+/** One rule-eligible runbook for an incident. Rule-owned throughout:
+ *  `eligibilityProof` is runbooks.eligible() verbatim ({eligible, missing}),
+ *  `triggerRules` are the runbook definition's trigger.rule_ids verbatim. No
+ *  connector/command/handle — a reference, never something executable. */
+export interface EligibleRunbook {
+  runbookId: string;
+  name: string | null;
+  severityFloor: string | null;
+  triggerRules: string[];
+  eligibilityProof: EligibilityProof;
+}
+/** The advisory (model) half — a ranking + justifications filtered to the
+ *  eligible ids, with an honest status. It can never widen eligibility and
+ *  carries no executable handle; the Response panel treats it as advice only. */
+export interface RunbookRecommendationAdvisory {
+  label: string;
+  status: "complete" | "absent" | "timed_out";
+  ranking: string[];
+  justifications: { runbookId: string; text: string }[];
+  note: string | null;
+}
+export interface RunbookRecommendation {
+  type: "runbook_recommendation";
+  advisory: true;
+  incidentId: string | null;
+  eligible: EligibleRunbook[];              // deterministic, rule-owned
+  recommendation: RunbookRecommendationAdvisory;   // advisory (model), honest states
+}
+// --------------------------------------------------------------------------
+
 /** Cross-run brute-force attempt series for an incident's entity (RCA rail
  *  sparkline). A DERIVED display aggregation over run history — never a verdict.
  *  available=false is the honest n/a (fewer than 2 real runs for the entity). */
@@ -854,6 +885,16 @@ export const api = {
     getJson<OrError<AdvisoryReport>>(`/api/incidents/${id}/advisory`),
   incidentBruteforce: (id: string) =>
     getJson<AttemptSeries>(`/api/incidents/${id}/bruteforce`),
+
+  // ---- C4-F1: rule-eligible runbooks for the Incidents Response panel ------
+  /** The rule-owned eligible-runbooks list for an incident (plus a separate
+   *  advisory ranking that can never widen eligibility). Sources the Response
+   *  panel; the panel cannot disagree with the engine because this is the same
+   *  eligible()/missing data the 409 create path uses. 404 for an unknown id. */
+  incidentRunbookRecommendation: (id: string) =>
+    getJson<OrError<RunbookRecommendation>>(
+      `/api/incidents/${encodeURIComponent(id)}/runbook-recommendation`),
+  // --------------------------------------------------------------------------
 
   /** Analyst lifecycle transition (POST /api/incidents/<id>/state). Returns the
    *  updated incident; 400 (bad state) / 404 (unknown id) reject honestly. */

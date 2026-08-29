@@ -558,3 +558,37 @@
   border:1px dashed var(--bd); border-radius:var(--radius-sm);
   padding:20px; text-align:center; color:var(--mut); font-size:12.5px;
 }
+
+/* ---- 12a5. Runbook card (C4-F1): a runbook surfaced against an incident in the
+   Incidents Response panel. INELIGIBILITY IS INFORMATION, NOT ALARM — the
+   ineligible badge is MUTED and must NEVER borrow the crit/severity palette;
+   eligible is a low-emphasis accent outline. The missing-evidence list is the
+   engine's `missing` array verbatim. No approve control lives here. Own
+   clearly-delimited subsection (appended at EOF) so the concurrent C4 fan-out
+   stays conflict-free — exactly as the C1 fan-out did. Reuses is-mono/is-mut. */
+.is-runbook-card{ background:var(--inset); border:1px solid var(--bd); border-radius:var(--radius-sm); padding:11px 12px; display:flex; flex-direction:column; gap:7px; }
+.is-runbook-card.is-selected{ border-color:color-mix(in srgb,var(--acc) 55%,transparent); }
+.is-runbook-card[role="button"]{ cursor:pointer; }
+.is-runbook-card[role="button"]:hover{ border-color:var(--bd2); }
+.is-runbook-card__h{ display:flex; align-items:center; gap:10px; }
+.is-runbook-card__name{ flex:1; min-width:0; font-size:13px; font-weight:600; color:var(--ink); }
+.is-runbook-card__meta{ font-size:10.5px; }
+.is-runbook-card__rules{ display:flex; flex-wrap:wrap; gap:5px; }
+.is-rb-rule{ font-size:10px; color:var(--ink2); background:var(--pan2); border:1px solid var(--bd); border-radius:var(--radius-xs); padding:1px 6px; }
+/* Eligibility badges. Eligible = low-emphasis accent OUTLINE (calm, not filled).
+   Ineligible = MUTED grey outline — deliberately NOT a severity/crit colour, so
+   an ineligible runbook reads as information, never as an alarm. */
+.is-rb-badge{ font-size:9.5px; font-weight:700; letter-spacing:.05em; padding:2px 8px; border-radius:var(--radius-xs); border:1px solid transparent; background:transparent; }
+.is-rb-badge--eligible{ color:var(--acc); border-color:color-mix(in srgb,var(--acc) 45%,transparent); }
+.is-rb-badge--ineligible{ color:var(--mut); border-color:var(--bd2); }
+/* Missing-evidence — muted, verbatim from the engine. */
+.is-runbook-card__missing{ display:flex; flex-direction:column; gap:4px; }
+.is-rb-missing__lbl{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut2); }
+.is-rb-missing__list{ margin:0; padding-left:16px; display:flex; flex-direction:column; gap:3px; }
+.is-rb-missing__item{ font-size:11px; line-height:1.5; color:var(--mut); word-break:break-word; }
+/* Response panel wiring (C4-F1): the single Request-approval action + the
+   create-then-link confirmation. Muted, no severity colour. */
+.is-response-actions{ display:flex; gap:8px; padding-top:2px; }
+.is-response-created{ font-size:11.5px; color:var(--mut); line-height:1.5; }
+.is-response-link{ color:var(--acc); text-decoration:none; }
+.is-response-link:hover{ text-decoration:underline; }
