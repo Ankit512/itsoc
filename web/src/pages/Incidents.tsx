@@ -859,8 +859,17 @@ function RecordCite({ n, byN }: { n: number; byN: Map<number, InvestigationEvent
  *  withheld ("rejected"), or a VISIBLE timeout that never becomes prose. */
 function AdvisoryBlockView({ block, byN }: { block: AdvisoryBlock; byN: Map<number, InvestigationEvent> }) {
   const timedOut = block.status === "timed_out";
+  const pending = (block.status as string) === "pending";
   return (
-    <div className="is-block is-adv" data-testid={`investigation-adv-${block.kind}`} data-adv-status={block.status}>
+    <div
+      className={cn(
+        "is-block is-adv",
+        pending && "is-advisory-pending",
+        timedOut && "is-advisory-timeout"
+      )}
+      data-testid={`investigation-adv-${block.kind}`}
+      data-adv-status={block.status}
+    >
       <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
         <span className="cap" style={{ marginBottom: 0 }}>{block.kind}</span>
         <span className="is-chip is-chip--adv">{block.label}</span>
@@ -878,6 +887,10 @@ function AdvisoryBlockView({ block, byN }: { block: AdvisoryBlock; byN: Map<numb
         <div className="note-timeout" data-testid={`advisory-timeout-${block.kind}`}>
           {block.note || "ADVISORY · timed out — retry"}
         </div>
+      ) : pending ? (
+        <p className="is-mut" style={{ fontSize: "11.5px" }}>
+          {block.note || "ADVISORY · pending — agent dispatched"}
+        </p>
       ) : (
         <p className="is-mut" style={{ fontSize: "11.5px" }}>
           {block.note || "ADVISORY · unverified — model prose was withheld by the grounding guard"}
@@ -1024,15 +1037,22 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
 
         {advisory.isLoading || advisory.isFetching ? (
           // PENDING — dispatched, not yet returned. The file above is already complete.
-          <div className="is-block is-adv" data-testid="advisory-pending">
+          <div className="is-block is-adv is-advisory-pending" data-testid="advisory-pending">
             <p className="is-mut" style={{ fontSize: "11.5px" }}>
               ADVISORY · pending — three grounded agents dispatched; the deterministic case above does not wait on them.
             </p>
           </div>
         ) : !advReport ? (
           // Route unreachable — a VISIBLE degrade, never a silent omission.
-          <div className="is-block is-adv" data-testid="advisory-unavailable">
+          <div className="is-block is-adv is-advisory-timeout" data-testid="advisory-unavailable">
             <div className="note-timeout">ADVISORY · timed out — retry</div>
+            <button className="is-btn is-btn--ghost" style={{ marginTop: 6, fontSize: 11 }}
+                    data-testid="advisory-retry" onClick={() => advisory.refetch()}>retry</button>
+          </div>
+        ) : advReport.blocks.length === 0 && advReport.status === "timed_out" ? (
+          // Entire report timed out with no sub-blocks
+          <div className="is-block is-adv is-advisory-timeout" data-testid="advisory-timeout-empty">
+            <div className="note-timeout">{advReport.note || "ADVISORY · timed out — the eligible list above is complete without it"}</div>
             <button className="is-btn is-btn--ghost" style={{ marginTop: 6, fontSize: 11 }}
                     data-testid="advisory-retry" onClick={() => advisory.refetch()}>retry</button>
           </div>
@@ -1120,7 +1140,7 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
         <section className="is-panel">
           <div className="is-panel__h"><h3>{inc.findingCount} correlated finding(s)</h3></div>
           <div className="flex flex-wrap gap-1.5">
-            {inc.findingIds.map((fid) => (
+            {(inc.findingIds || []).map((fid) => (
               <a key={fid} href={`/alerts?sel=${encodeURIComponent(fid)}`}
                 className="is-tag is-tag--info is-mono" title="Open this finding in Findings">
                 {fid}
