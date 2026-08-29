@@ -1182,3 +1182,536 @@ def build_view(question, state):
     if any(w in q for w in ("finding", "alert", "detection", "top ")):
         return _findings_view(findings, _view_sev_filter(q))
     return None
+
+
+# ===========================================================================
+# Approvals — gated response with per-action step-up (Stage C, C3-T2 / D3)
+# ===========================================================================
+# The API-route LOGIC for the approvals flow. Each public function returns an
+# HTTP-style (status_code, body) tuple so the flow — including the 409 path and
+# the re-evaluation refusal — is fully demonstrable without an HTTP server; the
+# eventual serve.py delegation is a thin parse-and-emit wrapper over these.
+#
+# Guardrails held here: rules own eligibility (runbooks.eligible), so the LLM
+# can never open this gate; the connector is invoked ONLY inside approve, and
+# ONLY after a successful step-up verification; every approve/reject/execute is
+# written to the append-only hash-chained audit ledger; and the redacted command
+# (never the raw one) is what lands in the stored record and the audit entry.
+#
+# State machine:  pending -> approved -> executed | failed
+#                 pending -> rejected
+# `failed` records the real reason and NEVER fake-contains.
+
+APPROVAL_STATES = ("pending", "approved", "rejected", "executed", "failed")
+APPROVALS_FILE = "approvals.json"
+
+
+def _approval_id():
+    import secrets
+    return "appr-" + secrets.token_hex(6)
+
+
+def _render_template_value(value, ctx):
+    """Substitute {{incident.<field>}} placeholders in one string with rule-owned
+    incident facts. Non-strings pass through untouched. Unknown placeholders are
+    left verbatim (honest — we never invent a value for a field we do not have)."""
+    if not isinstance(value, str):
+        return value
+    out = value
+    for key, repl in ctx.items():
+        out = out.replace("{{" + key + "}}", str(repl))
+    return out
+
+
+def _incident_context(incident, members):
+    """The rule-owned facts a runbook step template may reference. Advisory
+    fields are structurally absent — only detector/verdict output is here."""
+    rules = sorted({str(m.get("type")) for m in members if m.get("type")})
+    refs = []
+    for m in members:
+        for line in m.get("lines") or []:
+            if isinstance(line, dict) and line.get("n") is not None:
+                refs.append(int(line["n"]))
+    refs = sorted(set(refs))
+    return {
+        "incident.entity": incident.get("entity") or "",
+        "incident.id": incident.get("id") or "",
+        "incident.rules": ",".join(rules),
+        "incident.record_refs": ",".join(str(n) for n in refs),
+        "incident.firstSeen": incident.get("firstSeen") or "",
+        "incident.lastSeen": incident.get("lastSeen") or "",
+    }, refs
+
+
+def _render_params(template, incident, members):
+    ctx, _refs = _incident_context(incident, members)
+    return {k: _render_template_value(v, ctx) for k, v in (template or {}).items()}
+
+
+def _incident_members(incident, state):
+    """Member findings of an incident from the loaded run state (the same source
+    derive_rca uses). eligible() reads type/host/lines/occurrences off these."""
+    if not state or state.get("idle"):
+        return []
+    by_id = {f.get("id"): f for f in state.get("findings", [])}
+    return [by_id[fid] for fid in (incident.get("findingIds") or []) if fid in by_id]
+
+
+def _runbook_by_id(runbook_id):
+    import runbooks
+    return runbooks.load_runbooks().get(runbook_id)
+
+
+def _action_step(runbook, step_index=None):
+    """The connector-bearing step to gate. Defaults to the first 'action' step;
+    an explicit index selects a specific step."""
+    steps = runbook.get("steps") or []
+    if step_index is not None:
+        return steps[step_index] if 0 <= step_index < len(steps) else None
+    for s in steps:
+        if s.get("type") == "action":
+            return s
+    return steps[0] if steps else None
+
+
+def _connector_config(name):
+    """Connector transport config (host/user/port/key_path) from a config file
+    only — never argv, never a log (guardrail 4). Honest empty when absent; the
+    connector then falls back to its own defaults."""
+    cfg = _load("connectors.json")
+    return (cfg.get(name) or cfg.get(name.lower()) or {}) if isinstance(cfg, dict) else {}
+
+
+def _eligibility(runbook, incident, members):
+    import runbooks
+    return runbooks.eligible(runbook, incident, members)
+
+
+def create_approval(payload, state=None):
+    """POST /api/approvals — create a PENDING approval for one runbook step.
+
+    Rules own eligibility: an ineligible runbook is refused with 409 and the
+    body's `missing` array is exactly `runbooks.eligible()['missing']`, so the
+    API error cannot disagree with the engine. No connector runs and no audit
+    entry is written here — creating a pending record is not a consequential act;
+    only approve/reject/execute are.
+    """
+    payload = payload or {}
+    incident_id = str(payload.get("incidentId") or payload.get("incident_id") or "").strip()
+    runbook_id = str(payload.get("runbookId") or payload.get("runbook_id") or "").strip()
+    step_index = payload.get("stepIndex")
+    if not incident_id or not runbook_id:
+        return 400, {"error": "incidentId and runbookId are required"}
+
+    incident = get_incident(incident_id)
+    if not incident:
+        return 404, {"error": f"no such incident: {incident_id}"}
+    runbook = _runbook_by_id(runbook_id)
+    if not runbook:
+        return 404, {"error": f"no such runbook: {runbook_id}"}
+
+    members = _incident_members(incident, state)
+    verdict = _eligibility(runbook, incident, members)
+    if not verdict.get("eligible"):
+        # 409 body populated DIRECTLY from the engine — not restated, not reworded.
+        return 409, {"error": "runbook is not eligible for this incident",
+                     "incidentId": incident_id, "runbookId": runbook_id,
+                     "missing": verdict.get("missing", [])}
+
+    step = _action_step(runbook, step_index)
+    if not step:
+        return 422, {"error": "runbook has no actionable step"}
+
+    _ctx, refs = _incident_context(incident, members)
+    rendered = _render_params(step.get("params_template"), incident, members)
+
+    # The stored/displayed command is the REDACTED preview — raw params never
+    # reach the record, a log, or the UI (they travel only over the connector
+    # transport at execute time). This closes the redact gap in the connector path.
+    import actions
+    try:
+        connector = actions.get_connector(step["connector"], _connector_config(step["connector"]))
+        preview = connector.preview(rendered, {"entity": incident.get("entity"),
+                                               "incident_id": incident_id})
+        request_redacted = {"command": preview.get("command"),
+                            "description": preview.get("description"),
+                            "connector": preview.get("connector"),
+                            "action": preview.get("action"),
+                            "params": preview.get("params")}
+    except Exception as exc:                       # honest: preview failure is visible
+        request_redacted = {"error": f"preview failed: {type(exc).__name__}: {exc}"}
+
+    now = _now()
+    record = {
+        "id": _approval_id(),
+        "incidentId": incident_id,             # rule-owned
+        "runbookId": runbook_id,               # rule-owned
+        "connector": step["connector"],        # connector-owned
+        "step": 0,
+        "state": "pending",
+        "eligibilityProof": verdict,           # rule-owned (verbatim from eligible())
+        "evidenceRefs": [str(n) for n in refs],  # rule-owned
+        "requestRedacted": request_redacted,   # connector-owned (redacted)
+        "responseVerbatim": None,              # connector-owned (filled at execute)
+        "actor": None,                         # analyst-supplied (verified at step-up)
+        "failureReason": None,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    store = _load(APPROVALS_FILE)
+    store[record["id"]] = record
+    _save(APPROVALS_FILE, store)
+    return 201, record
+
+
+def get_approval(approval_id):
+    return _load(APPROVALS_FILE).get(approval_id)
+
+
+def list_approvals(state_filter=None):
+    out = sorted(_load(APPROVALS_FILE).values(),
+                 key=lambda a: a.get("createdAt") or "", reverse=True)
+    if state_filter:
+        out = [a for a in out if a.get("state") == state_filter]
+    return out
+
+
+def _audit(actor, record, step, status, eligibility_proof=None,
+           response_verbatim=None):
+    """One append to the hash-chained ledger for a consequential act. The actor
+    is the verified step-up username and nothing else about the credential."""
+    import audit
+    return audit.append(
+        actor=actor,
+        incident_id=record.get("incidentId", ""),
+        runbook_id=record.get("runbookId", ""),
+        step=step,
+        status=status,
+        eligibility_proof=eligibility_proof if eligibility_proof is not None
+        else record.get("eligibilityProof"),
+        evidence_refs=record.get("evidenceRefs"),
+        request_redacted=record.get("requestRedacted"),
+        response_verbatim=response_verbatim,
+    )
+
+
+def reject_approval(approval_id, passphrase, provider=None):
+    """Reject a pending approval — requires a successful step-up verification.
+    pending -> rejected. Writes one 'rejected' audit entry stamped with the
+    verified username. No connector is ever touched on this path."""
+    import auth
+    provider = provider or auth.AUTH_PROVIDER
+    ok, username = provider.verify_stepup_passphrase(passphrase)
+    # The passphrase is not referenced again after this line — never stored,
+    # never logged, never returned.
+    if not ok:
+        return 401, {"error": "step-up verification failed"}
+
+    store = _load(APPROVALS_FILE)
+    record = store.get(approval_id)
+    if not record:
+        return 404, {"error": f"no such approval: {approval_id}"}
+    if record.get("state") != "pending":
+        return 409, {"error": "approval is not pending", "state": record.get("state")}
+
+    record["state"] = "rejected"
+    record["actor"] = username
+    record["updatedAt"] = _now()
+    store[approval_id] = record
+    _save(APPROVALS_FILE, store)
+    _audit(username, record, step="reject", status="rejected")
+    return 200, record
+
+
+def approve_approval(approval_id, passphrase, state=None, connector_factory=None,
+                     provider=None):
+    """Approve a pending approval and fire its connector — the ONLY path on which
+    a connector is ever invoked, and only AFTER a successful step-up.
+
+    Order: step-up -> RE-EVALUATE eligibility -> approved (audit) -> execute
+    (audit executed|failed). The re-evaluation (owner-ratified) re-runs
+    runbooks.eligible() against the CURRENT incident/findings immediately before
+    firing, so an approval cannot execute against evidence that no longer holds.
+    A connector failure is recorded honestly as `failed` with the real reason and
+    never fake-contains.
+    """
+    import auth
+    provider = provider or auth.AUTH_PROVIDER
+    ok, username = provider.verify_stepup_passphrase(passphrase)
+    if not ok:
+        # Refused before anything happens: no state change, no connector, no audit.
+        return 401, {"error": "step-up verification failed"}
+
+    store = _load(APPROVALS_FILE)
+    record = store.get(approval_id)
+    if not record:
+        return 404, {"error": f"no such approval: {approval_id}"}
+    if record.get("state") != "pending":
+        return 409, {"error": "approval is not pending", "state": record.get("state")}
+
+    incident = get_incident(record["incidentId"])
+    runbook = _runbook_by_id(record["runbookId"])
+    if not incident or not runbook:
+        record["state"] = "failed"
+        record["failureReason"] = "incident or runbook no longer exists"
+        record["actor"] = username
+        record["updatedAt"] = _now()
+        store[approval_id] = record
+        _save(APPROVALS_FILE, store)
+        _audit(username, record, step="approve", status="failed")
+        return 409, {"error": record["failureReason"]}
+
+    members = _incident_members(incident, state)
+
+    # --- RE-EVALUATION GUARANTEE: eligibility must STILL hold, right now -------
+    verdict = _eligibility(runbook, incident, members)
+    if not verdict.get("eligible"):
+        record["state"] = "failed"
+        record["eligibilityProof"] = verdict
+        record["failureReason"] = "re-evaluation failed: the incident no longer meets the runbook's evidence requirements"
+        record["actor"] = username
+        record["responseVerbatim"] = None          # never fake-contain
+        record["updatedAt"] = _now()
+        store[approval_id] = record
+        _save(APPROVALS_FILE, store)
+        _audit(username, record, step="approve", status="failed",
+               eligibility_proof=verdict)
+        return 409, {"error": record["failureReason"], "missing": verdict.get("missing", [])}
+
+    # --- eligible: transition to approved and record it -----------------------
+    record["state"] = "approved"
+    record["actor"] = username
+    record["eligibilityProof"] = verdict
+    record["updatedAt"] = _now()
+    store[approval_id] = record
+    _save(APPROVALS_FILE, store)
+    _audit(username, record, step="approve", status="approved")
+
+    # --- fire the connector (unredacted params over the transport only) -------
+    step = _action_step(runbook)
+    rendered = _render_params((step or {}).get("params_template"), incident, members)
+    rendered.setdefault("approval_id", approval_id)
+    if connector_factory is None:
+        import actions
+        def connector_factory(name):
+            return actions.get_connector(name, _connector_config(name))
+
+    try:
+        connector = connector_factory(record["connector"])
+        result = connector.execute(rendered, {"entity": incident.get("entity"),
+                                             "approval_id": approval_id,
+                                             "incident_id": record["incidentId"]})
+    except Exception as exc:                        # honest: a raised connector is a failure
+        result = {"ok": False, "error": f"{type(exc).__name__}: {exc}", "output": ""}
+
+    if result.get("ok"):
+        record["state"] = "executed"
+        record["responseVerbatim"] = {"output": result.get("output", ""),
+                                     "connector": result.get("connector"),
+                                     "action": result.get("action")}
+        record["updatedAt"] = _now()
+        store[approval_id] = record
+        _save(APPROVALS_FILE, store)
+        _audit(username, record, step="execute", status="executed",
+               response_verbatim=record["responseVerbatim"])
+        return 200, record
+
+    # connector failed — record the REAL reason, never a fabricated success.
+    record["state"] = "failed"
+    record["failureReason"] = result.get("error") or "connector reported failure"
+    record["responseVerbatim"] = {"output": result.get("output", ""),
+                                 "error": result.get("error")}
+    record["updatedAt"] = _now()
+    store[approval_id] = record
+    _save(APPROVALS_FILE, store)
+    _audit(username, record, step="execute", status="failed",
+           response_verbatim=record["responseVerbatim"])
+    return 200, record
+
+
+# ===========================================================================
+# Copilot runbook recommendation — advisory-typed, no executable handle (C3-T4)
+# ===========================================================================
+# Build doc C3 item 4: "AI copilot may *recommend* among eligible runbooks and
+# draft justifications; recommendation payloads are advisory-typed and carry no
+# executable handle." Enforced here:
+#
+#   * RULES OWN ELIGIBILITY. The candidate set is exactly what runbooks.eligible()
+#     returns — computed with NO model input. The model may only rank and explain
+#     WITHIN that set; any id it names that is not eligible is dropped, so it can
+#     never widen the gate. (runbooks.eligible() is never modified — its signature
+#     stays closed to any LLM parameter.)
+#   * NO EXECUTABLE HANDLE. The payload carries no approval id, no connector name
+#     or config, no rendered command, no params, and no token — nothing a caller
+#     could replay as an approval. It names runbooks by their rule id only.
+#   * ADVISORY-TYPED. type == "runbook_recommendation", advisory == True, and the
+#     model's justifications sit under an advisory-labelled block, exactly as C2
+#     treats advisory prose.
+#   * D2. The eligible list is computed FIRST and returned regardless of the
+#     model. The advisory portion runs under a hard timeout in a worker; if the
+#     model raises or hangs, the eligible list still returns and the advisory is
+#     honestly `timed_out`/`absent` — never fabricated, never silently dropped.
+
+RECOMMENDATION_LABEL = "advisory · recommendation · not a verdict"
+_RECO_TIMEOUT = 30
+
+_RECO_SYSTEM = (
+    "You are a SOC copilot. Rules own eligibility, severity, priority and every "
+    "verdict; you may not change them. You are given the ONLY runbooks that are "
+    "already eligible for this incident. Rank them and justify each, using ONLY "
+    "the supplied rule facts. Never name a runbook that is not in the eligible "
+    "list. Never emit a command, a connector, or any executable detail. Return "
+    "JSON matching the schema."
+)
+
+_RECO_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ranking": {"type": "array", "items": {"type": "string"}},
+        "justifications": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "runbookId": {"type": "string"},
+                    "text": {"type": "string"},
+                },
+                "required": ["runbookId", "text"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["ranking", "justifications"],
+    "additionalProperties": False,
+}
+
+
+def eligible_runbooks(incident, state=None):
+    """DETERMINISTIC candidate set: every runbook runbooks.eligible() says YES to
+    for this incident, each with its rule-owned proof. No model, and deliberately
+    NO connector/params/command — an eligible entry is a reference, not a handle."""
+    import runbooks
+    members = _incident_members(incident, state)
+    out = []
+    for rid, rb in sorted(runbooks.load_runbooks().items()):
+        verdict = runbooks.eligible(rb, incident, members)
+        if verdict.get("eligible"):
+            out.append({
+                "runbookId": rid,                 # rule id — a reference, not a handle
+                "name": rb.get("name"),
+                "severityFloor": rb.get("severity_floor"),
+                "eligibilityProof": verdict,       # rule-owned, verbatim from eligible()
+            })
+    return out
+
+
+def _call_reco_model(chat_fn, prompt, timeout):
+    import log_analyzer as la
+    return chat_fn(la.LLM_BASE_URL, la.LLM_API_KEY, la.LLM_MODEL,
+                   _RECO_SYSTEM, prompt, timeout=timeout, response_schema=_RECO_SCHEMA)
+
+
+def _recommendation_advisory(facts, eligible, chat_fn, timeout):
+    """The ADVISORY half: a model ranking + justifications, bounded by a hard
+    timeout and filtered to the eligible ids. Returns an honest status —
+    complete | absent | timed_out — and never a fabricated recommendation."""
+    import concurrent.futures
+
+    eligible_ids = [e["runbookId"] for e in eligible]
+    base = {"label": RECOMMENDATION_LABEL, "ranking": [], "justifications": []}
+    if not eligible_ids:
+        return {**base, "status": "absent",
+                "note": "no eligible runbook — nothing for the model to rank"}
+    if chat_fn is None:
+        import log_analyzer as la
+        chat_fn = la.chat_completion
+
+    prompt = json.dumps({
+        "task": "Rank the eligible runbooks best-first and justify each in one "
+                "sentence, using only these rule facts.",
+        "incident": facts,
+        "eligible_runbooks": [{"runbookId": e["runbookId"], "name": e["name"],
+                               "severityFloor": e["severityFloor"]} for e in eligible],
+    }, sort_keys=True)
+
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1,
+                                                     thread_name_prefix="itsoc-reco")
+    future = executor.submit(_call_reco_model, chat_fn, prompt, timeout)
+    try:
+        raw = future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        executor.shutdown(wait=False, cancel_futures=True)
+        return {**base, "status": "timed_out",
+                "note": "ADVISORY · timed out — the eligible list above is complete without it"}
+    except Exception as exc:                       # noqa: BLE001 — reported honestly
+        executor.shutdown(wait=False, cancel_futures=True)
+        return {**base, "status": "timed_out",
+                "note": f"ADVISORY · model unavailable ({type(exc).__name__}) — "
+                        "the eligible list above is complete without it"}
+    executor.shutdown(wait=False, cancel_futures=True)
+
+    import log_analyzer as la
+    try:
+        parsed = json.loads(la.strip_fences(raw))
+    except Exception:
+        return {**base, "status": "absent",
+                "note": "model returned unparseable output — withheld"}
+    if not isinstance(parsed, dict):
+        return {**base, "status": "absent", "note": "model output was not an object — withheld"}
+
+    # FILTER to the eligible set — the single most important line: a model id that
+    # is not eligible is dropped, so the copilot can never widen the gate.
+    seen = set()
+    ranking = []
+    for rid in parsed.get("ranking") or []:
+        if rid in eligible_ids and rid not in seen:
+            seen.add(rid)
+            ranking.append(rid)
+    justifications = []
+    for j in parsed.get("justifications") or []:
+        if (isinstance(j, dict) and j.get("runbookId") in eligible_ids
+                and str(j.get("text", "")).strip()):
+            justifications.append({"runbookId": j["runbookId"],
+                                   "text": str(j["text"]).strip()})
+    if not ranking and not justifications:
+        return {**base, "status": "absent",
+                "note": "model produced nothing grounded in the eligible set — withheld"}
+    return {"label": RECOMMENDATION_LABEL, "status": "complete",
+            "ranking": ranking, "justifications": justifications, "note": None}
+
+
+def recommend_runbooks(incident, state=None, chat_fn=None, timeout=None):
+    """Advisory-typed runbook recommendation for one incident.
+
+    The `eligible` list is deterministic and rule-owned; `recommendation` is the
+    advisory (model) ranking + justifications, filtered to the eligible set and
+    honestly absent/timed-out when the model cannot answer. The payload carries
+    NO executable handle — it can never be replayed as an approval.
+    """
+    timeout = _RECO_TIMEOUT if timeout is None else timeout  # resolved live, so a
+    # test (or config) can shrink the model deadline without touching the default.
+    members = _incident_members(incident, state)
+    eligible = eligible_runbooks(incident, state)
+    facts = {
+        "incidentId": incident.get("id") if incident else None,
+        "entityKind": incident.get("entityKind") if incident else None,
+        "severity": incident.get("severity") if incident else None,
+        "rules": sorted({str(m.get("type")) for m in members if m.get("type")}),
+    }
+    recommendation = _recommendation_advisory(facts, eligible, chat_fn, timeout)
+    return {
+        "type": "runbook_recommendation",       # advisory-typed marker
+        "advisory": True,
+        "incidentId": incident.get("id") if incident else None,
+        "eligible": eligible,                    # deterministic, rule-owned
+        "recommendation": recommendation,        # advisory (model), honest states
+    }
+
+
+def recommend_for_incident(incident_id, state=None, chat_fn=None, timeout=None):
+    """(status, body) wrapper for the serve.py delegation — fetch the incident,
+    404 if unknown, else the advisory-typed recommendation."""
+    inc = get_incident(incident_id)
+    if not inc:
+        return 404, {"error": f"no such incident: {incident_id}"}
+    return 200, recommend_runbooks(inc, state, chat_fn=chat_fn, timeout=timeout)

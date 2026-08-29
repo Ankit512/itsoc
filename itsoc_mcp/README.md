@@ -1,4 +1,4 @@
-# itsoc_mcp — a read-only MCP server over the local analysis backend
+# itsoc_mcp — an MCP server over the local analysis backend
 
 <!-- The line below is the MCP Registry PyPI ownership marker (must ship in the
      PyPI long-description). Keep it identical to `name` in itsoc_mcp/server.json. -->
@@ -16,10 +16,13 @@ changes no `/api/*` route, and adds no dependency to the core backend.
   (`http://127.0.0.1:8765` by default). This server computes **no verdicts**:
   severities, correlation, and rule verdicts are owned by the frozen deterministic
   detector on the backend. Tools relay; they never re-decide.
-- **Read-only.** No tool writes, remediates, or acts. `analyze_log` starts an
-  analysis (the one existing "write" the API offers) and `explain_finding`
-  requests an **advisory** explanation via the existing endpoint — an explanation
-  never changes, suppresses, or escalates a verdict.
+- **No action execution and no approval authority.** No tool can approve, reject,
+  execute, or revoke actions. `propose_block_ip` can create a proposal in the
+  `pending` state only; all execution and approval authority strictly resides on
+  the backend console with human-in-the-loop step-up authentication. `analyze_log`
+  kicks off log analysis and `explain_finding` requests an **advisory** explanation
+  via the existing endpoint — an explanation never changes, suppresses, or escalates
+  a verdict.
 - **Honest by construction.** Backend `null` / "0 lines parsed" / idle states are
   passed through verbatim — never a fabricated all-clear or an empty file.
 - **Redacted by default.** Any field carrying raw log text is masked through the
@@ -41,6 +44,7 @@ verdicts), plus the running detector's `detector_sha256`.
 | `explain_finding(finding_id, run_id='')` | Advisory LLM explanation via `/api/explain`. | Advisory only; redacted by default; an unreachable model is an honest error. |
 | `export_run(format, run_id='')` | Proxies `/api/export` (`csv\|html\|xml\|json\|md`). | Idle → honest 409 ("nothing to export yet"), never an empty file. Content carries raw log text, so it is **withheld by default** (real size + sha256 returned); set the trusted-local flag to receive it inline. |
 | `threat_intel_lookup(ip, bundle_path=None)` | **Offline** STIX→MITRE lookup for one IPv4, reusing `threat_intel/` (match + severity from `threat_detector.py`, MITRE from the cached ATT&CK DB). No network egress. | No bundle configured → honest n/a; no match → honest "no match", not an all-clear. |
+| `propose_block_ip(incident_id, runbook_id='rb-block-ip')` | Proposes a perimeter IP block by creating a **pending** approval record on the backend console. | Proposal creation only: zero execution authority, zero approval authority. Step-up auth on console is required to approve/execute. |
 
 ## Install
 

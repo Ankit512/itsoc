@@ -1437,6 +1437,12 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             # without touching a model; only this opt-in route waits for advisory.
             advisory = investigate.dispatch_advisory(path.split("/")[3], STATE)
             self._json(advisory) if advisory else self._json({"error": "no such incident"}, 404)
+        elif path.startswith("/api/incidents/") and path.endswith("/runbook-recommendation"):
+            # C3-T4 delegation: the advisory-typed copilot recommendation. soc
+            # computes the deterministic eligible set and bounds the model itself;
+            # serve.py just parses the id, calls, and emits (status, body).
+            status, body = soc.recommend_for_incident(path.split("/")[3], STATE)
+            self._json(body, status)
         elif path.startswith("/api/incidents/") and path.endswith("/bruteforce"):
             iid = path.split("/")[3]
             inc = next((i for i in soc.list_incidents(STATE)
@@ -1464,6 +1470,13 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         elif path.startswith("/api/cases/"):
             case = soc.get_case(path.split("/")[3])
             self._json(case) if case else self._json({"error": "no such case"}, 404)
+        elif path == "/api/approvals":
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            self._json({"approvals": soc.list_approvals(
+                state_filter=(qs.get("state") or [None])[0])})
+        elif path.startswith("/api/approvals/"):
+            appr = soc.get_approval(path.split("/")[3])
+            self._json(appr) if appr else self._json({"error": "no such approval"}, 404)
         elif path == "/api/reports":
             self._json({"reports": soc.list_reports()})
         elif path == "/api/threat-intel":
@@ -1598,6 +1611,16 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._incident_state(path.split("/")[3])
         elif path == "/api/cases":
             self._create_case()
+        # --- gated response approvals (C3-T2 / D3) — thin delegation to soc.py.
+        # These sit AFTER the _api_authorized gate above (line ~1581), so they
+        # inherit the bearer check AND additionally require step-up in the soc
+        # functions. No approval/eligibility/step-up logic lives in serve.py.
+        elif path == "/api/approvals":
+            self._create_approval()
+        elif path.startswith("/api/approvals/") and path.endswith("/approve"):
+            self._approval_decision(path.split("/")[3], "approve")
+        elif path.startswith("/api/approvals/") and path.endswith("/reject"):
+            self._approval_decision(path.split("/")[3], "reject")
         elif path == "/api/reports":
             if STATE.get("idle"):
                 return self._json({"error": "no run to report on yet"}, 409)
@@ -1941,6 +1964,37 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             return self._json({"error": str(e)}, 400)
         print(f"  case created: {case['id']} {case['title'][:40]!r}", flush=True)
         return self._json(case, 201)
+
+    # ---- gated response approvals (C3-T2 / D3) ------------------------------
+    # DELEGATION ONLY: parse the request, call the soc.py function, emit the
+    # (status, body) it returns. Every security decision — eligibility, the 409,
+    # re-evaluation, and the step-up verification itself — lives in soc.py and is
+    # tested there. serve.py makes no judgement of its own here.
+    def _create_approval(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, json.JSONDecodeError) as e:
+            return self._json({"error": str(e)}, 400)
+        status, body = soc.create_approval(payload, STATE)
+        return self._json(body, status)
+
+    def _approval_decision(self, approval_id, decision):
+        # The step-up passphrase travels in the POST BODY only — never in the URL
+        # path or query string, which would land in access logs and proxies (D3).
+        # It is read here, handed straight to soc for constant-time verification,
+        # and never logged or echoed back (soc's records/errors never carry it).
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, json.JSONDecodeError) as e:
+            return self._json({"error": str(e)}, 400)
+        passphrase = payload.get("passphrase") or ""
+        if decision == "approve":
+            status, body = soc.approve_approval(approval_id, passphrase, STATE)
+        else:
+            status, body = soc.reject_approval(approval_id, passphrase)
+        return self._json(body, status)
 
     def _analyze(self):
         length = int(self.headers.get("Content-Length") or 0)

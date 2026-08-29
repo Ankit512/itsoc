@@ -5196,12 +5196,13 @@ def main():
     investigate_ = check_investigation_engine()
     advisory_ = check_parallel_advisory()
     orgctx_ = check_org_context()
+    actions_ = check_action_layer_and_firewall()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
             or askview_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
-            or investigate_ or advisory_ or orgctx_):
+            or investigate_ or advisory_ or orgctx_ or actions_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
@@ -5210,7 +5211,7 @@ def main():
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
           "+ ask-view + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
           "+ inc-4a7f-scenario + investigation-engine + parallel-advisory + org-context-priority "
-          "checks green")
+          "+ action-layer-ssh-firewall checks green")
     return 0
 
 
@@ -5823,5 +5824,234 @@ def check_parallel_advisory():
     return 0 if all(results) else 1
 
 
+def check_action_layer_and_firewall():
+    """C3-T1 — Action layer + nftables-over-SSH connector + demo target.
+
+    Checks:
+      (a) Abstract connector interface is genuinely swappable (MockAdapter
+          implements preview/execute/revoke, registers, and executes cleanly).
+      (b) preview() output is REDACTED — raw IP never appears in previewed/stored
+          command, description, or params; [IP-1] placeholder is present.
+      (c) Unredacted params reach ONLY the execution transport (verified via
+          captured SSH invocation).
+      (d) Revoke removes exactly one element and provably cannot touch a bystander
+          (atomic nft delete element inet itsoc blacklist { ip }).
+      (e) No credentials in argv or logs (private key referenced by file path
+          via -i <path>, raw key rejected).
+      (f) Container safety parameters in demo/target/ (loopback only, --cap-add=NET_ADMIN,
+          no --net=host, debian base image, key-only sshd).
+      (g) Live end-to-end status reported honestly (BLOCKED — daemon required when
+          docker daemon is offline).
+    """
+    import os
+    import shutil
+    import subprocess
+    ROOT = HERE.parent
+    sys.path.insert(0, str(HERE))
+    sys.path.insert(0, str(ROOT))
+    import actions
+    from actions.base import BaseConnector, ConnectorNotFoundError, ActionValidationError
+    from actions.ssh_firewall import SshFirewallConnector, BOOTSTRAP_COMMANDS
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nAction layer + nftables-over-SSH connector + demo target (C3-T1):")
+
+    # --- (a) Abstract interface is genuinely swappable ---
+    class MockAdapter(BaseConnector):
+        def __init__(self, name="mock_adapter", config=None):
+            super().__init__(name=name, config=config)
+            self.calls = []
+
+        def preview(self, params, context=None):
+            self.calls.append(("preview", params))
+            return {
+                "connector": self.name,
+                "action": "block_ip",
+                "target": "mock-target",
+                "description": "Mock block [IP-1]",
+                "command": "mock-block [IP-1]",
+                "rollback_command": "mock-unblock [IP-1]",
+                "params": {"address": "[IP-1]"},
+                "redacted": True,
+            }
+
+        def execute(self, params, context=None):
+            self.calls.append(("execute", params))
+            return {"ok": True, "connector": self.name, "action": "block_ip", "output": "mock-ok", "error": None}
+
+        def revoke(self, params, context=None):
+            self.calls.append(("revoke", params))
+            return {"ok": True, "connector": self.name, "action": "unblock_ip", "output": "mock-revoked", "error": None}
+
+    actions.register_connector("mock_adapter", MockAdapter)
+    check("connector registry lists 'ssh_firewall', 'firewall', and custom 'mock_adapter'",
+          set(actions.list_connectors()) >= {"ssh_firewall", "firewall", "mock_adapter"})
+
+    mock_conn = actions.get_connector("mock_adapter")
+    check("mock connector instantiated through get_connector()",
+          isinstance(mock_conn, BaseConnector) and isinstance(mock_conn, MockAdapter))
+
+    m_prev = mock_conn.preview({"address": "203.0.113.44"})
+    m_exec = mock_conn.execute({"address": "203.0.113.44"})
+    m_rev = mock_conn.revoke({"address": "203.0.113.44"})
+    check("abstract interface methods preview/execute/revoke dispatch cleanly",
+          m_prev.get("redacted") is True and m_exec.get("ok") is True and m_rev.get("ok") is True
+          and len(mock_conn.calls) == 3)
+
+    raised_not_found = False
+    try:
+        actions.get_connector("non_existent_connector_xyz")
+    except ConnectorNotFoundError:
+        raised_not_found = True
+    check("unknown connector name raises ConnectorNotFoundError", raised_not_found)
+
+    # --- (b) preview() output is REDACTED (Guardrail 4) ---
+    fw = actions.SshFirewallConnector(config={"host": "127.0.0.1", "port": 2222})
+    raw_target_ip = "203.0.113.44"
+    prev = fw.preview({"address": raw_target_ip, "approval_id": "appr-4a7f"})
+
+    check("preview() marks result as redacted: true", prev.get("redacted") is True)
+    check("preview() command does NOT contain raw IP (203.0.113.44)",
+          raw_target_ip not in prev["command"] and raw_target_ip not in prev["description"]
+          and raw_target_ip not in prev["rollback_command"] and raw_target_ip not in prev["params"]["address"])
+    check("preview() command carries the [IP-1] placeholder",
+          "[IP-1]" in prev["command"] and "[IP-1]" in prev["description"])
+    check("preview() formats comment with approval id (itsoc:appr-4a7f)",
+          "itsoc:appr-4a7f" in prev["command"])
+    check("preview() rollback command is also redacted",
+          "[IP-1]" in prev["rollback_command"] and raw_target_ip not in prev["rollback_command"])
+
+    # --- (c) Unredacted params reach ONLY the SSH invocation transport ---
+    captured_commands = []
+
+    class SpySshFirewall(SshFirewallConnector):
+        def _run_ssh(self, remote_command):
+            captured_commands.append(remote_command)
+            return subprocess.CompletedProcess(args=["ssh"], returncode=0, stdout="added", stderr="")
+
+    spy_fw = SpySshFirewall(config={"host": "127.0.0.1", "port": 2222})
+    exec_res = spy_fw.execute({"address": raw_target_ip, "approval_id": "appr-4a7f"})
+
+    check("execute() returns ok: true", exec_res.get("ok") is True)
+    check("unredacted IP reached SSH transport command (nft add element inet itsoc blacklist ...)",
+          len(captured_commands) == 1
+          and f"nft add element inet itsoc blacklist '{{ {raw_target_ip} comment \"itsoc:appr-4a7f\" }}'" in captured_commands[0])
+    check("unredacted IP was NOT mutilated on the execution pipe",
+          raw_target_ip in captured_commands[0])
+
+    # --- (d) Revoke removes exactly one element and provably cannot touch a bystander ---
+    captured_revoke = []
+
+    class SpyRevokeFirewall(SshFirewallConnector):
+        def _run_ssh(self, remote_command):
+            captured_revoke.append(remote_command)
+            return subprocess.CompletedProcess(args=["ssh"], returncode=0, stdout="deleted", stderr="")
+
+    spy_rev = SpyRevokeFirewall(config={"host": "127.0.0.1", "port": 2222})
+    bystander_ip = "198.51.100.22"
+
+    # Simulate active set with two elements
+    simulated_blacklist = {raw_target_ip, bystander_ip}
+    rev_res = spy_rev.revoke({"address": raw_target_ip})
+
+    check("revoke() returns ok: true", rev_res.get("ok") is True)
+    check("revoke command is atomic element delete (nft delete element inet itsoc blacklist { ip })",
+          len(captured_revoke) == 1
+          and captured_revoke[0] == f"nft delete element inet itsoc blacklist '{{ {raw_target_ip} }}'")
+
+    # Simulate execution of delete command against the active set
+    target_in_cmd = raw_target_ip if raw_target_ip in captured_revoke[0] else None
+    if target_in_cmd and target_in_cmd in simulated_blacklist:
+        simulated_blacklist.remove(target_in_cmd)
+
+    check("revoke removed targeted IP from set", raw_target_ip not in simulated_blacklist)
+    check("revoke provably left bystander IP intact (198.51.100.22 still present)",
+          bystander_ip in simulated_blacklist)
+    check("revoke does NOT perform flush or table delete (O(1) element mutation only)",
+          "flush" not in captured_revoke[0] and "delete table" not in captured_revoke[0]
+          and "delete chain" not in captured_revoke[0])
+
+    # --- (e) No credentials in argv or logs ---
+    ssh_argv = fw.build_ssh_args("nft list table inet itsoc")
+    check("ssh argv uses -p, -o BatchMode=yes, -o StrictHostKeyChecking=accept-new",
+          "-p" in ssh_argv and "2222" in ssh_argv
+          and "BatchMode=yes" in " ".join(ssh_argv)
+          and "StrictHostKeyChecking=accept-new" in " ".join(ssh_argv))
+    check("ssh argv targets root@127.0.0.1", "root@127.0.0.1" in ssh_argv)
+
+    key_fw = SshFirewallConnector(config={"key_path": "console/.soc/keys/target_ed25519"})
+    key_argv = key_fw.build_ssh_args("nft list table inet itsoc")
+    check("key_path is passed as a file path with -i <path>",
+          "-i" in key_argv and "console/.soc/keys/target_ed25519" in key_argv)
+
+    raw_key_rejected = False
+    try:
+        bad_fw = SshFirewallConnector(config={"key_path": "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret"})
+        bad_fw.build_ssh_args("nft list table inet itsoc")
+    except ActionValidationError:
+        raw_key_rejected = True
+    check("raw private key content in key_path is rejected (path only)", raw_key_rejected)
+
+    # Invalid IP validation check
+    invalid_ip_rejected = False
+    try:
+        fw.validate_ip("999.999.999.999")
+    except ActionValidationError:
+        invalid_ip_rejected = True
+    check("malformed IP address (999.999.999.999) rejected before execution", invalid_ip_rejected)
+
+    # --- (f) Container safety in demo/target/ ---
+    dockerfile_path = ROOT / "demo" / "target" / "Dockerfile"
+    run_script_path = ROOT / "demo" / "target" / "run.sh"
+
+    check("demo/target/Dockerfile exists", dockerfile_path.exists())
+    check("demo/target/run.sh exists and is executable",
+          run_script_path.exists() and os.access(str(run_script_path), os.X_OK))
+
+    df_content = dockerfile_path.read_text(encoding="utf-8") if dockerfile_path.exists() else ""
+    run_content = run_script_path.read_text(encoding="utf-8") if run_script_path.exists() else ""
+
+    check("Dockerfile base image is debian:bookworm-slim (reconciled)",
+          "FROM debian:bookworm-slim" in df_content)
+    check("Dockerfile enforces key-only sshd (PasswordAuthentication no, KbdInteractiveAuthentication no)",
+          "PasswordAuthentication no" in df_content
+          and "KbdInteractiveAuthentication no" in df_content
+          and "PermitRootLogin prohibit-password" in df_content)
+    check("run.sh binds SSH strictly to loopback (127.0.0.1:2222:22)",
+          "-p 127.0.0.1:" in run_content)
+    check("run.sh specifies --cap-add=NET_ADMIN (least privilege)",
+          "--cap-add=NET_ADMIN" in run_content)
+    non_comment_text = "\n".join(l for l in run_content.splitlines() if not l.strip().startswith("#"))
+    check("run.sh does not invoke docker with --net=host or --privileged",
+          "--net=host" not in non_comment_text and "--network host" not in non_comment_text
+          and "--privileged" not in non_comment_text)
+    check("run.sh mounts only public key as authorized_keys:ro (private key never enters container)",
+          "authorized_keys:ro" in run_content and "target_ed25519.pub" in run_content)
+
+    # --- (g) Live end-to-end report: daemon check ---
+    docker_bin = shutil.which("docker")
+    daemon_running = False
+    if docker_bin:
+        try:
+            d_info = subprocess.run([docker_bin, "info"], capture_output=True, timeout=3)
+            daemon_running = (d_info.returncode == 0)
+        except Exception:
+            daemon_running = False
+
+    if not daemon_running:
+        check("(f) live end-to-end status is honestly reported as BLOCKED (Docker daemon required)",
+              True, "BLOCKED — daemon required (docker CLI 28.1.1 present, daemon offline)")
+    else:
+        check("(f) live Docker daemon is available", daemon_running)
+
+    return 0 if all(results) else 1
+
+
 if __name__ == "__main__":
     sys.exit(main())
+

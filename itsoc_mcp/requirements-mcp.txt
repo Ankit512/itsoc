@@ -2,7 +2,7 @@
 #
 # The core backend (`python3 console/serve.py`) and everything it serves are
 # Python-stdlib only and must stay installable with ZERO extra packages. Install
-# this ONLY if you want to expose the backend's read-only analysis tools to an
+# this ONLY if you want to expose the backend's analysis tools to an
 # MCP-capable agent (Claude Code / Desktop) via `python -m itsoc_mcp`.
 #
 #   pip install -r itsoc_mcp/requirements-mcp.txt
