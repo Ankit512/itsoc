@@ -64,16 +64,21 @@ describe("C4-R1 — palette confinement (severity ramp stays out of priority & a
   });
 
   it("D2: no advisory-state rule references a severity token", () => {
-    // Advisory-state rules = the §22 pending/timeout containers, including the
-    // scoped `.is-advisory-timeout .note-timeout`. The timeout reads as a warning
-    // via --warn, not a severity token. (The bare `.note-timeout` base rule in
-    // the C2-T4 subsection still uses --high and is intentionally OUT of scope
-    // here — surfaced to god as a separate finding, per his two-subsections
-    // scoping.)
-    const rules = rulesMatching((s) => /is-advisory-(?:pending|timeout)/.test(s));
-    // Vacuity guard: both advisory states must actually be present.
+    // Advisory-state rules = the §22 pending/timeout containers AND `.note-timeout`
+    // WHEREVER it is declared (the bare C2-T4 base rule and the scoped
+    // `.is-advisory-timeout .note-timeout`). `.note-timeout` is exclusively the
+    // advisory timeout note — every user sits inside `.is-advisory-timeout` — so a
+    // severity token on its base rule is a latent violation that would wake up the
+    // day the class renders outside that wrapper. The lock covers the class
+    // wherever it lives, not just where it currently lives. The timeout reads as a
+    // warning via --warn, never a severity token. (C4-R1a.)
+    const rules = rulesMatching(
+      (s) => /is-advisory-(?:pending|timeout)/.test(s) || /\.note-timeout\b/.test(s),
+    );
+    // Vacuity guard: both advisory states and the note rule must actually be present.
     expect(hasRuleFor(rules, "is-advisory-pending"), "advisory-pending rule must exist").toBe(true);
     expect(hasRuleFor(rules, "is-advisory-timeout"), "advisory-timeout rule must exist").toBe(true);
+    expect(hasRuleFor(rules, "note-timeout"), "note-timeout rule must exist").toBe(true);
     for (const r of rules) {
       expect(r.body, `${r.selector} must not reference a severity token`).not.toMatch(SEVERITY_TOKEN);
     }
