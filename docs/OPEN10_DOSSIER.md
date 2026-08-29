@@ -104,9 +104,8 @@
 ## 4. Quantitative Analysis of `web/dist` Churn
 
 A repository-wide audit of commits modifying `web/dist` reveals:
-
 ```
-Total commits modifying web/dist: 37
+Total commits modifying web/dist: 37 total (36 commits in 365c627..HEAD + origin commit 365c627)
 First commit: 365c627 (2026-08-24) — feat(serve): serve the built React SOC app at :8765
 Latest commit: 2a743ff (2026-08-27) — chore(build): rebuild web/dist after C1 integration
 Average diff size per commit: ~1,200 lines of minified JS/CSS churn
