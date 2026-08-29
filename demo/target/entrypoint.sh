@@ -4,10 +4,6 @@ set -e
 # Generate host keys if not present
 ssh-keygen -A
 
-# Ensure authorized_keys has safe permissions if mounted
-if [ -f /root/.ssh/authorized_keys ]; then
-    chmod 600 /root/.ssh/authorized_keys
-fi
 
 # Initialize nftables base table and set
 nft add table inet itsoc 2>/dev/null || true
