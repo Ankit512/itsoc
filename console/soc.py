@@ -1376,6 +1376,33 @@ def list_approvals(state_filter=None):
     return out
 
 
+# ---- append-only hash-chained audit ledger (C4-T2a / D4) -----------------
+def audit_chain():
+    """Return the audit ledger entries and the live verify_chain() verdict.
+    Source of truth is console/.soc/audit/chain.jsonl. Missing ledger -> honest empty."""
+    import audit
+    verdict = audit.verify_chain()
+    try:
+        entries = audit.read_entries()
+    except Exception:
+        entries = []
+        for line in audit.read_lines():
+            try:
+                import json
+                entries.append(json.loads(line))
+            except Exception:
+                break
+    return 200, {"entries": entries, "verification": verdict}
+
+
+def audit_verify():
+    """Return the live verify_chain() verdict over the audit ledger."""
+    import audit
+    verdict = audit.verify_chain()
+    return 200, verdict
+
+
+
 def _audit(actor, record, step, status, eligibility_proof=None,
            response_verbatim=None):
     """One append to the hash-chained ledger for a consequential act. The actor
@@ -1600,6 +1627,11 @@ def eligible_runbooks(incident, state=None):
                 "runbookId": rid,                 # rule id — a reference, not a handle
                 "name": rb.get("name"),
                 "severityFloor": rb.get("severity_floor"),
+                # C4-F1: additive, rule-owned field for the Response panel's
+                # trigger-rule chips — the runbook definition's trigger.rule_ids
+                # VERBATIM (a copy, no derivation/filtering). Same class of fact
+                # as severityFloor; carries no verdict semantics.
+                "triggerRules": list(rb.get("trigger", {}).get("rule_ids") or []),
                 "eligibilityProof": verdict,       # rule-owned, verbatim from eligible()
             })
     return out

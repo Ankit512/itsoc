@@ -153,9 +153,12 @@ class RecommendTests(unittest.TestCase):
         leaked = _keys_at_any_depth(payload) & EXECUTABLE_HANDLE_KEYS
         self.assertEqual(leaked, set(), f"executable handle leaked: {leaked}")
         # Each eligible entry references a runbook by id only — no step/connector.
+        # triggerRules (C4-F1) is a list of rule-id references, the same class of
+        # fact as runbookId — NOT an executable handle (asserted above).
         for e in payload["eligible"]:
             self.assertEqual(set(e.keys()),
-                             {"runbookId", "name", "severityFloor", "eligibilityProof"})
+                             {"runbookId", "name", "severityFloor", "eligibilityProof",
+                              "triggerRules"})
 
     def test_b_recommendation_cannot_be_replayed_as_an_approval(self):
         # create_approval needs incidentId AND runbookId; the recommendation
@@ -226,6 +229,25 @@ class RecommendTests(unittest.TestCase):
         import inspect
         names = tuple(inspect.signature(runbooks.eligible).parameters)
         self.assertEqual(names, ("runbook", "incident", "findings"))
+
+    # ---- C4-F1: the additive triggerRules field, emitted VERBATIM ------------
+    def test_c4f1_trigger_rules_emitted_verbatim_and_additive(self):
+        state = _bf_state()
+        inc = self._incident(state)
+        loaded = runbooks.load_runbooks()
+        out = soc.eligible_runbooks(inc, state)
+        self.assertTrue(out, "a brute-force incident has eligible runbooks")
+        for e in out:
+            rb = loaded[e["runbookId"]]
+            # Present, and EXACTLY the runbook definition's trigger.rule_ids —
+            # no derivation, no filtering, no reordering, no prettifying.
+            self.assertIn("triggerRules", e)
+            self.assertEqual(e["triggerRules"], list(rb["trigger"]["rule_ids"]))
+        # Additive ONLY: the pre-existing keys and the eligibility verdict are
+        # left exactly as they were.
+        self.assertTrue(
+            {"runbookId", "name", "severityFloor", "eligibilityProof"} <= set(out[0]))
+        self.assertEqual(out[0]["eligibilityProof"], {"eligible": True, "missing": []})
 
     def test_detector_frozen(self):
         import hashlib

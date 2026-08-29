@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { Check, Sparkles, Pencil, X } from "lucide-react";
 import { api, INCIDENT_STATES, CASE_STATUSES, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport } from "@/lib/api";
+import { RunbookCard, type RunbookCardData } from "@/components/RunbookCard";
 import { cn } from "@/lib/utils";
 
 /** Open the shell's real (streaming) analyst — the inline card is a grounded
@@ -37,6 +38,21 @@ const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
  *  unmistakable and NEVER read as a rule-detected one. */
 function isManual(inc: Incident): boolean {
   return inc.origin === "manual";
+}
+
+function PriorityChip({ priority }: { priority?: string }) {
+  if (!priority) return null;
+  const p = priority.toUpperCase();
+  const cls = p.toLowerCase();
+  return (
+    <span
+      className={`is-chip is-chip--priority is-chip--${cls}`}
+      data-testid="priority-chip"
+      title="priority is rule-owned, weighted by asset criticality"
+    >
+      {p}
+    </span>
+  );
 }
 
 /** Severity presentation that can never misrepresent a manual incident. Rule
@@ -240,6 +256,7 @@ function ManualIncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => vo
 
         <div className="is-rca-head">
           <IncidentSeverity inc={inc} full />
+          <PriorityChip priority={(inc as { priority?: string }).priority} />
           <h2 className="ttl">{inc.title || `Manual case ${inc.id}`}</h2>
           <StateChip state={inc.state} />
         </div>
@@ -682,6 +699,111 @@ function ResponseChecklist({ inc }: { inc: Incident }) {
   );
 }
 
+/** Response panel (C4-F1): the rule-ELIGIBLE runbooks for this incident, each an
+ *  is-runbook-card, with a single Request-approval action.
+ *
+ *  Rule-owned only. The eligible list and every `missing` come straight from the
+ *  engine (/runbook-recommendation → runbooks.eligible()); the advisory model
+ *  ranking the same endpoint also returns is deliberately NOT surfaced here, so
+ *  this panel can never let advice widen eligibility. NO approve control lives
+ *  here: Request approval CREATES a pending approval record — approving happens
+ *  only in the Approvals screen, behind step-up. A Request that comes back 409
+ *  (eligibility drifted since load) flips that card to ineligible with the
+ *  engine's own `missing`, verbatim — the same discipline as the 409 body. */
+export function ResponsePanel({ inc }: { inc: Incident }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["runbook-recommendation", inc.id],
+    queryFn: () => api.incidentRunbookRecommendation(inc.id),
+  });
+  const reco = data && !("error" in data) ? data : null;
+  const eligible = reco?.eligible ?? [];
+
+  const [selId, setSelId] = useState<string | null>(null);
+  const selected = eligible.find((e) => e.runbookId === selId) ?? eligible[0] ?? null;
+
+  const [driftMissing, setDriftMissing] = useState<Record<string, string[]>>({});
+  const [created, setCreated] = useState<{ runbookId: string; id: string } | null>(null);
+
+  const request = useMutation({
+    mutationFn: (rid: string) => api.createApproval({ incidentId: inc.id, runbookId: rid }),
+    onSuccess: (res, rid) => {
+      if (res.ok && res.approval) setCreated({ runbookId: rid, id: res.approval.id });
+      else if (res.missing) setDriftMissing((m) => ({ ...m, [rid]: res.missing! }));
+    },
+  });
+
+  return (
+    <section className="is-panel" data-testid="response-panel">
+      <div className="is-panel__h" style={{ justifyContent: "space-between" }}>
+        <h3>Response</h3>
+        <span className="is-chip">rule-eligible runbooks</span>
+      </div>
+
+      {isLoading ? (
+        <p className="is-mut" style={{ fontSize: 11.5, margin: 0 }}>Loading eligible runbooks…</p>
+      ) : isError ? (
+        <p className="is-mut" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          The runbook engine is unreachable — no runbooks shown. Nothing is invented.
+        </p>
+      ) : eligible.length === 0 ? (
+        // Ineligibility is information, not alarm: no eligible runbook is a
+        // normal state, stated plainly and muted — never an error surface.
+        <p className="is-mut" data-testid="response-empty" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          No runbook is eligible for this incident yet — the rules cleared none of their requirements.
+          This is information, not a failure.
+        </p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {eligible.map((e) => {
+            const drift = driftMissing[e.runbookId];
+            const rb: RunbookCardData = drift
+              ? { runbookId: e.runbookId, name: e.name, severityFloor: e.severityFloor,
+                  triggerRules: e.triggerRules, eligible: false, missing: drift }
+              : { runbookId: e.runbookId, name: e.name, severityFloor: e.severityFloor,
+                  triggerRules: e.triggerRules, eligible: true };
+            return (
+              <RunbookCard
+                key={e.runbookId}
+                rb={rb}
+                selected={selected?.runbookId === e.runbookId}
+                onSelect={() => setSelId(e.runbookId)}
+              />
+            );
+          })}
+
+          <div className="is-response-actions">
+            {/* The SINGLE accent action in the Incidents view. It CREATES a
+                pending approval — it is not an approve control. */}
+            <button
+              type="button"
+              className="is-btn is-btn--primary"
+              data-testid="request-approval"
+              disabled={!selected || request.isPending
+                || Boolean(driftMissing[selected?.runbookId ?? ""])}
+              onClick={() => selected && request.mutate(selected.runbookId)}
+            >
+              {request.isPending ? "Requesting…" : "Request approval"}
+            </button>
+          </div>
+
+          {created && (
+            <div className="is-response-created" data-testid="approval-created">
+              <span>Pending approval created for <span className="is-mono">{created.runbookId}</span>.</span>{" "}
+              <Link
+                to={`/approvals?sel=${encodeURIComponent(created.id)}`}
+                data-testid="open-in-approvals"
+                className="is-response-link"
+              >
+                Open in Approvals →
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** Right rail for the selected incident: real Properties + the real cross-run
  *  brute-force sparkline + the inline itsoc-analyst card (v3 renders). */
 function IncidentRail({ inc }: { inc: Incident }) {
@@ -722,6 +844,7 @@ function IncidentRail({ inc }: { inc: Incident }) {
       </section>
 
       <BruteforceSparkline inc={inc} />
+      <ResponsePanel inc={inc} />
       <ResponseChecklist inc={inc} />
       <IncidentAnalyst inc={inc} />
     </aside>
@@ -752,8 +875,17 @@ function RecordCite({ n, byN }: { n: number; byN: Map<number, InvestigationEvent
  *  withheld ("rejected"), or a VISIBLE timeout that never becomes prose. */
 function AdvisoryBlockView({ block, byN }: { block: AdvisoryBlock; byN: Map<number, InvestigationEvent> }) {
   const timedOut = block.status === "timed_out";
+  const pending = (block.status as string) === "pending";
   return (
-    <div className="is-block is-adv" data-testid={`investigation-adv-${block.kind}`} data-adv-status={block.status}>
+    <div
+      className={cn(
+        "is-block is-adv",
+        pending && "is-advisory-pending",
+        timedOut && "is-advisory-timeout"
+      )}
+      data-testid={`investigation-adv-${block.kind}`}
+      data-adv-status={block.status}
+    >
       <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
         <span className="cap" style={{ marginBottom: 0 }}>{block.kind}</span>
         <span className="is-chip is-chip--adv">{block.label}</span>
@@ -771,6 +903,10 @@ function AdvisoryBlockView({ block, byN }: { block: AdvisoryBlock; byN: Map<numb
         <div className="note-timeout" data-testid={`advisory-timeout-${block.kind}`}>
           {block.note || "ADVISORY · timed out — retry"}
         </div>
+      ) : pending ? (
+        <p className="is-mut" style={{ fontSize: "11.5px" }}>
+          {block.note || "ADVISORY · pending — agent dispatched"}
+        </p>
       ) : (
         <p className="is-mut" style={{ fontSize: "11.5px" }}>
           {block.note || "ADVISORY · unverified — model prose was withheld by the grounding guard"}
@@ -917,15 +1053,22 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
 
         {advisory.isLoading || advisory.isFetching ? (
           // PENDING — dispatched, not yet returned. The file above is already complete.
-          <div className="is-block is-adv" data-testid="advisory-pending">
+          <div className="is-block is-adv is-advisory-pending" data-testid="advisory-pending">
             <p className="is-mut" style={{ fontSize: "11.5px" }}>
               ADVISORY · pending — three grounded agents dispatched; the deterministic case above does not wait on them.
             </p>
           </div>
         ) : !advReport ? (
           // Route unreachable — a VISIBLE degrade, never a silent omission.
-          <div className="is-block is-adv" data-testid="advisory-unavailable">
+          <div className="is-block is-adv is-advisory-timeout" data-testid="advisory-unavailable">
             <div className="note-timeout">ADVISORY · timed out — retry</div>
+            <button className="is-btn is-btn--ghost" style={{ marginTop: 6, fontSize: 11 }}
+                    data-testid="advisory-retry" onClick={() => advisory.refetch()}>retry</button>
+          </div>
+        ) : advReport.blocks.length === 0 && advReport.status === "timed_out" ? (
+          // Entire report timed out with no sub-blocks
+          <div className="is-block is-adv is-advisory-timeout" data-testid="advisory-timeout-empty">
+            <div className="note-timeout">{advReport.note || "ADVISORY · timed out — the eligible list above is complete without it"}</div>
             <button className="is-btn is-btn--ghost" style={{ marginTop: 6, fontSize: 11 }}
                     data-testid="advisory-retry" onClick={() => advisory.refetch()}>retry</button>
           </div>
@@ -955,9 +1098,10 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
           <span className="is-mono is-mut">{inc.id}</span>
         </div>
 
-        {/* Header: severity pill + title + state */}
+        {/* Header: severity pill + priority chip + title + state */}
         <div className="is-rca-head">
           <IncidentSeverity inc={inc} full />
+          <PriorityChip priority={(inc as { priority?: string }).priority} />
           <h2 className="ttl">{inc.title || `${inc.entity} — ${inc.findingCount} correlated finding(s)`}</h2>
           <StateChip state={inc.state} />
         </div>
@@ -1013,7 +1157,7 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
         <section className="is-panel">
           <div className="is-panel__h"><h3>{inc.findingCount} correlated finding(s)</h3></div>
           <div className="flex flex-wrap gap-1.5">
-            {inc.findingIds.map((fid) => (
+            {(inc.findingIds || []).map((fid) => (
               <a key={fid} href={`/alerts?sel=${encodeURIComponent(fid)}`}
                 className="is-tag is-tag--info is-mono" title="Open this finding in Findings">
                 {fid}
@@ -1107,7 +1251,12 @@ export function Incidents() {
                       onClick={() => setParams({ sel: inc.id })}
                       className="cursor-pointer"
                     >
-                      <td><IncidentSeverity inc={inc} /></td>
+                      <td>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <IncidentSeverity inc={inc} />
+                          <PriorityChip priority={(inc as { priority?: string }).priority} />
+                        </div>
+                      </td>
                       <td><StateChip state={inc.state} /></td>
                       <td className="col-mono" style={{ color: "var(--ink)" }}>
                         {inc.entity}

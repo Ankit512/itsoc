@@ -197,4 +197,53 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
 
     expect(await screen.findByText(/select an incident to request its real derive_rca runbook result/i)).toBeInTheDocument();
   });
+
+  it("surfaces pending approvals as read-only cards with an 'Open in Approvals →' link and ZERO approve controls (C4-F3)", async () => {
+    mockFetch({
+      "/api/overview": OVERVIEW,
+      "/api/approvals?state=pending": {
+        approvals: [
+          {
+            id: "appr-001",
+            incidentId: "inc-abc123",
+            runbookId: "auth_bruteforce.md",
+            connector: "palo-alto",
+            step: 1,
+            state: "pending",
+            eligibilityProof: { eligible: true, missing: [] },
+            evidenceRefs: ["5", "11"],
+            requestRedacted: { command: "block-ip 203.0.113.44", connector: "palo-alto" },
+            responseVerbatim: null,
+            actor: null,
+            failureReason: null,
+            createdAt: "2026-08-20T12:00:00Z",
+            updatedAt: "2026-08-20T12:00:00Z",
+          },
+        ],
+      },
+      "/api/runs-summary": {
+        totals: { runCount: 1, linesParsed: 100, findingCount: 0, severityCounts: {}, mitreFrequency: [] },
+        runs: [],
+      },
+      "/console_state.json": consoleState([]),
+    });
+
+    renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
+
+    // Assert read-only card renders:
+    const card = await screen.findByTestId("copilot-pending-approvals-card");
+    expect(card).toBeInTheDocument();
+    expect(card).toHaveTextContent("1 pending approval");
+    expect(card).toHaveTextContent("auth_bruteforce.md · inc-abc123");
+
+    const link = within(card).getByRole("link", { name: "Open in Approvals →" });
+    expect(link).toHaveAttribute("href", "/approvals");
+
+    // INVARIANT ASSERTION: ZERO approve/execute controls render in the rail
+    expect(screen.queryByRole("button", { name: /approve/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /reject/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /execute/i })).toBeNull();
+    expect(screen.queryByTestId("approval-approve")).toBeNull();
+    expect(screen.queryByTestId("approval-reject")).toBeNull();
+  });
 });

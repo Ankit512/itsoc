@@ -385,6 +385,70 @@ export interface AdvisoryReport {
   note?: string | null;
 }
 
+/** Gated-response approval (C3/C4 · D3 step-up). Mirrors the record soc.py
+ *  stores in approvals.json. Rules own eligibility (`eligibilityProof` is
+ *  runbooks.eligible() verbatim, `evidenceRefs` are rule-owned record numbers);
+ *  the connector owns `requestRedacted`/`responseVerbatim` (the command is the
+ *  REDACTED preview — raw params never reach this shape); the analyst supplies
+ *  only `actor`, filled from the verified step-up username. */
+export type ApprovalState = "pending" | "approved" | "rejected" | "executed" | "failed";
+
+export interface EligibilityProof { eligible: boolean; missing: string[]; [k: string]: unknown }
+export interface ApprovalRequestRedacted {
+  command?: string; description?: string; connector?: string; action?: string;
+  params?: Record<string, unknown>; error?: string;
+}
+export interface ApprovalResponseVerbatim {
+  output?: string; connector?: string; action?: string; error?: string;
+}
+export interface Approval {
+  id: string;
+  incidentId: string;                       // rule-owned
+  runbookId: string;                        // rule-owned
+  connector: string;                        // connector-owned
+  step: number;
+  state: ApprovalState;
+  eligibilityProof: EligibilityProof;       // rule-owned (verbatim from eligible())
+  evidenceRefs: string[];                    // rule-owned record numbers
+  requestRedacted: ApprovalRequestRedacted;  // connector-owned (redacted preview)
+  responseVerbatim: ApprovalResponseVerbatim | null;
+  actor: string | null;                      // analyst-supplied (verified at step-up)
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---- C4-F1: runbook recommendation (Incidents Response panel) ------------
+/** One rule-eligible runbook for an incident. Rule-owned throughout:
+ *  `eligibilityProof` is runbooks.eligible() verbatim ({eligible, missing}),
+ *  `triggerRules` are the runbook definition's trigger.rule_ids verbatim. No
+ *  connector/command/handle — a reference, never something executable. */
+export interface EligibleRunbook {
+  runbookId: string;
+  name: string | null;
+  severityFloor: string | null;
+  triggerRules: string[];
+  eligibilityProof: EligibilityProof;
+}
+/** The advisory (model) half — a ranking + justifications filtered to the
+ *  eligible ids, with an honest status. It can never widen eligibility and
+ *  carries no executable handle; the Response panel treats it as advice only. */
+export interface RunbookRecommendationAdvisory {
+  label: string;
+  status: "complete" | "absent" | "timed_out";
+  ranking: string[];
+  justifications: { runbookId: string; text: string }[];
+  note: string | null;
+}
+export interface RunbookRecommendation {
+  type: "runbook_recommendation";
+  advisory: true;
+  incidentId: string | null;
+  eligible: EligibleRunbook[];              // deterministic, rule-owned
+  recommendation: RunbookRecommendationAdvisory;   // advisory (model), honest states
+}
+// --------------------------------------------------------------------------
+
 /** Cross-run brute-force attempt series for an incident's entity (RCA rail
  *  sparkline). A DERIVED display aggregation over run history — never a verdict.
  *  available=false is the honest n/a (fewer than 2 real runs for the entity). */
@@ -822,6 +886,16 @@ export const api = {
   incidentBruteforce: (id: string) =>
     getJson<AttemptSeries>(`/api/incidents/${id}/bruteforce`),
 
+  // ---- C4-F1: rule-eligible runbooks for the Incidents Response panel ------
+  /** The rule-owned eligible-runbooks list for an incident (plus a separate
+   *  advisory ranking that can never widen eligibility). Sources the Response
+   *  panel; the panel cannot disagree with the engine because this is the same
+   *  eligible()/missing data the 409 create path uses. 404 for an unknown id. */
+  incidentRunbookRecommendation: (id: string) =>
+    getJson<OrError<RunbookRecommendation>>(
+      `/api/incidents/${encodeURIComponent(id)}/runbook-recommendation`),
+  // --------------------------------------------------------------------------
+
   /** Analyst lifecycle transition (POST /api/incidents/<id>/state). Returns the
    *  updated incident; 400 (bad state) / 404 (unknown id) reject honestly. */
   setIncidentState: async (id: string, state: IncidentState): Promise<Incident> => {
@@ -833,6 +907,68 @@ export const api = {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
     return normIncident(body as Incident);
+  },
+
+  // --- Gated-response approvals (C3/C4 · D3 step-up) ---------------------
+  // The single authoritative approval surface. Rules own eligibility; the
+  // step-up passphrase is D3 material — it is sent ONLY in the POST body,
+  // NEVER in a URL/query, and is never echoed back (a failed step-up returns
+  // a generic error with no credential). A 409 carries the engine's own
+  // `missing` array verbatim, so the client cannot disagree with the rules.
+  approvals: (state?: ApprovalState) =>
+    getJson<{ approvals: Approval[] }>(`/api/approvals${state ? `?state=${state}` : ""}`),
+
+  approval: (id: string) =>
+    getJson<OrError<Approval>>(`/api/approvals/${encodeURIComponent(id)}`),
+
+  createApproval: async (
+    input: { incidentId: string; runbookId: string; stepIndex?: number },
+  ): Promise<{ ok: boolean; approval?: Approval; missing?: string[]; error?: string }> => {
+    const res = await fetch("/api/approvals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok
+      ? { ok: true, approval: body as Approval }
+      : { ok: false, missing: (body as { missing?: string[] }).missing,
+          error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
+  },
+
+  /** Approve a pending step and fire its connector. `passphrase` is D3 step-up
+   *  material: it travels in the request body only, is never placed in the URL,
+   *  and is never returned. A wrong passphrase is a generic 401; a stale
+   *  re-evaluation is a 409 carrying the engine's `missing` array. */
+  approveApproval: async (
+    id: string, passphrase: string,
+  ): Promise<{ ok: boolean; approval?: Approval; missing?: string[]; error?: string }> => {
+    const res = await fetch(`/api/approvals/${encodeURIComponent(id)}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passphrase }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok
+      ? { ok: true, approval: body as Approval }
+      : { ok: false, missing: (body as { missing?: string[] }).missing,
+          error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
+  },
+
+  /** Reject a pending approval — also a step-up act (passphrase in the body,
+   *  never the URL, never echoed). No connector is ever touched on this path. */
+  rejectApproval: async (
+    id: string, passphrase: string,
+  ): Promise<{ ok: boolean; approval?: Approval; error?: string }> => {
+    const res = await fetch(`/api/approvals/${encodeURIComponent(id)}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passphrase }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok
+      ? { ok: true, approval: body as Approval }
+      : { ok: false, error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
   },
 
   assets: () => getJson<OrError<{ assets: Asset[] }>>("/api/assets"),
@@ -1087,4 +1223,46 @@ export const api = {
     if (!res.ok) throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
     return body as { purged: Record<string, number> };
   },
+
+  // --- Audit Ledger & Chain Verification (C4-T2 / D4) ---
+  auditChain: () => getJson<AuditChainResponse>("/api/audit"),
+  auditVerify: () => getJson<AuditVerification>("/api/audit/verify"),
 };
+
+// --- Audit Ledger & Chain Verification (C4-T2 / D4) ---
+export type AuditStatus = "approved" | "rejected" | "executed" | "failed";
+
+export interface AuditEntry {
+  ts: string;
+  actor: string;
+  incident_id: string;
+  runbook_id: string;
+  step: string;
+  status: AuditStatus;
+  eligibility_proof?: unknown;
+  evidence_refs?: string[];
+  request_redacted?: string | null;
+  response_verbatim?: string | null;
+  prev_hash: string;
+  entry_hash: string;
+}
+
+export interface AuditBreak {
+  index: number;
+  reason: string;
+  expected?: string | null;
+  found?: string | null;
+}
+
+export interface AuditVerification {
+  ok: boolean;
+  count: number;
+  break: AuditBreak | null;
+  head: string | null;
+  path?: string;
+}
+
+export interface AuditChainResponse {
+  entries: AuditEntry[];
+  verification: AuditVerification;
+}

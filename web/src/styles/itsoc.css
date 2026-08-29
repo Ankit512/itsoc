@@ -224,8 +224,38 @@
    claim can never masquerade as cited. */
 .is-cite{ display:inline-block; font-family:var(--mono); font-size:10px; color:var(--acc); border:1px solid color-mix(in srgb,var(--acc) 35%,transparent); border-radius:4px; padding:0 4px; margin:0 3px 3px 0; cursor:help; }
 .is-cite.miss{ color:var(--crit); border-color:color-mix(in srgb,var(--crit) 45%,transparent); }
-/* A timed-out advisory is a VISIBLE state, never a silent omission or prose. */
-.note-timeout{ color:var(--high); font-weight:600; font-size:11.5px; }
+/* A timed-out advisory is a VISIBLE state, never a silent omission or prose.
+   C4-R1a: uses --warn (== --high by value), NOT the severity token --high, so the
+   advisory timeout never references the severity palette even in this base rule.
+   .note-timeout is exclusively the advisory timeout note (every user sits inside
+   .is-advisory-timeout); this base rule and .is-advisory-timeout .note-timeout are
+   both locked by c4-r1-palette-confinement.test.tsx. */
+.note-timeout{ color:var(--warn); font-weight:600; font-size:11.5px; }
+
+/* ---- 12a3. Approvals (C4-T1): the single authoritative approve/reject surface.
+   is-approval-modal is the ONLY place the app carries an approve control. The
+   overlay is the one place a shadow is allowed (shadows on overlays only). The
+   authoritative bundle (eligible-by rule, redacted preview, evidence chain) is
+   rule-owned and carries NO advisory element — reuses .is-block/.is-evidence.
+   This is the pattern the later C4 presentational components copy. */
+.is-approval-empty{ color:var(--mut); font-size:13px; padding:20px 4px; }
+.is-approval-lbl{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin-bottom:6px; }
+.is-approval-lbl .is-mut{ text-transform:none; letter-spacing:0; font-weight:400; }
+.is-approval-auth{ display:flex; flex-direction:column; gap:12px; }
+.is-kbd{ font-family:var(--mono); font-size:10.5px; border:1px solid var(--bd); border-radius:5px; padding:1px 5px; color:var(--mut); }
+/* Overlay + modal — the sole design-system component granted a shadow. */
+.is-approval-overlay{ position:fixed; inset:0; z-index:60; display:flex; align-items:flex-start; justify-content:center; padding:12vh 16px 16px; background:color-mix(in srgb, #000 42%, transparent); }
+.is-approval-modal{ width:100%; max-width:540px; background:var(--pan); border:1px solid var(--bd2); border-radius:12px; box-shadow:var(--shadow); outline:none; overflow:hidden; }
+.is-approval-modal__h{ display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--bd); }
+.is-approval-modal__h h2{ font-size:14px; font-weight:650; margin:0; }
+.is-approval-modal__sub{ font-size:10.5px; color:var(--mut2); margin-top:2px; }
+.is-approval-x{ margin-left:auto; display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border:none; background:transparent; border-radius:6px; color:var(--mut); cursor:pointer; }
+.is-approval-x:hover{ background:var(--inset); }
+.is-approval-modal__body{ padding:16px 18px; display:flex; flex-direction:column; gap:16px; max-height:64vh; overflow-y:auto; }
+.is-approval-form{ display:flex; flex-direction:column; gap:10px; }
+.is-approval-hint{ font-size:11px; line-height:1.5; margin:0; }
+.is-approval-err{ font-size:12px; color:var(--crit); margin:0; }
+.is-approval-actions{ display:flex; gap:10px; padding-top:2px; }
 
 /* ---- 12b. INCIDENT / RCA v3 composition (center + right rail) ---------- */
 .is-rca-layout{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start; }
@@ -476,3 +506,159 @@
 
 /* Single-column variant of the RCA layout for manual incidents (no rule rail). */
 .is-rca-layout.is-single{ grid-template-columns:minmax(0,760px); }
+
+/* ── 21. AUDIT TIMELINE & CHAIN VERIFICATION (C4-T2) ───────────────────── */
+.is-audit-timeline{ display:flex; flex-direction:column; gap:12px; }
+.is-audit-chain{ display:flex; flex-direction:column; gap:10px; position:relative; }
+.is-audit-entry{
+  background:var(--pan); border:1px solid var(--bd); border-radius:var(--radius-sm);
+  padding:12px 14px; display:flex; flex-direction:column; gap:8px;
+  position:relative;
+}
+.is-audit-entry--broken{ border-color:var(--crit); background:color-mix(in srgb,var(--crit) 5%,var(--pan)); }
+.is-audit-entry__h{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.is-audit-entry__meta{ display:flex; align-items:center; gap:8px; font-size:12px; flex-wrap:wrap; }
+.is-audit-entry__ts{ font-family:var(--mono); font-size:11px; color:var(--mut); }
+.is-audit-entry__actor{ font-size:12px; font-weight:500; color:var(--ink); }
+.is-audit-entry__step{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--mut); }
+.is-audit-entry__runbook{ font-family:var(--mono); font-size:11px; color:var(--acc); }
+.is-audit-entry__incident{ font-family:var(--mono); font-size:11px; color:var(--mut2); }
+.is-audit-entry__hashes{ display:flex; align-items:center; gap:12px; font-family:var(--mono); font-size:10px; color:var(--mut2); flex-wrap:wrap; }
+.is-audit-entry__hashes code{ font-family:var(--mono); color:var(--mut); }
+.is-audit-entry__body{ font-size:12px; color:var(--ink2); display:flex; flex-direction:column; gap:6px; }
+
+/* Status chips for audit entries:
+   approved -> neutral outline
+   rejected -> muted
+   executed -> accent
+   failed   -> CRITICAL SEVERITY PALETTE ONLY (#f26d78)
+   No green or alarm colors on approved/rejected/executed. */
+.is-chip--approved{ color:var(--ink); border-color:var(--bd2); background:transparent; }
+.is-chip--rejected{ color:var(--mut); border-color:var(--bd); background:var(--inset); }
+.is-chip--executed{ color:var(--acc); border-color:color-mix(in srgb,var(--acc) 35%,transparent); background:color-mix(in srgb,var(--acc) 8%,transparent); }
+.is-chip--failed{ color:var(--crit); border-color:color-mix(in srgb,var(--crit) 40%,transparent); background:color-mix(in srgb,var(--crit) 12%,transparent); font-weight:600; }
+
+/* Chain verification footer (clean) */
+.is-audit-foot{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--mut); padding:6px 2px; font-family:var(--mono); }
+.is-audit-foot .check{ color:var(--low); font-weight:600; }
+
+/* CHAIN BROKEN banner: loud, prominent, red-bordered */
+.is-audit-broken{
+  background:color-mix(in srgb,var(--crit) 10%,transparent);
+  border:1px solid var(--crit);
+  border-radius:var(--radius-sm);
+  padding:14px 16px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  color:var(--ink);
+}
+.is-audit-broken__h{ font-size:13px; font-weight:650; color:var(--crit); display:flex; align-items:center; gap:6px; }
+.is-audit-broken__reason{ font-size:12px; color:var(--ink); line-height:1.45; }
+.is-audit-broken__hashes{ font-family:var(--mono); font-size:10.5px; color:var(--mut); display:flex; flex-direction:column; gap:3px; margin-top:4px; }
+.is-audit-broken__hashes code{ color:var(--crit); word-break:break-all; }
+
+/* Empty state */
+.is-audit-empty{
+  border:1px dashed var(--bd); border-radius:var(--radius-sm);
+  padding:20px; text-align:center; color:var(--mut); font-size:12.5px;
+}
+
+/* ---- 12a5. Runbook card (C4-F1): a runbook surfaced against an incident in the
+   Incidents Response panel. INELIGIBILITY IS INFORMATION, NOT ALARM — the
+   ineligible badge is MUTED and must NEVER borrow the crit/severity palette;
+   eligible is a low-emphasis accent outline. The missing-evidence list is the
+   engine's `missing` array verbatim. No approve control lives here. Own
+   clearly-delimited subsection (appended at EOF) so the concurrent C4 fan-out
+   stays conflict-free — exactly as the C1 fan-out did. Reuses is-mono/is-mut. */
+.is-runbook-card{ background:var(--inset); border:1px solid var(--bd); border-radius:var(--radius-sm); padding:11px 12px; display:flex; flex-direction:column; gap:7px; }
+.is-runbook-card.is-selected{ border-color:color-mix(in srgb,var(--acc) 55%,transparent); }
+.is-runbook-card[role="button"]{ cursor:pointer; }
+.is-runbook-card[role="button"]:hover{ border-color:var(--bd2); }
+.is-runbook-card__h{ display:flex; align-items:center; gap:10px; }
+.is-runbook-card__name{ flex:1; min-width:0; font-size:13px; font-weight:600; color:var(--ink); }
+.is-runbook-card__meta{ font-size:10.5px; }
+.is-runbook-card__rules{ display:flex; flex-wrap:wrap; gap:5px; }
+.is-rb-rule{ font-size:10px; color:var(--ink2); background:var(--pan2); border:1px solid var(--bd); border-radius:var(--radius-xs); padding:1px 6px; }
+/* Eligibility badges. Eligible = low-emphasis accent OUTLINE (calm, not filled).
+   Ineligible = MUTED grey outline — deliberately NOT a severity/crit colour, so
+   an ineligible runbook reads as information, never as an alarm. */
+.is-rb-badge{ font-size:9.5px; font-weight:700; letter-spacing:.05em; padding:2px 8px; border-radius:var(--radius-xs); border:1px solid transparent; background:transparent; }
+.is-rb-badge--eligible{ color:var(--acc); border-color:color-mix(in srgb,var(--acc) 45%,transparent); }
+.is-rb-badge--ineligible{ color:var(--mut); border-color:var(--bd2); }
+/* Missing-evidence — muted, verbatim from the engine. */
+.is-runbook-card__missing{ display:flex; flex-direction:column; gap:4px; }
+.is-rb-missing__lbl{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut2); }
+.is-rb-missing__list{ margin:0; padding-left:16px; display:flex; flex-direction:column; gap:3px; }
+.is-rb-missing__item{ font-size:11px; line-height:1.5; color:var(--mut); word-break:break-word; }
+/* Response panel wiring (C4-F1): the single Request-approval action + the
+   create-then-link confirmation. Muted, no severity colour. */
+.is-response-actions{ display:flex; gap:8px; padding-top:2px; }
+.is-response-created{ font-size:11.5px; color:var(--mut); line-height:1.5; }
+.is-response-link{ color:var(--acc); text-decoration:none; }
+.is-response-link:hover{ text-decoration:underline; }
+/* ── 22. ADVISORY STATES (C4-F2): PENDING & TIMEOUT ──────────────────────── */
+/* The advisory family uses a dashed left border to visually and structurally
+   distinguish model hypothesis from deterministic, rule-derived facts.
+   C4-R1: neither state borrows ANY severity token (--crit / --high / --med /
+   --low). The timeout reads as a warning via --warn (== --high by value, so
+   zero pixel change), keeping the severity palette confined to failed audit
+   entries. Locked by c4-r1-palette-confinement.test.tsx. */
+.is-advisory-pending,
+.is-block.is-adv.is-advisory-pending {
+  border-left: 3px dashed color-mix(in srgb, var(--acc) 45%, transparent);
+  background: color-mix(in srgb, var(--acc) 3%, transparent);
+  color: var(--mut);
+}
+.is-advisory-pending p,
+.is-block.is-adv.is-advisory-pending p {
+  color: var(--mut);
+}
+
+.is-advisory-timeout,
+.is-block.is-adv.is-advisory-timeout {
+  border-left: 3px dashed color-mix(in srgb, var(--warn) 60%, transparent);
+  background: color-mix(in srgb, var(--warn) 5%, transparent);
+}
+.is-advisory-timeout .note-timeout {
+  color: var(--warn);
+  font-weight: 600;
+  font-size: 11.5px;
+}
+/* --- C4-F3: Priority chip (org-context) --- */
+/* C4-R1: priority is a DIFFERENT axis from severity and must never be readable
+   AS severity at a glance. So the four levels are distinguished by EMPHASIS
+   (filled vs outline, border opacity), NOT by hue: a single accent hue for the
+   two urgent levels, descending to neutral/muted. A priority chip may reference
+   ONLY --acc / --ink / --ink2 / --mut / --mut2 / --bd / --bd2 — NEVER the
+   severity palette (--crit / --high / --med / --low). Locked by
+   c4-r1-palette-confinement.test.tsx. */
+.is-chip--priority {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: .05em;
+  padding: 1px 7px;
+  line-height: 1.3;
+}
+.is-chip--p1 {
+  color: var(--acc);
+  border-color: color-mix(in srgb, var(--acc) 60%, transparent);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
+}
+.is-chip--p2 {
+  color: var(--acc);
+  border-color: color-mix(in srgb, var(--acc) 38%, transparent);
+  background: color-mix(in srgb, var(--acc) 5%, transparent);
+}
+.is-chip--p3 {
+  color: var(--ink2);
+  border-color: var(--bd2);
+  background: transparent;
+}
+.is-chip--p4 {
+  color: var(--mut);
+  border-color: var(--bd);
+  background: var(--inset);
+}
+
