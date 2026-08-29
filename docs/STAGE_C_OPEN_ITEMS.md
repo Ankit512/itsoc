@@ -476,3 +476,43 @@ out-of-allowlist diff when it verifies the cause was its own card wording and th
 within the card's stated intent, recording each as a deviation (D-3 is the first so recorded); or
 (b) every out-of-allowlist diff halts for the owner regardless of cause, which is stricter and slower
 but keeps the tripwire meaning what it says.
+
+---
+
+# OWNER RULINGS — 2026-08-29
+
+**OPEN-9 — unblocked.** Docker daemon started. Standing note now in force: **the Docker daemon is a
+run-level environment requirement**, on par with repo-on-main at pre-flight. If it is down at any
+future check, the live end-to-end item **reverts to BLOCKED and the owner is notified** — the mock is
+never substituted for it.
+
+**OPEN-11 — ratified, both halves.** Guardrail 4 narrows as built: the wire carries the minimum
+required indicator values; every log, stored error, display and exception carries the redacted and
+credential-masked representation. Second half is an owner product decision taken now: **external
+TI/OEM connectors ship disabled by default**, and enabling one is an explicit Settings action beside
+an honest egress label — "this section calls external services and transmits indicators".
+Verification: the default-off posture is **already true** — `console/store.py:99` declares
+`enabled INTEGER DEFAULT 0` and `console/ti_oem.py:512` skips any row that is not enabled. What does
+not yet exist is the honest egress label beside the enable action; carded as follow-on work.
+`5694f6e` merged to local main.
+
+**OPEN-12 — authority split by blast radius.** Non-behavioral out-of-allowlist diffs are ratified by
+the orchestrator and logged as deviations; anything behavioral halts for the owner regardless of how
+right the worker seems. The root-cause fix is binding: every card gets a pre-dispatch check for
+whether it plausibly requires files beyond its allowlist, and the card gets fixed rather than the
+worker's discipline. Both written into `hive/stage-c/GUARDRAILS.md`.
+
+**D-3 — signed off**, conditional on verification that `73167a5`'s out-of-allowlist edits are
+comment-only with zero semantic change. Verified: every hunk in `client.py`, `server.py`, `tools.py`,
+`test_mcp.py` and `requirements-mcp.txt` is a comment, docstring or description string removing a
+stale "read-only" claim; no executable change. This class is OPEN-12(a) going forward.
+
+**OPEN-10 — foreign work left alone.** `.DS_Store` added to `.gitignore`. `tools/attack_generator.py`
+recorded in the foreign-work inventory below for the owner's later keep/revert inspection. Not
+reverted, not absorbed.
+
+## Foreign-work inventory (non-Stage-C, for owner keep/revert inspection)
+- `tools/attack_generator.py` — untracked, appeared in the integration checkout from the concurrent
+  queue. Never read into Stage C, never reverted.
+- `web/dist/*` — tracked build artifacts, repeatedly dirtied by the concurrent queue and by any local
+  `npm run build`. Stage C never commits them; committed build output is a standing tripwire.

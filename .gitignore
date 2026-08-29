@@ -55,3 +55,4 @@ hooks.sock
 spawn-requests/
 agents/
 
+.DS_Store
