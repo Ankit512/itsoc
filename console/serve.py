@@ -1477,6 +1477,13 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         elif path.startswith("/api/approvals/"):
             appr = soc.get_approval(path.split("/")[3])
             self._json(appr) if appr else self._json({"error": "no such approval"}, 404)
+        # --- append-only hash-chained audit ledger (console/audit.py / C4-T2a) -
+        elif path == "/api/audit":
+            status, payload = soc.audit_chain()
+            self._json(payload, status)
+        elif path == "/api/audit/verify":
+            status, payload = soc.audit_verify()
+            self._json(payload, status)
         elif path == "/api/reports":
             self._json({"reports": soc.list_reports()})
         elif path == "/api/threat-intel":

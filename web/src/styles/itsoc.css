@@ -501,3 +501,60 @@
 
 /* Single-column variant of the RCA layout for manual incidents (no rule rail). */
 .is-rca-layout.is-single{ grid-template-columns:minmax(0,760px); }
+
+/* ── 21. AUDIT TIMELINE & CHAIN VERIFICATION (C4-T2) ───────────────────── */
+.is-audit-timeline{ display:flex; flex-direction:column; gap:12px; }
+.is-audit-chain{ display:flex; flex-direction:column; gap:10px; position:relative; }
+.is-audit-entry{
+  background:var(--pan); border:1px solid var(--bd); border-radius:var(--radius-sm);
+  padding:12px 14px; display:flex; flex-direction:column; gap:8px;
+  position:relative;
+}
+.is-audit-entry--broken{ border-color:var(--crit); background:color-mix(in srgb,var(--crit) 5%,var(--pan)); }
+.is-audit-entry__h{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.is-audit-entry__meta{ display:flex; align-items:center; gap:8px; font-size:12px; flex-wrap:wrap; }
+.is-audit-entry__ts{ font-family:var(--mono); font-size:11px; color:var(--mut); }
+.is-audit-entry__actor{ font-size:12px; font-weight:500; color:var(--ink); }
+.is-audit-entry__step{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--mut); }
+.is-audit-entry__runbook{ font-family:var(--mono); font-size:11px; color:var(--acc); }
+.is-audit-entry__incident{ font-family:var(--mono); font-size:11px; color:var(--mut2); }
+.is-audit-entry__hashes{ display:flex; align-items:center; gap:12px; font-family:var(--mono); font-size:10px; color:var(--mut2); flex-wrap:wrap; }
+.is-audit-entry__hashes code{ font-family:var(--mono); color:var(--mut); }
+.is-audit-entry__body{ font-size:12px; color:var(--ink2); display:flex; flex-direction:column; gap:6px; }
+
+/* Status chips for audit entries:
+   approved -> neutral outline
+   rejected -> muted
+   executed -> accent
+   failed   -> CRITICAL SEVERITY PALETTE ONLY (#f26d78)
+   No green or alarm colors on approved/rejected/executed. */
+.is-chip--approved{ color:var(--ink); border-color:var(--bd2); background:transparent; }
+.is-chip--rejected{ color:var(--mut); border-color:var(--bd); background:var(--inset); }
+.is-chip--executed{ color:var(--acc); border-color:color-mix(in srgb,var(--acc) 35%,transparent); background:color-mix(in srgb,var(--acc) 8%,transparent); }
+.is-chip--failed{ color:var(--crit); border-color:color-mix(in srgb,var(--crit) 40%,transparent); background:color-mix(in srgb,var(--crit) 12%,transparent); font-weight:600; }
+
+/* Chain verification footer (clean) */
+.is-audit-foot{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--mut); padding:6px 2px; font-family:var(--mono); }
+.is-audit-foot .check{ color:var(--low); font-weight:600; }
+
+/* CHAIN BROKEN banner: loud, prominent, red-bordered */
+.is-audit-broken{
+  background:color-mix(in srgb,var(--crit) 10%,transparent);
+  border:1px solid var(--crit);
+  border-radius:var(--radius-sm);
+  padding:14px 16px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  color:var(--ink);
+}
+.is-audit-broken__h{ font-size:13px; font-weight:650; color:var(--crit); display:flex; align-items:center; gap:6px; }
+.is-audit-broken__reason{ font-size:12px; color:var(--ink); line-height:1.45; }
+.is-audit-broken__hashes{ font-family:var(--mono); font-size:10.5px; color:var(--mut); display:flex; flex-direction:column; gap:3px; margin-top:4px; }
+.is-audit-broken__hashes code{ color:var(--crit); word-break:break-all; }
+
+/* Empty state */
+.is-audit-empty{
+  border:1px dashed var(--bd); border-radius:var(--radius-sm);
+  padding:20px; text-align:center; color:var(--mut); font-size:12.5px;
+}

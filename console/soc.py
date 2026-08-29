@@ -1376,6 +1376,33 @@ def list_approvals(state_filter=None):
     return out
 
 
+# ---- append-only hash-chained audit ledger (C4-T2a / D4) -----------------
+def audit_chain():
+    """Return the audit ledger entries and the live verify_chain() verdict.
+    Source of truth is console/.soc/audit/chain.jsonl. Missing ledger -> honest empty."""
+    import audit
+    verdict = audit.verify_chain()
+    try:
+        entries = audit.read_entries()
+    except Exception:
+        entries = []
+        for line in audit.read_lines():
+            try:
+                import json
+                entries.append(json.loads(line))
+            except Exception:
+                break
+    return 200, {"entries": entries, "verification": verdict}
+
+
+def audit_verify():
+    """Return the live verify_chain() verdict over the audit ledger."""
+    import audit
+    verdict = audit.verify_chain()
+    return 200, verdict
+
+
+
 def _audit(actor, record, step, status, eligibility_proof=None,
            response_verbatim=None):
     """One append to the hash-chained ledger for a consequential act. The actor

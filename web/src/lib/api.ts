@@ -1182,4 +1182,46 @@ export const api = {
     if (!res.ok) throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
     return body as { purged: Record<string, number> };
   },
+
+  // --- Audit Ledger & Chain Verification (C4-T2 / D4) ---
+  auditChain: () => getJson<AuditChainResponse>("/api/audit"),
+  auditVerify: () => getJson<AuditVerification>("/api/audit/verify"),
 };
+
+// --- Audit Ledger & Chain Verification (C4-T2 / D4) ---
+export type AuditStatus = "approved" | "rejected" | "executed" | "failed";
+
+export interface AuditEntry {
+  ts: string;
+  actor: string;
+  incident_id: string;
+  runbook_id: string;
+  step: string;
+  status: AuditStatus;
+  eligibility_proof?: unknown;
+  evidence_refs?: string[];
+  request_redacted?: string | null;
+  response_verbatim?: string | null;
+  prev_hash: string;
+  entry_hash: string;
+}
+
+export interface AuditBreak {
+  index: number;
+  reason: string;
+  expected?: string | null;
+  found?: string | null;
+}
+
+export interface AuditVerification {
+  ok: boolean;
+  count: number;
+  break: AuditBreak | null;
+  head: string | null;
+  path?: string;
+}
+
+export interface AuditChainResponse {
+  entries: AuditEntry[];
+  verification: AuditVerification;
+}
