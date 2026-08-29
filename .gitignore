@@ -56,3 +56,18 @@ spawn-requests/
 agents/
 
 .DS_Store
+
+# ---- OPEN-10 clean fence (ratified 2026-08-29) --------------------------------
+# web/dist is a BUILD ARTEFACT. Vite gives its files content-hashed names, so
+# every branch regenerates different filenames and every merge collides — 36
+# commits touched it before it was untracked. serve.py and test_console.py
+# already degrade cleanly when it is absent, so nothing depends on it being
+# committed. Build it; do not commit it.
+/web/dist/
+
+# Foreign (non-Stage-C) work queue. Its workspace lives OUTSIDE this checkout at
+# ../log-analyzer-foreign/. Nothing here imports it and it was never committed to
+# any ref. tools/attack_generator.py is deliberately NOT ignored — it stays
+# visible in `git status` as the owner's inspection copy.
+/tools/efficacy_score.py
+/tools/efficacy_data/
