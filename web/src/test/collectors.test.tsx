@@ -10,11 +10,13 @@ afterEach(() => vi.restoreAllMocks());
 const STOPPED: SyslogStatus = {
   running: false, bind: "127.0.0.1", port: 1514, protocols: ["udp", "tcp"],
   exposed: false, receivedCount: 0, storedCount: 0,
+  ingestedCount: 0, droppedCount: 0, laggingCount: 0, queueCapacity: 10000, queueUsed: 0,
   startedAt: null, lastEventAt: null, error: "",
 };
 const RUNNING_EXPOSED: SyslogStatus = {
   running: true, bind: "0.0.0.0", port: 1514, protocols: ["udp", "tcp"],
   exposed: true, receivedCount: 7, storedCount: 6,
+  ingestedCount: 6, droppedCount: 0, laggingCount: 0, queueCapacity: 10000, queueUsed: 0,
   startedAt: "2026-08-19T15:00:00Z", lastEventAt: "2026-08-19T15:01:00Z", error: "",
 };
 
