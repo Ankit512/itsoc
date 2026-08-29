@@ -16,6 +16,7 @@
 """
 from __future__ import annotations
 
+import collections
 import re
 import socket
 import sys
@@ -30,6 +31,14 @@ import store  # noqa: E402  # imported once; schema is initialized once per star
 DEFAULT_PORTS = (514, 1514)
 MAX_DATAGRAM = 65535
 MAX_TCP_BUFFER = MAX_DATAGRAM * 2
+# Bounded in-memory queue between the listeners and the synchronous SQLite
+# writer. A listener must never block on disk: a UDP listener stuck in a write
+# lets the kernel receive buffer overflow and drop datagrams that NOTHING
+# counts, and a drop nobody counts is indistinguishable from an event that never
+# happened. So listeners offer() non-blocking to this queue and a drain worker
+# does the writes; a full queue drops the incoming event and COUNTS the drop,
+# turning an invisible kernel drop into a counted, surfaced one.
+INGEST_QUEUE_LIMIT = 10000
 
 _SEV = {
     0: "EMERGENCY", 1: "ALERT", 2: "CRITICAL", 3: "ERROR",
@@ -112,6 +121,71 @@ def parse_syslog(data: bytes, src_ip: str, src_port: int, listen_port: int,
     }
 
 
+class _IngestQueue:
+    """Bounded buffer between the syslog listeners and the SQLite writer,
+    modelled on serve.StreamQueue.
+
+    Listeners offer() non-blocking; a single drain worker writes to the store.
+    When the writer cannot keep up the queue fills and offer() REFUSES the event
+    and counts it (``dropped``) rather than blocking the listener — a silent drop
+    would fake a quiet network, which this repo forbids. ``lagging`` is the live
+    backlog depth (how far the writer is behind); ``ingested`` is what actually
+    reached the store. All three are surfaced by SyslogCollector.status().
+    """
+
+    def __init__(self, limit=None):
+        self.limit = int(limit or INGEST_QUEUE_LIMIT)
+        self._items = collections.deque()
+        self._lock = threading.Lock()
+        self._ready = threading.Event()
+        self._closed = False
+        self.ingested = 0    # events the drain worker wrote to the store
+        self.dropped = 0     # events lost: queue full (back-pressure) or store failure
+        self.high_water = 0  # deepest backlog ever observed (lag high-water mark)
+
+    def offer(self, event):
+        """Non-blocking enqueue. True if queued; False (and COUNTED) if full."""
+        with self._lock:
+            if self._closed:
+                return False
+            if len(self._items) >= self.limit:
+                self.dropped += 1
+                return False
+            self._items.append(event)
+            depth = len(self._items)
+            if depth > self.high_water:
+                self.high_water = depth
+            self._ready.set()
+            return True
+
+    def take(self, timeout):
+        """Block up to ``timeout`` for one event; None on timeout/empty/close."""
+        if not self._ready.wait(timeout):
+            return None
+        with self._lock:
+            item = self._items.popleft() if self._items else None
+            if not self._items:
+                self._ready.clear()
+            return item
+
+    def record_ingested(self):
+        with self._lock:
+            self.ingested += 1
+
+    def record_store_failure(self):
+        with self._lock:
+            self.dropped += 1
+
+    def depth(self):
+        with self._lock:
+            return len(self._items)
+
+    def close(self):
+        with self._lock:
+            self._closed = True
+            self._ready.set()
+
+
 class _BaseListener:
     protocol = ""
 
@@ -123,7 +197,6 @@ class _BaseListener:
         self.thread = None
         self.stop_event = threading.Event()
         self.received = 0
-        self.stored = 0
         self.errors = 0
         self.last_error = ""
         self.last_source = ""
@@ -143,7 +216,9 @@ class _BaseListener:
         self.received += 1
         self.last_source = f"{addr[0]}:{addr[1]}"
         self.last_message_at = event["ts"]
-        self.stored += self.owner._store(event)
+        # Non-blocking hand-off: never block the listener on disk. A full queue
+        # counts the drop (owner._queue.dropped) instead of losing it silently.
+        self.owner._offer(event)
 
     def _error(self, exc):
         self.errors += 1
@@ -277,6 +352,10 @@ class SyslogCollector:
         self._last_bind = "127.0.0.1"
         self._last_port = 1514
         self._started_at = None
+        # Bounded ingest queue + single drain worker (created on start()).
+        self._queue = None
+        self._worker = None
+        self._worker_stop = threading.Event()
 
     @property
     def supported_ports(self):
@@ -306,6 +385,9 @@ class SyslogCollector:
             started = {}
             try:
                 store.init_db()
+                # Bring the queue + drain worker up BEFORE any listener, so a
+                # datagram that arrives during startup is queued, never dropped.
+                self._start_worker_locked()
                 for p in ports:
                     for proto, listener_type in (("udp", _UDPListener), ("tcp", _TCPListener)):
                         l = listener_type(self, p, bind)
@@ -313,6 +395,7 @@ class SyslogCollector:
                         started[(proto, p)] = l
             except Exception as exc:
                 for l in started.values(): l.stop()
+                self._stop_worker_locked()
                 self._listeners = {}
                 self._last_error = (self._bind_error(exc, p, bind)
                                     if isinstance(exc, OSError)
@@ -336,6 +419,7 @@ class SyslogCollector:
         self._listeners = {}
         self._started_at = None
         for l in listeners: l.stop()
+        self._stop_worker_locked()
 
     def stop(self):
         with self._lock:
@@ -343,12 +427,46 @@ class SyslogCollector:
             self._last_error = ""
             return self.status()
 
-    def _store(self, event):
-        try:
-            return 1 if store.insert_event(event) else 0
-        except Exception as exc:
-            self._last_error = f"store insert failed: {exc}"
-        return 0
+    # --- bounded ingest queue + drain worker -------------------------------
+    def _offer(self, event):
+        """Non-blocking hand-off from a listener to the drain worker. Returns
+        False (and the queue counts a drop) when the queue is full or absent."""
+        q = self._queue
+        return q.offer(event) if q is not None else False
+
+    def _start_worker_locked(self):
+        self._worker_stop = threading.Event()
+        self._queue = _IngestQueue()
+        self._worker = threading.Thread(target=self._drain, args=(self._queue,),
+                                        name="syslog-ingest-drain", daemon=True)
+        self._worker.start()
+
+    def _stop_worker_locked(self):
+        self._worker_stop.set()
+        q = self._queue
+        if q is not None:
+            q.close()
+        w = self._worker
+        self._worker = None
+        self._queue = None
+        if w and w.is_alive():
+            w.join(timeout=1.5)
+
+    def _drain(self, q):
+        """The ONLY thread that writes to the store. A truthy insert is an
+        ingest; a falsy return is a legitimate dedupe (not a drop); an exception
+        is a real store failure and IS counted as a drop — so a SQLite lock under
+        burst load can never vanish silently."""
+        while not self._worker_stop.is_set():
+            event = q.take(0.5)
+            if event is None:
+                continue
+            try:
+                if store.insert_event(event):
+                    q.record_ingested()
+            except Exception as exc:
+                q.record_store_failure()
+                self._last_error = f"store insert failed: {exc}"
 
     def status(self):
         with self._lock:
@@ -361,7 +479,6 @@ class SyslogCollector:
                     "bind": l.bind,
                     "running": bool(l.thread and l.thread.is_alive() and not l.stop_event.is_set()),
                     "received": l.received,
-                    "stored": l.stored,
                     "errors": l.errors,
                     "lastError": l.last_error,
                     "lastSource": l.last_source,
@@ -375,6 +492,16 @@ class SyslogCollector:
             last_events = [x["lastMessageAt"] for x in listeners if x["lastMessageAt"]]
             last_event_at = max(last_events) if last_events else None
 
+            # Back-pressure accounting, owned by the ingest queue. received =
+            # what the listeners parsed; ingested = what reached the store;
+            # dropped = what a full queue (or a store failure) refused and
+            # COUNTED; lagging = the live backlog still waiting to be written.
+            q = self._queue
+            ingested = q.ingested if q is not None else 0
+            dropped = q.dropped if q is not None else 0
+            lagging = q.depth() if q is not None else 0
+            capacity = q.limit if q is not None else INGEST_QUEUE_LIMIT
+
             return {
                 "running": running,
                 "bind": bind_val,
@@ -383,7 +510,14 @@ class SyslogCollector:
                 "protocols": ["udp", "tcp"],
                 "exposed": any(x["bind"] == "0.0.0.0" for x in listeners),
                 "receivedCount": sum(x["received"] for x in listeners),
-                "storedCount": sum(x["stored"] for x in listeners),
+                # storedCount stays the count of events written to the store
+                # (deduped events are not re-counted), now produced by the worker.
+                "storedCount": ingested,
+                "ingestedCount": ingested,
+                "droppedCount": dropped,
+                "laggingCount": lagging,
+                "queueCapacity": capacity,
+                "queueUsed": lagging,
                 "startedAt": started_at,
                 "lastEventAt": last_event_at,
                 "supportedPorts": list(DEFAULT_PORTS),

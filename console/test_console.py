@@ -2877,6 +2877,12 @@ def check_syslog():
                 time.sleep(0.05)
             check("per-listener received counters reflect the real messages received",
                   received_total() == 2, str(received_total()))
+            # The store write now happens on the drain worker, not the listener
+            # thread (back-pressure decoupling), so wait for the async ingest.
+            deadline = time.time() + 3
+            while store.query("events", filters={"source_type": "syslog:udp"})["total"] < 2 \
+                    and time.time() < deadline:
+                time.sleep(0.05)
             q = store.query("events", filters={"source_type": "syslog:udp"})
             check("received syslog messages land in the store as events", q["total"] == 2, str(q["total"]))
             raws = {i["raw"] for i in q["items"]}
@@ -2912,6 +2918,10 @@ def check_syslog():
                 time.sleep(0.05)
             check("RFC6587 handles fragmented/coalesced octet frames and LF frames",
                   tcp_received() == 4, str(tcp_received()))
+            deadline = time.time() + 3
+            while store.query("events", filters={"source_type": "syslog:tcp"})["total"] < 4 \
+                    and time.time() < deadline:
+                time.sleep(0.05)
             tq = store.query("events", filters={"source_type": "syslog:tcp"})
             tcp_raw = {i["raw"] for i in tq["items"]}
             check("TCP stores exactly the four verbatim RFC6587 payloads",
@@ -2928,6 +2938,43 @@ def check_syslog():
 
             stopped = collector.stop()
             check("stop() leaves the listener honestly not-running", stopped["running"] is False)
+
+            # --- back-pressure: a SATURATED queue COUNTS drops and SURFACES them ---
+            # The defect this card closes: a datagram dropped because the writer
+            # cannot keep up must be COUNTED, not lost silently — a drop nobody
+            # counts is indistinguishable from an event that never happened. Stall
+            # the single drain worker so the bounded queue cannot empty, flood it
+            # far past capacity, and prove the drops are both counted and visible
+            # in the same status() the UI polls. Attack check: remove the
+            # `self.dropped += 1` in _IngestQueue.offer and this test fails.
+            orig_limit = sc.INGEST_QUEUE_LIMIT
+            gate = threading.Event()
+            orig_insert = store.insert_event
+            def held_insert(ev):
+                gate.wait(2.0)   # stall the writer so the queue backs up to full
+                return orig_insert(ev)
+            try:
+                sc.INGEST_QUEUE_LIMIT = 4
+                store.insert_event = held_insert
+                for cand in range(21200, 21250):
+                    if collector.start(port=cand, bind="127.0.0.1")["running"]:
+                        break
+                    collector.stop()
+                for i in range(500):
+                    collector._offer({"raw": f"<13>flood {i}", "source_type": "syslog:udp",
+                                      "host": "h", "message": f"flood {i}", "ts": sc._now()})
+                sat = collector.status()
+                check("saturated ingest queue COUNTS drops instead of losing them silently",
+                      sat["droppedCount"] >= 100, str(sat["droppedCount"]))
+                check("the bounded queue reports its capacity and a full backlog (lagging)",
+                      sat["queueCapacity"] == 4 and sat["laggingCount"] >= 3, str(sat))
+                check("drops are surfaced in the same status() payload the Sources UI polls",
+                      {"droppedCount", "laggingCount", "queueCapacity", "ingestedCount"} <= set(sat))
+            finally:
+                gate.set()
+                store.insert_event = orig_insert
+                sc.INGEST_QUEUE_LIMIT = orig_limit
+                collector.stop()
 
             # --- live HTTP: /api/syslog/* routes -----------------------------
             srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
@@ -2949,8 +2996,10 @@ def check_syslog():
                     return e.code, json.loads(e.read())
 
             s_status, body = get("/api/syslog/status")
-            check("GET /api/syslog/status returns the real listener shape",
-                  s_status == 200 and set(body) >= {"running", "protocol", "ports", "listeners"})
+            check("GET /api/syslog/status returns the real listener shape (incl. back-pressure counters)",
+                  s_status == 200 and set(body) >= {
+                      "running", "protocol", "ports", "listeners",
+                      "droppedCount", "laggingCount", "queueCapacity", "ingestedCount"})
 
             # An arbitrary bind address is refused (only loopback / explicit 0.0.0.0).
             s_bad, bad = post("/api/syslog/start", {"port": 21099, "bind": "8.8.8.8"})

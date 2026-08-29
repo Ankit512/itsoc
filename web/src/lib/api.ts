@@ -561,6 +561,14 @@ export interface SyslogStatus {
   exposed: boolean;
   receivedCount: number;
   storedCount: number;
+  // Back-pressure accounting (C5-T2). A bounded queue sits between the listeners
+  // and the SQLite writer; when it saturates, drops are COUNTED here rather than
+  // lost silently in the kernel. `laggingCount` is the live backlog depth.
+  ingestedCount: number;
+  droppedCount: number;
+  laggingCount: number;
+  queueCapacity: number;
+  queueUsed: number;
   startedAt: string | null;
   lastEventAt: string | null;
   error: string;

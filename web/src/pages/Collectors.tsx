@@ -36,6 +36,16 @@ function LiveStatus({ status }: { status?: SyslogStatus }) {
       <Fact label="Protocols">{status?.protocols?.join(" + ").toUpperCase() || "UDP + TCP"}</Fact>
       <Fact label="Messages received"><span className="is-tnum">{status?.receivedCount ?? 0}</span></Fact>
       <Fact label="Stored (new, deduped)"><span className="is-tnum">{status?.storedCount ?? 0}</span></Fact>
+      <Fact label="Dropped (back-pressure)">
+        <span className="is-tnum" data-testid="collector-dropped"
+              style={{ color: (status?.droppedCount ?? 0) > 0 ? "var(--warn)" : "var(--mut)" }}>
+          {status?.droppedCount ?? 0}
+        </span>
+      </Fact>
+      <Fact label="Queue backlog (lagging)">
+        <span className="is-tnum" data-testid="collector-lagging">{status?.laggingCount ?? 0}</span>
+        <span className="is-mut"> / {status?.queueCapacity ?? 0}</span>
+      </Fact>
       {running && status?.startedAt
         ? <Fact label="Started"><span className="is-mono">{new Date(status.startedAt).toLocaleString()}</span></Fact>
         : <Fact label="Started" na>—</Fact>}
@@ -51,6 +61,15 @@ function LiveStatus({ status }: { status?: SyslogStatus }) {
           reachable from the whole network. Anyone who can route to this host can send events into your
           store. Bind to <span className="is-mono" style={{ fontWeight: 700 }}>127.0.0.1</span> unless you
           intend to collect from other machines.
+        </div>
+      )}
+      {(status?.droppedCount ?? 0) > 0 && (
+        <div className="is-note" data-testid="collector-drop-warning"
+             style={{ marginTop: 10, borderColor: "var(--warn)", color: "var(--warn)" }}>
+          <b>{status?.droppedCount}</b> event(s) dropped under back-pressure — the ingest queue
+          (capacity <span className="is-mono" style={{ fontWeight: 700 }}>{status?.queueCapacity}</span>)
+          saturated faster than events could be written to the store. These drops are counted, not
+          silently lost: a panel reporting zero drops means a quiet network, not a saturated collector.
         </div>
       )}
     </div>

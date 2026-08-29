@@ -10,6 +10,7 @@ afterEach(() => vi.restoreAllMocks());
 const STOPPED: SyslogStatus = {
   running: false, bind: "127.0.0.1", port: 1514, protocols: ["udp", "tcp"],
   exposed: false, receivedCount: 0, storedCount: 0,
+  ingestedCount: 0, droppedCount: 0, laggingCount: 0, queueCapacity: 10000, queueUsed: 0,
   startedAt: null, lastEventAt: null, error: "",
 };
 // The null path the honest bind display must survive — bind/port absent on the
