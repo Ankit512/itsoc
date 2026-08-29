@@ -1063,3 +1063,47 @@ hard stop and must never be marked passed.
   authority).
 - Merge command the owner would run:
   `git checkout main && git merge --no-ff stage-c/c3-gated-response`
+
+### C3-T1a / C3-T1b · Demo target repairs — ACCEPTED (found only by the live run)
+- `b24e022` (C3-T1a) and `19f5767` (C3-T1b) on `stage-c/c3-gated-response`. Worker: Toby.
+- **C3-T1a — the container never started.** `entrypoint.sh` ran `chmod 600` on the read-only
+  `authorized_keys` bind; under `set -e` that killed the entrypoint before `sshd` execed. Observed
+  `Exited (1)`, `chmod: ... Read-only file system`, SSH `Connection refused`. Fixed by deleting the
+  chmod — the host `.pub` is already `chmod 644`, which satisfies `StrictModes yes`. The read-only
+  mount stays; making it writable was explicitly rejected.
+- **C3-T1b — the enforcement rule never existed, and this is the serious one.** `entrypoint.sh`
+  created the drop rule with `comment "itsoc:block-set-rule"`; the quotes did not reach `nft` and the
+  colon was a syntax error, while a trailing `2>/dev/null || true` swallowed it. The chain came up
+  empty. Because the connector blocks by adding an **element** to the `blacklist` set, the element add
+  would have succeeded while enforcing nothing — a **fake-containment surface**: the demo would report
+  a block, `nft list` would show the address in the set, and traffic would still flow.
+  Fixed by correcting the comment, removing the error suppression, and adding a startup self-check
+  that exits non-zero if the drop rule is absent — a target that cannot enforce now refuses to come up.
+- Orchestrator note: the empty chain was visible in the worker's own pasted `nft list ruleset` output
+  in a report that otherwise read as a pass. It was caught on re-reading that output, not by any test.
+
+## LIVE END-TO-END — the BLOCKED acceptance item is now CLOSED on real results
+Run by the orchestrator against the live container, driving the real approvals flow (not the mock):
+
+- `create_approval` → **201**, stored command redacted:
+  `nft add element inet itsoc blacklist '{ [IP-1] comment "ITSOC inc-c32c4fccd3cd - rule verdict auth_bruteforce_success" }'`
+  — the raw address never reaches the record, the UI or a log.
+- Step-up: a throwaway approver profile was created with a passphrase generated in-process and never
+  printed, stored, or committed. Per Q3 the owner's own passphrase is the production identity; it was
+  neither used nor requested here.
+- `approve_approval` → **200**, state `executed`, `actor: e2e-approver` stamped into the audit entry.
+- Live ruleset after the block:
+  `elements = { 203.0.113.44 comment "ITSOC inc-c32c4fccd3cd - rule verdict auth_bruteforce_success" }`
+  with `ip saddr @blacklist drop comment "itsoc-block-set-rule" # handle 3` above it — the address is
+  in the set **and** the rule that enforces the set exists.
+- `verify_chain()` → `{'ok': True, 'count': 2, 'break': None}`.
+- **Revoke** → `{"ok": true, "action": "unblock_ip", "ip": "203.0.113.44"}`; the set returns to empty.
+- Validation: a malformed address raises `ActionValidationError` before anything reaches the wire.
+- **Honest note on "verbatim command output":** for a successful `nft add element`, the captured
+  output is the empty string, because `nft` prints nothing on success. The audit entry records that
+  faithfully rather than synthesising a confirmation message. It is genuine verbatim capture of a
+  genuinely silent command, not a missing field.
+- Fixture note: running the live flow applied the `audit_index` migration to this worktree's
+  gitignored `.soc/soc_history.db`, which then made the additive-migration check vacuous. The fixture
+  was restored from a pre-migration copy and the suite re-run; this is orchestrator test hygiene, not
+  a product defect.
