@@ -1,10 +1,10 @@
 """client.py — a tiny stdlib HTTP client for the local itsoc backend.
 
-Read-only by construction: the only writes it can express are the ones the
-existing /api surface already offers (POST /api/analyze kicks off an analysis;
-everything else this package calls is a GET). Transport errors and backend error
-bodies are turned into a single honest exception (ItsocError) that the tool layer
-renders as `{"ok": false, "error": ...}` — never a made-up success.
+No action execution and no approval authority by construction: the only writes
+it can express are initiating log analysis (POST /api/analyze), requesting advisory
+explanations (POST /api/explain), and creating pending approval proposals (POST /api/approvals).
+Transport errors and backend error bodies are turned into a single honest exception
+(ItsocError) that the tool layer renders as `{"ok": false, "error": ...}` — never a made-up success.
 
 Stdlib only (urllib) so the core backend still runs with ZERO extra installs; the
 MCP SDK is the only third-party dependency and it lives in the server layer.

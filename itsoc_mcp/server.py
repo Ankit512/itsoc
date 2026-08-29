@@ -19,8 +19,7 @@ from . import tools
 
 # --- tool registry --------------------------------------------------------
 # Each entry: name, description, JSON-Schema for arguments, and a handler that
-# receives (client, arguments) and returns a JSON-serializable dict. Stage 2
-# appends the remaining six read-only tools here.
+# receives (client, arguments) and returns a JSON-serializable dict.
 TOOLS = [
     {
         "name": "analyze_log",
@@ -52,7 +51,7 @@ TOOLS = [
     {
         "name": "list_runs",
         "description": (
-            "List saved analysis runs from the backend's run history (read-only). "
+            "List saved analysis runs from the backend's run history. "
             "Returns run_id, label, finding count, and the current run. Empty when "
             "there are no runs — never a fabricated entry."),
         "inputSchema": {"type": "object", "properties": {}},
@@ -164,6 +163,35 @@ TOOLS = [
         },
         "handler": lambda client, args: tools.threat_intel_lookup(
             client, ip=args.get("ip", ""), bundle_path=args.get("bundle_path")),
+    },
+    {
+        "name": "propose_block_ip",
+        "description": (
+            "Propose a perimeter IP block action for an incident by creating a PENDING "
+            "approval record in the backend console. Proposal creation ONLY: this tool "
+            "has ZERO authority to approve, execute, or revoke actions. Human-in-the-loop "
+            "step-up authentication on the console is strictly required before any action "
+            "can be approved or executed."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "incident_id": {
+                    "type": "string",
+                    "description": "Incident ID (e.g. 'INC-4a7f') from findings or incident list.",
+                },
+                "runbook_id": {
+                    "type": "string",
+                    "description": "Runbook definition ID (default: 'rb-block-ip').",
+                    "default": "rb-block-ip",
+                },
+            },
+            "required": ["incident_id"],
+        },
+        "handler": lambda client, args: tools.propose_block_ip(
+            client,
+            incident_id=args.get("incident_id", ""),
+            runbook_id=args.get("runbook_id", "rb-block-ip"),
+        ),
     },
 ]
 

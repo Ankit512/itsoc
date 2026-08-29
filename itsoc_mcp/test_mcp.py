@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_mcp.py — NETWORK-FREE smoke tests for the itsoc read-only MCP tools.
+"""test_mcp.py — NETWORK-FREE smoke tests for the itsoc MCP tools.
 
 No sockets, no mcp SDK, no ATT&CK cache dependency: the ApiClient is replaced by
 a scripted fake and the offline MITRE mapper is stubbed, so these run with ZERO
@@ -7,11 +7,11 @@ installs and prove the HONESTY contract, not the transport. Run:
 
     python3 itsoc_mcp/test_mcp.py
 
-Covers all 7 tools: analyze_log, list_runs, get_findings, get_evidence,
-explain_finding, export_run, threat_intel_lookup — the happy path plus the
-honest empty/idle/error states (never a fabricated all-clear or empty file), and
-that raw log text is REDACTED by default and returned only with
-ITSOC_MCP_TRUSTED_LOCAL=1.
+Covers all 8 tools: analyze_log, list_runs, get_findings, get_evidence,
+explain_finding, export_run, threat_intel_lookup, propose_block_ip — the happy path
+plus the honest empty/idle/error states (never a fabricated all-clear or empty file),
+strict negative-authority invariants, and that raw log text is REDACTED by default
+and returned only with ITSOC_MCP_TRUSTED_LOCAL=1.
 """
 
 import json
@@ -55,8 +55,8 @@ def skip(name, reason):
 # ---------------------------------------------------------------------------
 class FakeClient:
     def __init__(self, state=None, progress=None, kickoff_error=None,
-                 runs=None, explain=None, export=None,
-                 base_url="http://127.0.0.1:8765"):
+                 runs=None, explain=None, export=None, approval_record=None,
+                 approval_error=None, base_url="http://127.0.0.1:8765"):
         self.base_url = base_url
         self._state = state if state is not None else {}
         self._progress = list(progress or [{"status": "done"}])
@@ -64,6 +64,8 @@ class FakeClient:
         self._runs = runs if runs is not None else {"runs": [], "current": None}
         self._explain = explain          # dict OR an ItsocError to raise
         self._export = export            # (bytes, ctype, filename) OR ItsocError
+        self._approval_record = approval_record
+        self._approval_error = approval_error
         self.calls = []
 
     def post_json(self, path, obj):
@@ -76,6 +78,30 @@ class FakeClient:
             if isinstance(self._explain, ItsocError):
                 raise self._explain
             return self._explain or {}
+        if path == "/api/approvals":
+            if isinstance(self._approval_error, ItsocError):
+                raise self._approval_error
+            return self._approval_record or {
+                "id": "appr-test-1234",
+                "incidentId": obj.get("incidentId"),
+                "runbookId": obj.get("runbookId", "rb-block-ip"),
+                "connector": "firewall",
+                "step": 0,
+                "state": "pending",
+                "eligibilityProof": {"eligible": True, "missing": []},
+                "evidenceRefs": ["1", "2"],
+                "requestRedacted": {
+                    "command": "nft add element inet itsoc blacklist '{ [IP-1] comment \"itsoc:appr-test-1234\" }'",
+                    "description": "Block source IP [IP-1]",
+                    "connector": "firewall",
+                    "action": "block_ip",
+                },
+                "responseVerbatim": None,
+                "actor": None,
+                "failureReason": None,
+                "createdAt": "2026-08-28T23:30:00Z",
+                "updatedAt": "2026-08-28T23:30:00Z",
+            }
         raise AssertionError(f"unexpected POST {path}")
 
     def post_multipart(self, path, field_name, filename, data, extra_fields=None):
@@ -536,8 +562,122 @@ def test_ti_unavailable_fails_closed():
         tools.tio.threat_intel_available = _real_avail
 
 
+def test_propose_block_ip_happy():
+    print("propose_block_ip — happy path proposal creation")
+    c = FakeClient()
+    r = tools.propose_block_ip(c, incident_id="INC-4a7f")
+    check("ok=True", r.get("ok") is True)
+    check("approval_id returned", r.get("approval_id") == "appr-test-1234")
+    check("incident_id preserved", r.get("incident_id") == "INC-4a7f")
+    check("runbook_id default rb-block-ip", r.get("runbook_id") == "rb-block-ip")
+    check("state is pending", r.get("state") == "pending")
+    check("provenance states create-only zero authority",
+          "zero execution authority" in r.get("provenance", {}).get("authority", "")
+          and "zero approval authority" in r.get("provenance", {}).get("authority", ""))
+    check("POST sent to /api/approvals",
+          len(c.calls) == 1 and c.calls[0][0] == "post_json" and c.calls[0][1] == "/api/approvals")
+
+
+def test_propose_block_ip_custom_runbook():
+    print("propose_block_ip — custom runbook_id")
+    c = FakeClient()
+    r = tools.propose_block_ip(c, incident_id="INC-4a7f", runbook_id="rb-custom-block")
+    check("ok=True", r.get("ok") is True)
+    check("custom runbook_id relayed in payload",
+          c.calls[0][2].get("runbookId") == "rb-custom-block")
+
+
+def test_propose_block_ip_missing_incident():
+    print("propose_block_ip — missing incident_id is honest error")
+    c = FakeClient()
+    r = tools.propose_block_ip(c, incident_id="")
+    check("ok=False", r.get("ok") is False)
+    check("says incident_id required", "incident_id is required" in r.get("error", ""))
+    check("no POST attempted", len(c.calls) == 0)
+
+
+def test_propose_block_ip_ineligible_409():
+    print("propose_block_ip — ineligible incident relays 409 honestly")
+    c = FakeClient(approval_error=ItsocError("runbook is not eligible for this incident", status=409))
+    r = tools.propose_block_ip(c, incident_id="INC-ineligible")
+    check("ok=False", r.get("ok") is False)
+    check("relays ineligible error", "not eligible" in r.get("error", ""))
+
+
+def test_propose_block_ip_negative_authority():
+    print("propose_block_ip — NEGATIVE-AUTHORITY & HONESTY GUARANTEES")
+    import inspect
+    from itsoc_mcp import server
+
+    # 1. Signature boundary: exact proposal facts only (client, incident_id, runbook_id)
+    sig = inspect.signature(tools.propose_block_ip)
+    param_names = list(sig.parameters.keys())
+    check("signature has exactly (client, incident_id, runbook_id)",
+          param_names == ["client", "incident_id", "runbook_id"])
+    forbidden_params = {"ip", "note", "actor", "passphrase", "token", "password", "approve", "reject",
+                        "execute", "revoke", "action", "state", "stepup"}
+    check("signature has NO unused, credential, actor, approval, or execution parameters",
+          not any(p in forbidden_params for p in param_names))
+    check("signature has NO variadic *args or **kwargs (smuggling closed)",
+          all(p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+              for p in sig.parameters.values()))
+
+    # 2. Rejection of unsupported parameters: TypeError raised, cannot be silently accepted
+    c = FakeClient()
+    for param_name, param_val in [("ip", "203.0.113.44"),
+                                   ("note", "block this"),
+                                   ("passphrase", "secret"),
+                                   ("actor", "admin"),
+                                   ("approve", True),
+                                   ("execute", True),
+                                   ("state", "approved")]:
+        rejected = False
+        try:
+            tools.propose_block_ip(c, incident_id="INC-4a7f", **{param_name: param_val})
+        except TypeError:
+            rejected = True
+        check(f"unsupported parameter '{param_name}' raises TypeError (cannot be silently accepted)", rejected)
+
+    # 3. Payload boundary: backend receives ONLY proposal facts
+    c = FakeClient()
+    tools.propose_block_ip(c, incident_id="INC-4a7f", runbook_id="rb-block-ip")
+    sent_payload = c.calls[0][2]
+    check("sent payload contains ONLY incidentId and runbookId",
+          set(sent_payload.keys()) == {"incidentId", "runbookId"})
+    check("no actor/passphrase/state/approve/execute in sent payload",
+          not any(k in sent_payload for k in ("actor", "passphrase", "state", "approve", "execute")))
+
+    # 4. State honest reporting: not fabricated or defaulted
+    c_no_state = FakeClient(approval_record={"id": "appr-no-state", "incidentId": "INC-4a7f"})
+    r_no_state = tools.propose_block_ip(c_no_state, incident_id="INC-4a7f")
+    check("missing state is NOT defaulted to 'pending' (honestly None)", r_no_state.get("state") is None)
+
+    r_real = tools.propose_block_ip(c, incident_id="INC-4a7f")
+    check("backend state 'pending' reported faithfully", r_real.get("state") == "pending")
+
+    # 5. Server tool roster & schema honesty
+    tool_names = [t["name"] for t in server.TOOLS]
+    check("server tools include propose_block_ip", "propose_block_ip" in tool_names)
+    check("server tools contain NO approve_* tool", not any("approve" in name for name in tool_names))
+    check("server tools contain NO reject_* tool", not any("reject" in name for name in tool_names))
+    check("server tools contain NO execute_* tool", not any("execute" in name for name in tool_names))
+    check("server tools contain NO revoke_* tool", not any("revoke" in name for name in tool_names))
+    check("server tools contain NO remediate_* tool", not any("remediate" in name for name in tool_names))
+
+    prop_tool = next(t for t in server.TOOLS if t["name"] == "propose_block_ip")
+    schema_props = list(prop_tool["inputSchema"]["properties"].keys())
+    check("inputSchema properties are strictly ['incident_id', 'runbook_id'] (no dropped params advertised)",
+          schema_props == ["incident_id", "runbook_id"])
+
+    # 6. Isolation: itsoc_mcp.tools does not import subprocess, socket, or actions
+    import itsoc_mcp.tools as mcp_tools
+    check("itsoc_mcp.tools does not import subprocess", not hasattr(mcp_tools, "subprocess"))
+    check("itsoc_mcp.tools does not import socket", not hasattr(mcp_tools, "socket"))
+    check("itsoc_mcp.tools does not import actions connector module", not hasattr(mcp_tools, "actions"))
+
+
 def main():
-    print("\n=== itsoc_mcp smoke tests — all 7 tools, network-free ===\n")
+    print("\n=== itsoc_mcp smoke tests — all 8 tools, network-free ===\n")
     _no_trusted()
     tmp = _REPO_ROOT / "itsoc_mcp" / "_tmp_sample.log"
     tmp.write_text("Aug 20 10:00:00 host sshd[1]: Failed password for admin from 10.0.0.9\n")
@@ -572,6 +712,11 @@ def main():
         test_ti_match(tmpdir, True)
         test_ti_no_match(tmpdir, True)
         test_ti_unavailable_fails_closed()
+        test_propose_block_ip_happy()
+        test_propose_block_ip_custom_runbook()
+        test_propose_block_ip_missing_incident()
+        test_propose_block_ip_ineligible_409()
+        test_propose_block_ip_negative_authority()
         # Standalone redaction: vendored mirror + drift-guard + active source.
         test_vendored_masks_by_default()
         test_redact_source_is_console_in_repo()

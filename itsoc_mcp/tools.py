@@ -1,4 +1,4 @@
-"""tools.py — the read-only tool implementations, independent of the MCP SDK.
+"""tools.py — tool implementations with no action execution and no approval authority, independent of the MCP SDK.
 
 Each function takes an ApiClient and returns a plain dict (JSON-serializable).
 Keeping the logic here — separate from server.py's MCP wiring — means the whole
@@ -196,12 +196,12 @@ def _current_state_or_error(client):
 
 
 def _run_guard(state, run_id):
-    """The current-run tools read the backend's ACTIVE run. This read-only server
+    """The current-run tools read the backend's ACTIVE run. This server
     deliberately does NOT switch the active run (that is a shared side effect), so
     a run_id that isn't the current one is an honest error, not a silent mismatch."""
     if run_id and state.get("runId") and run_id != state.get("runId"):
         return (f"run '{run_id}' is not the active run (current: "
-                f"'{state.get('runId')}'). This read-only server does not switch "
+                f"'{state.get('runId')}'). This server does not switch "
                 "the active run; omit run_id to use the current one, or open that "
                 "run in the console first.")
     return None
@@ -215,7 +215,7 @@ def _finding_by_id(state, finding_id):
 # TOOL 2 — list_runs
 # ---------------------------------------------------------------------------
 def list_runs(client):
-    """List saved runs from the backend's run history (read-only). Pass-through:
+    """List saved runs from the backend's run history. Pass-through:
     if there are none, the list is honestly empty — never a fabricated entry."""
     try:
         data = client.get_json("/api/runs")
@@ -560,3 +560,62 @@ def _provenance_ti(client, detector_sha):
                             "threat_intel/threat_detector.py; MITRE names from the "
                             "locally-cached ATT&CK database. No network egress.")
     return prov
+
+
+# ---------------------------------------------------------------------------
+# TOOL 8 — propose_block_ip
+# ---------------------------------------------------------------------------
+def propose_block_ip(client, incident_id, runbook_id="rb-block-ip"):
+    """Propose a perimeter IP block action for an incident by creating a PENDING
+    approval record in the backend console.
+
+    Proposal creation ONLY: this tool has ZERO authority to approve, reject,
+    execute, or revoke actions. Human-in-the-loop step-up authentication on the
+    console is strictly required before any action can be approved or executed.
+
+    Invariants:
+      * Proposal facts only reach the backend create endpoint: incidentId and runbookId.
+      * No credential path/value, no actor, no passphrase, and no step-up material
+        is accepted or forwarded.
+      * Created record state is reported honestly from the backend response, never
+        defaulted or assumed.
+    """
+    incident_id = (incident_id or "").strip()
+    if not incident_id:
+        return _error(client, "incident_id is required")
+
+    runbook_id = (runbook_id or "rb-block-ip").strip()
+    payload = {
+        "incidentId": incident_id,
+        "runbookId": runbook_id,
+    }
+
+    try:
+        resp = client.post_json("/api/approvals", payload)
+    except ItsocError as e:
+        return _error(client, str(e))
+    except Exception as e:
+        return _error(client, f"failed to propose block: {e}")
+
+    return {
+        "ok": True,
+        "approval_id": resp.get("id"),
+        "incident_id": resp.get("incidentId") or incident_id,
+        "runbook_id": resp.get("runbookId") or runbook_id,
+        "state": resp.get("state"),
+        "connector": resp.get("connector"),
+        "request_redacted": resp.get("requestRedacted"),
+        "evidence_refs": resp.get("evidenceRefs", []),
+        "note": ("Approval created in 'pending' state. Execution requires "
+                 "human-in-the-loop step-up approval on the console."),
+        "provenance": _provenance_proposal(client),
+    }
+
+
+def _provenance_proposal(client, detector_sha=None):
+    """Provenance for the propose_block_ip tool: proposal creation only; zero authority."""
+    prov = _provenance(client, detector_sha)
+    prov["authority"] = ("create proposal only (pending state); zero execution authority; "
+                         "zero approval authority; step-up auth required on console")
+    return prov
+
