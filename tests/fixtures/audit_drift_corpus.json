@@ -1,0 +1,359 @@
+{
+  "fields": [
+    "ts",
+    "actor",
+    "incident_id",
+    "runbook_id",
+    "step",
+    "eligibility_proof",
+    "evidence_refs",
+    "request_redacted",
+    "response_verbatim",
+    "status",
+    "prev_hash",
+    "entry_hash"
+  ],
+  "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
+  "hashed_fields": [
+    "ts",
+    "actor",
+    "incident_id",
+    "runbook_id",
+    "step",
+    "eligibility_proof",
+    "evidence_refs",
+    "request_redacted",
+    "response_verbatim",
+    "status",
+    "prev_hash"
+  ],
+  "scenarios": {
+    "clean": {
+      "entries": [
+        {
+          "actor": "analyst",
+          "eligibility_proof": null,
+          "entry_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "evidence_refs": [],
+          "incident_id": "inc-4a7f",
+          "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "request_redacted": null,
+          "response_verbatim": null,
+          "runbook_id": "rb-block-ip",
+          "status": "approved",
+          "step": "approve",
+          "ts": "2026-08-29T13:21:59.066870+00:00"
+        },
+        {
+          "actor": "analyst",
+          "eligibility_proof": null,
+          "entry_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "evidence_refs": [],
+          "incident_id": "inc-4a7f",
+          "prev_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "request_redacted": "nft add element inet itsoc blacklist { [IP-1] }",
+          "response_verbatim": "element added",
+          "runbook_id": "rb-block-ip",
+          "status": "executed",
+          "step": "execute",
+          "ts": "2026-08-29T13:21:59.070704+00:00"
+        },
+        {
+          "actor": "analyst",
+          "eligibility_proof": null,
+          "entry_hash": "109dc11b9edcf4bd2ff45a61a318d2bc22ca0258e721d6853f7d799a754f7e50",
+          "evidence_refs": [],
+          "incident_id": "inc-4a7f",
+          "prev_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "request_redacted": null,
+          "response_verbatim": null,
+          "runbook_id": "rb-isolate-host",
+          "status": "rejected",
+          "step": "reject",
+          "ts": "2026-08-29T13:21:59.075406+00:00"
+        }
+      ],
+      "verification": {
+        "break": null,
+        "count": 3,
+        "head": "109dc11b9edcf4bd2ff45a61a318d2bc22ca0258e721d6853f7d799a754f7e50",
+        "ok": true,
+        "path": "/var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/tmp1phlcq48/audit/chain.jsonl"
+      }
+    },
+    "empty": {
+      "entries": [],
+      "verification": {
+        "break": null,
+        "count": 0,
+        "head": null,
+        "ok": true,
+        "path": "/var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/tmp1phlcq48/audit/chain.jsonl"
+      }
+    },
+    "severed_link": {
+      "entries": [
+        {
+          "actor": "analyst",
+          "eligibility_proof": null,
+          "entry_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "evidence_refs": [],
+          "incident_id": "inc-4a7f",
+          "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "request_redacted": null,
+          "response_verbatim": null,
+          "runbook_id": "rb-block-ip",
+          "status": "approved",
+          "step": "approve",
+          "ts": "2026-08-29T13:21:59.066870+00:00"
+        },
+        {
+          "actor": "analyst",
+          "eligibility_proof": null,
+          "entry_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "evidence_refs": [],
+          "incident_id": "inc-4a7f",
+          "prev_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "request_redacted": "nft add element inet itsoc blacklist { [IP-1] }",
+          "response_verbatim": "element added",
+          "runbook_id": "rb-block-ip",
+          "status": "executed",
+          "step": "execute",
+          "ts": "2026-08-29T13:21:59.070704+00:00"
+        },
+        {
+          "actor": "analyst",
+          "eligibility_proof": null,
+          "entry_hash": "109dc11b9edcf4bd2ff45a61a318d2bc22ca0258e721d6853f7d799a754f7e50",
+          "evidence_refs": [],
+          "incident_id": "inc-4a7f",
+          "prev_hash": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+          "request_redacted": null,
+          "response_verbatim": null,
+          "runbook_id": "rb-isolate-host",
+          "status": "rejected",
+          "step": "reject",
+          "ts": "2026-08-29T13:21:59.075406+00:00"
+        }
+      ],
+      "verification": {
+        "break": {
+          "expected": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "found": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+          "index": 2,
+          "reason": "prev_hash does not match the previous entry_hash (the chain is cut here)"
+        },
+        "count": 3,
+        "head": null,
+        "ok": false,
+        "path": "/var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/tmp1phlcq48/audit/chain.jsonl"
+      }
+    },
+    "tampered_content": {
+      "entries": [
+        {
+          "actor": "analyst",
+          "eligibility_proof": null,
+          "entry_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "evidence_refs": [],
+          "incident_id": "inc-4a7f",
+          "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "request_redacted": null,
+          "response_verbatim": null,
+          "runbook_id": "rb-block-ip",
+          "status": "approved",
+          "step": "approve",
+          "ts": "2026-08-29T13:21:59.066870+00:00"
+        },
+        {
+          "actor": "analyst",
+          "eligibility_proof": null,
+          "entry_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "evidence_refs": [],
+          "incident_id": "inc-4a7f",
+          "prev_hash": "01e338c3f46a803c8b50cf676fbc3513e45c325ecb1e7be8568bb9bf069b6a3a",
+          "request_redacted": "nft add element inet itsoc blacklist { 198.51.100.99 }",
+          "response_verbatim": "element added",
+          "runbook_id": "rb-block-ip",
+          "status": "executed",
+          "step": "execute",
+          "ts": "2026-08-29T13:21:59.070704+00:00"
+        },
+        {
+          "actor": "analyst",
+          "eligibility_proof": null,
+          "entry_hash": "109dc11b9edcf4bd2ff45a61a318d2bc22ca0258e721d6853f7d799a754f7e50",
+          "evidence_refs": [],
+          "incident_id": "inc-4a7f",
+          "prev_hash": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "request_redacted": null,
+          "response_verbatim": null,
+          "runbook_id": "rb-isolate-host",
+          "status": "rejected",
+          "step": "reject",
+          "ts": "2026-08-29T13:21:59.075406+00:00"
+        }
+      ],
+      "verification": {
+        "break": {
+          "expected": "db11d7e7f7438064495777b08185438efe7645f815c78269f93beb08e694f2fd",
+          "found": "a19ec24411d4b3a8b1faba45f3775afd15163b1de07617379baa18b9a6fda0c2",
+          "index": 1,
+          "reason": "entry_hash does not match the entry's contents (this entry was modified after it was written)"
+        },
+        "count": 3,
+        "head": null,
+        "ok": false,
+        "path": "/var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/tmp1phlcq48/audit/chain.jsonl"
+      }
+    }
+  },
+  "single_vectors": [
+    {
+      "canonical_json": "{\"actor\":\"analyst\",\"eligibility_proof\":{\"eligible\":true,\"technique\":\"T1110\"},\"evidence_refs\":[\"rec-101\",\"rec-102\"],\"incident_id\":\"inc-4a7f\",\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"request_redacted\":\"nft add element inet itsoc blacklist { [IP-1] comment \\\"itsoc:appr-4a7f\\\" }\",\"response_verbatim\":null,\"runbook_id\":\"rb-block-ip\",\"status\":\"approved\",\"step\":\"approve\",\"ts\":\"2026-08-29T12:00:00Z\"}",
+      "entry": {
+        "actor": "analyst",
+        "eligibility_proof": {
+          "eligible": true,
+          "technique": "T1110"
+        },
+        "entry_hash": "ac2886200c35f38d247e0ba0d13e03577f31aa957fcbd3be294c53172a67f818",
+        "evidence_refs": [
+          "rec-101",
+          "rec-102"
+        ],
+        "incident_id": "inc-4a7f",
+        "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "request_redacted": "nft add element inet itsoc blacklist { [IP-1] comment \"itsoc:appr-4a7f\" }",
+        "response_verbatim": null,
+        "runbook_id": "rb-block-ip",
+        "status": "approved",
+        "step": "approve",
+        "ts": "2026-08-29T12:00:00Z"
+      },
+      "entry_hash": "ac2886200c35f38d247e0ba0d13e03577f31aa957fcbd3be294c53172a67f818",
+      "raw": {
+        "actor": "analyst",
+        "eligibility_proof": {
+          "eligible": true,
+          "technique": "T1110"
+        },
+        "evidence_refs": [
+          "rec-101",
+          "rec-102"
+        ],
+        "incident_id": "inc-4a7f",
+        "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "request_redacted": "nft add element inet itsoc blacklist { [IP-1] comment \"itsoc:appr-4a7f\" }",
+        "response_verbatim": null,
+        "runbook_id": "rb-block-ip",
+        "status": "approved",
+        "step": "approve",
+        "ts": "2026-08-29T12:00:00Z"
+      }
+    },
+    {
+      "canonical_json": "{\"actor\":\"analyst\",\"eligibility_proof\":null,\"evidence_refs\":[\"rec-101\"],\"incident_id\":\"inc-4a7f\",\"prev_hash\":\"3a5ce218f8aa99af25856af38965e5a1911b79192387a00596222b6880a280c6\",\"request_redacted\":\"nft add element inet itsoc blacklist { [IP-1] comment \\\"itsoc:appr-4a7f\\\" }\",\"response_verbatim\":\"element added to inet itsoc blacklist\",\"runbook_id\":\"rb-block-ip\",\"status\":\"executed\",\"step\":\"execute\",\"ts\":\"2026-08-29T12:05:00Z\"}",
+      "entry": {
+        "actor": "analyst",
+        "eligibility_proof": null,
+        "entry_hash": "dfac2439a1e3fc1ca38bc58a54b7b784c8de6fec683b395e55d6bdad2d21c87c",
+        "evidence_refs": [
+          "rec-101"
+        ],
+        "incident_id": "inc-4a7f",
+        "prev_hash": "3a5ce218f8aa99af25856af38965e5a1911b79192387a00596222b6880a280c6",
+        "request_redacted": "nft add element inet itsoc blacklist { [IP-1] comment \"itsoc:appr-4a7f\" }",
+        "response_verbatim": "element added to inet itsoc blacklist",
+        "runbook_id": "rb-block-ip",
+        "status": "executed",
+        "step": "execute",
+        "ts": "2026-08-29T12:05:00Z"
+      },
+      "entry_hash": "dfac2439a1e3fc1ca38bc58a54b7b784c8de6fec683b395e55d6bdad2d21c87c",
+      "raw": {
+        "actor": "analyst",
+        "eligibility_proof": null,
+        "evidence_refs": [
+          "rec-101"
+        ],
+        "incident_id": "inc-4a7f",
+        "prev_hash": "3a5ce218f8aa99af25856af38965e5a1911b79192387a00596222b6880a280c6",
+        "request_redacted": "nft add element inet itsoc blacklist { [IP-1] comment \"itsoc:appr-4a7f\" }",
+        "response_verbatim": "element added to inet itsoc blacklist",
+        "runbook_id": "rb-block-ip",
+        "status": "executed",
+        "step": "execute",
+        "ts": "2026-08-29T12:05:00Z"
+      }
+    },
+    {
+      "canonical_json": "{\"actor\":\"analyst\",\"eligibility_proof\":null,\"evidence_refs\":[],\"incident_id\":\"inc-4a7f\",\"prev_hash\":\"d1d89bc76c6c6b96a572a8a31109f59cc17d487bcf5911b4aadb4851a015897d\",\"request_redacted\":null,\"response_verbatim\":null,\"runbook_id\":\"rb-isolate-host\",\"status\":\"rejected\",\"step\":\"reject\",\"ts\":\"2026-08-29T12:10:00Z\"}",
+      "entry": {
+        "actor": "analyst",
+        "eligibility_proof": null,
+        "entry_hash": "2ba6c33ac34cf3be68c7debc771dae92ebf3c7f49784984782497258ded01d7a",
+        "evidence_refs": [],
+        "incident_id": "inc-4a7f",
+        "prev_hash": "d1d89bc76c6c6b96a572a8a31109f59cc17d487bcf5911b4aadb4851a015897d",
+        "request_redacted": null,
+        "response_verbatim": null,
+        "runbook_id": "rb-isolate-host",
+        "status": "rejected",
+        "step": "reject",
+        "ts": "2026-08-29T12:10:00Z"
+      },
+      "entry_hash": "2ba6c33ac34cf3be68c7debc771dae92ebf3c7f49784984782497258ded01d7a",
+      "raw": {
+        "actor": "analyst",
+        "eligibility_proof": null,
+        "evidence_refs": [],
+        "incident_id": "inc-4a7f",
+        "prev_hash": "d1d89bc76c6c6b96a572a8a31109f59cc17d487bcf5911b4aadb4851a015897d",
+        "request_redacted": null,
+        "response_verbatim": null,
+        "runbook_id": "rb-isolate-host",
+        "status": "rejected",
+        "step": "reject",
+        "ts": "2026-08-29T12:10:00Z"
+      }
+    },
+    {
+      "canonical_json": "{\"actor\":\"analyst\",\"eligibility_proof\":null,\"evidence_refs\":[],\"incident_id\":\"inc-4a7f\",\"prev_hash\":\"c3f17f3c85ba4fc1d1851f7e31cec938627cbac84006fd3378ce3a1eab161fc9\",\"request_redacted\":\"nft add element inet itsoc blacklist { [IP-1] }\",\"response_verbatim\":\"ssh: connection refused\",\"runbook_id\":\"rb-block-ip\",\"status\":\"failed\",\"step\":\"execute\",\"ts\":\"2026-08-29T12:15:00Z\"}",
+      "entry": {
+        "actor": "analyst",
+        "eligibility_proof": null,
+        "entry_hash": "3724fa1117dc602b7672828ec775ed01c76753d238eecac4b476dd123322c268",
+        "evidence_refs": [],
+        "incident_id": "inc-4a7f",
+        "prev_hash": "c3f17f3c85ba4fc1d1851f7e31cec938627cbac84006fd3378ce3a1eab161fc9",
+        "request_redacted": "nft add element inet itsoc blacklist { [IP-1] }",
+        "response_verbatim": "ssh: connection refused",
+        "runbook_id": "rb-block-ip",
+        "status": "failed",
+        "step": "execute",
+        "ts": "2026-08-29T12:15:00Z"
+      },
+      "entry_hash": "3724fa1117dc602b7672828ec775ed01c76753d238eecac4b476dd123322c268",
+      "raw": {
+        "actor": "analyst",
+        "eligibility_proof": null,
+        "evidence_refs": [],
+        "incident_id": "inc-4a7f",
+        "prev_hash": "c3f17f3c85ba4fc1d1851f7e31cec938627cbac84006fd3378ce3a1eab161fc9",
+        "request_redacted": "nft add element inet itsoc blacklist { [IP-1] }",
+        "response_verbatim": "ssh: connection refused",
+        "runbook_id": "rb-block-ip",
+        "status": "failed",
+        "step": "execute",
+        "ts": "2026-08-29T12:15:00Z"
+      }
+    }
+  ],
+  "statuses": [
+    "approved",
+    "rejected",
+    "executed",
+    "failed"
+  ]
+}

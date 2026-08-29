@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-test_audit_drift.py — Audit ledger routes & TypeScript verification DRIFT-GUARD (Stage C, C4-T2a).
+test_audit_drift.py — Audit ledger routes & cross-engine DRIFT-GUARD (Stage C, C4-T2b).
 
     python3 tests/test_audit_drift.py
+    python3 tests/test_audit_drift.py --generate   # regenerate fixture from audit.py authority
 
 Proven here:
   (a) GET /api/audit returns 200 with {entries: [...], verification: {...}}
       against a clean chain, tampered chain, and empty ledger.
   (b) GET /api/audit/verify returns 200 with the live audit.verify_chain() verdict.
   (c) soc.audit_chain() and soc.audit_verify() delegate cleanly without server judgement.
-  (d) DRIFT-GUARD: verifies that the frontend TypeScript verification logic in
-      web/src/test/audit-timeline.test.tsx agrees byte-for-byte with console/audit.py
-      across a diverse corpus (canonical JSON, compute_hash, and verify_chain verdicts).
+  (d) DRIFT-GUARD: asserts that the committed test fixture (tests/fixtures/audit_drift_corpus.json)
+      matches console/audit.py authority byte-for-byte. When audit.py changes, this test
+      and the TypeScript test reading the fixture fail loudly unless the TS port and fixture
+      are updated.
 """
 
 import json
-import os
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -28,6 +28,159 @@ sys.path.insert(0, str(ROOT / "console"))
 
 import audit  # noqa: E402
 import soc    # noqa: E402
+
+FIXTURE_PATH = ROOT / "tests" / "fixtures" / "audit_drift_corpus.json"
+
+
+def _build_corpus_from_audit_py():
+    """Build canonical test corpus and verification outcomes using console/audit.py authority."""
+    # 1. Single entry test vectors across all 4 statuses and various optional field shapes
+    vector_definitions = [
+        {
+            "ts": "2026-08-29T12:00:00Z",
+            "actor": "analyst",
+            "incident_id": "inc-4a7f",
+            "runbook_id": "rb-block-ip",
+            "step": "approve",
+            "eligibility_proof": {"eligible": True, "technique": "T1110"},
+            "evidence_refs": ["rec-101", "rec-102"],
+            "request_redacted": "nft add element inet itsoc blacklist { [IP-1] comment \"itsoc:appr-4a7f\" }",
+            "response_verbatim": None,
+            "status": "approved",
+            "prev_hash": audit.GENESIS,
+        },
+        {
+            "ts": "2026-08-29T12:05:00Z",
+            "actor": "analyst",
+            "incident_id": "inc-4a7f",
+            "runbook_id": "rb-block-ip",
+            "step": "execute",
+            "eligibility_proof": None,
+            "evidence_refs": ["rec-101"],
+            "request_redacted": "nft add element inet itsoc blacklist { [IP-1] comment \"itsoc:appr-4a7f\" }",
+            "response_verbatim": "element added to inet itsoc blacklist",
+            "status": "executed",
+            "prev_hash": "3a5ce218f8aa99af25856af38965e5a1911b79192387a00596222b6880a280c6",
+        },
+        {
+            "ts": "2026-08-29T12:10:00Z",
+            "actor": "analyst",
+            "incident_id": "inc-4a7f",
+            "runbook_id": "rb-isolate-host",
+            "step": "reject",
+            "eligibility_proof": None,
+            "evidence_refs": [],
+            "request_redacted": None,
+            "response_verbatim": None,
+            "status": "rejected",
+            "prev_hash": "d1d89bc76c6c6b96a572a8a31109f59cc17d487bcf5911b4aadb4851a015897d",
+        },
+        {
+            "ts": "2026-08-29T12:15:00Z",
+            "actor": "analyst",
+            "incident_id": "inc-4a7f",
+            "runbook_id": "rb-block-ip",
+            "step": "execute",
+            "eligibility_proof": None,
+            "evidence_refs": [],
+            "request_redacted": "nft add element inet itsoc blacklist { [IP-1] }",
+            "response_verbatim": "ssh: connection refused",
+            "status": "failed",
+            "prev_hash": "c3f17f3c85ba4fc1d1851f7e31cec938627cbac84006fd3378ce3a1eab161fc9",
+        },
+    ]
+
+    single_vectors = []
+    for raw in vector_definitions:
+        canonical = audit.canonical_json({k: raw[k] for k in audit.HASHED_FIELDS})
+        h = audit.compute_hash(raw)
+        single_vectors.append({
+            "raw": raw,
+            "canonical_json": canonical,
+            "entry_hash": h,
+            "entry": {**raw, "entry_hash": h},
+        })
+
+    # 2. Build full chain scenarios and run audit.verify_chain() on each
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        orig_soc = audit.SOC_DIR
+        orig_audit = audit.AUDIT_DIR
+        audit.SOC_DIR = Path(tmp_dir)
+        audit.AUDIT_DIR = Path(tmp_dir) / "audit"
+        audit.AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            # Scenario A: Clean 3-entry chain
+            e0 = audit.append(actor="analyst", incident_id="inc-4a7f", runbook_id="rb-block-ip",
+                              step="approve", status="approved", index=False)
+            e1 = audit.append(actor="analyst", incident_id="inc-4a7f", runbook_id="rb-block-ip",
+                              step="execute", status="executed",
+                              request_redacted="nft add element inet itsoc blacklist { [IP-1] }",
+                              response_verbatim="element added", index=False)
+            e2 = audit.append(actor="analyst", incident_id="inc-4a7f", runbook_id="rb-isolate-host",
+                              step="reject", status="rejected", index=False)
+            clean_entries = [e0, e1, e2]
+            v_clean = audit.verify_chain()
+
+            # Scenario B: Tampered middle entry
+            path = audit.chain_path()
+            lines = path.read_text().strip().split("\n")
+            e1_tampered = json.loads(lines[1])
+            e1_tampered["request_redacted"] = "nft add element inet itsoc blacklist { 198.51.100.99 }"
+            lines[1] = json.dumps(e1_tampered)
+            path.write_text("\n".join(lines) + "\n")
+            tampered_entries = [e0, e1_tampered, e2]
+            v_tampered = audit.verify_chain()
+
+            # Scenario C: Severed chain link (prev_hash modified on e2)
+            lines = path.read_text().strip().split("\n")
+            # Restore line 1, break line 2 prev_hash
+            lines[1] = json.dumps(e1)
+            e2_cut = json.loads(lines[2])
+            e2_cut["prev_hash"] = "deadbeef" * 8
+            lines[2] = json.dumps(e2_cut)
+            path.write_text("\n".join(lines) + "\n")
+            severed_entries = [e0, e1, e2_cut]
+            v_severed = audit.verify_chain()
+
+            # Scenario D: Empty ledger
+            path.unlink()
+            v_empty = audit.verify_chain()
+        finally:
+            audit.SOC_DIR = orig_soc
+            audit.AUDIT_DIR = orig_audit
+
+    return {
+        "genesis": audit.GENESIS,
+        "fields": list(audit.FIELDS),
+        "hashed_fields": list(audit.HASHED_FIELDS),
+        "statuses": list(audit.STATUSES),
+        "single_vectors": single_vectors,
+        "scenarios": {
+            "clean": {
+                "entries": clean_entries,
+                "verification": v_clean,
+            },
+            "tampered_content": {
+                "entries": tampered_entries,
+                "verification": v_tampered,
+            },
+            "severed_link": {
+                "entries": severed_entries,
+                "verification": v_severed,
+            },
+            "empty": {
+                "entries": [],
+                "verification": v_empty,
+            },
+        },
+    }
+
+
+def write_fixture_file():
+    FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    corpus = _build_corpus_from_audit_py()
+    FIXTURE_PATH.write_text(json.dumps(corpus, indent=2, sort_keys=True) + "\n")
+    print(f"Wrote audit drift corpus fixture to {FIXTURE_PATH}")
 
 
 class TestAuditRoutesAndDriftGuard(unittest.TestCase):
@@ -109,116 +262,47 @@ class TestAuditRoutesAndDriftGuard(unittest.TestCase):
         self.assertFalse(verify_resp["ok"])
         self.assertEqual(verify_resp["break"]["index"], 0)
 
-    def test_drift_guard_node_agrees_with_audit_py(self):
-        """DRIFT-GUARD: run Node script over a shared test corpus and assert byte-for-byte agreement with audit.py."""
-        # 1. Generate corpus entries
-        raw_corpus = [
-            {
-                "ts": "2026-08-29T12:00:00Z",
-                "actor": "analyst",
-                "incident_id": "inc-4a7f",
-                "runbook_id": "rb-block-ip",
-                "step": "approve",
-                "eligibility_proof": {"eligible": True, "technique": "T1110"},
-                "evidence_refs": ["rec-1", "rec-2"],
-                "request_redacted": "nft add element inet itsoc blacklist { [IP-1] }",
-                "response_verbatim": None,
-                "status": "approved",
-                "prev_hash": audit.GENESIS,
-            },
-            {
-                "ts": "2026-08-29T12:05:00Z",
-                "actor": "analyst",
-                "incident_id": "inc-4a7f",
-                "runbook_id": "rb-block-ip",
-                "step": "execute",
-                "eligibility_proof": None,
-                "evidence_refs": ["rec-1"],
-                "request_redacted": "nft add element inet itsoc blacklist { [IP-1] }",
-                "response_verbatim": "element added",
-                "status": "executed",
-                "prev_hash": "",  # will fill below
-            },
-            {
-                "ts": "2026-08-29T12:10:00Z",
-                "actor": "analyst",
-                "incident_id": "inc-4a7f",
-                "runbook_id": "rb-isolate-host",
-                "step": "execute",
-                "eligibility_proof": None,
-                "evidence_refs": [],
-                "request_redacted": None,
-                "response_verbatim": "ssh timeout",
-                "status": "failed",
-                "prev_hash": "",
-            },
-        ]
+    def test_drift_guard_fixture_matches_audit_py(self):
+        """DRIFT-GUARD: asserts that committed fixture matches console/audit.py byte-for-byte."""
+        self.assertTrue(FIXTURE_PATH.exists(), f"Missing fixture file: {FIXTURE_PATH}")
+        committed_corpus = json.loads(FIXTURE_PATH.read_text())
+        fresh_corpus = _build_corpus_from_audit_py()
 
-        # Python canonicalize and compute hashes
-        py_hashes = []
-        py_canonicals = []
-        prev = audit.GENESIS
-        for raw in raw_corpus:
-            raw["prev_hash"] = prev
-            h = audit.compute_hash(raw)
-            c = audit.canonical_json({k: raw[k] for k in audit.HASHED_FIELDS})
-            py_hashes.append(h)
-            py_canonicals.append(c)
-            raw["entry_hash"] = h
-            prev = h
-
-        # 2. Run Node.js verification via node subprocess
-        node_script = """
-const crypto = require('crypto');
-
-const FIELDS = ["ts","actor","incident_id","runbook_id","step","eligibility_proof","evidence_refs","request_redacted","response_verbatim","status","prev_hash","entry_hash"];
-const HASHED_FIELDS = FIELDS.filter(f => f !== 'entry_hash');
-
-function canonicalJson(obj) {
-  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
-  if (Array.isArray(obj)) return '[' + obj.map(canonicalJson).join(',') + ']';
-  const keys = Object.keys(obj).sort();
-  const pairs = keys.map(k => JSON.stringify(k) + ':' + canonicalJson(obj[k]));
-  return '{' + pairs.join(',') + '}';
-}
-
-function computeHash(entry) {
-  const payload = {};
-  for (const f of HASHED_FIELDS) {
-    payload[f] = entry[f] ?? null;
-  }
-  const canonical = canonicalJson(payload);
-  const hash = crypto.createHash('sha256').update(canonical, 'utf8').digest('hex');
-  return { hash, canonical };
-}
-
-let input = '';
-process.stdin.on('data', chunk => { input += chunk; });
-process.stdin.on('end', () => {
-  const corpus = JSON.parse(input);
-  const out = corpus.map(computeHash);
-  process.stdout.write(JSON.stringify(out));
-});
-"""
-        node_bin = "/Users/ankit/.nvm/versions/node/v22.17.1/bin/node"
-        if not os.path.exists(node_bin):
-            node_bin = "node"
-
-        proc = subprocess.run(
-            [node_bin, "-e", node_script],
-            input=json.dumps(raw_corpus),
-            capture_output=True,
-            text=True,
-            check=True,
+        self.assertEqual(
+            committed_corpus["fields"], fresh_corpus["fields"],
+            "FIELDS in audit.py diverged from committed fixture"
         )
-        node_results = json.loads(proc.stdout)
+        self.assertEqual(
+            committed_corpus["hashed_fields"], fresh_corpus["hashed_fields"],
+            "HASHED_FIELDS in audit.py diverged from committed fixture"
+        )
+        self.assertEqual(
+            committed_corpus["statuses"], fresh_corpus["statuses"],
+            "STATUSES in audit.py diverged from committed fixture"
+        )
 
-        for i in range(len(raw_corpus)):
-            self.assertEqual(py_canonicals[i], node_results[i]["canonical"],
-                             f"Canonical JSON divergence at entry {i}")
-            self.assertEqual(py_hashes[i], node_results[i]["hash"],
-                             f"SHA256 hash divergence at entry {i}")
+        for i, (comm_vec, fresh_vec) in enumerate(zip(committed_corpus["single_vectors"],
+                                                      fresh_corpus["single_vectors"])):
+            self.assertEqual(comm_vec["canonical_json"], fresh_vec["canonical_json"],
+                             f"Canonical JSON vector {i} diverged from audit.py")
+            self.assertEqual(comm_vec["entry_hash"], fresh_vec["entry_hash"],
+                             f"SHA256 vector {i} diverged from audit.py")
+
+        for s_name, fresh_scen in fresh_corpus["scenarios"].items():
+            comm_scen = committed_corpus["scenarios"][s_name]
+            self.assertEqual(comm_scen["verification"]["ok"], fresh_scen["verification"]["ok"],
+                             f"Scenario '{s_name}' ok flag diverged from audit.py")
+            if fresh_scen["verification"]["break"]:
+                self.assertEqual(comm_scen["verification"]["break"]["index"],
+                                 fresh_scen["verification"]["break"]["index"],
+                                 f"Scenario '{s_name}' break index diverged")
+                self.assertEqual(comm_scen["verification"]["break"]["reason"],
+                                 fresh_scen["verification"]["break"]["reason"],
+                                 f"Scenario '{s_name}' break reason diverged")
 
 
 if __name__ == "__main__":
-    unittest.main()
+    if "--generate" in sys.argv:
+        write_fixture_file()
+    else:
+        unittest.main()
