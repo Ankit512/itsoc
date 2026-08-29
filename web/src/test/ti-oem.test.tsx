@@ -70,7 +70,10 @@ describe("OEM Engine — connectors (masked creds, real poll outcome)", () => {
 
     expect(await screen.findByText(/No connectors yet — add one on the left/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/API token/i)).toHaveAttribute("type", "password");
-    expect(screen.getByRole("button", { name: /save connector/i })).toBeInTheDocument();
+    const saveBtn = screen.getByRole("button", { name: /save connector/i });
+    expect(saveBtn).toBeInTheDocument();
+    const addPanel = saveBtn.closest(".is-panel") as HTMLElement;
+    expect(within(addPanel).getByText(/Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale\./i)).toBeInTheDocument();
   });
 
   it("renders a connector's real last-run/last-error and token presence only", async () => {
@@ -89,7 +92,36 @@ describe("OEM Engine — connectors (masked creds, real poll outcome)", () => {
     expect(await screen.findByText("token set")).toBeInTheDocument();
     // The real poll error is surfaced, not hidden behind a fake "connected".
     expect(screen.getByText(/still a placeholder/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^disable$/i })).toBeInTheDocument();
+    const disableBtn = screen.getByRole("button", { name: /^disable$/i });
+    expect(disableBtn).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /poll now/i })).toBeInTheDocument();
+    const row = disableBtn.closest("div[style*='flex-direction: column']") as HTMLElement;
+    expect(within(row).getByText(/Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale\./i)).toBeInTheDocument();
+  });
+
+  it("renders the honest egress disclosure beside both the add-connector form and the enable toggle", async () => {
+    mockFetch({
+      "/api/oem/connectors": {
+        connectors: [{
+          name: "Cisco-Edge", kind: "oem", enabled: false, interval: 60,
+          lastRun: null, lastError: null,
+          hasConfig: true, hasToken: false,
+        }],
+      },
+    });
+    renderApp(<App />, { route: "/oem" });
+
+    // 1. In the AddConnector panel
+    const saveBtn = await screen.findByRole("button", { name: /save connector/i });
+    const addPanel = saveBtn.closest(".is-panel") as HTMLElement;
+    expect(within(addPanel).getByText(/Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale\./i)).toBeInTheDocument();
+
+    // 2. In the ConnectorRow beside the Enable toggle button
+    expect(await screen.findByText("Cisco-Edge")).toBeInTheDocument();
+    const enableBtn = await screen.findByRole("button", { name: /^enable$/i });
+    const row = enableBtn.closest("div[style*='flex-direction: column']") as HTMLElement;
+    expect(within(row).getByText(/Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale\./i)).toBeInTheDocument();
   });
 });
+
+

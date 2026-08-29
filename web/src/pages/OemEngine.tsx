@@ -91,11 +91,16 @@ function AddConnector() {
                onChange={(e) => setToken(e.target.value)} aria-label="API token" placeholder="Bearer token…" />
       </label>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-        <button className="is-btn is-btn--primary" onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
-          {create.isPending ? "Saving…" : "Save connector"}
-        </button>
-        {msg && <span className="is-mut" style={{ fontSize: 12 }}>{msg}</span>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button className="is-btn is-btn--primary" onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
+            {create.isPending ? "Saving…" : "Save connector"}
+          </button>
+          {msg && <span className="is-mut" style={{ fontSize: 12 }}>{msg}</span>}
+        </div>
+        <p className="is-mut" style={{ fontSize: 11, margin: 0, lineHeight: 1.4 }}>
+          Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale.
+        </p>
       </div>
     </div>
   );
@@ -142,6 +147,9 @@ function ConnectorRow({ c }: { c: OemConnector }) {
         </button>
         {msg && <span className="is-mut" style={{ fontSize: 11.5 }}>{msg}</span>}
       </div>
+      <p className="is-mut" style={{ fontSize: 11, margin: 0, lineHeight: 1.4 }}>
+        Enabling calls external services over HTTPS and transmits credentials, query parameters, and queried indicators — does not send logs wholesale.
+      </p>
     </div>
   );
 }
