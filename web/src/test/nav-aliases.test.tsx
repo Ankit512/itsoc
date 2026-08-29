@@ -12,6 +12,7 @@ describe("C1-T6 · Nav reduction + Cmd-K aliases (12-screen roster)", () => {
     mockFetch({
       "/api/overview": OVERVIEW,
       "/api/metrics": METRICS,
+      "/api/approvals": { approvals: [] },
       "/api/runs": { runs: [], current: null },
       "/api/incidents": { incidents: [], total: 0 },
       "/api/ti/keys": { otx: false, abuseipdb: false },
@@ -34,18 +35,18 @@ describe("C1-T6 · Nav reduction + Cmd-K aliases (12-screen roster)", () => {
     ]);
     expect(EXPERIMENTAL_NAV.map((n) => n.label)).toEqual(["OEM Engine"]);
 
-    // Approvals is reserved with ready: false
+    // Approvals is now built (C4-T1) — ready: true, no "unbuilt" tooltip.
     const approvalsEntry = CORE_NAV.find((n) => n.to === "/approvals");
     expect(approvalsEntry).toBeDefined();
-    expect(approvalsEntry?.ready).toBe(false);
+    expect(approvalsEntry?.ready).toBe(true);
 
     renderApp(<App />);
     const wordmark = await screen.findByTestId("wordmark");
     expect(wordmark).toBeInTheDocument();
 
-    // Check Approvals link in sidebar carries honest unbuilt tooltip
+    // A built screen carries no honest-unbuilt tooltip.
     const approvalsLink = screen.getByRole("link", { name: "Approvals" });
-    expect(approvalsLink).toHaveAttribute("title", "Not built yet — the page says so honestly");
+    expect(approvalsLink).not.toHaveAttribute("title", "Not built yet — the page says so honestly");
   });
 
   describe("(b) Cmd-K aliases resolve old screen names to their new destinations", () => {
@@ -172,10 +173,12 @@ describe("C1-T6 · Nav reduction + Cmd-K aliases (12-screen roster)", () => {
       expect(await screen.findByText(/Live collectors/i)).toBeInTheDocument();
     });
 
-    it("/approvals route resolves to honest placeholder", async () => {
+    it("/approvals route resolves to the real Approvals screen (C4-T1)", async () => {
       renderApp(<App />, { route: "/approvals" });
       expect(await screen.findByRole("heading", { name: "Approvals" })).toBeInTheDocument();
-      expect(screen.getByText(/Coming in a later phase/i)).toBeInTheDocument();
+      // No pending approvals in this mock → the honest empty state, not a placeholder.
+      expect(await screen.findByTestId("approvals-empty")).toHaveTextContent("No pending approvals");
+      expect(screen.queryByText(/Coming in a later phase/i)).toBeNull();
     });
   });
 });

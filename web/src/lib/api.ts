@@ -385,6 +385,39 @@ export interface AdvisoryReport {
   note?: string | null;
 }
 
+/** Gated-response approval (C3/C4 · D3 step-up). Mirrors the record soc.py
+ *  stores in approvals.json. Rules own eligibility (`eligibilityProof` is
+ *  runbooks.eligible() verbatim, `evidenceRefs` are rule-owned record numbers);
+ *  the connector owns `requestRedacted`/`responseVerbatim` (the command is the
+ *  REDACTED preview — raw params never reach this shape); the analyst supplies
+ *  only `actor`, filled from the verified step-up username. */
+export type ApprovalState = "pending" | "approved" | "rejected" | "executed" | "failed";
+
+export interface EligibilityProof { eligible: boolean; missing: string[]; [k: string]: unknown }
+export interface ApprovalRequestRedacted {
+  command?: string; description?: string; connector?: string; action?: string;
+  params?: Record<string, unknown>; error?: string;
+}
+export interface ApprovalResponseVerbatim {
+  output?: string; connector?: string; action?: string; error?: string;
+}
+export interface Approval {
+  id: string;
+  incidentId: string;                       // rule-owned
+  runbookId: string;                        // rule-owned
+  connector: string;                        // connector-owned
+  step: number;
+  state: ApprovalState;
+  eligibilityProof: EligibilityProof;       // rule-owned (verbatim from eligible())
+  evidenceRefs: string[];                    // rule-owned record numbers
+  requestRedacted: ApprovalRequestRedacted;  // connector-owned (redacted preview)
+  responseVerbatim: ApprovalResponseVerbatim | null;
+  actor: string | null;                      // analyst-supplied (verified at step-up)
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Cross-run brute-force attempt series for an incident's entity (RCA rail
  *  sparkline). A DERIVED display aggregation over run history — never a verdict.
  *  available=false is the honest n/a (fewer than 2 real runs for the entity). */
@@ -833,6 +866,68 @@ export const api = {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
     return normIncident(body as Incident);
+  },
+
+  // --- Gated-response approvals (C3/C4 · D3 step-up) ---------------------
+  // The single authoritative approval surface. Rules own eligibility; the
+  // step-up passphrase is D3 material — it is sent ONLY in the POST body,
+  // NEVER in a URL/query, and is never echoed back (a failed step-up returns
+  // a generic error with no credential). A 409 carries the engine's own
+  // `missing` array verbatim, so the client cannot disagree with the rules.
+  approvals: (state?: ApprovalState) =>
+    getJson<{ approvals: Approval[] }>(`/api/approvals${state ? `?state=${state}` : ""}`),
+
+  approval: (id: string) =>
+    getJson<OrError<Approval>>(`/api/approvals/${encodeURIComponent(id)}`),
+
+  createApproval: async (
+    input: { incidentId: string; runbookId: string; stepIndex?: number },
+  ): Promise<{ ok: boolean; approval?: Approval; missing?: string[]; error?: string }> => {
+    const res = await fetch("/api/approvals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok
+      ? { ok: true, approval: body as Approval }
+      : { ok: false, missing: (body as { missing?: string[] }).missing,
+          error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
+  },
+
+  /** Approve a pending step and fire its connector. `passphrase` is D3 step-up
+   *  material: it travels in the request body only, is never placed in the URL,
+   *  and is never returned. A wrong passphrase is a generic 401; a stale
+   *  re-evaluation is a 409 carrying the engine's `missing` array. */
+  approveApproval: async (
+    id: string, passphrase: string,
+  ): Promise<{ ok: boolean; approval?: Approval; missing?: string[]; error?: string }> => {
+    const res = await fetch(`/api/approvals/${encodeURIComponent(id)}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passphrase }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok
+      ? { ok: true, approval: body as Approval }
+      : { ok: false, missing: (body as { missing?: string[] }).missing,
+          error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
+  },
+
+  /** Reject a pending approval — also a step-up act (passphrase in the body,
+   *  never the URL, never echoed). No connector is ever touched on this path. */
+  rejectApproval: async (
+    id: string, passphrase: string,
+  ): Promise<{ ok: boolean; approval?: Approval; error?: string }> => {
+    const res = await fetch(`/api/approvals/${encodeURIComponent(id)}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passphrase }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok
+      ? { ok: true, approval: body as Approval }
+      : { ok: false, error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
   },
 
   assets: () => getJson<OrError<{ assets: Asset[] }>>("/api/assets"),

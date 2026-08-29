@@ -227,6 +227,31 @@
 /* A timed-out advisory is a VISIBLE state, never a silent omission or prose. */
 .note-timeout{ color:var(--high); font-weight:600; font-size:11.5px; }
 
+/* ---- 12a3. Approvals (C4-T1): the single authoritative approve/reject surface.
+   is-approval-modal is the ONLY place the app carries an approve control. The
+   overlay is the one place a shadow is allowed (shadows on overlays only). The
+   authoritative bundle (eligible-by rule, redacted preview, evidence chain) is
+   rule-owned and carries NO advisory element — reuses .is-block/.is-evidence.
+   This is the pattern the later C4 presentational components copy. */
+.is-approval-empty{ color:var(--mut); font-size:13px; padding:20px 4px; }
+.is-approval-lbl{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin-bottom:6px; }
+.is-approval-lbl .is-mut{ text-transform:none; letter-spacing:0; font-weight:400; }
+.is-approval-auth{ display:flex; flex-direction:column; gap:12px; }
+.is-kbd{ font-family:var(--mono); font-size:10.5px; border:1px solid var(--bd); border-radius:5px; padding:1px 5px; color:var(--mut); }
+/* Overlay + modal — the sole design-system component granted a shadow. */
+.is-approval-overlay{ position:fixed; inset:0; z-index:60; display:flex; align-items:flex-start; justify-content:center; padding:12vh 16px 16px; background:color-mix(in srgb, #000 42%, transparent); }
+.is-approval-modal{ width:100%; max-width:540px; background:var(--pan); border:1px solid var(--bd2); border-radius:12px; box-shadow:var(--shadow); outline:none; overflow:hidden; }
+.is-approval-modal__h{ display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--bd); }
+.is-approval-modal__h h2{ font-size:14px; font-weight:650; margin:0; }
+.is-approval-modal__sub{ font-size:10.5px; color:var(--mut2); margin-top:2px; }
+.is-approval-x{ margin-left:auto; display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border:none; background:transparent; border-radius:6px; color:var(--mut); cursor:pointer; }
+.is-approval-x:hover{ background:var(--inset); }
+.is-approval-modal__body{ padding:16px 18px; display:flex; flex-direction:column; gap:16px; max-height:64vh; overflow-y:auto; }
+.is-approval-form{ display:flex; flex-direction:column; gap:10px; }
+.is-approval-hint{ font-size:11px; line-height:1.5; margin:0; }
+.is-approval-err{ font-size:12px; color:var(--crit); margin:0; }
+.is-approval-actions{ display:flex; gap:10px; padding-top:2px; }
+
 /* ---- 12b. INCIDENT / RCA v3 composition (center + right rail) ---------- */
 .is-rca-layout{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start; }
 .is-rca-center{ display:flex; flex-direction:column; gap:16px; min-width:0; }
