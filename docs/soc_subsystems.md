@@ -200,15 +200,15 @@ Every field is computed from real lifecycle data or is `null`:
 
 ```json
 { "openIncidents": 3,                  // store incidents not resolved
-  "mttdSeconds": 420,                  // mean(acknowledgedAt−createdAt), only over
+  "mttaSeconds": 420,                  // mean(acknowledgedAt−createdAt), only over
                                        // incidents an analyst acknowledged; null if none
   "mttrSeconds": null,                 // mean(resolvedAt−createdAt) over resolved; null if none
-  "mttdBasis": 2, "mttrBasis": 0,      // how many incidents each mean is built on
+  "mttaBasis": 2, "mttrBasis": 0,      // how many incidents each mean is built on
   "assetsAtRisk": 2, "usersAtRisk": 1, // from the current run; null when idle
   "dataSources": 3 }                   // distinct source labels across saved runs
 ```
 
-MTTD/MTTR are means over incidents that genuinely carry both timestamps; the
+MTTA/MTTR are means over incidents that genuinely carry both timestamps; the
 `*Basis` counts say how many that was, so a mean of one incident reads as
 what it is. **The UI must render null as "n/a", never 0.**
 

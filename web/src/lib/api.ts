@@ -139,7 +139,7 @@ export interface AnalyzeJob {
  *  the *Basis fields say how many incidents each mean is computed from. */
 export interface Metrics {
   openIncidents: number;
-  mttdSeconds: number | null; mttdBasis: number;
+  mttaSeconds: number | null; mttaBasis: number;
   mttrSeconds: number | null; mttrBasis: number;
   assetsAtRisk: number | null;
   usersAtRisk: number | null;
