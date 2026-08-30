@@ -98,6 +98,20 @@ describe("Auth subsystem & login screen (Phase 6)", () => {
     await waitFor(() => expect(authLib.getToken()).toBeNull());
   });
 
+  // auth.ts:109 — the NON-401 error path. A 500 means the server could not
+  // vouch for the token, which is not the same as vouching for it: getMe must
+  // fail CLOSED and drop the credential, exactly as it does on a 401. The
+  // network-throw branch is already covered by the test above; this covers the
+  // "server answered, but badly" branch, which nothing else exercised.
+  it("drops a stored token when the server errors (500), not just on 401", async () => {
+    localStorage.setItem("itsoc_auth_token", "stale-token");
+    mockFetch({
+      "/api/auth/me": { __status: 500, error: "internal error" },
+    });
+    renderApp(<App />, { route: "/", token: "stale-token" });
+    await waitFor(() => expect(authLib.getToken()).toBeNull());
+  });
+
   it("shows already signed in banner when profile is authenticated", async () => {
     renderApp(<App />, { route: "/login" });
     expect(await screen.findByText(/already signed in/i)).toBeInTheDocument();
