@@ -382,6 +382,9 @@ def adapt(report, threat_report=None):
             "predicate": f.get("predicate", ""),
             "ruleRef": RULE_REF.get(f.get("rule_id"), ""),
             "occurrences": f.get("occurrences", 1),
+            # CBS/CSI channel (or similar) when the log has no hostname — display
+            # only, never a fabricated machine name (hostDerived stays false).
+            "scope": str(entities.get("channel") or ""),
             # Derived ATT&CK annotation from threat_intel/rule_mitre_map.py.
             # Read-only context: it never alters severity, verdict, or order,
             # and an unmapped rule gets [] — the console then shows nothing.

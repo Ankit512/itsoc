@@ -35,6 +35,13 @@ const columns = [
     sortingFn: (a, b) =>
       SEV_ORDER.indexOf(b.original.sev as never) - SEV_ORDER.indexOf(a.original.sev as never),
   }),
+  col.accessor("occurrences", {
+    header: "Lines",
+    cell: (c) => {
+      const n = c.getValue() || 1;
+      return <span className="col-mono is-tnum">{n > 1 ? `×${n.toLocaleString()}` : "1"}</span>;
+    },
+  }),
   col.accessor("time", {
     header: "Time",
     cell: (c) => <span className="col-mono">{c.getValue() || "—"}</span>,
@@ -43,7 +50,12 @@ const columns = [
     header: "Rule",
     cell: (c) => <span className="col-mono">{c.getValue()}</span>,
   }),
-  col.accessor("host", { header: "Host", cell: (c) => <span className="is-mono">{c.getValue()}</span> }),
+  col.accessor("host", {
+    header: "Host",
+    cell: (c) => (
+      <span className="is-mono">{c.getValue() || c.row.original.scope || "—"}</span>
+    ),
+  }),
   col.accessor((f) => (f.mitre ?? []).map((m) => m.id).join(" "), {
     id: "mitre",
     header: "ATT&CK",
@@ -130,6 +142,15 @@ function FindingDetail({ f }: { f: Finding }) {
         <span className="id">{f.stamp}</span>
       </div>
       <h2>{f.title}</h2>
+      {f.occurrences > 1 && (
+        <p className="is-mut" style={{ fontSize: 12, marginTop: 4 }} data-testid="finding-occurrences">
+          Groups {f.occurrences.toLocaleString()} matching lines
+          {f.lines.length > 0 && f.lines.length < f.occurrences
+            ? ` · showing ${f.lines.length} in evidence`
+            : ""}
+          . One grouped finding — not {f.occurrences.toLocaleString()} separate verdicts.
+        </p>
+      )}
 
       <div className="is-vgrid">
         <div className={`is-block ${s}`}>

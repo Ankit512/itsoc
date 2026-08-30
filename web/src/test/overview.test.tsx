@@ -78,6 +78,31 @@ describe("Overview page (v6)", () => {
     );
   });
 
+  it("shows matching-line volume when grouped findings cover many source lines", async () => {
+    mockFetch({
+      "/api/overview": {
+        ...OVERVIEW,
+        kpis: {
+          total: 5, critical: 0, high: 2, medium: 2, low: 1,
+          deltas: OVERVIEW.kpis.deltas,
+          matchingLines: { total: 754, critical: 0, high: 466, medium: 8, low: 280 },
+        },
+        latestAlerts: [{ ...OVERVIEW.latestAlerts[0], occurrences: 448, name: "CBS HRESULT ×448" }],
+      },
+      "/api/metrics": METRICS,
+      "/console_state.json": consoleState([], {
+        sourceLabel: "Windows_2k.log", runHosts: "—",
+        runWindow: "04:30–04:32 UTC", generatedAt: "2026-08-31 00:00 UTC",
+        manifest: { detector_sha256: "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876", ruleset: "v1" },
+      }),
+    });
+    renderApp(<App />);
+    expect(await screen.findByTestId("kpi-matching-total")).toHaveTextContent("754 matching lines");
+    expect(screen.getByText("466 matching lines")).toBeInTheDocument();
+    expect(screen.getByText(/5 grouped · 754 matching lines/)).toBeInTheDocument();
+    expect(screen.getByText("×448")).toBeInTheDocument();
+  });
+
   it("no run yet -> says so, never sample numbers", async () => {
     mockFetch({ "/api/overview": { error: "no run yet — analyze a log first" } });
     renderApp(<App />);

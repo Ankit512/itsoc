@@ -51,6 +51,11 @@ export interface OverviewData {
   kpis: {
     total: number; critical: number; high: number; medium: number; low: number;
     deltas: Record<"total" | "critical" | "high" | "medium" | "low", Delta | null>;
+    /** Matching source lines covered by the grouped findings. Equals `total`
+     *  when every finding is a single line. Display-only — not a new verdict. */
+    matchingLines?: {
+      total: number; critical: number; high: number; medium: number; low: number;
+    };
   };
   severityDonut: { bucket: string; count: number; pct: number }[];
   alertsOverTime: { bins: { t: string; critical: number; high: number; medium: number; low: number }[] };
@@ -60,6 +65,7 @@ export interface OverviewData {
     tactics: string[]; name: string; source: string;
     /** dc Latest-alerts columns. Empty string = not derivable for this finding. */
     rule?: string; host?: string;
+    occurrences?: number;
   }[];
   ingestion: { acceptedLabel: string; files: { name: string; ok: boolean }[] };
   model: string;
@@ -80,6 +86,8 @@ export interface Finding {
   type: string;
   host: string;
   hostDerived: boolean;
+  /** Log channel (CBS/CSI/…) when the line has no hostname. Display only. */
+  scope?: string;
   time: string;
   stamp: string;
   title: string;

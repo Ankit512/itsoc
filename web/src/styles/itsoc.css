@@ -154,6 +154,7 @@
 .is-kpi{ background:var(--pan); border:1px solid var(--bd); border-radius:var(--radius); padding:14px 16px; display:flex; flex-direction:column; gap:6px; }
 .is-kpi .lbl{ color:var(--mut); font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; display:flex; align-items:center; justify-content:space-between; }
 .is-kpi .val{ font-size:26px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.is-kpi .sub{ font-size:11px; font-weight:500; font-family:var(--mono); color:var(--mut); font-variant-numeric:tabular-nums; }
 .is-kpi .delta{ font-size:11px; font-weight:400; font-family:var(--mono); color:var(--mut2); }
 /* dc renders every delta in the same muted mono — direction is carried by the
    arrow glyph, not by colour. */

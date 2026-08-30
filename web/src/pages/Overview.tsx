@@ -66,6 +66,8 @@ export function Overview() {
   }
 
   const k = overview.kpis;
+  const lines = k.matchingLines;
+  const grouped = !!lines && lines.total > k.total;
 
   // Run-provenance mono strip (DESIGN_HANDOFF §3): every value from the real run.
   const sha = state?.manifest?.detector_sha256;
@@ -112,26 +114,43 @@ export function Overview() {
         <div className="is-kpi">
           <div className="lbl">Total</div>
           <div className="val is-tnum">{k.total.toLocaleString()}</div>
+          {grouped && lines && (
+            <div className="sub" data-testid="kpi-matching-total">
+              {lines.total.toLocaleString()} matching lines
+            </div>
+          )}
           <DeltaLine delta={k.deltas.total} />
         </div>
         <div className="is-kpi val-crit">
           <div className="lbl">Critical</div>
           <div className="val is-tnum">{k.critical.toLocaleString()}</div>
+          {grouped && lines && lines.critical > 0 && (
+            <div className="sub">{lines.critical.toLocaleString()} matching lines</div>
+          )}
           <DeltaLine delta={k.deltas.critical} />
         </div>
         <div className="is-kpi val-high">
           <div className="lbl">High</div>
           <div className="val is-tnum">{k.high.toLocaleString()}</div>
+          {grouped && lines && lines.high > 0 && (
+            <div className="sub">{lines.high.toLocaleString()} matching lines</div>
+          )}
           <DeltaLine delta={k.deltas.high} />
         </div>
         <div className="is-kpi val-med">
           <div className="lbl">Medium</div>
           <div className="val is-tnum">{k.medium.toLocaleString()}</div>
+          {grouped && lines && lines.medium > 0 && (
+            <div className="sub">{lines.medium.toLocaleString()} matching lines</div>
+          )}
           <DeltaLine delta={k.deltas.medium} />
         </div>
         <div className="is-kpi val-low">
           <div className="lbl">Low</div>
           <div className="val is-tnum">{k.low.toLocaleString()}</div>
+          {grouped && lines && lines.low > 0 && (
+            <div className="sub">{lines.low.toLocaleString()} matching lines</div>
+          )}
           <DeltaLine delta={k.deltas.low} />
         </div>
       </div>
@@ -142,7 +161,14 @@ export function Overview() {
           time" naming, the severity legend, and the bare `derived` chip. */}
       <div className="is-grid-3">
         <div className="is-panel is-panel--chart">
-          <div className="is-panel__h"><h3>Alerts by severity</h3></div>
+          <div className="is-panel__h">
+            <h3>Alerts by severity</h3>
+            {grouped && lines && (
+              <span className="is-panel__sub">
+                {k.total} grouped · {lines.total.toLocaleString()} matching lines
+              </span>
+            )}
+          </div>
           <SeverityDonut data={overview.severityDonut} />
         </div>
         <div className="is-panel is-panel--chart">
@@ -172,7 +198,9 @@ export function Overview() {
         <div className="is-panel__h">
           <h3>Latest alerts</h3>
           <span className="is-panel__sub">
-            {overview.latestAlerts.length} most recent of {k.total} · drill into Findings for evidence
+            {overview.latestAlerts.length} most recent of {k.total}
+            {grouped && lines ? ` · ${lines.total.toLocaleString()} matching lines` : ""}
+            {" "}· drill into Findings for evidence
           </span>
         </div>
         <div style={{ overflowX: "auto" }}>
@@ -184,6 +212,7 @@ export function Overview() {
                 <th>Rule</th>
                 <th>Host</th>
                 <th>Finding</th>
+                <th>Lines</th>
                 <th>Tactics</th>
                 <th>Source</th>
               </tr>
@@ -191,7 +220,7 @@ export function Overview() {
             <tbody>
               {overview.latestAlerts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="is-mut" style={{ textAlign: "center", padding: "16px" }}>
+                  <td colSpan={8} className="is-mut" style={{ textAlign: "center", padding: "16px" }}>
                     No findings in this window.
                   </td>
                 </tr>
@@ -222,6 +251,9 @@ export function Overview() {
                     >
                       {a.name}
                     </Link>
+                  </td>
+                  <td className="col-mono is-tnum" title="Matching source lines grouped into this finding">
+                    {(a.occurrences && a.occurrences > 1) ? `×${a.occurrences.toLocaleString()}` : "1"}
                   </td>
                   <td>
                     {a.tactics.length > 0 && (
