@@ -1943,6 +1943,10 @@ def check_soc_overview():
                 check("kpis count findings by rule severity",
                       (k["total"], k["critical"], k["high"], k["medium"], k["low"])
                       == (3, 1, 1, 1, 0))
+                check("matchingLines equals finding counts when each finding is one line",
+                      k.get("matchingLines") == {"total": 3, "critical": 1,
+                                                 "high": 1, "medium": 1, "low": 0},
+                      str(k.get("matchingLines")))
                 check("no prior run -> every delta is null (never faked)",
                       all(v is None for v in k["deltas"].values()))
                 donut = {d["bucket"]: d for d in ov["severityDonut"]}
@@ -1973,6 +1977,35 @@ def check_soc_overview():
                       ov["ingestion"]["acceptedLabel"] == "LOG, TXT, CSV, TSV, JSON, XML, HTML, RAW — anything that reads as plain text"
                       and ov["ingestion"]["files"][0] == {"name": "attack.log", "ok": True})
                 check("model is the effective LLM model", ov["model"] == la.LLM_MODEL)
+
+                grouped_findings = [{
+                    "source": "detector", "severity": "high",
+                    "rule_id": "windows_cbs_hresult",
+                    "summary": "CBS HRESULT CBS_E_MANIFEST_INVALID_ITEM ×448",
+                    "evidence": "raw line", "occurrences": 448,
+                    "entities": {"channel": "CBS", "occurrences": 448},
+                    "timeline": [{"t": "04:30:31", "label": "x", "line": 8,
+                                  "ts": "2016-09-28T04:30:31+00:00"}],
+                }]
+                grouped_state = make_state("Windows_2k", 13, grouped_findings)
+                serve.STATE = grouped_state
+                ovg = get("/api/overview")
+                kg = ovg["kpis"]
+                check("grouped CBS finding still counts as 1 HIGH card",
+                      (kg["total"], kg["high"]) == (1, 1), str((kg["total"], kg["high"])))
+                check("matchingLines reports 448 source lines, not 1",
+                      kg["matchingLines"]["high"] == 448
+                      and kg["matchingLines"]["total"] == 448,
+                      str(kg.get("matchingLines")))
+                check("latestAlerts carries occurrences and CBS channel as host",
+                      ovg["latestAlerts"][0]["occurrences"] == 448
+                      and ovg["latestAlerts"][0]["host"] == "CBS",
+                      str(ovg["latestAlerts"][0]))
+                check("over-time bin is occurrence-weighted (448, not 1)",
+                      ovg["alertsOverTime"]["bins"]
+                      and ovg["alertsOverTime"]["bins"][0]["high"] == 448,
+                      str(ovg["alertsOverTime"]["bins"]))
+                serve.STATE = current
 
                 # --- deltas appear once a prior run exists ------------------
                 prior = make_state("earlier", 10, [

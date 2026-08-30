@@ -168,6 +168,7 @@ function RunBriefing({ state, loading }: { state?: ConsoleState; loading?: boole
   const findings = state.findings ?? [];
   const crit = countSev(findings, "CRITICAL");
   const high = countSev(findings, "HIGH");
+  const matching = findings.reduce((n, f) => n + (f.occurrences || 1), 0);
   return (
     <div className="rounded border bg-background px-2.5 py-2 text-[11.5px] leading-relaxed" data-testid="copilot-run-brief">
       <div className="font-semibold text-foreground">
@@ -178,7 +179,9 @@ function RunBriefing({ state, loading }: { state?: ConsoleState; loading?: boole
         {state.runParsed ? ` · ${state.runParsed}` : ""}
       </div>
       <div className="mt-1 is-mono text-muted-foreground">
-        {findings.length} finding(s) · {crit} critical · {high} high
+        {findings.length} finding(s)
+        {matching > findings.length ? ` · ${matching.toLocaleString()} matching lines` : ""}
+        {" "}· {crit} critical · {high} high
         {state.llmNote ? ` · ${state.llmNote}` : ""}
       </div>
     </div>

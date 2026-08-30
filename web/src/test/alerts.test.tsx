@@ -47,6 +47,17 @@ describe("Alerts page", () => {
     expect(screen.getByText("failures_from(ip) >= 5")).toBeInTheDocument();
   });
 
+  it("grouped finding names the matching-line count in detail", async () => {
+    mockFetch({
+      "/console_state.json": consoleState([
+        finding(0, { occurrences: 448, title: "CBS HRESULT CBS_E_MANIFEST_INVALID_ITEM ×448" }),
+      ]),
+    });
+    renderApp(<App />, { route: "/alerts?sel=detector-0" });
+    expect(await screen.findByTestId("finding-occurrences")).toHaveTextContent("448 matching lines");
+    expect(screen.getByText("×448")).toBeInTheDocument();
+  });
+
   it("unrecognized run keeps the honest banner", async () => {
     mockFetch({ "/console_state.json": consoleState([], {
       unrecognized: true, linesParsed: 0, linesUnparsed: 100,

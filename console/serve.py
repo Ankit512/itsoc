@@ -488,6 +488,20 @@ def _finding_sev_counts(findings):
     return counts
 
 
+def _finding_occ_counts(findings):
+    """Matching-line volume per bucket (sum of occurrences).
+
+    Grouped findings (CBS HRESULT ×448, etc.) are one card; this is how many
+    source lines that card actually covers. Display-only — not a new verdict.
+    """
+    counts = {b: 0 for b in KPI_BUCKETS}
+    for f in findings:
+        sev = str(f.get("sev", "")).upper()
+        if sev in counts:
+            counts[sev] += int(f.get("occurrences") or 1)
+    return counts
+
+
 def _prior_run_state():
     """The saved run immediately OLDER than the current one, for 'vs previous'.
 
@@ -530,7 +544,9 @@ def overview_state(window=None):
 
     findings = STATE.get("findings", [])
     counts = _finding_sev_counts(findings)
+    occ = _finding_occ_counts(findings)
     total = sum(counts.values())
+    matching = sum(occ.values())
 
     prior = _prior_run_state()
     if prior is None:
@@ -550,7 +566,7 @@ def overview_state(window=None):
         hour = stamp[:13] + ":00:00Z"
         b = bins.setdefault(hour, {"t": hour, "critical": 0, "high": 0,
                                    "medium": 0, "low": 0})
-        b[sev.lower()] += 1
+        b[sev.lower()] += int(f.get("occurrences") or 1)
 
     tactic_counts = {}
     for t in STATE.get("mitreFrequency") or []:
@@ -575,8 +591,9 @@ def overview_state(window=None):
             # FINDING. Both are display projections of the finding the rules
             # already produced — no new verdict, no derivation.
             "rule": f.get("type", ""),
-            "host": f.get("host", "") if f.get("hostDerived") else "",
+            "host": (f.get("host") if f.get("hostDerived") else "") or f.get("scope") or "",
             "source": STATE.get("sourceLabel", ""),
+            "occurrences": int(f.get("occurrences") or 1),
         })
 
     files = []
@@ -598,7 +615,12 @@ def overview_state(window=None):
         "timeWindowLabel": label,
         "kpis": {"total": total, "critical": counts["CRITICAL"],
                  "high": counts["HIGH"], "medium": counts["MEDIUM"],
-                 "low": counts["LOW"], "deltas": deltas},
+                 "low": counts["LOW"], "deltas": deltas,
+                 "matchingLines": {
+                     "total": matching,
+                     "critical": occ["CRITICAL"], "high": occ["HIGH"],
+                     "medium": occ["MEDIUM"], "low": occ["LOW"],
+                 }},
         "severityDonut": [{"bucket": b, "count": counts[b],
                            "pct": round(counts[b] / total * 100) if total else 0}
                           for b in KPI_BUCKETS],

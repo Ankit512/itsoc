@@ -470,7 +470,7 @@ def detect_windows_cbs(records):
             ),
             "occurrences": n,
             "timeline": [
-                {"line": _line(r), "message": _raw(r)[:300]} for r in recs[:8]
+                {"line": _line(r), "message": _raw(r)[:300]} for r in recs[:50]
             ],
         })
     return anomalies
