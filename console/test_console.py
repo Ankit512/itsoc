@@ -4994,51 +4994,50 @@ def check_audit():
                        and re.search(r"repair|fix|heal|rechain|re_chain|rewrite|patch", n.name, re.I)])
 
             # ---- d) the store migration is ADDITIVE ----------------------
-            live_db = HERE / ".soc" / "soc_history.db"
-            if live_db.exists():
-                copy_dir = tmp / "fixture"
-                copy_dir.mkdir()
-                copy_db = copy_dir / "soc_history.db"
-                _shutil.copy2(live_db, copy_db)      # a COPY — never the live store
+            fixture = HERE.parent / "tests" / "fixtures" / "pre-migration-soc"
+            copy_dir = tmp / "fixture"
+            _shutil.copytree(fixture, copy_dir)      # a COPY — never the fixture
+            copy_db = copy_dir / "soc_history.db"
+            with sqlite3.connect(str(copy_db)) as c:
+                c.executescript((copy_dir / "soc_history.sql").read_text())
 
-                def snapshot(db):
-                    with sqlite3.connect(str(db)) as c:
-                        names = [r[0] for r in c.execute(
-                            "SELECT name FROM sqlite_master WHERE type='table' "
-                            "AND name NOT LIKE 'sqlite_%' ORDER BY name")]
-                        return names, {n: c.execute(f"SELECT COUNT(*) FROM {n}").fetchone()[0]
-                                       for n in names}
+            def snapshot(db):
+                with sqlite3.connect(str(db)) as c:
+                    names = [r[0] for r in c.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' "
+                        "AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+                    return names, {n: c.execute(f"SELECT COUNT(*) FROM {n}").fetchone()[0]
+                                   for n in names}
 
-                before_tables, before_counts = snapshot(copy_db)
-                store.SOC_DIR = copy_dir
-                store.DB_PATH = copy_db
-                store._INIT_DONE.discard(str(copy_db))
-                store.init_db()                      # the migration under test
-                after_tables, after_counts = snapshot(copy_db)
+            before_tables, before_counts = snapshot(copy_db)
+            store.SOC_DIR = copy_dir
+            store.DB_PATH = copy_db
+            store._INIT_DONE.discard(str(copy_db))
+            store.init_db()                      # the migration under test
+            after_tables, after_counts = snapshot(copy_db)
 
-                print(f"  [info] tables BEFORE init_db(): {before_tables}")
-                print(f"  [info] tables AFTER  init_db(): {after_tables}")
-                expected = {"events", "assets", "vulnerabilities", "iocs",
-                            "connectors", "settings", "investigations"}
-                check("the real .soc DB copy already carried the 7 pre-existing tables",
-                      expected <= set(before_tables), str(sorted(before_tables)))
-                check("the migration DROPS nothing — every prior table survives",
-                      set(before_tables) <= set(after_tables),
-                      str(sorted(set(before_tables) - set(after_tables))))
-                check("the migration ADDS exactly audit_index",
-                      set(after_tables) - set(before_tables) == {"audit_index"},
-                      str(sorted(set(after_tables) - set(before_tables))))
-                check("no prior table lost or gained a row",
-                      all(after_counts[t] == before_counts[t] for t in before_tables),
-                      str({t: (before_counts[t], after_counts[t]) for t in before_tables
-                           if after_counts[t] != before_counts[t]}))
-                check("audit_index is not in HISTORY_TABLES/ALL_DATA_TABLES — "
-                      "retention cleanup and purge can never reach audit evidence",
-                      "audit_index" not in store.HISTORY_TABLES
-                      and "audit_index" not in store.ALL_DATA_TABLES)
-            else:
-                check("a real console/.soc/soc_history.db was available to test the "
-                      "migration against", False, f"{live_db} does not exist — NOT TESTED")
+            print(f"  [info] tables BEFORE init_db(): {before_tables}")
+            print(f"  [info] tables AFTER  init_db(): {after_tables}")
+            expected = {"events", "assets", "vulnerabilities", "iocs",
+                        "connectors", "settings", "investigations"}
+            check("the pre-migration fixture has exactly the 7 pre-existing tables",
+                  set(before_tables) == expected, str(sorted(before_tables)))
+            check("the pre-migration fixture is non-vacuous",
+                  any(before_counts.values()), str(before_counts))
+            check("the migration DROPS nothing — every prior table survives",
+                  set(before_tables) <= set(after_tables),
+                  str(sorted(set(before_tables) - set(after_tables))))
+            check("the migration ADDS exactly audit_index",
+                  set(after_tables) - set(before_tables) == {"audit_index"},
+                  str(sorted(set(after_tables) - set(before_tables))))
+            check("no prior table lost or gained a row",
+                  all(after_counts[t] == before_counts[t] for t in before_tables),
+                  str({t: (before_counts[t], after_counts[t]) for t in before_tables
+                       if after_counts[t] != before_counts[t]}))
+            check("audit_index is not in HISTORY_TABLES/ALL_DATA_TABLES — "
+                  "retention cleanup and purge can never reach audit evidence",
+                  "audit_index" not in store.HISTORY_TABLES
+                  and "audit_index" not in store.ALL_DATA_TABLES)
     finally:
         store.SOC_DIR, store.DB_PATH, audit.SOC_DIR, audit.AUDIT_DIR = real
 
@@ -6117,4 +6116,3 @@ def check_action_layer_and_firewall():
 
 if __name__ == "__main__":
     sys.exit(main())
-
