@@ -62,7 +62,7 @@ export function IngestNotifier() {
   return (
     <div
       role="status" aria-live="polite" aria-label="Upload notification"
-      className="fixed bottom-[22px] left-[22px] z-50 w-[320px] max-w-[calc(100vw-40px)] rounded-lg bg-card p-3.5 shadow-[0_12px_32px_-8px_rgba(26,32,51,0.28)]"
+      className="fixed bottom-[22px] left-[22px] z-50 w-[320px] max-w-[calc(100vw-40px)] rounded-lg bg-card p-3.5 shadow-[var(--shadow-pop)]"
     >
       <div className="flex items-start gap-2.5">
         <span className="mt-px flex-none" style={{ color: tone }}>

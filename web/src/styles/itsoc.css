@@ -372,7 +372,7 @@
 .is-rail-drawer{
   position:fixed; right:20px; bottom:72px; width:330px; z-index:56;
   background:var(--pan); border:1px solid var(--bd); border-radius:11px;
-  box-shadow:0 20px 56px rgba(0,0,0,.4);
+  box-shadow:var(--shadow);
   display:flex; flex-direction:column; overflow:hidden;
   opacity:0; transform:translateY(6px) scale(.98); pointer-events:none;
   transition:opacity .16s ease, transform .16s ease;
@@ -387,7 +387,7 @@
   width:42px; height:42px; border-radius:50%;
   background:var(--ink); color:var(--bg); border:none;
   display:flex; align-items:center; justify-content:center; cursor:pointer;
-  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  box-shadow:var(--shadow);
 }
 .is-cop-fab.open{ background:var(--pan2); color:var(--ink); border:1px solid var(--bd); }
 .is-cop-fab .n{ display:none; }

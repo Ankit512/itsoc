@@ -30,7 +30,7 @@ export function Dialog({ open, onClose, title, subtitle, wide, children }:
         ref={panelRef}
         role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}
         className={
-          "is-modal rounded-lg bg-card shadow-[0_24px_64px_-12px_rgba(26,32,51,0.45)] outline-none " +
+          "is-modal rounded-lg bg-card shadow-[var(--shadow-modal)] outline-none " +
           (wide ? "w-full max-w-[680px]" : "w-full max-w-[440px] p-4")
         }
       >
