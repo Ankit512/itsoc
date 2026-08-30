@@ -34,3 +34,15 @@ Report: `docs/STAGE_D_REPORTS/D1-dispatch.md`.
 - D1 Claude `task_a609091f477e` / `ctx_e6fb6835cfbe` (restricted harness).
 - MG-1 Codex `task_88228fcccd15` / `ctx_8081dd574295` (pre-migration fixture; evens scoreboard).
 Setup skipped on both (pnpm hook unused). Parked stays parked. D2/D3/P4 not started.
+
+## P3 · MG-1 accepted 2026-08-30
+
+`docs/STAGE_D_REPORTS/MG-1-accepted.md`. Codex `d5f3da5` / merge `721f7e5`.
+`check_audit` rc 0 with no live db; full `test_console.py` EXIT=0; mutation holds.
+
+## P3 · D1 accepted 2026-08-30
+
+`docs/STAGE_D_REPORTS/D1-accepted.md`. Claude `482dbd4` / merge `58a73df`.
+13/13 including adversarial miss + import-graph mutation guard.
+
+Scoreboard: Codex 2/2 accepted · Claude 1/1 accepted · Antigravity 0 (D2 next).

@@ -56,12 +56,16 @@ A scripted demo run twice from genuinely fresh stores against a live container: 
 ### Ready — small, understood, unblocked
 - [x] **Three hardcoded shadow literals** — merged `c2f7e75` (`fix/shadow-tokens`). Elevation is tokenised (`--shadow` / `--shadow-pop` / `--shadow-modal`); a source-level guard stops the literals coming back. Pixel-pass caveats are FU-1 and FU-2, not blockers.
 - [x] **`test_console.py` gate hygiene** — merged `eec463d` (`fix/gate-hygiene`). `scripts/gate.sh` is the canonical gate: tees combined output to `gate-logs/<stamp>/<name>.log`, recovers the real exit via `PIPESTATUS[0]`, runs every gate, reports SKIP rather than rounding it to a pass, verifies the detector freeze. **The original intermittent `exit=1` was NOT reproduced** in 32 runs; its evidence is gone. With output no longer discarded, the next occurrence characterises itself.
-- [ ] **`test_console.py` needs a populated tree to reach exit 0.** Two environmental failures, both reproducible 20/20 in a fresh worktree, neither a product defect: (1) **missing `web/dist`** (untracked build artefact) made `check_soc_overview`'s unguarded `get("/")` raise an uncaught `HTTPError: 503` that **aborted the suite mid-run**, leaving every later check untested behind a bare `exit=1` — now fixed to skip honestly as `NOT TESTED`, matching `check_serve_react`; (2) the **`soc_history.db` migration gate**, which turns out to be unsatisfiable by any tree we can build: with **no** db it fails `NOT TESTED` (already known — `docs/STAGE_C_CLOSEOUT.md` §127, deliberate); with a **real, already-migrated** db (copied from the live checkout, whose schema already carries `audit_index`) it fails differently — `the migration ADDS exactly audit_index — []` — because the migration has nothing left to add. **The check can only pass against a db that predates the migration.** So `console/test_console.py` cannot reach exit 0 on any current tree. Decide whether this gate should ship a pinned pre-migration fixture db, or report SKIP when the schema is already current.
-- [x] **`tools/attack_generator.py`** — kept as a **dev tool**, gitignored. Promotion bar is next to the ignore rule: tests plus an isolation rule keeping it out of any eval path. Closes the foreign-work inventory item.
+- [x] **`soc_history.db` migration gate** — owner ruled **pre-migration fixture, not SKIP** (2026-08-30). Merged `721f7e5`. `tests/fixtures/pre-migration-soc/` is the old shape (seven tables, no `audit_index`, plus C1 cases.json). The gate copies it; `console/test_console.py` EXIT=0 with no live `.soc` db. `web/dist` 503 remains guarded as honest NOT TESTED.
+- [x] **`tools/attack_generator.py`** — **promoted (D0, `985ff4c`)**. Tests + isolation (output refused under `tests/eval/`). `tools/efficacy_data/` stays gitignored. Not a score.
 - [ ] **`feat/redesign-integration`** stays **parked, not killed.** Directionally right (no auto-bootstrap, atomic `0600` writes) but Codex's four findings are disqualifying as-is. Acceptance bar is `PARKED.md` on that branch; it only comes back through that list.
 
-### Not defined
-- [ ] **There is no Stage D.** The build document ends at C5. The owner writes the scope doc before anything is dispatched.
+### Stage D (in flight)
+- [x] **D0** generator promotion — merged `985ff4c`.
+- [x] **D1** efficacy harness — merged `58a73df`. Next: **D2** surface (Antigravity).
+- [ ] **D2** Reports/Experimental efficacy table + miss list + scope sentence.
+- [ ] **D3** battle-card + CITATIONS provenance.
+- [ ] **P4** OPNsense adapter (after D0–D1; live item BLOCKED if no box).
 
 ---
 
