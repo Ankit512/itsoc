@@ -27,3 +27,10 @@ Dispatch report: `docs/STAGE_D_REPORTS/D0-dispatch.md`.
 Acceptance: `docs/STAGE_D_REPORTS/D0-accepted.md`.
 Codex `43ff064` / merge `985ff4c`. 5/5 tests, eval 19/19, detector frozen.
 Scoreboard: Codex 1/1 accepted · Antigravity 0 (D2 reserved). D1 next.
+
+## P3 · D1 + MG-1 dispatched 2026-08-30 — not yet accepted
+
+Report: `docs/STAGE_D_REPORTS/D1-dispatch.md`.
+- D1 Claude `task_a609091f477e` / `ctx_e6fb6835cfbe` (restricted harness).
+- MG-1 Codex `task_88228fcccd15` / `ctx_8081dd574295` (pre-migration fixture; evens scoreboard).
+Setup skipped on both (pnpm hook unused). Parked stays parked. D2/D3/P4 not started.
