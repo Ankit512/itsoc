@@ -1214,6 +1214,129 @@ def check_logcat():
     return 0 if all(results) else 1
 
 
+def check_loghub_formats():
+    """Loghub/LogPAI sibling parsers (console/formats/loghub.py).
+
+    Apache error_log, Java/log4j (Hadoop/ZK/Spark/HDFS/OpenStack), BGL RAS
+    and Thunderbird-prefixed syslog were generic_text with no source level,
+    so ERROR/FATAL lines never reached error_rate_spike / critical_service_event.
+    Envelope only: source-reported level, raw verbatim, no stolen formats.
+    """
+    ROOT = HERE.parent
+    FIX = ROOT / "tests" / "eval" / "fixtures"
+    sys.path.insert(0, str(ROOT))
+    import normalize
+    import log_analyzer as la
+    from anomaly_detector import detect
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}"
+              + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nLoghub format siblings (console/formats/loghub.py):")
+
+    sha = __import__("hashlib").sha256(
+        (ROOT / "anomaly_detector.py").read_bytes()
+    ).hexdigest()
+    check("anomaly_detector.py sha256 matches the pivot baseline",
+          sha == "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876",
+          sha)
+
+    recs, st = normalize.load(FIX / "apache_slice.log")
+    check("Apache error_log sniffs as apache",
+          st["format"] == "apache" and st["parsed"] == st["total_lines"] and st["unparsed"] == 0,
+          str((st["format"], st["parsed"], st["unparsed"], st["total_lines"])))
+    check("Apache [error] -> ERROR (source-reported, not guessed)",
+          any(r["level"] == "ERROR" for r in recs) and any(r["level"] == "INFO" for r in recs),
+          str(sorted({r["level"] for r in recs})))
+    src = (FIX / "apache_slice.log").read_text().splitlines()
+    check("Apache raw is the verbatim source line",
+          all(r["raw"] == src[r["n"] - 1] for r in recs))
+    check("detect() runs on Apache records (ERROR burst is eligible)",
+          isinstance(detect(recs), list))
+
+    recs, st = normalize.load(FIX / "log4j_hadoop_slice.log")
+    check("Hadoop log4j sniffs as log4j and parses every line",
+          st["format"] == "log4j" and st["unparsed"] == 0 and st["parsed"] > 0,
+          str((st["format"], st["parsed"], st["unparsed"])))
+    check("Hadoop ERROR/FATAL keep source-reported ERROR/CRIT",
+          any(r["level"] == "ERROR" for r in recs) and any(r["level"] == "CRIT" for r in recs),
+          str(sorted({r["level"] for r in recs})))
+
+    recs, st = normalize.load(FIX / "log4j_zk_slice.log")
+    check("ZooKeeper log4j is log4j, not csv (comma-ms must not sniff as CSV)",
+          st["format"] == "log4j" and st["unparsed"] == 0,
+          str((st["format"], st["parsed"], st["unparsed"])))
+    lrecs, lst = la.load_log_file(FIX / "log4j_zk_slice.log")
+    check("console loader also keeps ZooKeeper as log4j (not csv)",
+          lst["format"] == "log4j" and lst.get("unparsed", 0) == 0,
+          str((lst["format"], lst["parsed"], lst.get("unparsed"))))
+    check("ZooKeeper WARN stays WARN (source-reported)",
+          any(r["level"] == "WARN" for r in recs),
+          str(sorted({r["level"] for r in recs})))
+
+    recs, st = normalize.load(FIX / "log4j_spark_slice.log")
+    check("Spark sniffs as log4j; INFO is source-reported",
+          st["format"] == "log4j" and st["unparsed"] == 0
+          and recs and all(r["level"] == "INFO" for r in recs),
+          str((st["format"], st["parsed"], sorted({r["level"] for r in recs}))))
+
+    recs, st = normalize.load(FIX / "log4j_hdfs_slice.log")
+    check("HDFS sniffs as log4j with source WARN/INFO",
+          st["format"] == "log4j" and any(r["level"] == "WARN" for r in recs),
+          str((st["format"], sorted({r["level"] for r in recs}))))
+
+    recs, st = normalize.load(FIX / "log4j_openstack_slice.log")
+    check("OpenStack sniffs as log4j; WARNING -> WARN",
+          st["format"] == "log4j" and any(r["level"] == "WARN" for r in recs),
+          str((st["format"], sorted({r["level"] for r in recs}))))
+
+    recs, st = normalize.load(FIX / "bgl_slice.log")
+    check("BGL RAS sniffs as bgl",
+          st["format"] == "bgl" and st["unparsed"] == 0,
+          str((st["format"], st["parsed"], st["unparsed"])))
+    check("BGL FATAL -> CRIT (source-reported, not invented)",
+          any(r["level"] == "CRIT" for r in recs) and any(r["level"] == "INFO" for r in recs),
+          str(sorted({r["level"] for r in recs})))
+    src = (FIX / "bgl_slice.log").read_text().splitlines()
+    check("BGL raw is verbatim",
+          all(r["raw"] == src[r["n"] - 1] for r in recs))
+
+    recs, st = normalize.load(FIX / "thunderbird_slice.log")
+    check("Thunderbird prefix+syslog sniffs as thunderbird",
+          st["format"] == "thunderbird" and st["unparsed"] == 0,
+          str((st["format"], st["parsed"], st["unparsed"])))
+    check("Thunderbird host is taken from the syslog stamp, not invented",
+          recs and recs[0]["host"],
+          repr(recs[0].get("host") if recs else None))
+
+    recs, st = normalize.load(FIX / "proxifier_slice.log")
+    check("Proxifier sniffs as proxifier",
+          st["format"] == "proxifier" and st["unparsed"] == 0,
+          str((st["format"], st["parsed"], st["unparsed"])))
+    check("Proxifier 'error :' is source-reported ERROR, open/close stay INFO",
+          any(r["level"] == "ERROR" for r in recs) and any(r["level"] == "INFO" for r in recs),
+          str(sorted({r["level"] for r in recs})))
+
+    recs, st = normalize.load(FIX / "windows_cbs_slice.log")
+    check("CBS slice is NOT stolen by log4j/apache (stays unknown to normalize)",
+          st["format"] == "unknown" and st["parsed"] == 0,
+          str((st["format"], st["parsed"])))
+
+    for name, want in (("samples/Linux_2k.log", "rfc3164"),
+                       ("samples/OpenSSH_2k.log", "rfc3164"),
+                       ("samples/Android_2k.log", "logcat"),
+                       ("samples/log360_export.csv", "log360_csv")):
+        _, s = normalize.load(ROOT / name)
+        check(f"{name} still sniffs as {want}",
+              s["format"] == want, s["format"])
+
+    return 0 if all(results) else 1
+
+
 def check_remote_compute():
     """Remote-compute guardrails, with the outbound payload CAPTURED, not sent.
 
@@ -4149,6 +4272,8 @@ def check_rules_parity():
         for r in records:
             if rs._is_windows_cbs(r):
                 continue
+            if str(r.get("format") or "").lower() == "bgl":
+                continue
             text = rs._all_text(r)
             if not text.strip():
                 continue
@@ -5470,6 +5595,7 @@ def main():
     routing = check_server_routing()
     log360 = check_log360()
     logcat_ = check_logcat()
+    loghub_ = check_loghub_formats()
     remote = check_remote_compute()
     dashboard = check_dashboard_data()
     layout = check_layout_css()
@@ -5502,7 +5628,7 @@ def main():
     advisory_ = check_parallel_advisory()
     orgctx_ = check_org_context()
     actions_ = check_action_layer_and_firewall()
-    if (result.returncode or routing or log360 or logcat_ or remote or dashboard
+    if (result.returncode or routing or log360 or logcat_ or loghub_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
@@ -5510,7 +5636,7 @@ def main():
             or investigate_ or advisory_ or orgctx_ or actions_):
         print("\nFAILED")
         return 1
-    print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
+    print("\nPASSED — render + routing + log360 + logcat + loghub-formats + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + efficacy-api + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "

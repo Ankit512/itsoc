@@ -676,6 +676,11 @@ def detect_infrastructure_alerts(records):
         # CBS/CSI/DISM Fail/HRESULT is owned by detect_windows_cbs.
         if _is_windows_cbs(r):
             continue
+        # BGL RAS FATAL/ERROR is owned by the frozen detector's CRIT/ERROR
+        # rules (critical_service_event / error_rate_spike). Re-emitting as
+        # infra_*_critical would double-count the same source-reported line.
+        if str(r.get("format") or "").lower() == "bgl":
+            continue
         text = _all_text(r)
         if not text.strip():
             continue

@@ -873,6 +873,16 @@ def detect_input_format(path: Path):
         return "windows_event_text", encoding
     if formats_universal._looks_like_windows_cbs(text.splitlines()):
         return "windows_cbs", encoding
+    try:
+        import loghub as _loghub
+    except ImportError:
+        _loghub = None
+    if _loghub is not None:
+        sample_lines = [x for x in text.splitlines() if x.strip()][:20]
+        if sample_lines and sum(
+            1 for x in sample_lines if _loghub.looks_like_log4j_line(x)
+        ) >= max(2, len(sample_lines) // 2):
+            return "text", encoding
 
     # Content-based JSON detection even when the extension is .txt/.log.
     if text.startswith("{") or text.startswith("["):

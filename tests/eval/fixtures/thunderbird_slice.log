@@ -1,0 +1,5 @@
+- 1131566461 2005.11.09 dn228 Nov 9 12:01:01 dn228/dn228 crond(pam_unix)[2915]: session closed for user root
+- 1131566461 2005.11.09 dn228 Nov 9 12:01:01 dn228/dn228 crond(pam_unix)[2915]: session opened for user root by (uid=0)
+- 1131566461 2005.11.09 dn228 Nov 9 12:01:01 dn228/dn228 crond[2916]: (root) CMD (run-parts /etc/cron.hourly)
+- 1131567043 2005.11.09 tbird-admin1 Nov 9 12:10:43 local@tbird-admin1 vesafb: probe of vesafb0 failed with error -6
+- 1131567055 2005.11.09 tbird-admin1 Nov 9 12:10:55 local@tbird-admin1 sshd[1761]: error: Bind to port 22 on 0.0.0.0 failed: Address already in use.

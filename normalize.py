@@ -18,6 +18,8 @@ Formats handled:
                is bit-for-bit what it was before this module existed.
   - rfc3164    "Jun 14 15:16:01 combo sshd(pam_unix)[19939]: message"
                (space-padded day, no year, no timezone, no level)
+  - loghub     Apache error_log, Java/log4j (Hadoop/ZK/Spark/HDFS/OpenStack),
+               BGL RAS, Thunderbird-prefixed syslog — sibling console/formats/loghub.py
 
 Lines that match neither are counted and surfaced — never silently dropped.
 
@@ -52,6 +54,10 @@ try:
     import jsonlog  # noqa: E402
 except ImportError:
     jsonlog = None
+try:
+    import loghub  # noqa: E402
+except ImportError:
+    loghub = None
 
 
 # "Mon DD HH:MM:SS host proc[pid]: message" — day may be space-padded ("Jul  3").
@@ -149,6 +155,12 @@ def sniff_format(path, probe_lines=50):
     # variants so a syslog line that happens to be valid JSON is not stolen.
     if jsonlog is not None and jsonlog.sniff(path, probe_lines=probe_lines):
         return "jsonlog"
+    # Loghub application/supercomputer envelopes (Apache, log4j, BGL, Thunderbird).
+    # Strict majority sniff; cannot be produced by canonical or rfc3164 lines.
+    if loghub is not None:
+        lh = loghub.sniff(path, probe_lines=probe_lines)
+        if lh:
+            return lh
     canonical = rfc3164 = seen = 0
     with open(path, "r", errors="replace") as f:
         for line in f:
@@ -271,6 +283,12 @@ def load(path):
         records, p_stats = jsonlog.parse(path)
         unparsed = []  # parser counts them internally
         total = p_stats["total"]
+    elif fmt in ("apache", "log4j", "bgl", "thunderbird", "proxifier") and loghub is not None:
+        year, _mtime_month = infer_base_year(path)
+        base_year = year
+        records, unparsed, total = loghub.load(
+            path, fmt=fmt, base_year=year, level_fn=synthesize_level,
+        )
     else:
         records, unparsed, total = [], [], sum(
             1 for line in open(path, errors="replace") if line.strip())
