@@ -25,4 +25,4 @@ All frontend phases MUST consume these variables — never hardcode a hex.
 - Accent used sparingly (active nav, primary buttons, links, chart series highlight).
 - Honesty surfaces are DESIGN ELEMENTS — preserve verbatim: "severity is rule-owned",
   "derived · not a verdict", "advisory · hypothesis · not a verdict", verbatim evidence block,
-  "Rules set severity. I explain & prioritize — I don't decide." (copilot footer).
+  "Rules set severity. I interpret & explain — I don't decide." (copilot footer).
