@@ -449,10 +449,20 @@ in behind a progress bar. You never wait on the model to see what was found.
 ## 16. Checking the tool still works
 
 ```bash
+scripts/gate.sh                           # runs all three, keeps the output
+```
+
+or individually:
+
+```bash
 python3 tests/eval/run_eval.py            # 17/17 expected
 python3 threat_intel/test_threat_intel.py
 python3 console/test_console.py
 ```
+
+`scripts/gate.sh` writes every gate's full output to `gate-logs/<timestamp>/`
+and still exits non-zero when a gate fails — never redirect a gate to
+`/dev/null`, or a failure becomes unexplainable after the fact.
 
 All three run without network or AI. The first checks detection against a labeled
 corpus of planted attacks and near-misses; the third checks the console renders

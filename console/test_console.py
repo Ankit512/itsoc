@@ -1913,11 +1913,25 @@ def check_soc_overview():
                 # --- routing (Phase E): the React SOC app owns / and /alerts;
                 #     the old vanilla pages moved to /legacy/*. (Full serve.py ->
                 #     web/dist coverage is in check_serve_react.) --------------
-                check("/ serves the React SOC app, not the old vanilla overview",
-                      'id="root"' in get("/", raw=True)
-                      and "security operations" not in get("/", raw=True))
-                check("/alerts serves the React app (SPA route), not the vanilla console",
-                      'id="root"' in get("/alerts", raw=True))
+                #
+                # web/dist is a build artefact and is deliberately NOT tracked
+                # (see docs/STAGE_C_CLOSEOUT.md). Without it serve.py answers
+                # "/" with 503, and an unguarded get("/") raised an uncaught
+                # HTTPError here that aborted the whole suite mid-run: every
+                # later check went untested while the process merely exited 1.
+                # A gate must not lose its own coverage that way, so the two
+                # dist-dependent checks report an explicit NOT TESTED skip --
+                # never a silent pass, and never a suite-killing traceback.
+                # check_serve_react uses this same honest-skip pattern.
+                if (serve.WEB_DIST / "index.html").exists():
+                    check("/ serves the React SOC app, not the old vanilla overview",
+                          'id="root"' in get("/", raw=True)
+                          and "security operations" not in get("/", raw=True))
+                    check("/alerts serves the React app (SPA route), not the vanilla console",
+                          'id="root"' in get("/alerts", raw=True))
+                else:
+                    print("  [SKIP] / and /alerts React routing — NOT TESTED: "
+                          "web/dist not built (run `cd web && npm run build`)")
                 check("/legacy/overview.html still serves the old SOC Overview",
                       "security operations" in get("/legacy/overview.html", raw=True))
                 check("/legacy/alerts + /legacy/anomaly_console.html serve the review console",
