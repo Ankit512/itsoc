@@ -24,7 +24,7 @@ Orca listed the first D2-UI dispatch as failed (`agent_prompt_stalled` after wor
 | Eval | 19/19 |
 | `console/test_console.py` (worktree, pre-D2-API base) | EXIT=0 |
 | Screenshots | `/tmp/itsoc-d2/screenshots/01_idle_light.png` … `06_error_light.png` (idle/populated/running/error; light+dark for idle+populated) |
-| Live `/api/efficacy` | worker marked **NOT TESTED** (API was on the parallel D2-API branch). Honest. D2-API is now on `main`. |
+| Live `/api/efficacy` | **tested 2026-08-30** (`docs/STAGE_D_REPORTS/D2-live-check.md`). GET idle → POST 202 running (`run` null) → done with real harness JSON; SPA Reports rendered the three canonical rows. |
 
 ## Logged deviations
 

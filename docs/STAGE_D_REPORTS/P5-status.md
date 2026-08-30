@@ -9,4 +9,4 @@ Post-C prompt: *report status, do not execute without a new ruling.* No ruling w
 | Tauri desktop conversion | **Parked.** Awaits its own scope doc. |
 | Uncharacterised `test_console.py` exit=1 | **Parked / self-characterising.** Gate hygiene merged (`eec463d`); the discarded `/dev/null` output cannot be recovered. Next occurrence keeps its log. |
 
-P3 D0–D3 accepted. P4 superseded and ratified (Docker instead of OPNsense). Floor stood down 2026-08-30. Parked items remain parked; **nothing further without a new scope doc from the owner.**
+P3 D0–D3 accepted. P4 superseded and ratified. Live `/api/efficacy` tested 2026-08-30. Floor mothballed 2026-08-30. Parked items remain parked; **reactivation requires a new scope doc from the owner.**

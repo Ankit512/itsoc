@@ -63,7 +63,7 @@ A scripted demo run twice from genuinely fresh stores against a live container: 
 ### Stage D (in flight)
 - [x] **D0** generator promotion — merged `985ff4c`.
 - [x] **D1** efficacy harness — merged `58a73df`.
-- [x] **D2** Reports efficacy surface — API `5d3720b` + UI `22bb8d5`. Scope sentence on the artefact; pass-through scores; idle/running/error honest. Live `/api/efficacy` was NOT TESTED on the UI card (API was parallel).
+- [x] **D2** Reports efficacy surface — API `5d3720b` + UI `22bb8d5`. Scope sentence on the artefact; pass-through scores; idle/running/error honest. Live `/api/efficacy` **tested 2026-08-30** (endpoint + SPA).
 - [x] **D3** battle-card + CITATIONS provenance — merged `277daaa`, ceiling framing added. Harness scenario-level P/R/F1 beside arXiv; all-1.0 is regression proof on in-class scenarios, not a general-efficacy claim.
 - [x] **P4** OPNsense adapter — **superseded**. Owner: D-2 was Docker **instead of** OPNsense. Connector already shipped (`ssh_firewall.py` + `demo/target/`). Returns only if reopened as a named extra.
 
