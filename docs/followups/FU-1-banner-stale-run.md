@@ -37,7 +37,9 @@ Do not edit `anomaly_detector.py`. Do not change severity or verdict.
 
 ## Acceptance
 
-- [ ] When the latest ingest is unrecognized **and** the selected run is still a previous parsed run, the KPI block carries the context line above.
-- [ ] When the selected run *is* the unrecognized one, existing behaviour stands: banner first, counts explained as zero-because-unparsed (`Overview.tsx` already has that paragraph).
-- [ ] A test covers both states. Mutation: drop the context line → the new test fails.
-- [ ] Detector sha unchanged.
+- [x] When the latest ingest is unrecognized **and** the selected run is still a previous parsed run, the KPI block carries the context line above.
+- [x] When the selected run *is* the unrecognized one, existing behaviour stands: banner first, counts explained as zero-because-unparsed (`Overview.tsx` already has that paragraph).
+- [x] A test covers both states. Mutation: drop the context line → the new test fails.
+- [x] Detector sha unchanged.
+
+**Closed** 2026-08-30. `a3bdf32` / merge `93fbd4c`. OPEN-12(a).
