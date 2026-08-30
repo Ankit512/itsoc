@@ -54,7 +54,7 @@ export function RunHistory() {
       {open && (
         <section
           aria-label="Run history"
-          className="absolute right-0 top-full z-50 mt-2 w-[420px] max-w-[calc(100vw-40px)] rounded-lg bg-card p-4 shadow-[0_12px_32px_-8px_rgba(26,32,51,0.28)]"
+          className="absolute right-0 top-full z-50 mt-2 w-[420px] max-w-[calc(100vw-40px)] rounded-lg bg-card p-4 shadow-[var(--shadow-pop)]"
         >
           <div className="flex items-center gap-2">
             <div className="text-sm font-semibold">Run history</div>

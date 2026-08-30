@@ -308,7 +308,7 @@ export function CopilotRail({
       data-testid="copilot-rail"
       className={cn(
         "flex flex-col gap-3 rounded-lg border bg-card p-4 text-[13px] shadow-sm",
-        docked ? "h-full w-full" : "max-h-[min(620px,calc(100vh-100px))] w-[360px] shadow-[0_12px_32px_-8px_rgba(26,32,51,0.28)]",
+        docked ? "h-full w-full" : "max-h-[min(620px,calc(100vh-100px))] w-[360px] shadow-[var(--shadow-pop)]",
         className,
       )}
     >
