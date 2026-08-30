@@ -19,6 +19,10 @@
 
 Logged: commit message contains a literal `\n\n`; not a claim defect. Audited tree is `06a7b98` (measurement base) plus harness landing `58a73df`.
 
+## Ceiling framing (required addition, self-ratified 2026-08-30)
+
+All-1.0 across three scenarios with zero misses is a ceiling. The battle-card block and the Reports harness surface now state explicitly: these scenarios are drawn from the same attack classes the rules were written for — the expected result is perfection, and its value is regression proof (any future score below 1.0 is a detected regression), not a general-efficacy claim. Frozen `scope` JSON field unchanged.
+
 ## Next
 
-P3 complete (D0–D3). P4 superseded. **P5 is report-only** until a new ruling (auth PARKED.md, Tauri, uncharacterised `test_console.py` exit=1).
+P3 complete (D0–D3). P4 superseded (ratified). Floor stood down. Parked items remain parked; nothing further without a new scope doc from the owner.

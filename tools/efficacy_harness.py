@@ -45,6 +45,14 @@ SCOPE_SENTENCE = (
     "measured against synthetic ground-truth scenarios; "
     "not a claim about production traffic."
 )
+# Travels with the artefact beside SCOPE_SENTENCE. Does not replace it, and is
+# not a JSON `scope` field — that contract stays the original sentence.
+CEILING_SENTENCE = (
+    "These scenarios are drawn from the same attack classes the rules were "
+    "written for — the expected result is perfection, and its value is "
+    "regression proof (any future score below 1.0 is a detected regression), "
+    "not a general-efficacy claim."
+)
 
 _LINE_RANGE = re.compile(r"lines?\s*:?\s*(\d+)\s*(?:-|–|—|to)\s*(\d+)", re.IGNORECASE)
 _LINE_LIST = re.compile(r"lines?\s*:?\s*(\d+(?:\s*,\s*\d+)*)", re.IGNORECASE)
@@ -286,6 +294,7 @@ def render(summary: dict[str, Any]) -> str:
     lines = [
         f"Efficacy harness — run {summary['run_date']}",
         f"Scope: {summary['scope']}",
+        CEILING_SENTENCE,
         f"Pipeline: {summary['pipeline']}",
         "",
     ]

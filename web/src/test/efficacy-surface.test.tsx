@@ -13,6 +13,7 @@ import type { EfficacyResponse } from "@/lib/api";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const SCOPE_SENTENCE = "measured against synthetic ground-truth scenarios; not a claim about production traffic.";
+const CEILING_SENTENCE = "These scenarios are drawn from the same attack classes the rules were written for — the expected result is perfection, and its value is regression proof (any future score below 1.0 is a detected regression), not a general-efficacy claim.";
 
 const MOCK_DONE_RUN: EfficacyResponse = {
   status: "done",
@@ -127,6 +128,7 @@ describe("Efficacy surface on Reports", () => {
     await screen.findByTestId("efficacy-idle");
     const scopeEls = screen.getAllByText(SCOPE_SENTENCE);
     expect(scopeEls.length).toBeGreaterThan(0);
+    expect(screen.getByTestId("efficacy-ceiling")).toHaveTextContent(CEILING_SENTENCE);
   });
 
   it("running: shows honest running state with no fabricated scores", async () => {

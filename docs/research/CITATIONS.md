@@ -40,10 +40,11 @@ sentence relied on** — so a reader can check whether the document represents t
 - **What it is evidence FOR:** detector behaviour on these generated attack-chain scenarios; it is
   not evidence about production traffic and is not a measurement of the arXiv C-1 benchmark.
 - **How it MUST be represented — binding:** always include the exact sentence
-  `measured against synthetic ground-truth scenarios; not a claim about production traffic.` Never
-  present the result as production efficacy, never merge it with the 19-case `tests/eval` score, and
-  never use it as a substitute for C-1. Scenario totals do not assert that every individual rule had
-  perfect recall.
+  `measured against synthetic ground-truth scenarios; not a claim about production traffic.`
+  An all-1.0 / zero-miss result is a **ceiling**. These scenarios are drawn from the same attack classes the rules were written for — the expected result is perfection, and its value is regression proof (any future score below 1.0 is a detected regression), not a general-efficacy claim.
+  Never present the result as production efficacy, never merge it with the 19-case `tests/eval`
+  score, and never use it as a substitute for C-1. Scenario totals do not assert that every
+  individual rule had perfect recall.
 
 ---
 

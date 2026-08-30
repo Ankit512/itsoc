@@ -10,6 +10,8 @@ The post-C execution prompt listed P4 as `console/actions/opnsense.py` behind `p
 
 The Stage C D-2 amendment was a **shift to Docker instead of OPNsense**, not a deferral of OPNsense into Stage D.
 
+**Ratified 2026-08-30:** the connector interface plus `ssh_firewall.py` satisfied the reference-adapter obligation. OPNsense remains the on-demand follow-on it was always designated as.
+
 The reference write-connector already shipped in C3: `console/actions/ssh_firewall.py` against `demo/target/` (nftables-over-SSH, key auth, block/unblock IP, tagged revoke). Runbooks bind `"ssh_firewall"` / `"firewall"`. `console/actions/opnsense.py` was never created.
 
 ## Consequence

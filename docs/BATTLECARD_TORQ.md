@@ -73,6 +73,8 @@ In accordance with repo standards, every numerical figure is verified against in
 
 **Scope:** measured against synthetic ground-truth scenarios; not a claim about production traffic.
 
+These scenarios are drawn from the same attack classes the rules were written for — the expected result is perfection, and its value is regression proof (any future score below 1.0 is a detected regression), not a general-efficacy claim.
+
 The following are **scenario-level** totals from the three canonical scenarios. They do not mean every individual rule achieved perfect recall; the harness can attribute a malicious line to multiple rules.
 
 | Scenario | Format | Precision | Recall | F1 | Malicious lines detected | Miss count |
