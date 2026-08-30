@@ -21,8 +21,9 @@ Report: `docs/STAGE_D_REPORTS/P2-followups.md`.
 - FU-2 `e4b0712` / merge `326b436` — TOKENS.md footer aligned to the live product string after confirming grep.
 - FU-1 `a3bdf32` / merge `93fbd4c` — KPI context line; web 206/206.
 
-## P3 · D0 dispatched 2026-08-30 — not yet accepted
+## P3 · D0 dispatched 2026-08-30 — ACCEPTED same day
 
-Report: `docs/STAGE_D_REPORTS/D0-dispatch.md`.
-Codex `task_f16ed2ca7392` / `ctx_85c74e21f2d5` in worktree `d0-attack-generator`.
-Scoreboard: Codex 1 in-flight · Antigravity 0 (D2 reserved).
+Dispatch report: `docs/STAGE_D_REPORTS/D0-dispatch.md`.
+Acceptance: `docs/STAGE_D_REPORTS/D0-accepted.md`.
+Codex `43ff064` / merge `985ff4c`. 5/5 tests, eval 19/19, detector frozen.
+Scoreboard: Codex 1/1 accepted · Antigravity 0 (D2 reserved). D1 next.
