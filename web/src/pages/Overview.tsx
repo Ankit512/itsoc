@@ -10,6 +10,7 @@ import { TacticBars } from "@/components/charts/TacticBars";
 import { OpsMetrics } from "@/components/OpsMetrics";
 import { UnrecognizedBanner } from "@/components/UnrecognizedBanner";
 import { useUi } from "@/store/ui";
+import { useJobs } from "@/store/jobs";
 
 /** How many Latest-alerts rows to show before "Show more" expands the rest. */
 const LATEST_COLLAPSED = 5;
@@ -32,10 +33,16 @@ export function Overview() {
   // in /api/overview — needed to tell "nothing parsed" from "nothing found".
   const { data: state } = useQuery({ queryKey: ["consoleState"], queryFn: api.consoleState });
   const setTimeWindow = useUi((s) => s.setTimeWindow);
+  const latestIngest = useJobs((s) => s.current);
   const [expanded, setExpanded] = useState(false);
 
   const overview = data && !("error" in data) ? (data as OverviewData) : null;
   const unparsed = !!state && !state.idle && (!!state.unrecognized || !!state.emptyInput);
+  // Latest ingest can be unrecognized while the selected run is still a
+  // previous parsed one (toast + KPIs). The banner would then contradict
+  // the populated dashboard. Say so on the KPI block; do not swap the run.
+  const showingPreviousAfterUnrecognized =
+    !!latestIngest && latestIngest.kind === "done" && !!latestIngest.unrecognized && !unparsed;
   useEffect(() => {
     if (overview?.timeWindowLabel) setTimeWindow(overview.timeWindowLabel);
   }, [overview?.timeWindowLabel, setTimeWindow]);
@@ -93,6 +100,12 @@ export function Overview() {
             <span title={state.llmNote}> · rules-only run — explanations skipped (model offline)</span>
           )}
         </div>
+      )}
+
+      {showingPreviousAfterUnrecognized && (
+        <p className="is-mut" style={{ fontSize: 12 }} data-testid="kpi-previous-run-note">
+          showing previous run — latest upload unrecognized
+        </p>
       )}
 
       <div className="is-kpis">
