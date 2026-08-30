@@ -46,3 +46,9 @@ Setup skipped on both (pnpm hook unused). Parked stays parked. D2/D3/P4 not star
 13/13 including adversarial miss + import-graph mutation guard.
 
 Scoreboard: Codex 2/2 accepted · Claude 1/1 accepted · Antigravity 0 (D2 next).
+
+## P3 · D2 dispatched 2026-08-30 — not yet accepted
+
+Report: `docs/STAGE_D_REPORTS/D2-dispatch.md`.
+- D2-API Claude `task_97782a9db4a7` / `ctx_8ac86e539478` (heartbeat implementing).
+- D2-UI Antigravity `task_b19bfdc1ab74`: Orca `agent_prompt_stalled` after workspace-trust; spec landed and the agent is working. Accept on worktree delivery, not the failed flag.
