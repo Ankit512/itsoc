@@ -9,13 +9,33 @@ and [`PROJECT_HANDOFF.md`](PROJECT_HANDOFF.md) for the technical picture.
 1. **One branch per change.** Work on a topic branch (e.g. `t5-json-format`), not directly on
    `main`. Keep history linear where possible.
 
-2. **Run the tests before every commit — they must be green.**
+2. **Run the tests before every commit — they must be green.** Use the canonical gate:
+   ```bash
+   scripts/gate.sh          # all python gates + the detector freeze
+   scripts/gate.sh --web    # ...and the web/ vitest + build gates
+   ```
+   It runs the three suites below, keeps every byte of their output in
+   `gate-logs/<timestamp>/`, and exits non-zero if any of them failed.
    ```bash
    python3 tests/eval/run_eval.py            # expect: 15/15, exit 0
    python3 threat_intel/test_threat_intel.py # expect: exit 0
    python3 console/test_console.py           # console render smoke test, exit 0
    ```
    CI runs all three on every push and pull request, headless (no network, no model). Don't push red.
+
+   **Never redirect a gate to `/dev/null`, and never pipe one to `tee` without
+   recovering `${PIPESTATUS[0]}`.** A gate exists to produce evidence; one that
+   discards its own output turns a real failure into a permanently unanswerable
+   question. That is not hypothetical here — it cost this project one
+   `test_console.py` failure whose cause can now never be known
+   (`docs/STAGE_C_CLOSEOUT.md` §7). `scripts/gate.sh` exists so nobody has to
+   hand-roll the redirection again.
+
+   `console/test_console.py` needs a **populated** tree to reach exit 0: build
+   `web/dist` (`cd web && npm run build`) or the React routing checks report
+   `NOT TESTED`, and the `soc_history.db` migration gate needs a real
+   `console/.soc/soc_history.db`. Both report themselves honestly rather than
+   passing silently.
 
 3. **The detector is effectively frozen.** `anomaly_detector.py` is the validated core; the
    pristine original is preserved in `archive/anomaly_detector_original.py`. Do **not** edit

@@ -71,3 +71,6 @@ agents/
 # visible in `git status` as the owner's inspection copy.
 /tools/efficacy_score.py
 /tools/efficacy_data/
+
+# gate evidence (scripts/gate.sh) — kept locally, never committed
+gate-logs/
