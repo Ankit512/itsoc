@@ -72,6 +72,55 @@ describe("FIX B — notifier says 'couldn't parse', not 'analyzed — 0 findings
   });
 });
 
+describe("FU-1 — KPI context line when latest ingest is unrecognized over a previous run", () => {
+  beforeEach(() => useJobs.getState()._reset());
+
+  it("names the previous run on the KPI block when the latest upload did not parse", async () => {
+    mockFetch({
+      "/api/overview": OVERVIEW,
+      "/api/metrics": { openIncidents: 0, mttaSeconds: null, mttaBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 },
+      "/console_state.json": consoleState([], { unrecognized: false, linesParsed: 2000, linesUnparsed: 0 }),
+    });
+    useJobs.setState({
+      current: {
+        id: 1,
+        file: "junk.html",
+        kind: "done",
+        unrecognized: true,
+        startedAt: 1,
+        message: "Couldn't parse junk.html — 0 of 12 lines recognized (unsupported format).",
+      },
+    });
+    renderApp(<App />);
+    expect(await screen.findByTestId("kpi-previous-run-note"))
+      .toHaveTextContent("showing previous run — latest upload unrecognized");
+    // Selected run is still parsed: no unrecognized banner, KPIs stay populated.
+    expect(screen.queryByText(/Log format not recognized/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/nothing was parsed/i)).not.toBeInTheDocument();
+  });
+
+  it("does not claim a previous run when the selected run itself is unrecognized", async () => {
+    mockFetch({
+      "/api/overview": ZERO_OVERVIEW,
+      "/api/metrics": { openIncidents: 0, mttaSeconds: null, mttaBasis: 0, mttrSeconds: null, mttrBasis: 0, assetsAtRisk: 0, usersAtRisk: 0, dataSources: 1 },
+      "/console_state.json": consoleState([], { unrecognized: true, linesParsed: 0, linesUnparsed: 598 }),
+    });
+    useJobs.setState({
+      current: {
+        id: 2,
+        file: "junk.html",
+        kind: "done",
+        unrecognized: true,
+        startedAt: 1,
+        message: "Couldn't parse junk.html — 0 of 598 lines recognized (unsupported format).",
+      },
+    });
+    renderApp(<App />);
+    expect(await screen.findByText(/Log format not recognized/)).toBeInTheDocument();
+    expect(screen.queryByTestId("kpi-previous-run-note")).not.toBeInTheDocument();
+  });
+});
+
 describe("FIX C — github/gitlab blob URL -> raw file URL", () => {
   it("converts a github blob URL to raw.githubusercontent.com", () => {
     expect(rawFileUrl("https://github.com/logpai/loghub/blob/master/Linux/Linux_2k.log"))
