@@ -93,4 +93,21 @@ describe("Auth subsystem & login screen (Phase 6)", () => {
     expect(await screen.findByText(/already signed in/i)).toBeInTheDocument();
     expect(screen.getByText(/active profile:/i)).toBeInTheDocument();
   });
+
+  it("fails closed on stale-token 500 and network outage", async () => {
+    authLib.setToken("stale-token");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "backend failed" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    await expect(authLib.getMe()).resolves.toBeNull();
+    expect(authLib.getToken()).toBeNull();
+
+    authLib.setToken("stale-token-2");
+    vi.mocked(globalThis.fetch).mockRejectedValueOnce(new Error("offline"));
+    await expect(authLib.getMe()).resolves.toBeNull();
+    expect(authLib.getToken()).toBeNull();
+  });
 });

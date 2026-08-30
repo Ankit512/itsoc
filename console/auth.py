@@ -18,7 +18,9 @@ import abc
 import hashlib
 import hmac
 import json
+import os
 import secrets
+import tempfile
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -26,6 +28,10 @@ HERE = Path(__file__).resolve().parent
 SOC_DIR = HERE / ".soc"
 AUTH_FILE = "auth.json"
 SESSION_TTL_HOURS = 24
+
+
+class ProfileExistsError(ValueError):
+    """The single local profile has already been bootstrapped."""
 
 
 def _now():
@@ -77,7 +83,7 @@ class BaseAuthProvider(abc.ABC):
 
     @abc.abstractmethod
     def signup(self, username: str, passphrase: str, role: str = "analyst") -> tuple[dict, str]:
-        """Register or reset the profile. Returns (user_dict, token)."""
+        """Bootstrap the single profile. Returns (user_dict, token)."""
         pass
 
     @abc.abstractmethod
@@ -121,7 +127,23 @@ class LocalDemoAuth(BaseAuthProvider):
 
     def _save_profile(self, profile: dict):
         path = self._auth_path()
-        path.write_text(json.dumps(profile, indent=2))
+        payload = json.dumps(profile, indent=2)
+        # Credential records must not be left truncated after a crash and are
+        # private to the local user account.
+        fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+        try:
+            os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, path)
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
 
     def get_status(self) -> dict:
         profile = self._load_profile()
@@ -135,13 +157,16 @@ class LocalDemoAuth(BaseAuthProvider):
         }
 
     def signup(self, username: str, passphrase: str, role: str = "analyst") -> tuple[dict, str]:
+        if self._load_profile() is not None:
+            raise ProfileExistsError("Local demo profile already exists; sign in instead.")
         username = str(username or "").strip()
         if not username:
             raise ValueError("username cannot be empty")
         if len(passphrase or "") < 4:
             raise ValueError("passphrase must be at least 4 characters")
-        if role not in ("analyst", "admin", "viewer"):
-            role = "analyst"
+        # No RBAC exists in the local demo. Caller-selected roles would imply
+        # privileges that are neither implemented nor safe to self-assign.
+        role = "analyst"
 
         hashed, salt_hex = _hash_passphrase(passphrase)
         profile = {
@@ -161,9 +186,6 @@ class LocalDemoAuth(BaseAuthProvider):
         username = str(username or "").strip()
         profile = self._load_profile()
         if not profile:
-            # If no profile yet and logging in as analyst/admin, auto-seed demo profile for friction-free demos
-            if username in ("analyst", "admin", "demo") and passphrase:
-                return self.signup(username, passphrase, role="admin" if username == "admin" else "analyst")
             raise PermissionError("No local profile created yet. Please create a profile first.")
 
         if profile.get("username") != username:

@@ -4144,9 +4144,24 @@ def check_auth():
               st.get("hasProfile") is False and st.get("authType") == "local_demo")
 
         # 2. Signup stores salted hash, not plaintext
-        user, token = test_auth.signup("analyst", "supersecret123", role="analyst")
+        user, token = test_auth.signup("analyst", "supersecret123", role="admin")
         check("signup returns user dict and 64-hex session token",
               user.get("username") == "analyst" and user.get("role") == "analyst" and len(token) == 64)
+
+        takeover_refused = False
+        try:
+            test_auth.signup("attacker", "replacement-secret", role="admin")
+        except auth.ProfileExistsError:
+            takeover_refused = True
+        check("second signup cannot replace the sole profile", takeover_refused)
+
+        empty_auth = auth.LocalDemoAuth(soc_dir=Path(tmp) / "empty")
+        no_auto_seed = False
+        try:
+            empty_auth.login("admin", "self-appointed-admin")
+        except PermissionError:
+            no_auto_seed = True
+        check("login never auto-seeds an admin/profile", no_auto_seed)
 
         auth_json_path = tmp_soc / "auth.json"
         check("auth.json created in .soc directory", auth_json_path.exists())
@@ -4206,11 +4221,41 @@ def check_auth():
             except urllib.error.HTTPError as e:
                 return e.code, json.loads(e.read())
 
+        def raw_post(path, data, headers=None):
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{hport}{path}", data=data,
+                headers={"Connection": "close", **(headers or {})})
+            try:
+                with urllib.request.urlopen(req) as r:
+                    return r.status, json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read())
+
         try:
             # GET /api/auth/status
             s_code, s_data = http_get("/api/auth/status")
             check("GET /api/auth/status returns 200 with provider info",
                   s_code == 200 and s_data.get("hasProfile") is True)
+
+            takeover_code, _ = http_post(
+                "/api/auth/signup",
+                {"username": "attacker", "passphrase": "replacement-secret", "role": "admin"})
+            check("POST /api/auth/signup refuses existing-profile takeover with 409",
+                  takeover_code == 409, str(takeover_code))
+
+            cross_code, _ = raw_post(
+                "/api/auth/signup", b'{"username":"evil","passphrase":"replacement-secret"}',
+                {"Content-Type": "application/json", "Origin": "https://evil.example"})
+            check("cross-origin auth mutation is refused before profile handling",
+                  cross_code == 403, str(cross_code))
+
+            api_code, _ = http_get("/api/overview")
+            check("protected API GET rejects a missing token", api_code == 401, str(api_code))
+            bad_api_code, _ = http_get(
+                "/api/overview", headers={"Authorization": "Bearer stale-token"})
+            check("protected API GET rejects an invalid token", bad_api_code == 401, str(bad_api_code))
+            reset_code, _ = http_post("/api/reset", {})
+            check("protected mutating API POST rejects a missing token", reset_code == 401, str(reset_code))
 
             # POST /api/auth/login
             l_code, l_data = http_post("/api/auth/login", {"username": "analyst", "passphrase": "supersecret123"})
@@ -4222,6 +4267,10 @@ def check_auth():
             me_code, me_data = http_get("/api/auth/me", headers={"Authorization": f"Bearer {http_token}"})
             check("GET /api/auth/me returns 200 and user profile with Bearer token",
                   me_code == 200 and me_data.get("user", {}).get("username") == "analyst")
+            protected_code, _ = http_get(
+                "/api/overview", headers={"Authorization": f"Bearer {http_token}"})
+            check("protected API GET accepts a valid local session",
+                  protected_code == 200, str(protected_code))
 
             # GET /api/auth/me without token -> 401
             unauth_code, unauth_data = http_get("/api/auth/me")

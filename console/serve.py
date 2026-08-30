@@ -1276,21 +1276,54 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
 
     protocol_version = "HTTP/1.1"
 
-    def _send(self, body, content_type, status=200):
+    def _send(self, body, content_type, status=200, extra_headers=None):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "0")
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
-    def _json(self, obj, status=200):
-        self._send(json.dumps(obj).encode(), "application/json; charset=utf-8", status)
+    def _json(self, obj, status=200, extra_headers=None):
+        self._send(json.dumps(obj).encode(), "application/json; charset=utf-8", status,
+                   extra_headers=extra_headers)
+
+    def _auth_token(self):
+        auth_hdr = self.headers.get("Authorization", "")
+        if auth_hdr.startswith("Bearer "):
+            return auth_hdr[7:].strip()
+        for item in self.headers.get("Cookie", "").split(";"):
+            name, sep, value = item.strip().partition("=")
+            if sep and name == "itsoc_session":
+                return value
+        return self.headers.get("X-Auth-Token", "").strip()
+
+    @staticmethod
+    def _public_auth_path(path, method):
+        return ((method == "GET" and path in ("/api/auth/status", "/api/auth/me"))
+                or (method == "POST" and path in ("/api/auth/signup", "/api/auth/login")))
+
+    def _require_api_auth(self, path, method):
+        protected = path.startswith("/api/") or path == "/console_state.json"
+        if not protected or self._public_auth_path(path, method):
+            return True
+        # Before the one profile is bootstrapped there is no identity capable
+        # of authenticating; after bootstrap the API fails closed centrally.
+        if not auth.AUTH_PROVIDER.get_status().get("hasProfile"):
+            return True
+        if auth.AUTH_PROVIDER.authenticate_token(self._auth_token()):
+            return True
+        self._json({"error": "authentication required"}, 401)
+        return False
 
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
+        if not self._require_api_auth(path, "GET"):
+            return
         # The React SOC app now owns '/', '/alerts', and every client route
         # (served from web/dist by the SPA-fallback in _serve_web). The old
         # vanilla pages stay reachable under /legacy/* for existing bookmarks.
@@ -1449,6 +1482,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         global STATE, CURRENT_RUN_FILE
         path = urllib.parse.urlparse(self.path).path
+        if not self._require_api_auth(path, "POST"):
+            return
         if path == "/api/analyze":
             self._analyze()
         elif path == "/api/progress":
