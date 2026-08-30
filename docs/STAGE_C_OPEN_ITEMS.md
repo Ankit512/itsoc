@@ -512,7 +512,8 @@ recorded in the foreign-work inventory below for the owner's later keep/revert i
 reverted, not absorbed.
 
 ## Foreign-work inventory (non-Stage-C, for owner keep/revert inspection)
-- `tools/attack_generator.py` — untracked, appeared in the integration checkout from the concurrent
-  queue. Never read into Stage C, never reverted.
-- `web/dist/*` — tracked build artifacts, repeatedly dirtied by the concurrent queue and by any local
-  `npm run build`. Stage C never commits them; committed build output is a standing tripwire.
+- ~~`tools/attack_generator.py`~~ — **CLOSED 2026-08-30.** Owner: keep as a dev tool, gitignored.
+  Promotion bar (tests + isolation from any eval path) lives next to the ignore rule.
+  See `docs/POST_C_CHECKLIST.md`.
+- `web/dist/*` — **already untracked** (`de63f3a`). Ignored; committed build output remains a
+  standing tripwire.

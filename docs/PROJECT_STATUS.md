@@ -1,8 +1,8 @@
 # log-analyzer — Project status
 
-**As of 2026-08-30.** `main` = `origin/main` = `e9e96fa`. 326 commits since 2026-08-14. Everything below is verifiable in the repo; nothing here is aspirational.
+**As of 2026-08-30 (post-C checklist closeout).** Local `main` is ahead of `origin/main` (`da6eb21`): owner-gated merges `c2f7e75` (`fix/shadow-tokens`) and `eec463d` (`fix/gate-hygiene`). Everything below is verifiable in the repo; nothing here is aspirational.
 
-**Gates at time of writing:** web **201/201** across 39 files (declaration order and shuffled) · python `tests/` **38/38** · `console/test_console.py` exit 0 · deterministic eval **19/19**, F1 = 1.000 · detector sha `364577c5…` frozen and byte-identical throughout.
+**Gates at time of writing:** web **204/204** across 40 files on `fix/shadow-tokens` before merge · deterministic eval **19/19**, F1 = 1.000 · detector sha `364577c5…` frozen and byte-identical throughout. `console/test_console.py` still cannot reach exit 0 on a current tree — see below; the gate now preserves that evidence.
 
 ---
 
@@ -49,18 +49,19 @@ A scripted demo run twice from genuinely fresh stores against a live container: 
 
 ## Yet to be done
 
-### Blocked — needs a machine we do not have
-- [ ] **Live light/dark pixel pass against the mockups.** No browser exists in this environment. Every theme and fidelity claim is *structural* — tokens resolve, no hardcoded colours, palette confined. **Nothing establishes that anything actually looks right.** This is the single largest known gap.
+### Ready — filed cards, not started
+- [ ] **FU-1 · Banner over a stale dashboard** (`docs/followups/FU-1-banner-stale-run.md`). When the latest ingest is unrecognized, the banner and a still-populated previous-run KPI block contradict each other. Prescribed fix: a context line on the KPI block, *"showing previous run — latest upload unrecognized"*.
+- [ ] **FU-2 · Copilot footer copy drift** (`docs/followups/FU-2-copilot-footer-copy.md`). TOKENS.md says *"I explain & prioritize"*; product, tests, and the incident mockup say *"I interpret & explain"*. Grep the tree; one string in one commit. Default ruling is code-aligns-to-TOKENS.md unless the live line was deliberate — the grep currently says it was.
 
 ### Ready — small, understood, unblocked
-- [ ] **Three hardcoded shadow literals** (`CopilotRail.tsx:311`, `itsoc.css:370`, `itsoc.css:385`). A dark shadow renders wrong in light theme; a `--shadow` token already exists. Deliberately parked so a pre-existing fix would not hold a phase open.
-- [x] **`test_console.py` gate hygiene** — *done on `fix/gate-hygiene`.* The discarding `>/dev/null` lived in an **ad-hoc orchestrator shell command, not in any tracked file** — there was no committed gate script to fix, which is itself why the evidence was unrecoverable. Fixed by adding `scripts/gate.sh` as the canonical gate: it tees every gate's combined output to `gate-logs/<stamp>/<name>.log`, recovers the real exit status via `PIPESTATUS[0]` (plain `| tee` would have masked it), runs all gates rather than stopping at the first red, reports a skip as SKIP rather than rounding it to a pass, and verifies the detector freeze. **The original intermittent `exit=1` was NOT reproduced** in 32 runs (20 idle + 12 under full-core CPU load); its evidence is gone for good. Two *deterministic* environmental `exit=1` causes were found and characterised instead — see below.
+- [x] **Three hardcoded shadow literals** — merged `c2f7e75` (`fix/shadow-tokens`). Elevation is tokenised (`--shadow` / `--shadow-pop` / `--shadow-modal`); a source-level guard stops the literals coming back. Pixel-pass caveats are FU-1 and FU-2, not blockers.
+- [x] **`test_console.py` gate hygiene** — merged `eec463d` (`fix/gate-hygiene`). `scripts/gate.sh` is the canonical gate: tees combined output to `gate-logs/<stamp>/<name>.log`, recovers the real exit via `PIPESTATUS[0]`, runs every gate, reports SKIP rather than rounding it to a pass, verifies the detector freeze. **The original intermittent `exit=1` was NOT reproduced** in 32 runs; its evidence is gone. With output no longer discarded, the next occurrence characterises itself.
 - [ ] **`test_console.py` needs a populated tree to reach exit 0.** Two environmental failures, both reproducible 20/20 in a fresh worktree, neither a product defect: (1) **missing `web/dist`** (untracked build artefact) made `check_soc_overview`'s unguarded `get("/")` raise an uncaught `HTTPError: 503` that **aborted the suite mid-run**, leaving every later check untested behind a bare `exit=1` — now fixed to skip honestly as `NOT TESTED`, matching `check_serve_react`; (2) the **`soc_history.db` migration gate**, which turns out to be unsatisfiable by any tree we can build: with **no** db it fails `NOT TESTED` (already known — `docs/STAGE_C_CLOSEOUT.md` §127, deliberate); with a **real, already-migrated** db (copied from the live checkout, whose schema already carries `audit_index`) it fails differently — `the migration ADDS exactly audit_index — []` — because the migration has nothing left to add. **The check can only pass against a db that predates the migration.** So `console/test_console.py` cannot reach exit 0 on any current tree. Decide whether this gate should ship a pinned pre-migration fixture db, or report SKIP when the schema is already current.
-- [ ] **`tools/attack_generator.py`** — left untracked in the checkout awaiting owner inspection; keep or discard.
-- [ ] **`feat/redesign-integration`** carries a commit of parked, **unreviewed** work-in-progress (170 lines across auth, serve and tests) preserved during worktree cleanup. Review or delete.
+- [x] **`tools/attack_generator.py`** — kept as a **dev tool**, gitignored. Promotion bar is next to the ignore rule: tests plus an isolation rule keeping it out of any eval path. Closes the foreign-work inventory item.
+- [ ] **`feat/redesign-integration`** stays **parked, not killed.** Directionally right (no auto-bootstrap, atomic `0600` writes) but Codex's four findings are disqualifying as-is. Acceptance bar is `PARKED.md` on that branch; it only comes back through that list.
 
 ### Not defined
-- [ ] **There is no Stage D.** The build document ends at C5. Any further product work needs its scope written before it can be planned.
+- [ ] **There is no Stage D.** The build document ends at C5. The owner writes the scope doc before anything is dispatched.
 
 ---
 
@@ -68,8 +69,8 @@ A scripted demo run twice from genuinely fresh stores against a live container: 
 
 Stated plainly, because a status document that lists only wins is a sales document.
 
-1. **No visual verification was ever performed.** No browser was available. Structural conformance is not the same as looking correct.
-2. **One unexplained test failure** is recorded above and has not been root-caused.
+1. **The pixel pass was headless Chromium, not a designer sitting next to the mockup.** It ran 2026-08-30 on `fix/shadow-tokens` (Antigravity). Structural + screenshot evidence; two composition/copy caveats are FU-1 and FU-2. Antigravity also claimed a verbatim footer match that a tree grep disproved — see `docs/POST_C_CHECKLIST.md`.
+2. **One unexplained `test_console.py` exit=1** from Stage C closeout is still uncharacterised. The discarding `/dev/null` is gone (`scripts/gate.sh`); the lost failure cannot be recovered. The next occurrence will keep its output.
 3. **`INC-4a7f` is design-kit shorthand.** Real incident ids are `inc-<hash[:12]>`. Seeing `INC-4a7f` presented as a real id would indicate fabrication.
 4. **The arXiv 2604.19533 figure** (best frontier LLM flagged ~3.8% of malicious events; no model passed 50% per-tactic) is a **literature citation, never an in-repo measurement.** It must never be rounded, and never inverted into "LLMs miss 96%".
 5. **The demo timings (~1–2s) measure a machine-speed backend pipeline only** — no human think time, no UI rendering, no WAN transit. They are not a competitive speed claim.
@@ -84,3 +85,6 @@ Stated plainly, because a status document that lists only wins is a sales docume
 | `docs/C5_DEMO_RESULTS.md` | All six demo runs with per-stage timings and the scope boundary |
 | `docs/BATTLECARD_TORQ.md` | The competitive comparison, with its cut list |
 | `docs/C5_PREP.md` | Fresh-store reset procedure, KPI feasibility, collector reconnaissance |
+| `docs/POST_C_CHECKLIST.md` | Owner-gated leftover-list closeout: merges, filed cards, AG stall, audit-accuracy note |
+| `docs/followups/FU-1-banner-stale-run.md` | KPI context line when latest ingest is unrecognized over a previous run |
+| `docs/followups/FU-2-copilot-footer-copy.md` | One copilot honesty-footer string; grep the tree |
