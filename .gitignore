@@ -71,14 +71,5 @@ agents/
 /tools/efficacy_score.py
 /tools/efficacy_data/
 
-# tools/attack_generator.py — owner ruling 2026-08-30: KEEP-AS-DEV-TOOL.
-# Stdlib-only synthetic fixture generator; does not import anomaly_detector.py.
-# Ignored so it cannot contaminate eval (Codex: handwritten expected findings
-# on detector-shaped scenarios are useful for exploratory/dev checks only).
-# Promotion to product status requires (1) tests for every formatter and the
-# manifest and (2) an explicit isolation rule keeping its output out of any
-# eval path. Until then it stays a local dev tool, not a score.
-/tools/attack_generator.py
-
 # gate evidence (scripts/gate.sh) — kept locally, never committed
 gate-logs/
