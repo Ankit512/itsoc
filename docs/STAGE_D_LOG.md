@@ -20,3 +20,9 @@ Report: `docs/STAGE_D_REPORTS/P1-push.md`.
 Report: `docs/STAGE_D_REPORTS/P2-followups.md`.
 - FU-2 `e4b0712` / merge `326b436` — TOKENS.md footer aligned to the live product string after confirming grep.
 - FU-1 `a3bdf32` / merge `93fbd4c` — KPI context line; web 206/206.
+
+## P3 · D0 dispatched 2026-08-30 — not yet accepted
+
+Report: `docs/STAGE_D_REPORTS/D0-dispatch.md`.
+Codex `task_f16ed2ca7392` / `ctx_85c74e21f2d5` in worktree `d0-attack-generator`.
+Scoreboard: Codex 1 in-flight · Antigravity 0 (D2 reserved).
