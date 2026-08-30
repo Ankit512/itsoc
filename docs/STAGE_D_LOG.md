@@ -70,6 +70,13 @@ Scoreboard: Codex 2/2 · Claude 2/2 · Antigravity 1/1. D3 next.
 Owner: D-2 was a shift to Docker **instead of** OPNsense, not a follow-on still owed.
 `docs/STAGE_D_REPORTS/P4-superseded.md`. No dispatch. Docker connector already on `main` (`ssh_firewall.py` + `demo/target/`).
 
-## P3 · D3 dispatched 2026-08-30 — not yet accepted
+## P3 · D3 dispatched 2026-08-30 — ACCEPTED same day
 
-Report: `docs/STAGE_D_REPORTS/D3-dispatch.md`. Codex battle-card + CITATIONS. P5 stays parked.
+Dispatch: `docs/STAGE_D_REPORTS/D3-dispatch.md`.
+Acceptance: `docs/STAGE_D_REPORTS/D3-accepted.md`.
+Codex `1fd91a4` / merge `277daaa`. 3/3 honesty tests, eval 19/19, C-1 unrounded, C-2 repo evidence.
+Scoreboard: Codex 3/3 · Claude 2/2 · Antigravity 1/1.
+
+## P5 · Parked items — REPORT ONLY 2026-08-30
+
+`docs/STAGE_D_REPORTS/P5-status.md`. No dispatch. Auth / Tauri / uncharacterised gate failure stay parked until a new ruling.

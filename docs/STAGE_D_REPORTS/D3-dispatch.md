@@ -3,7 +3,7 @@
 **When:** 2026-08-30. **Run:** `run_2a9045b4270b`.
 **Task:** `task_04b490e78a68`. **Dispatch:** `ctx_c78fdf042039`.
 **Worker:** Codex in isolated worktree `d3-battlecard`.
-**Input:** accepted (`stage: input_accepted`). `--setup skip` (docs + stdlib unittest; pnpm hook unused).
+**Input:** accepted then **accepted on merge** `277daaa`. `--setup skip` (docs + stdlib unittest; pnpm hook unused).
 
 Assignment: Codex — doc integration. Evens peer-tier volume after Antigravity took D2-UI.
 
@@ -17,6 +17,6 @@ Run `python3 tools/efficacy_harness.py` (do not invent scores). Join scenario-le
 
 | Worker | Accepted | In flight |
 |---|---|---|
-| Codex | 2 (D0, MG-1) | 1 (D3) |
+| Codex | 3 (D0, MG-1, D3) | 0 |
 | Claude | 2 (D1, D2-API) | 0 |
 | Antigravity | 1 (D2-UI) | 0 |
