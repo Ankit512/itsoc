@@ -52,3 +52,8 @@ Scoreboard: Codex 2/2 accepted · Claude 1/1 accepted · Antigravity 0 (D2 next)
 Report: `docs/STAGE_D_REPORTS/D2-dispatch.md`.
 - D2-API Claude `task_97782a9db4a7` / `ctx_8ac86e539478` (heartbeat implementing).
 - D2-UI Antigravity `task_b19bfdc1ab74`: Orca `agent_prompt_stalled` after workspace-trust; spec landed and the agent is working. Accept on worktree delivery, not the failed flag.
+
+## P3 · D2-API accepted 2026-08-30
+
+`docs/STAGE_D_REPORTS/D2-API-accepted.md`. Claude `53000fa` / merge `5d3720b`.
+`check_efficacy_api` rc 0; eval 19/19. D2-UI still in flight.
