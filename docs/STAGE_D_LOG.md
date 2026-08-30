@@ -97,3 +97,11 @@ All-1.0 / zero-miss is a ceiling. Battle-card §3.1a and the Reports harness sur
 | Antigravity | D2-UI Reports surface |
 
 P1–P3 complete. P4 superseded (ratified). P5 report-only. Parked items remain parked. **Nothing further without a new scope doc from the owner.** Floor stood down. This log is closed.
+
+## D2 live check — ACCEPTED 2026-08-30 (self-ratified)
+
+`docs/STAGE_D_REPORTS/D2-live-check.md`. GET/POST `/api/efficacy` on `main` returned a real harness run (`2026-08-30T17:51:36+00:00`); Reports SPA rendered it. The UI-card NOT TESTED label is flipped. The other three leftovers stay honest: `web/dist` 503 (correct-by-design), mockup footer (design-kit), pixel pass (headless, not designer-reviewed).
+
+## Mothball — 2026-08-30
+
+Owner: final state accepted; floor stands down. Reactivation requires a **new scope doc from the owner.** Parked items remain parked. This log is mothballed.
