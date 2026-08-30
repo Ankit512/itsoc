@@ -341,6 +341,141 @@ def detect_windows_extra(records):
     return anomalies
 
 
+CBS_HRESULT_RE = re.compile(
+    r"HRESULT\s*=\s*(0x[0-9a-fA-F]+)(?:\s*-\s*([A-Z][A-Z0-9_]+))?",
+    re.I,
+)
+CBS_FAIL_RE = re.compile(
+    r"\b(failed|failure|error|corrupt|exception|unable to)\b",
+    re.I,
+)
+CBS_STORE_HRESULT_RE = re.compile(r"^(?:CBS_E_|CSI_E_|SPAPI_E_)", re.I)
+CBS_VOLUME_HIGH = 10
+
+
+def _is_windows_cbs(record):
+    ch = str(_field(record, "channel", "cbs_channel", default="") or "").upper()
+    return ch in {"CBS", "CSI", "DISM"}
+
+
+def _cbs_head(text):
+    head = CBS_HRESULT_RE.sub("", text)
+    head = re.sub(r"[A-Za-z]:\\[^\s,\]]+", "<path>", head)
+    head = re.sub(r"\s+", " ", head).strip(" :-[]")
+    return head[:96] or "servicing message"
+
+
+def detect_windows_cbs(records):
+    """Group CBS/CSI/DISM Fail/HRESULT/Warning bursts.
+
+    Record.level stays source-reported (Info stays Info). Severity here is
+    operational, from HRESULT/fail grouping — not an Event-Log ERROR rewrite
+    and not a claim of compromise. One finding per (channel, signature).
+    """
+    groups = defaultdict(list)
+    for r in records:
+        if not _is_windows_cbs(r):
+            continue
+        text = str(r.get("msg") or r.get("message") or "") or _raw(r)
+        source = str(r.get("level") or "").upper()
+        hm = CBS_HRESULT_RE.search(text)
+        is_fail = bool(hm) or bool(CBS_FAIL_RE.search(text))
+        is_warn_text = bool(re.search(r"\bwarning\b", text, re.I))
+        source_alert = source in {
+            "WARN", "WARNING", "ERROR", "ERR", "CRIT", "CRITICAL",
+        }
+        if not (is_fail or is_warn_text or source_alert):
+            continue
+        channel = str(_field(r, "channel", "cbs_channel", default="CBS") or "CBS").upper()
+        if hm:
+            code, name = hm.group(1), (hm.group(2) or "")
+            kind = "hresult"
+            sig = (name or code).upper()
+            extra = {"hresult": code, "hresult_name": name or code}
+        elif (is_warn_text or source in {"WARN", "WARNING"}) and not is_fail:
+            kind = "warning"
+            sig = _cbs_head(text)
+            extra = {}
+        else:
+            kind = "failure"
+            sig = _cbs_head(text)
+            extra = {}
+        groups[(kind, channel, sig)].append((r, extra, source))
+
+    rank = {
+        "CRIT": 4, "CRITICAL": 4,
+        "ERROR": 3, "ERR": 3,
+        "WARN": 2, "WARNING": 2,
+        "INFO": 0, "INFORMATION": 0, "DEBUG": 0, "VERBOSE": 0,
+    }
+    anomalies = []
+    for (kind, channel, sig), hits in sorted(
+        groups.items(), key=lambda kv: (-len(kv[1]), kv[0])
+    ):
+        recs = [h[0] for h in hits]
+        extras = hits[0][1]
+        worst = max(rank.get(h[2], 0) for h in hits)
+        n = len(recs)
+        first, last = _line(recs[0]), _line(recs[-1])
+        if worst >= 4:
+            sev = "critical"
+        elif worst >= 3:
+            sev = "high"
+        elif kind == "hresult":
+            name = str(extras.get("hresult_name") or sig)
+            if CBS_STORE_HRESULT_RE.match(name) and n >= CBS_VOLUME_HIGH:
+                sev = "high"
+            else:
+                sev = "medium"
+        elif kind == "warning":
+            sev = "medium" if worst >= 2 else "low"
+        else:
+            sev = "medium"
+
+        atype = {
+            "hresult": "windows_cbs_hresult",
+            "warning": "windows_cbs_warning",
+            "failure": "windows_cbs_failure",
+        }[kind]
+        if kind == "hresult":
+            label = extras.get("hresult_name") or extras.get("hresult") or sig
+            summary = f"{channel} HRESULT {label} ×{n}"
+        elif kind == "warning":
+            summary = f"{channel} warning: {sig} ×{n}"
+        else:
+            summary = f"{channel} servicing failure: {sig} ×{n}"
+
+        entities = {
+            "channel": channel,
+            "occurrences": n,
+            "signature": sig,
+        }
+        entities.update(extras)
+        anomalies.append({
+            "severity": sev,
+            "type": atype,
+            "summary": summary,
+            "evidence": _raw(recs[0]),
+            "rationale": (
+                f"Grouped {n} CBS/CSI/DISM line(s) (lines {first}-{last}) sharing "
+                f"signature {sig!r}. Source-reported level is preserved on each "
+                "record; this severity is operational (servicing Fail/HRESULT), "
+                "not a Windows Event-Log ERROR and not a compromise verdict."
+            ),
+            "entities": entities,
+            "recommended_action": (
+                "Review the Windows component store (CBS.log / DISM), the named "
+                "HRESULT, and whether a pending reboot or corrupt package is "
+                "blocking servicing."
+            ),
+            "occurrences": n,
+            "timeline": [
+                {"line": _line(r), "message": _raw(r)[:300]} for r in recs[:8]
+            ],
+        })
+    return anomalies
+
+
 def detect_break_in_attempts(records):
     """Aggregate sshd reverse-DNS mismatch warnings by source IP."""
     by_ip = defaultdict(list)
@@ -538,6 +673,9 @@ def detect_infrastructure_alerts(records):
     """Catch high-signal security, availability and operational alerts across heterogeneous devices."""
     anomalies = []
     for r in records:
+        # CBS/CSI/DISM Fail/HRESULT is owned by detect_windows_cbs.
+        if _is_windows_cbs(r):
+            continue
         text = _all_text(r)
         if not text.strip():
             continue
@@ -701,6 +839,7 @@ def detect_extra(records):
     anomalies = []
     anomalies.extend(detect_break_in_attempts(records))
     anomalies.extend(detect_windows_extra(records))
+    anomalies.extend(detect_windows_cbs(records))
     anomalies.extend(detect_infrastructure_alerts(records))
     # The threat and IOC sweeps read the same text composition — build it once.
     texts = [_threat_text(r) for r in records]

@@ -871,6 +871,8 @@ def detect_input_format(path: Path):
         return "csv", encoding
     if _looks_like_windows_export(text.splitlines()):
         return "windows_event_text", encoding
+    if formats_universal._looks_like_windows_cbs(text.splitlines()):
+        return "windows_cbs", encoding
 
     # Content-based JSON detection even when the extension is .txt/.log.
     if text.startswith("{") or text.startswith("["):
@@ -981,6 +983,9 @@ def load_log_file(path: Path):
             return parse_xml_file(path, encoding)
         if fmt == "windows_event_text":
             return parse_windows_text(path, encoding)
+        if fmt == "windows_cbs":
+            recs, st = formats_universal.parse_windows_cbs(path, encoding)
+            return formats_universal._adapt_all(recs), st
         if fmt == "json":
             return parse_json_file(path, encoding)
         if fmt == "jsonl":
@@ -1023,10 +1028,10 @@ def dedupe_anomalies(anomalies):
     for a in anomalies:
         key = (a.get("type"), a.get("summary"))
         if key in seen:
-            seen[key]["occurrences"] += 1
+            seen[key]["occurrences"] += a.get("occurrences") or 1
         else:
             copy = dict(a)
-            copy["occurrences"] = 1
+            copy["occurrences"] = a.get("occurrences") or 1
             seen[key] = copy
             order.append(key)
     return [seen[k] for k in order]
@@ -1583,6 +1588,10 @@ def _generic_extra_anomalies(records):
         return []
     hits = {rid: [] for rid, *_ in _GENERIC_RULES}
     for rec in records:
+        # CBS/CSI/DISM Fail/HRESULT is owned by rules_syslog.detect_windows_cbs.
+        ch = str(rec.get("channel") or rec.get("cbs_channel") or "").upper()
+        if ch in {"CBS", "CSI", "DISM"}:
+            continue
         text = _record_text(rec)
         if not text:
             continue
