@@ -57,3 +57,10 @@ Report: `docs/STAGE_D_REPORTS/D2-dispatch.md`.
 
 `docs/STAGE_D_REPORTS/D2-API-accepted.md`. Claude `53000fa` / merge `5d3720b`.
 `check_efficacy_api` rc 0; eval 19/19. D2-UI still in flight.
+
+## P3 · D2-UI accepted 2026-08-30 — D2 complete
+
+`docs/STAGE_D_REPORTS/D2-UI-accepted.md`. Antigravity `dc16aa2` / merge `22bb8d5`.
+Vitest 215/215; scope sentence grepped; no client F1 math; screenshots in `/tmp/itsoc-d2/screenshots/`.
+Live `/api/efficacy` marked NOT TESTED by the worker (API was parallel; now on main).
+Scoreboard: Codex 2/2 · Claude 2/2 · Antigravity 1/1. D3 next.

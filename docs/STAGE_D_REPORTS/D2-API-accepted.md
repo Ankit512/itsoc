@@ -18,4 +18,4 @@
 | No P/R/F1 computed in serve.py | pass (asserted in the suite) |
 | Eval | 19/19 |
 
-D2-UI (Antigravity) still delivering; Orca task flag remains failed, worktree has Reports/api/tests dirty.
+D2-UI accepted `22bb8d5` (`docs/STAGE_D_REPORTS/D2-UI-accepted.md`). D2 complete.

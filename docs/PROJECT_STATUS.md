@@ -62,8 +62,8 @@ A scripted demo run twice from genuinely fresh stores against a live container: 
 
 ### Stage D (in flight)
 - [x] **D0** generator promotion — merged `985ff4c`.
-- [x] **D1** efficacy harness — merged `58a73df`. Next: **D2** surface (Antigravity).
-- [ ] **D2** Reports/Experimental efficacy table + miss list + scope sentence.
+- [x] **D1** efficacy harness — merged `58a73df`.
+- [x] **D2** Reports efficacy surface — API `5d3720b` + UI `22bb8d5`. Scope sentence on the artefact; pass-through scores; idle/running/error honest. Live `/api/efficacy` was NOT TESTED on the UI card (API was parallel).
 - [ ] **D3** battle-card + CITATIONS provenance.
 - [ ] **P4** OPNsense adapter (after D0–D1; live item BLOCKED if no box).
 
