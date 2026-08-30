@@ -2755,6 +2755,186 @@ def check_store():
     return 0 if all(results) else 1
 
 
+def check_efficacy_api():
+    """GET/POST /api/efficacy (console/efficacy_api.py + serve.py routing).
+
+    The console must never invent an efficacy number. This asserts the four
+    honest states of the frozen contract — idle with a null run, running with no
+    partial scores, done as a byte-for-byte pass-through of the harness JSON,
+    and error carrying the real backend reason — plus the guarantee that the
+    numbers came from a REAL harness invocation (which subprocesses the analyzer)
+    and that serve.py never imports the frozen detector to produce them.
+
+    The done case runs the actual harness against a temp store; the error and
+    already-running cases inject a runner so a failure is deterministic.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import http.server
+    import threading
+    import urllib.error
+    import efficacy_api
+    import serve
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nDetector efficacy API (/api/efficacy):")
+
+    real_soc = efficacy_api.SOC_DIR
+    try:
+        with tempfile.TemporaryDirectory(prefix="efficacy-api-test-") as tmp:
+            efficacy_api.SOC_DIR = Path(tmp) / ".soc"
+            efficacy_api.reset()
+
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+            def get(path):
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}") as r:
+                    return r.status, json.loads(r.read())
+
+            def post(path, obj):
+                req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}{path}", data=json.dumps(obj).encode(),
+                    headers={"Content-Type": "application/json"})
+                try:
+                    with urllib.request.urlopen(req) as r:
+                        return r.status, json.loads(r.read())
+                except urllib.error.HTTPError as e:
+                    return e.code, json.loads(e.read())
+
+            # --- idle: no run yet is said out loud, not implied by zeros ------
+            status, body = get("/api/efficacy")
+            check("GET /api/efficacy with nothing stored -> idle, run:null, error:null",
+                  status == 200 and body == {"status": "idle", "run": None, "error": None},
+                  json.dumps(body))
+
+            # --- a REAL harness run, end to end over HTTP ---------------------
+            code, accepted = post("/api/efficacy", {"scenarios": ["INC-4a7f"],
+                                                    "formats": ["canonical"]})
+            check("POST /api/efficacy -> 202 {status:running, run:null, error:null}",
+                  code == 202 and accepted == {"status": "running", "run": None, "error": None},
+                  f"{code} {json.dumps(accepted)}")
+
+            deadline = time.time() + 120
+            stayed_null = True
+            body = get("/api/efficacy")[1]
+            while body["status"] == "running" and time.time() < deadline:
+                stayed_null = stayed_null and body["run"] is None and body["error"] is None
+                time.sleep(0.05)
+                body = get("/api/efficacy")[1]
+            check("while running, no partial scores are fabricated (run stays null)",
+                  stayed_null)
+            check("POST then poll settles on done", body["status"] == "done",
+                  json.dumps(body)[:300])
+
+            run = body.get("run") or {}
+            check("run.scope is EXACTLY the frozen scope sentence",
+                  run.get("scope") == efficacy_api.SCOPE_SENTENCE, repr(run.get("scope")))
+            check("run.pipeline names the subprocess seam to the real analyzer",
+                  run.get("pipeline") == "log_analyzer.py --rules-only (subprocess)",
+                  repr(run.get("pipeline")))
+            check("scenarios are non-empty after a real harness invocation",
+                  isinstance(run.get("scenarios"), list) and len(run["scenarios"]) >= 1,
+                  str(run.get("scenarios"))[:200])
+            check("total_misses / total_false_positives are ints (0 is allowed)",
+                  isinstance(run.get("total_misses"), int)
+                  and isinstance(run.get("total_false_positives"), int)
+                  and not isinstance(run.get("total_misses"), bool),
+                  f"{run.get('total_misses')!r} {run.get('total_false_positives')!r}")
+            check("the run body carries exactly the contract keys",
+                  set(run) == {"run_date", "scope", "pipeline", "scenarios",
+                               "total_misses", "total_false_positives"}, str(sorted(run)))
+            check("GET body carries exactly {status, run, error}",
+                  set(body) == {"status", "run", "error"}, str(sorted(body)))
+
+            first = run["scenarios"][0]
+            check("each scenario keeps the harness's own totals/per_rule/misses",
+                  {"scenario", "format", "totals", "per_rule", "misses",
+                   "false_positives"} <= set(first), str(sorted(first)))
+            check("serve.py did not recompute the scores — precision/recall/f1 "
+                  "come straight from the harness",
+                  {"precision", "recall", "f1"} <= set(first["totals"]),
+                  str(sorted(first["totals"])))
+
+            # --- the last run survives a refresh (and a restart) --------------
+            check("the completed run is persisted under console/.soc/",
+                  (efficacy_api.SOC_DIR / "efficacy.json").exists())
+            efficacy_api.reset()                      # simulate a fresh process
+            status, reloaded = get("/api/efficacy")
+            check("a restarted server still reports done from the stored run",
+                  status == 200 and reloaded["status"] == "done"
+                  and reloaded["run"] == run, json.dumps(reloaded)[:200])
+
+            # --- error: the real reason, never a 200 with invented scores -----
+            efficacy_api.reset(forget_stored=True)
+
+            def boom(scenarios, formats):
+                raise RuntimeError("analyzer subprocess failed: exit 1")
+
+            efficacy_api.start(runner=boom, background=False)
+            status, errored = get("/api/efficacy")
+            check("a harness failure surfaces as status:error with the real reason",
+                  status == 200 and errored["status"] == "error"
+                  and "analyzer subprocess failed: exit 1" in (errored["error"] or ""),
+                  json.dumps(errored))
+            check("an errored run fills no table (run stays null)", errored["run"] is None)
+
+            # --- a second POST while one is in flight is refused, not queued --
+            efficacy_api.reset(forget_stored=True)
+            gate = threading.Event()
+
+            def slow(scenarios, formats):
+                gate.wait(30)
+                return {"run_date": "2026-08-30T00:00:00+00:00",
+                        "scope": efficacy_api.SCOPE_SENTENCE,
+                        "pipeline": "log_analyzer.py --rules-only (subprocess)",
+                        "scenarios": [], "total_misses": 0, "total_false_positives": 0}
+
+            efficacy_api.start(runner=slow)
+            in_flight = get("/api/efficacy")[1]
+            check("GET reports running with a null run while the harness works",
+                  in_flight == {"status": "running", "run": None, "error": None},
+                  json.dumps(in_flight))
+            code, busy = post("/api/efficacy", {})
+            check("a concurrent POST is refused with 409 and an honest reason",
+                  code == 409 and "already in flight" in (busy.get("error") or ""),
+                  f"{code} {json.dumps(busy)}")
+            gate.set()
+
+            # --- bad input is rejected, not silently coerced ------------------
+            efficacy_api.reset(forget_stored=True)
+            code, bad = post("/api/efficacy", {"scenarios": ["not-a-scenario"]})
+            check("an unknown scenario is a 400 with the offending name",
+                  code == 400 and "not-a-scenario" in (bad.get("error") or ""),
+                  f"{code} {json.dumps(bad)}")
+
+            srv.shutdown()
+
+        # --- the frozen-core fence ---------------------------------------
+        source = (HERE / "serve.py").read_text(encoding="utf-8")
+        helper = (HERE / "efficacy_api.py").read_text(encoding="utf-8")
+        check("serve.py never imports anomaly_detector",
+              "import anomaly_detector" not in source)
+        check("efficacy_api.py never imports anomaly_detector — the analyzer is "
+              "reached only through the harness's subprocess",
+              "import anomaly_detector" not in helper)
+        check("efficacy_api.py defines no scoring of its own — precision/recall/f1 "
+              "exist only in the harness output it passes through",
+              not any(f"def {name}" in helper for name in ("precision", "recall", "f1", "score")))
+    finally:
+        efficacy_api.SOC_DIR = real_soc
+        efficacy_api.reset()
+
+    return 0 if all(results) else 1
+
+
 def check_syslog():
     """The live syslog collector (console/syslog_collector.py + /api/syslog/*).
 
@@ -5238,6 +5418,7 @@ def main():
     export_ = check_export()
     react = check_serve_react()
     store_ = check_store()
+    efficacy_ = check_efficacy_api()
     syslog_ = check_syslog()
     discovery_ = check_discovery()
     ti_oem_ = check_ti_oem()
@@ -5261,7 +5442,7 @@ def main():
     actions_ = check_action_layer_and_firewall()
     if (result.returncode or routing or log360 or logcat_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
-            or store_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
+            or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
             or askview_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
             or investigate_ or advisory_ or orgctx_ or actions_):
@@ -5269,7 +5450,7 @@ def main():
         return 1
     print("\nPASSED — render + routing + log360 + logcat + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
-          "+ store + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
+          "+ store + efficacy-api + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
           "+ ask-view + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
           "+ inc-4a7f-scenario + investigation-engine + parallel-advisory + org-context-priority "

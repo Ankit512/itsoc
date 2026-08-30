@@ -57,6 +57,7 @@ sys.path.insert(0, str(HERE))
 import adapter  # noqa: E402
 import auth  # noqa: E402  # local demo auth + swap seam (Phase 6)
 import discovery  # noqa: E402  # nmap discovery + vuln scan -> store (socf-discovery)
+import efficacy_api  # noqa: E402  # /api/efficacy state (D2) — harness pass-through, no detector import
 import evtx_ingest  # noqa: E402  # Windows .evtx ingest -> store (socf-evtx-history)
 import export  # noqa: E402
 import investigate  # noqa: E402  # deterministic investigation engine (C2) — never waits on the LLM
@@ -1490,6 +1491,10 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json(soc.threat_intel_summary())
         elif path == "/api/metrics":
             self._json(soc.metrics(STATE, [r.get("label") for r in list_runs()]))
+        # --- detector efficacy (D2). Pass-through of the harness JSON; serve.py
+        # computes no precision/recall/F1 of its own and imports no detector.
+        elif path == "/api/efficacy":
+            self._json(efficacy_api.snapshot())
         # --- persistent SOC Command Center store (console/store.py) ---------
         elif path.startswith("/api/store/"):
             self._store_get(path)
@@ -1632,6 +1637,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             if STATE.get("idle"):
                 return self._json({"error": "no run to report on yet"}, 409)
             self._json(soc.generate_report(STATE))
+        elif path == "/api/efficacy":
+            self._start_efficacy()
         elif path == "/api/reset":
             STATE = {"idle": True}
             CURRENT_RUN_FILE = None
@@ -1668,6 +1675,25 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._update_org_context()
         else:
             self.send_error(405, "This console only accepts POST /api/analyze")
+
+    def _start_efficacy(self):
+        """POST /api/efficacy — kick off a harness run on a worker thread.
+
+        Routing only: the measurement itself lives in console/efficacy_api.py,
+        which drives tools/efficacy_harness.py (the analyzer runs as a
+        subprocess). Body is optional; {"scenarios": [...], "formats": [...]}
+        narrows the run.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            return self._json({"error": "invalid JSON body"}, 400)
+        if not isinstance(payload, dict):
+            return self._json({"error": "invalid JSON body"}, 400)
+        body, status = efficacy_api.start(
+            scenarios=payload.get("scenarios"), formats=payload.get("formats"))
+        self._json(body, status)
 
     def _update_org_context(self):
         length = int(self.headers.get("Content-Length") or 0)
