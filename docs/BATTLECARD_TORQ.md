@@ -1,6 +1,6 @@
 # Competitive Battlecard: itsoc vs. Torq (SOAR / Hyperautomation)
 
-**Audited Commit:** `fba046caec95a3d753047affa6a8c9b05eafca63` (`main` @ `fba046c`)  
+**Audited Commit:** `06a7b989996319bc6d0dd421af61d4399d6cdf75` (Stage D audited tree; harness landed at `58a73df`)
 **Document Purpose:** Grounded technical comparison for security architects and engineering leadership.  
 **Provenance & Fact-Checking Standard:** Every quantitative claim is backed by reproducible in-repo code/tests or pinned literature citations in `docs/research/CITATIONS.md`. All unbacked claims have been strictly cut.
 
@@ -66,6 +66,24 @@ In accordance with repo standards, every numerical figure is verified against in
 > - The figure is **never rounded**.
 > - The figure is **never inverted into "LLMs miss 96%"** (that represents an unsupported claim).
 > - **Evidence Context:** This benchmark substantiates why itsoc forbids LLMs from owning verdicts, severity, or triage decisions, keeping all core security logic deterministic.
+
+---
+
+### 3.1a Stage D Synthetic Efficacy Harness
+
+**Scope:** measured against synthetic ground-truth scenarios; not a claim about production traffic.
+
+The following are **scenario-level** totals from the three canonical scenarios. They do not mean every individual rule achieved perfect recall; the harness can attribute a malicious line to multiple rules.
+
+| Scenario | Format | Precision | Recall | F1 | Malicious lines detected | Miss count |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| `INC-4a7f` | `canonical` | 1.0 | 1.0 | 1.0 | 7 / 7 | 0 |
+| `failure-success` | `canonical` | 1.0 | 1.0 | 1.0 | 6 / 6 | 0 |
+| `error-burst` | `canonical` | 1.0 | 1.0 | 1.0 | 6 / 6 | 0 |
+
+**Three-scenario rollup (`INC-4a7f`, `failure-success`, `error-burst`):** 0 missed malicious lines and 0 false-positive findings. Run date: `2026-08-30T17:22:06+00:00`; pipeline: `log_analyzer.py --rules-only (subprocess)`; audited commit: `06a7b989996319bc6d0dd421af61d4399d6cdf75` (harness landing commit: `58a73df`). Reproduce with `python3 tools/efficacy_harness.py`; provenance and representation constraints are registered as C-2 in `docs/research/CITATIONS.md`.
+
+This harness measurement is separate from the **Evaluation Detection Score** below, which remains the result of `tests/eval/run_eval.py` over 19 canned cases; the two F1 measurements must not be collapsed.
 
 ---
 
