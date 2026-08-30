@@ -19,10 +19,15 @@ import hashlib
 import hmac
 import json
 import secrets
+import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+import fsafe  # noqa: E402  # atomic credential writes; same pattern as audit.py
+
 SOC_DIR = HERE / ".soc"
 AUTH_FILE = "auth.json"
 SESSION_TTL_HOURS = 24
@@ -139,7 +144,7 @@ class LocalDemoAuth(BaseAuthProvider):
 
     def _save_profile(self, profile: dict):
         path = self._auth_path()
-        path.write_text(json.dumps(profile, indent=2))
+        fsafe.atomic_write_text(path, json.dumps(profile, indent=2))
 
     def get_status(self) -> dict:
         profile = self._load_profile()

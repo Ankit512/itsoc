@@ -22,6 +22,7 @@ Usage:
 
 import inspect
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -4314,6 +4315,20 @@ def check_auth():
         saved_data = json.loads(saved_raw)
         check("stored hash is salted scrypt/pbkdf2 format",
               "$" in saved_data.get("hash", "") and len(saved_data.get("salt", "")) > 10)
+        check("auth.json is restricted to owner read/write",
+              os.stat(auth_json_path).st_mode & 0o777 == 0o600)
+
+        # Overwrite a deliberately broad existing file. A safe replacement must
+        # publish the complete new JSON at 0600 and clean up its temp file.
+        os.chmod(auth_json_path, 0o644)
+        replacement = dict(saved_data, role="replacement-test")
+        test_auth._save_profile(replacement)
+        check("auth profile overwrite publishes complete JSON",
+              json.loads(auth_json_path.read_text()) == replacement)
+        check("auth profile overwrite leaves no temp files",
+              not list(tmp_soc.glob("auth.json.*.tmp")))
+        check("auth profile overwrite replaces broad mode with 0600",
+              os.stat(auth_json_path).st_mode & 0o777 == 0o600)
 
         # 3. Token authentication
         authed_user = test_auth.authenticate_token(token)
@@ -6103,4 +6118,3 @@ def check_action_layer_and_firewall():
 
 if __name__ == "__main__":
     sys.exit(main())
-
