@@ -50,8 +50,8 @@ A scripted demo run twice from genuinely fresh stores against a live container: 
 ## Yet to be done
 
 ### Ready — filed cards, not started
-- [ ] **FU-1 · Banner over a stale dashboard** (`docs/followups/FU-1-banner-stale-run.md`). When the latest ingest is unrecognized, the banner and a still-populated previous-run KPI block contradict each other. Prescribed fix: a context line on the KPI block, *"showing previous run — latest upload unrecognized"*.
-- [ ] **FU-2 · Copilot footer copy drift** (`docs/followups/FU-2-copilot-footer-copy.md`). TOKENS.md says *"I explain & prioritize"*; product, tests, and the incident mockup say *"I interpret & explain"*. Grep the tree; one string in one commit. Default ruling is code-aligns-to-TOKENS.md unless the live line was deliberate — the grep currently says it was.
+- [x] **FU-1 · Banner over a stale dashboard** — merged `93fbd4c`. KPI block says *"showing previous run — latest upload unrecognized"* when the latest ingest is unrecognized and the selected run is still a previous parsed one. When the selected run itself is unrecognized, the existing banner stands and the new line is absent.
+- [x] **FU-2 · Copilot footer copy drift** — merged `326b436`. Confirming grep: product, tests, and the incident mockup pin *"I interpret & explain"*; TOKENS.md was amended to that string. Overview mockup still has an older "explain & prioritize" variant (out of this card).
 
 ### Ready — small, understood, unblocked
 - [x] **Three hardcoded shadow literals** — merged `c2f7e75` (`fix/shadow-tokens`). Elevation is tokenised (`--shadow` / `--shadow-pop` / `--shadow-modal`); a source-level guard stops the literals coming back. Pixel-pass caveats are FU-1 and FU-2, not blockers.

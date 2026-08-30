@@ -52,6 +52,8 @@ Logged in `docs/POST_C_CHECKLIST.md`.
 
 ## Acceptance
 
-- [ ] `rg "interpret & explain|explain & prioritize"` returns one wording everywhere it is the copilot/analyst honesty footer.
-- [ ] The test that pins the footer is updated in the same commit if the product string moves.
-- [ ] Detector sha unchanged.
+- [x] Confirming grep (2026-08-30): product + tests + incident mockup pin *"I interpret & explain"*. TOKENS.md was the remaining footer declaration that said *"I explain & prioritize"* and was amended to the live string. `docs/design/design_itsoc_overview.html` still has an older "Rules set **the** severity. I explain & prioritize" line — not the live footer; left alone as out of this light card.
+- [x] Product tests already pinned the live string; they did not move.
+- [x] Detector sha unchanged.
+
+**Closed** 2026-08-30. `e4b0712` / merge `326b436`. OPEN-12(a).
