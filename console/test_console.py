@@ -3827,6 +3827,65 @@ def check_formats_universal():
         check(f"empty + {m} -> 0 parsed, format 'empty' (honest empty report)",
               estats["parsed"] == 0 and estats["format"] == "empty" and detect(erecs) == [])
 
+    # --- Windows CBS/CSI: not CSV; source Info stays Info; Fail/HRESULT grouped
+    import log_analyzer as la
+    import rules_syslog as rs
+    CBS = FIX / "windows_cbs_slice.log"
+    brecs, bstats = fu.load_log_file(CBS)
+    check("CBS recognized as windows_cbs (not csv)",
+          bstats["format"] == "windows_cbs" and bstats["parsed"] == 16,
+          str((bstats["format"], bstats["parsed"])))
+    check("CBS records carry detector contract keys {n,ts,level,host,msg,raw}",
+          all(all(k in r for k in ("n", "ts", "level", "host", "msg", "raw")) for r in brecs))
+    fail_info = [r for r in brecs if "Failed to get next element" in r["msg"]]
+    check("CBS Fail/HRESULT lines keep source-reported INFO (not guessed ERROR)",
+          fail_info and all(r["level"] == "INFO" for r in fail_info),
+          str([r["level"] for r in fail_info]))
+    check("CBS raw is the verbatim source line (never fabricated)",
+          fail_info and fail_info[0]["raw"].startswith("2016-09-28")
+          and "CBS" in fail_info[0]["raw"]
+          and fail_info[0]["raw"] == open(CBS, encoding="utf-8").read().splitlines()[fail_info[0]["n"] - 1])
+    check("detect() runs on CBS records without crashing",
+          isinstance(detect(brecs), list))
+    cbs_anoms = rs.detect_windows_cbs(brecs)
+    types = sorted({a["type"] for a in cbs_anoms})
+    check("CBS Fail/HRESULT grouped into windows_cbs_* findings (not one-per-line)",
+          any(a["type"] == "windows_cbs_hresult" for a in cbs_anoms) and len(cbs_anoms) >= 4,
+          str([(a["type"], a["severity"], a["summary"]) for a in cbs_anoms]))
+    e_fail = next((a for a in cbs_anoms if str(a.get("entities", {}).get("hresult_name")) == "E_FAIL"), None)
+    check("CBS E_FAIL group is medium (Info-level HRESULT is not invented CRITICAL)",
+          e_fail is not None and e_fail["severity"] == "medium" and e_fail.get("occurrences") == 3,
+          str(e_fail))
+    src_err = next((a for a in cbs_anoms if "CBS_E_MISSING_PACKAGE_NAME" in str(a.get("summary"))), None)
+    check("source-reported CBS Error maps to high (rules own severity)",
+          src_err is not None and src_err["severity"] == "high",
+          str(src_err))
+    extra = rs.detect_extra(brecs)
+    check("CBS records skip generic infra_windows_low (dedicated CBS rule owns them)",
+          not any(str(a.get("type", "")).startswith("infra_") for a in extra),
+          str([a["type"] for a in extra]))
+    lrecs, lstats = la.load_log_file(CBS)
+    check("console loader (log_analyzer.load_log_file) also recognizes windows_cbs",
+          lstats["format"] == "windows_cbs" and lstats["parsed"] == 16,
+          str((lstats["format"], lstats["parsed"])))
+    generic = la._generic_extra_anomalies(lrecs)
+    check("generic_service_failed does not re-fire on CBS Fail lines",
+          not any(a.get("type") == "generic_service_failed" for a in generic),
+          str([a.get("type") for a in generic]))
+    volume = []
+    for i in range(12):
+        volume.append({
+            "n": i + 1, "ts": None, "level": "INFO", "host": "",
+            "channel": "CBS", "cbs_channel": "CBS",
+            "msg": "Failed to get next element [HRESULT = 0x800f080d - CBS_E_MANIFEST_INVALID_ITEM]",
+            "raw": "2016-09-28 04:30:31, Info  CBS  Failed to get next element [HRESULT = 0x800f080d - CBS_E_MANIFEST_INVALID_ITEM]",
+        })
+    vol_anoms = rs.detect_windows_cbs(volume)
+    check("CBS_E_* HRESULT ×12 is high (volume operational, still not CRITICAL)",
+          len(vol_anoms) == 1 and vol_anoms[0]["severity"] == "high"
+          and vol_anoms[0]["type"] == "windows_cbs_hresult",
+          str([(a["type"], a["severity"], a.get("occurrences")) for a in vol_anoms]))
+
     return 0 if all(results) else 1
 
 
@@ -4088,6 +4147,8 @@ def check_rules_parity():
     def ref_infra(records):
         anomalies = []
         for r in records:
+            if rs._is_windows_cbs(r):
+                continue
             text = rs._all_text(r)
             if not text.strip():
                 continue
@@ -4174,6 +4235,7 @@ def check_rules_parity():
         out = []
         out.extend(rs.detect_break_in_attempts(records))
         out.extend(rs.detect_windows_extra(records))
+        out.extend(rs.detect_windows_cbs(records))
         out.extend(ref_infra(records))
         out.extend(ref_threats(records))
         out.extend(ref_iocs(records))

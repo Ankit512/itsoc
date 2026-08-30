@@ -5,8 +5,9 @@ formats_universal.py — broadened multi-format ingestion, sibling to normalize.
 The project's native normalizer (`normalize.load`) stays the FIRST and
 authoritative parser: RFC 3164 syslog, logcat, log360 and friends are recognized
 there exactly as before. This module adds structured-format ingestion on top —
-JSON / JSONL / CSV / XML / HTML / Windows text exports / EVTX auto-detect, with
-encoding detection — for inputs the native layer does not recognize.
+JSON / JSONL / CSV / XML / HTML / Windows text exports / Windows CBS/CSI
+servicing logs / EVTX auto-detect, with encoding detection — for inputs the
+native layer does not recognize.
 
 Guardrails (why this module exists as a sibling, and what it must never do):
 
@@ -26,7 +27,7 @@ Guardrails (why this module exists as a sibling, and what it must never do):
         and detect() is fed NO synthetic records.
       - "force":  parse everything as generic text and let detect() run on it
         (no crash — records are adapted; no fabricated severity — level defaults
-        to INFO). Structured inputs are parsed in BOTH modes.
+        to INFO). Structured inputs (including windows_cbs) are parsed in BOTH modes.
   * Empty input is empty in both modes: the native "empty" stats pass straight
     through, so the caller still writes the honest "0 parsed / EMPTY INPUT"
     report.
@@ -46,12 +47,21 @@ import normalize  # native normalizer stays the first parser
 
 DEFAULT_MODE = os.environ.get("LOG_ANALYZER_UNRECOGNIZED_MODE", "force").strip().lower()
 STRUCTURED_FORMATS = {
-    "evtx", "xml", "windows_event_text", "json", "jsonl", "csv", "html",
+    "evtx", "xml", "windows_event_text", "windows_cbs", "json", "jsonl", "csv", "html",
 }
 
 WINDOWS_EVENT_START_RE = re.compile(
     r"^\s*(\d{1,2}/\d{1,2}/\d{4}\s+"
     r"\d{1,2}:\d{2}:\d{2}(?:[.,]\d+)?\s*(?:AM|PM)?)\s*$",
+    re.I,
+)
+# CBS.log / CSI / DISM Component-Based Servicing: "YYYY-MM-DD HH:MM:SS, Info  CBS  msg"
+# The comma after the timestamp is why csv.Sniffer false-positives these as CSV.
+WINDOWS_CBS_RE = re.compile(
+    r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?),\s+"
+    r"(?P<level>Info|Information|Warning|Error|Critical|Verbose)\s+"
+    r"(?P<channel>CBS|CSI|DISM)\s+"
+    r"(?P<msg>.*)$",
     re.I,
 )
 KEY_VALUE_RE = re.compile(r"^\s*([^=\s][^=]*?)\s*=\s*(.*)$")
@@ -236,6 +246,26 @@ def _looks_like_windows_export(lines):
     )
 
 
+def _looks_like_windows_cbs(lines):
+    """True when a sample is CBS/CSI/DISM servicing-log text, not CSV.
+
+    CBS.log lines contain a comma after the timestamp, so csv.Sniffer will
+    happily claim them. This check must run BEFORE the CSV sniff.
+    """
+    sample = []
+    for line in lines:
+        if line.strip():
+            sample.append(line)
+        if len(sample) >= 20:
+            break
+    if not sample:
+        return False
+    hits = sum(1 for line in sample if WINDOWS_CBS_RE.match(line))
+    if hits >= 3:
+        return True
+    return hits >= 2 and hits * 2 >= len(sample)
+
+
 def parse_windows_text(path: Path, encoding=None):
     """Parse common Windows Event Log text exports (timestamp starts an event)."""
     encoding = encoding or detect_encoding(path)
@@ -305,6 +335,51 @@ def parse_windows_text(path: Path, encoding=None):
 
     flush()
     return records, _stats("windows_event_text", records, total_lines, encoding)
+
+
+def parse_windows_cbs(path: Path, encoding=None):
+    """Parse Windows CBS/CSI/DISM servicing logs (one record per physical line).
+
+    Source-reported level is preserved (Info stays INFO even when the message
+    contains Failed/HRESULT). `raw` is the verbatim line. Unmatched non-blank
+    lines are counted as unparsed rather than silently dropped.
+    """
+    encoding = encoding or detect_encoding(path)
+    records = []
+    total_lines = 0
+    unparsed = 0
+    examples = []
+    for line_no, line in enumerate(iter_text_lines(path, encoding), start=1):
+        total_lines = line_no
+        if not line.strip():
+            continue
+        m = WINDOWS_CBS_RE.match(line)
+        if not m:
+            unparsed += 1
+            if len(examples) < 5:
+                examples.append(line)
+            continue
+        level = m.group("level")
+        if level.lower() == "verbose":
+            level = "DEBUG"
+        rec = {
+            "timestamp": m.group("ts"),
+            "level": level,
+            "channel": m.group("channel").upper(),
+            "cbs_channel": m.group("channel").upper(),
+            "msg": m.group("msg").strip(),
+            "host": "",
+            "format": "windows_cbs",
+        }
+        records.append(_normalize_record(rec, line_no, line))
+    return records, {
+        "format": "windows_cbs",
+        "parsed": len(records),
+        "total_lines": total_lines,
+        "unparsed": unparsed,
+        "unparsed_examples": examples,
+        "encoding": encoding,
+    }
 
 
 def parse_text_stream(path: Path, encoding=None):
@@ -546,6 +621,8 @@ def detect_input_format(path: Path):
         return "csv", encoding
     if _looks_like_windows_export(text.splitlines()):
         return "windows_event_text", encoding
+    if _looks_like_windows_cbs(text.splitlines()):
+        return "windows_cbs", encoding
 
     if text.startswith("{") or text.startswith("["):
         try:
@@ -576,6 +653,7 @@ def detect_input_format(path: Path):
 _STRUCTURED_PARSERS = {
     "xml": parse_xml_file,
     "windows_event_text": parse_windows_text,
+    "windows_cbs": parse_windows_cbs,
     "json": parse_json_file,
     "jsonl": parse_jsonl_file,
     "csv": parse_csv_file,
@@ -591,7 +669,7 @@ def load_log_file(path: Path, mode: str = None):
 
     mode: "honest" (default) keeps genuinely-unrecognized input as a 0-parsed
     honest report; "force" parses unrecognized input as generic text. Structured
-    formats (json/csv/xml/html/windows-text/evtx) are parsed in BOTH modes.
+    formats (json/csv/xml/html/windows-text/windows-cbs/evtx) are parsed in BOTH modes.
     """
     path = Path(path)
     mode = (mode or DEFAULT_MODE or "honest").strip().lower()
