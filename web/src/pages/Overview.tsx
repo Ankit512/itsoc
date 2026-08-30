@@ -31,7 +31,7 @@ export function Overview() {
   const { data, isLoading, error } = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   // Parse facts (unrecognized / empty / line counts) live in console_state, not
   // in /api/overview — needed to tell "nothing parsed" from "nothing found".
-  const { data: state } = useQuery({ queryKey: ["consoleState"], queryFn: api.consoleState });
+  const { data: state } = useQuery({ queryKey: ["console-state"], queryFn: api.consoleState });
   const setTimeWindow = useUi((s) => s.setTimeWindow);
   const latestIngest = useJobs((s) => s.current);
   const [expanded, setExpanded] = useState(false);

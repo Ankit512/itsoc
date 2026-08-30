@@ -370,7 +370,8 @@
    full-height drawer), launched by a 42px round button. Panel sits above the
    button; both are fixed so the chat follows you across screens. */
 .is-rail-drawer{
-  position:fixed; right:20px; bottom:72px; width:330px; z-index:56;
+  position:fixed; right:20px; bottom:72px; width:400px; z-index:56;
+  height:min(82vh,680px); max-height:min(82vh,680px);
   background:var(--pan); border:1px solid var(--bd); border-radius:11px;
   box-shadow:var(--shadow);
   display:flex; flex-direction:column; overflow:hidden;
@@ -378,8 +379,8 @@
   transition:opacity .16s ease, transform .16s ease;
 }
 .is-rail-drawer.open{ opacity:1; transform:none; pointer-events:auto; }
-/* The rail's own body scrolls; the dc caps it at 380px. */
-.is-rail-drawer > *{ max-height:min(78vh,520px); }
+/* Child fills the drawer so the chat pane (flex-1) has a real height. */
+.is-rail-drawer > *{ flex:1; min-height:0; height:100%; max-height:none; }
 
 /* Round launcher: ink when closed, raised panel when open (dc aiBtnS). */
 .is-cop-fab{

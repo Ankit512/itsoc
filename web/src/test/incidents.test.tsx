@@ -361,7 +361,7 @@ describe("Incidents investigation file (C2-T4)", () => {
     }
     // Honesty guard: an ADVISORY citation to a record NOT in the case (99) is
     // marked unresolvable — an ungrounded claim can never masquerade as cited.
-    const miss = screen.getByTestId("cite-99");
+    const miss = await screen.findByTestId("cite-99");
     expect(miss).toHaveAttribute("data-resolves", "false");
     expect(miss.className).toMatch(/miss/);
   });
