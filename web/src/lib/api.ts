@@ -1235,6 +1235,17 @@ export const api = {
   // --- Audit Ledger & Chain Verification (C4-T2 / D4) ---
   auditChain: () => getJson<AuditChainResponse>("/api/audit"),
   auditVerify: () => getJson<AuditVerification>("/api/audit/verify"),
+
+  // --- Efficacy Surface (D2) ---
+  efficacy: () => getJson<EfficacyResponse>("/api/efficacy"),
+  runEfficacy: async (): Promise<EfficacyResponse> => {
+    const res = await fetch("/api/efficacy", { method: "POST" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok && res.status !== 202) {
+      throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
+    }
+    return body as EfficacyResponse;
+  },
 };
 
 // --- Audit Ledger & Chain Verification (C4-T2 / D4) ---
@@ -1274,3 +1285,69 @@ export interface AuditChainResponse {
   entries: AuditEntry[];
   verification: AuditVerification;
 }
+
+// --- Efficacy Surface (D2) ---
+export interface EfficacyMiss {
+  line: number;
+  raw: string;
+  why: string;
+}
+
+export interface EfficacyFalsePositive {
+  rule_id: string;
+  severity?: string | null;
+  summary?: string | null;
+  evidence?: string | null;
+}
+
+export interface EfficacyRuleScore {
+  lines_covered: number[];
+  true_positive_findings: number;
+  false_positive_findings: number;
+  malicious_lines: number;
+  malicious_lines_detected: number;
+  precision: number;
+  recall: number;
+  f1: number;
+}
+
+export interface EfficacyTotals {
+  true_positive_findings: number;
+  false_positive_findings: number;
+  malicious_lines: number;
+  malicious_lines_detected: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  missed_lines?: number;
+  findings?: number;
+}
+
+export interface EfficacyScenario {
+  scenario: string;
+  format: string;
+  line_count?: number;
+  totals: EfficacyTotals;
+  per_rule?: Record<string, EfficacyRuleScore>;
+  misses: EfficacyMiss[];
+  false_positives?: EfficacyFalsePositive[];
+  scope: string;
+  run_date?: string;
+  log?: string;
+}
+
+export interface EfficacyRun {
+  run_date: string;
+  scope: string;
+  pipeline: string;
+  scenarios: EfficacyScenario[];
+  total_misses: number;
+  total_false_positives: number;
+}
+
+export interface EfficacyResponse {
+  status: "idle" | "running" | "done" | "error";
+  run: EfficacyRun | null;
+  error: string | null;
+}
+
