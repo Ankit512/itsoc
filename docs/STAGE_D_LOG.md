@@ -64,3 +64,12 @@ Report: `docs/STAGE_D_REPORTS/D2-dispatch.md`.
 Vitest 215/215; scope sentence grepped; no client F1 math; screenshots in `/tmp/itsoc-d2/screenshots/`.
 Live `/api/efficacy` marked NOT TESTED by the worker (API was parallel; now on main).
 Scoreboard: Codex 2/2 · Claude 2/2 · Antigravity 1/1. D3 next.
+
+## P4 · OPNsense adapter — SUPERSEDED 2026-08-30
+
+Owner: D-2 was a shift to Docker **instead of** OPNsense, not a follow-on still owed.
+`docs/STAGE_D_REPORTS/P4-superseded.md`. No dispatch. Docker connector already on `main` (`ssh_firewall.py` + `demo/target/`).
+
+## P3 · D3 dispatched 2026-08-30 — not yet accepted
+
+Report: `docs/STAGE_D_REPORTS/D3-dispatch.md`. Codex battle-card + CITATIONS. P5 stays parked.

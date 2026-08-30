@@ -22,4 +22,4 @@ D2-UI first attempt (`task_886afc49c826`) died at `codex-trust-workspace` on the
 | Claude | 2 (D1, D2-API) | 0 |
 | Antigravity | 1 (D2-UI) | 0 |
 
-D3 next. P4 waits. Parked stays parked.
+D3 next. P4 superseded (Docker instead of OPNsense). Parked stays parked.

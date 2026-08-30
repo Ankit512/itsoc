@@ -33,4 +33,4 @@ Orca listed the first D2-UI dispatch as failed (`agent_prompt_stalled` after wor
 
 ## Next
 
-D2 (API + UI) is complete. **D3** (battle-card + CITATIONS provenance) is unblocked. P4 waits on D3. Parked stays parked.
+D2 (API + UI) is complete. **D3** (battle-card + CITATIONS provenance) is unblocked. P4 superseded (Docker, not OPNsense). Parked stays parked.
