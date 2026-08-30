@@ -101,6 +101,8 @@ Implemented:
 - `8a13e6e` **KEPT** — it is the RFC 5424 and JSON-line parsers plus eval cases P18/P19, untangled from the foreign tools. Reverting it would have regressed eval 19 → 17. A blanket revert would have destroyed real work; the entanglement analysis is what made a surgical answer possible.
 - `tools/attack_generator.py` deliberately **left in place and not ignored**, as the owner's inspection copy.
 
+  **Closed 2026-08-30.** Owner: keep as a dev tool, gitignored. Promotion bar lives next to the ignore rule. See `docs/POST_C_CHECKLIST.md`.
+
 ---
 
 ## 6. Defects found in pre-existing code
@@ -122,7 +124,7 @@ Implemented:
 
 | Defect | Why parked |
 |---|---|
-| **Three pre-C4 hardcoded shadow literals** — `CopilotRail.tsx:311`, `itsoc.css:370`, `itsoc.css:385`. Real: a hardcoded dark shadow renders wrong in light theme; a `--shadow` token exists | They predate C4 and require a design judgement. Fixing pre-existing chrome inside an acceptance item is how phases stop closing |
+| **Three pre-C4 hardcoded shadow literals** — `CopilotRail.tsx:311`, `itsoc.css:370`, `itsoc.css:385`. Real: a hardcoded dark shadow renders wrong in light theme; a `--shadow` token exists | **Fixed 2026-08-30**, merged `c2f7e75` (`fix/shadow-tokens`). Pixel-pass caveats filed as FU-1 / FU-2, not reopened as C4 work. |
 | **`#000` approval scrim** — `itsoc.css:242` | Ruled acceptable. Modal scrims are conventionally theme-blind and no scrim token exists; inventing one is unnecessary scope |
 | `test_console.py:4978` migration gate | Environmental — needs a real `console/.soc/soc_history.db`. Passes in a populated tree, reported as **NOT TESTED** elsewhere rather than allowed to read as a pass |
 
@@ -154,7 +156,7 @@ The first draft of that document concluded ">150x safety margin" against the 5-m
   - 32 further runs (20 idle, 12 under full-core CPU saturation) produced **no intermittent failure**.
   - The `(a) bounded parallelism` hypothesis is **weakened, not excluded**: under full-core load it completed in 65–66 ms against its 140 ms threshold — a comfortable margin, in the exact condition it was suspected to fail.
   - Two *deterministic* environmental exit=1 causes were found instead, both artefacts of an unpopulated tree rather than product defects. (1) **Missing `web/dist`** (an untracked build artefact) made `check_soc_overview`'s unguarded `get("/")` raise an uncaught `HTTPError: 503` that **aborted the suite mid-run** — every later check went untested behind a bare exit=1, which is precisely the shape of an "unexplained" failure when output is discarded. Now guarded to report `NOT TESTED`, matching `check_serve_react`. (2) The **`soc_history.db` migration gate** (§ above) proved unsatisfiable by any tree available: with no db it fails `NOT TESTED`; with a real, already-migrated db copied from the live checkout it fails as `the migration ADDS exactly audit_index — []`, because the schema already carries `audit_index` and the migration has nothing to add. **It can only pass against a db predating the migration** — so `console/test_console.py` cannot currently reach exit 0 anywhere. Left open deliberately rather than papered over; see `docs/PROJECT_STATUS.md`.
-- **Structural conformance is not visual verification.** No browser was available in this environment. Every theme and fidelity claim in Stage C is structural — tokens resolve, no literals, palette confined. **Nothing here establishes that anything looks right.** A live light/dark pixel pass against the mockups remains outstanding.
+- **Structural conformance is not visual verification.** Stage C had no browser. A headless Chromium pixel pass ran 2026-08-30 on `fix/shadow-tokens` (Antigravity); it is screenshot evidence, not a designer sitting next to the mockup. Caveats FU-1 / FU-2. See `docs/POST_C_CHECKLIST.md`.
 - **`INC-4a7f` appearing anywhere as a real id** would be a fabrication. Real ids are `inc-<hash[:12]>`.
 - **The arXiv 2604.19533 figure** (best frontier LLM flagged ~3.8% of malicious events; no model passed 50% per-tactic) is a **literature citation, never an in-repo measurement.** Never round it. Never invert it into "LLMs miss 96%".
 
@@ -162,7 +164,10 @@ The first draft of that document concluded ">150x safety margin" against the 5-m
 
 ## 9. Next
 
-1. **Live light/dark pixel pass** against the mockups, when a browser is available — the one acceptance we could not perform.
-2. **The three parked shadow literals** — a small, real, design-judgement fix.
-3. ~~**`test_console.py` gate hygiene**~~ — done on `fix/gate-hygiene`: `scripts/gate.sh` preserves all output. The original failure was **not** reproduced in 32 runs; see §8.
-4. `tools/attack_generator.py` awaits the owner's inspection in the checkout.
+1. ~~**Live light/dark pixel pass**~~ — done 2026-08-30 (headless Chromium). Caveats: FU-1, FU-2.
+2. ~~**The three parked shadow literals**~~ — merged `c2f7e75`.
+3. ~~**`test_console.py` gate hygiene**~~ — merged `eec463d`: `scripts/gate.sh` preserves all output. The original failure was **not** reproduced in 32 runs; see §8.
+4. ~~`tools/attack_generator.py`~~ — kept as a gitignored dev tool; promotion bar in `.gitignore`.
+5. Filed, not started: `docs/followups/FU-1-banner-stale-run.md`, `docs/followups/FU-2-copilot-footer-copy.md`.
+6. `feat/redesign-integration` stays parked; bar is `PARKED.md` on that branch.
+7. Stage D waits on an owner-written scope doc.
