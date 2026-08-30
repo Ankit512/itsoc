@@ -5,7 +5,7 @@ import {
   ChevronRight, Activity, ShieldCheck
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { api, Finding, RunsSummaryEntry, AskView } from "@/lib/api";
+import { api, Finding, RunsSummaryEntry, AskView, ConsoleState } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { sevVar } from "@/lib/severity";
 
@@ -121,12 +121,69 @@ const CONTEXTUAL_PROMPTS: Record<string, string[]> = {
     "Explain the evidence lines",
     "What MITRE technique is this?",
   ],
+  "/findings": [
+    "Why is this critical?",
+    "Explain the evidence lines",
+    "What MITRE technique is this?",
+  ],
   "/incidents": [
     "What's the root cause here?",
     "Summarize for handoff",
     "What is the attack chain?",
   ],
 };
+
+function countSev(findings: Finding[], band: string): number {
+  const want = band.toUpperCase();
+  return findings.filter((f) => (f.sev || f.ruleSev || "").toUpperCase() === want).length;
+}
+
+/** Deterministic briefing for the CURRENT run — display aggregation of
+ *  rule-owned findings, never a new verdict. Bound to console-state so it
+ *  cannot lag a run switch. */
+function RunBriefing({ state, loading }: { state?: ConsoleState; loading?: boolean }) {
+  if (loading && !state) {
+    return (
+      <div className="rounded border bg-background px-2.5 py-2 text-[11.5px] leading-relaxed text-muted-foreground" data-testid="copilot-run-brief">
+        Loading current run…
+      </div>
+    );
+  }
+  if (!state || state.idle) {
+    return (
+      <div className="rounded border bg-background px-2.5 py-2 text-[11.5px] leading-relaxed text-muted-foreground" data-testid="copilot-run-brief">
+        No run loaded — analyze a log first. I only interpret findings that exist for the current run.
+      </div>
+    );
+  }
+  if (state.unrecognized || state.emptyInput) {
+    return (
+      <div className="rounded border bg-background px-2.5 py-2 text-[11.5px] leading-relaxed text-muted-foreground" data-testid="copilot-run-brief">
+        Run <span className="is-mono">{state.runId ?? "n/a"}</span> was not recognized
+        {typeof state.linesUnparsed === "number" ? ` — ${state.linesUnparsed} unparsed line(s)` : ""}.
+        That is not an all-clear.
+      </div>
+    );
+  }
+  const findings = state.findings ?? [];
+  const crit = countSev(findings, "CRITICAL");
+  const high = countSev(findings, "HIGH");
+  return (
+    <div className="rounded border bg-background px-2.5 py-2 text-[11.5px] leading-relaxed" data-testid="copilot-run-brief">
+      <div className="font-semibold text-foreground">
+        Interpreting <span className="is-mono">{state.runId}</span>
+      </div>
+      <div className="mt-0.5 text-muted-foreground">
+        {state.sourceLabel || state.runHosts || "current log"}
+        {state.runParsed ? ` · ${state.runParsed}` : ""}
+      </div>
+      <div className="mt-1 is-mono text-muted-foreground">
+        {findings.length} finding(s) · {crit} critical · {high} high
+        {state.llmNote ? ` · ${state.llmNote}` : ""}
+      </div>
+    </div>
+  );
+}
 
 const FIRST_TOKEN_TIMEOUT_MS = 90_000;
 
@@ -156,13 +213,14 @@ export function CopilotRail({
   const abortRef = useRef<AbortController | null>(null);
   const startRef = useRef(0);
 
-  // Queries for real grounded data
-  const { data: state } = useQuery({ queryKey: ["consoleState"], queryFn: api.consoleState });
+  // Same query keys as Overview / Alerts / Incidents so a run switch cannot
+  // leave the rail on a stale cache while the dashboard has already moved.
+  const { data: state, isLoading: stateLoading } = useQuery({ queryKey: ["console-state"], queryFn: api.consoleState });
   const { data: overview } = useQuery({ queryKey: ["overview"], queryFn: api.overview });
-  const { data: runsSummary } = useQuery({ queryKey: ["runsSummary"], queryFn: api.runsSummary });
+  const { data: runsSummary } = useQuery({ queryKey: ["runs-summary"], queryFn: api.runsSummary });
   const selectedIncidentId = pathname === "/incidents" ? new URLSearchParams(search).get("sel") : null;
   const { data: selectedRca } = useQuery({
-    queryKey: ["incidentRca", selectedIncidentId],
+    queryKey: ["rca", selectedIncidentId],
     queryFn: () => api.incidentRca(selectedIncidentId!),
     enabled: Boolean(selectedIncidentId),
   });
@@ -179,7 +237,17 @@ export function CopilotRail({
   // Active finding or incident from URL selection if any
   const selParam = new URLSearchParams(search).get("sel");
   const findings: Finding[] = state && !state.idle && state.findings ? state.findings : [];
+  const runId = state && !state.idle ? state.runId : null;
+  const runReady = !!state && !state.idle && !state.unrecognized && !state.emptyInput;
+  const blockAsk = !!state && !runReady;
   const selectedFinding = selParam ? findings.find((f) => f.id === selParam) : null;
+
+  // Chat is bound to one run. Switching runs (or going idle) drops the prior
+  // thread so the pane cannot keep answering a log that is no longer current.
+  useEffect(() => {
+    setLog([]);
+    abortRef.current?.abort();
+  }, [runId]);
   const topCriticalFinding = findings.find((f) => f.sev?.toUpperCase() === "CRITICAL" || f.ruleSev?.toUpperCase() === "CRITICAL")
     ?? findings.find((f) => f.sev?.toUpperCase() === "HIGH" || f.ruleSev?.toUpperCase() === "HIGH")
     ?? findings[0];
@@ -230,6 +298,17 @@ export function CopilotRail({
   const ask = async (q: string) => {
     const question = q.trim();
     if (!question || streaming) return;
+    if (blockAsk) {
+      setActiveTab("ask");
+      setLog((l) => [...l, { who: "q", text: question }, {
+        who: "err",
+        text: state?.unrecognized
+          ? "This run was not recognized — there are no findings to interpret."
+          : "No run loaded — analyze a log first, then ask about its findings.",
+      }]);
+      setDraft("");
+      return;
+    }
     setActiveTab("ask");
     setDraft("");
     setLog((l) => [...l, { who: "q", text: question }, { who: "a", text: "" }]);
@@ -307,8 +386,8 @@ export function CopilotRail({
       aria-label="AI Analyst"
       data-testid="copilot-rail"
       className={cn(
-        "flex flex-col gap-3 rounded-lg border bg-card p-4 text-[13px] shadow-sm",
-        docked ? "h-full w-full" : "max-h-[min(620px,calc(100vh-100px))] w-[360px] shadow-[var(--shadow-pop)]",
+        "flex min-h-0 flex-col gap-2.5 bg-card p-3.5 text-[13px]",
+        docked ? "h-full w-full" : "max-h-[min(680px,calc(100vh-100px))] w-[380px] rounded-lg border shadow-[var(--shadow-pop)]",
         className,
       )}
     >
@@ -442,12 +521,13 @@ export function CopilotRail({
 
       {/* Role 1 & Q&A View: Interpret & Chat */}
       {activeTab === "ask" && (
-        <div className="flex flex-1 flex-col gap-2.5 overflow-hidden">
-          <div aria-live="polite" className="flex min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto pr-1 text-[12px]">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden" data-testid="copilot-chat">
+          <RunBriefing state={state} loading={stateLoading} />
+          <div aria-live="polite" className="flex min-h-[160px] flex-1 flex-col gap-2 overflow-y-auto pr-1 text-[12px]">
             {log.length === 0 && (
               <div className="flex flex-col gap-2">
                 <p className="text-[12px] leading-normal text-muted-foreground">
-                  Ask me about your security data in natural language. Example:
+                  Ask about this run in plain language. Answers are advisory — rules still own severity.
                 </p>
                 {DEFAULT_EXAMPLES.map((q) => (
                   <button
@@ -528,19 +608,19 @@ export function CopilotRail({
             </div>
           )}
 
-          <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); ask(draft); }}>
+          <form className="flex shrink-0 gap-1.5" onSubmit={(e) => { e.preventDefault(); ask(draft); }}>
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Ask anything about your logs..."
+              placeholder={blockAsk ? "Analyze a log first…" : "Ask about this run…"}
               aria-label="Ask the AI analyst"
-              disabled={streaming}
+              disabled={streaming || blockAsk}
               className="min-w-0 flex-1 rounded border bg-card px-2.5 py-1.5 text-[12.5px] outline-none focus:border-primary disabled:opacity-60"
             />
             <button
               type="submit"
               aria-label="Send"
-              disabled={streaming || !draft.trim()}
+              disabled={streaming || !draft.trim() || blockAsk}
               className="inline-flex w-8 items-center justify-center rounded border border-primary bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
               <Send className="h-3.5 w-3.5" aria-hidden />

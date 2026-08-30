@@ -663,8 +663,13 @@ def _ask_prompt(question, state=None, compute=None):
     question = str(question)[:2000]
 
     findings = state.get("findings", [])
-    parts = [f"Run {state.get('runId', '?')} — {state.get('runParsed', '')} — "
-             f"{len(findings)} finding(s)."]
+    parts = [f"Run {state.get('runId', '?')} — {state.get('sourceLabel') or state.get('runHosts') or 'current log'} — "
+             f"{state.get('runParsed', '')} — {len(findings)} finding(s)."]
+    if state.get("unrecognized") or state.get("emptyInput"):
+        parts.append("HONEST: this run was not recognized / nothing was parsed. "
+                     "It is NOT an all-clear. Do not invent findings.")
+    if state.get("llmNote"):
+        parts.append(f"Note: {state.get('llmNote')}")
     for f in findings[:40]:
         parts.append(f"- [{f.get('sev')}] {f.get('type')}: {f.get('title')} "
                      f"(host {f.get('host')}, at {f.get('time') or 'unknown time'})")

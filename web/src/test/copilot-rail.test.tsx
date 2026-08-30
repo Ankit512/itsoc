@@ -73,6 +73,28 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(screen.getByText(/never changed here/i)).toBeInTheDocument();
   });
 
+  it("shows a run briefing for the current console-state (not a stale cache)", async () => {
+    renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
+    expect(await screen.findByText("test-run")).toBeInTheDocument();
+    const brief = screen.getByTestId("copilot-run-brief");
+    expect(brief).toHaveTextContent("2 finding(s)");
+    expect(brief).toHaveTextContent("1 critical");
+    expect(screen.getByTestId("copilot-chat")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ask the AI analyst")).not.toBeDisabled();
+  });
+
+  it("honest idle: briefing says no run and the composer is disabled", async () => {
+    mockFetch({
+      "/api/overview": { error: "no run yet — analyze a log first" },
+      "/api/runs-summary": { totals: { runCount: 0, linesParsed: 0, findingCount: 0, severityCounts: {}, mitreFrequency: [] }, runs: [] },
+      "/console_state.json": { idle: true, findings: [] },
+    });
+    renderApp(<CopilotRail defaultOpen={true} />);
+    expect(await screen.findByText(/No run loaded/i)).toBeInTheDocument();
+    expect(screen.getByTestId("copilot-run-brief")).toHaveTextContent(/No run loaded/i);
+    expect(screen.getByLabelText("Ask the AI analyst")).toBeDisabled();
+  });
+
   it("Role 1: interprets current view on prompt with streaming tokens and Stop control", async () => {
     const streamSpy = vi.spyOn(api, "askStream").mockImplementation(async (_q, onDelta) => {
       onDelta("Root cause: ");

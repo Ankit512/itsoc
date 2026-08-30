@@ -48,7 +48,7 @@ describe("Overview page (v6)", () => {
     // the alerts table also lists a source, so target the run-facts one.
     expect(await screen.findByTitle("samples/auth.log")).toHaveTextContent("auth.log");
     expect(screen.getByText(/host combo/)).toBeInTheDocument();
-    expect(screen.getByText(/2,000 lines parsed · 0 unparsed/)).toBeInTheDocument();
+    expect(screen.getAllByText(/2,000 lines parsed · 0 unparsed/).length).toBeGreaterThan(0);
     expect(screen.getByText(/detector 364577c5…a4a876/)).toBeInTheDocument();
   });
 
