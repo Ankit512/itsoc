@@ -68,6 +68,7 @@ Scoreboard: Codex 2/2 · Claude 2/2 · Antigravity 1/1. D3 next.
 ## P4 · OPNsense adapter — SUPERSEDED 2026-08-30
 
 Owner: D-2 was a shift to Docker **instead of** OPNsense, not a follow-on still owed.
+**Ratified:** connector interface + `ssh_firewall.py` satisfied the reference-adapter obligation; OPNsense remains the on-demand follow-on.
 `docs/STAGE_D_REPORTS/P4-superseded.md`. No dispatch. Docker connector already on `main` (`ssh_firewall.py` + `demo/target/`).
 
 ## P3 · D3 dispatched 2026-08-30 — ACCEPTED same day
@@ -80,3 +81,19 @@ Scoreboard: Codex 3/3 · Claude 2/2 · Antigravity 1/1.
 ## P5 · Parked items — REPORT ONLY 2026-08-30
 
 `docs/STAGE_D_REPORTS/P5-status.md`. No dispatch. Auth / Tauri / uncharacterised gate failure stay parked until a new ruling.
+
+## D3 ceiling framing — ACCEPTED 2026-08-30 (self-ratifiable)
+
+All-1.0 / zero-miss is a ceiling. Battle-card §3.1a and the Reports harness surface state: scenarios are the attack classes the rules were written for; perfection is the expected result; value is regression proof, not a general-efficacy claim. Frozen `scope` field unchanged.
+
+## Floor close — 2026-08-30
+
+**Final scoreboard (accepted / dispatched):** Codex **3/3** · Claude **2/2** · Antigravity **1/1**. Equal-orchestration held with a measured record. No rejected cards.
+
+| Worker | Cards accepted |
+|---|---|
+| Codex | D0 generator, MG-1 fixture, D3 battlecard |
+| Claude | D1 harness, D2-API |
+| Antigravity | D2-UI Reports surface |
+
+P1–P3 complete. P4 superseded (ratified). P5 report-only. Parked items remain parked. **Nothing further without a new scope doc from the owner.** Floor stood down. This log is closed.

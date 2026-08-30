@@ -47,6 +47,7 @@ function DownloadPanel({ hasRun }: { hasRun: boolean }) {
 }
 
 const EFFICACY_SCOPE = "measured against synthetic ground-truth scenarios; not a claim about production traffic.";
+const EFFICACY_CEILING = "These scenarios are drawn from the same attack classes the rules were written for — the expected result is perfection, and its value is regression proof (any future score below 1.0 is a detected regression), not a general-efficacy claim.";
 
 function EfficacyPanel() {
   const qc = useQueryClient();
@@ -91,8 +92,11 @@ function EfficacyPanel() {
         </div>
       </div>
 
-      <p className="is-mut" style={{ marginTop: 6, marginBottom: 12, fontSize: 11.5, lineHeight: 1.5 }} data-testid="efficacy-scope">
+      <p className="is-mut" style={{ marginTop: 6, marginBottom: 6, fontSize: 11.5, lineHeight: 1.5 }} data-testid="efficacy-scope">
         {EFFICACY_SCOPE}
+      </p>
+      <p className="is-mut" style={{ marginTop: 0, marginBottom: 12, fontSize: 11.5, lineHeight: 1.5 }} data-testid="efficacy-ceiling">
+        {EFFICACY_CEILING}
       </p>
 
       {status === "error" || (isError && !run) ? (

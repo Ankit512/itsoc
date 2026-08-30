@@ -13,6 +13,12 @@ SCOPE = (
     "measured against synthetic ground-truth scenarios; "
     "not a claim about production traffic."
 )
+CEILING = (
+    "These scenarios are drawn from the same attack classes the rules were "
+    "written for — the expected result is perfection, and its value is "
+    "regression proof (any future score below 1.0 is a detected regression), "
+    "not a general-efficacy claim."
+)
 
 
 class BattlecardEfficacyTest(unittest.TestCase):
@@ -23,6 +29,8 @@ class BattlecardEfficacyTest(unittest.TestCase):
 
     def test_scope_and_literature_guardrails_are_present(self):
         self.assertIn(SCOPE, self.battlecard)
+        self.assertIn(CEILING, self.battlecard)
+        self.assertIn(CEILING, self.citations)
         self.assertIn("~3.8%", self.battlecard)
         self.assertIn("2604.19533", self.battlecard)
         # The legacy C-1 and Cut List retain the phrase only to prohibit this

@@ -242,6 +242,8 @@ class EndToEndTests(unittest.TestCase):
             self.assertEqual(entry["totals"]["recall"], 1.0)
         rendered = harness.render(summary)
         self.assertIn("not a claim about production traffic", rendered)
+        self.assertIn(harness.CEILING_SENTENCE, rendered)
+        self.assertEqual(summary["scope"], harness.SCOPE_SENTENCE)
         json.dumps(summary)  # the artefact must be serialisable
 
 
