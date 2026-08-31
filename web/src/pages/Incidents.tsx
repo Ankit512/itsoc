@@ -541,11 +541,21 @@ function EvidenceCard({ inc }: { inc: Incident }) {
           </pre>
         </div>
       ) : (
-        <p className="is-mut" style={{ fontSize: "11.5px" }}>
-          {isError || !data
-            ? "The member findings for this cluster aren't in the loaded run — no verbatim evidence to show."
-            : "No stored evidence lines on this cluster's member findings."}
-        </p>
+        <div className="space-y-2 pt-2">
+          <p className="is-mut" style={{ fontSize: "11.5px", margin: 0 }}>
+            {isError || !data
+              ? "The member findings for this cluster aren't in the loaded run — no verbatim evidence to show."
+              : "No stored evidence lines on this cluster's member findings."}
+          </p>
+          <div className="p-3 rounded border bg-muted/20 flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              Member finding(s) <code className="font-mono text-foreground font-semibold">{inc.findingIds.join(", ")}</code> can be reviewed in Findings.
+            </span>
+            <Link to={`/alerts?sel=${encodeURIComponent(inc.findingIds[0] || "")}`} className="is-btn is-btn--ghost text-xs py-0.5 h-auto">
+              Inspect Finding
+            </Link>
+          </div>
+        </div>
       )}
     </details>
   );
@@ -867,6 +877,42 @@ function IncidentRail({ inc }: { inc: Incident }) {
         </div>
       </section>
 
+      {/* Rapid SOC Actions & Pivots */}
+      <section className="is-panel">
+        <div className="is-panel__h"><h3>Analyst Actions</h3></div>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={openCopilot}
+            className="is-btn w-full justify-center text-xs gap-1.5 cursor-pointer"
+          >
+            <Sparkles size={12} className="text-primary" />
+            Analyze with AI Copilot
+          </button>
+          <Link
+            to="/intel"
+            className="is-btn is-btn--ghost w-full justify-center text-xs gap-1.5"
+          >
+            <Shield size={12} className="text-blue-400" />
+            Search in Threat Intel
+          </Link>
+          <Link
+            to="/approvals"
+            className="is-btn is-btn--ghost w-full justify-center text-xs gap-1.5"
+          >
+            <ShieldCheck size={12} className="text-amber-500" />
+            Remediation Approvals
+          </Link>
+          <Link
+            to="/history"
+            className="is-btn is-btn--ghost w-full justify-center text-xs gap-1.5"
+          >
+            <Search size={12} className="text-muted-foreground" />
+            Look Up in Run History
+          </Link>
+        </div>
+      </section>
+
       <BruteforceSparkline inc={inc} />
       <ResponsePanel inc={inc} />
       <ResponseChecklist inc={inc} />
@@ -1037,7 +1083,13 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
               </pre>
             </details>
           ) : (
-            <p className="is-mut" style={{ fontSize: "11.5px" }}>No records reconstructed for this entity in the loaded run.</p>
+            <div className="space-y-2 py-1">
+              <p className="is-mut" style={{ fontSize: "11.5px", margin: 0 }}>No records reconstructed for this entity in the loaded run.</p>
+              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/20 p-2.5 rounded border border-border/50">
+                <span>Timeline reconstruction is active for live runs and analyzed log files.</span>
+                <Link to="/history" className="is-btn is-btn--ghost text-xs py-0.5 h-auto">View Run History</Link>
+              </div>
+            </div>
           )}
         </div>
 
@@ -1050,7 +1102,13 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
               <b><CiteList ns={a.records} byN={byN} /></b>
             </div>
           )) : (
-            <p className="is-mut" style={{ fontSize: "11.5px" }}>No correlated assets — the entity acted only on itself.</p>
+            <div className="space-y-2 py-1">
+              <p className="is-mut" style={{ fontSize: "11.5px", margin: 0 }}>No correlated assets — the entity acted only on itself.</p>
+              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/20 p-2.5 rounded border border-border/50">
+                <span>Scope isolated to entity <code className="font-mono text-foreground font-semibold">{c.entity ?? "—"}</code>. No lateral movement observed.</span>
+                <Link to="/assets" className="is-btn is-btn--ghost text-xs py-0.5 h-auto">Asset Inventory</Link>
+              </div>
+            </div>
           )}
         </div>
 
@@ -1063,7 +1121,13 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
               <b><CiteList ns={i.records} byN={byN} /></b>
             </div>
           )) : (
-            <p className="is-mut" style={{ fontSize: "11.5px" }}>No indicators extracted from the reconstructed records.</p>
+            <div className="space-y-2 py-1">
+              <p className="is-mut" style={{ fontSize: "11.5px", margin: 0 }}>No indicators extracted from the reconstructed records.</p>
+              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/20 p-2.5 rounded border border-border/50">
+                <span>Primary Observable: <code className="font-mono text-foreground font-semibold">{inv.entity}</code> ({(inv.entityKind || "entity").toUpperCase()})</span>
+                <Link to="/intel" className="is-btn is-btn--ghost text-xs py-0.5 h-auto">Threat Intel</Link>
+              </div>
+            </div>
           )}
         </div>
 
