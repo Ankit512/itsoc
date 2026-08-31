@@ -2164,6 +2164,7 @@ def check_soc_subsystems():
     import adapter
     import serve
     import soc
+    import copilot
 
     results = []
 
@@ -2335,12 +2336,53 @@ def check_soc_subsystems():
                       status == 201 and case["id"] == "case-1"
                       and case["status"] == "new"
                       and case["links"]["incidents"] == [iid])
+                status, case = req("POST", f"/api/cases/{case['id']}/comment",
+                                   {"text": "Analyst verified SPF passed", "actor": "alex"})
+                check("case comments are activity with their analyst actor",
+                      status == 201 and case["activity"][-1]["kind"] == "comment"
+                      and case["activity"][-1]["actor"] == "alex")
+                status, case = req("POST", f"/api/cases/{case['id']}/observables",
+                                   {"type": "url", "value": "https://example.test/a",
+                                    "verdict": "SPF passed"})
+                check("case observables preserve analyst verdict text, not a rule severity",
+                      status == 201 and case["observables"][-1]["type"] == "url"
+                      and case["observables"][-1]["verdict"] == "SPF passed")
+                status, case = req("POST", f"/api/cases/{case['id']}/attachments",
+                                   {"name": "headers.json", "size": 128, "kind": "json"})
+                check("case attachments are metadata only and appear in activity",
+                      status == 201 and case["attachments"][-1]["name"] == "headers.json"
+                      and case["activity"][-1]["kind"] == "attachment")
+                _, chips = req("GET", f"/api/copilot/suggest?caseId={case['id']}")
+                check("case copilot chips use only this case and never offer quarantine execution",
+                      "Summarize this case" in chips["questions"]
+                      and any("https://example.test/a" in q for q in chips["questions"])
+                      and not any("quarantine" in q.lower() for q in chips["questions"]),
+                      str(chips))
+                summary = copilot.investigate("summarize this case", serve.STATE, case=case)
+                check("case summary is evidence-faithful to case-file objects",
+                      "Title: Investigate 203.0.113.44" in summary["answer"]
+                      and "SPF passed" in summary["answer"] and "headers.json" in summary["answer"],
+                      summary["answer"])
+                status, run = req("POST", f"/api/cases/{case['id']}/run",
+                                  {"runbookId": "rb-block-ip"})
+                check("eligible case runbook is advisory-only and does not execute containment",
+                      status == 200 and run["advisory"] is True and run["executed"] is False
+                      and "No containment" in run["markdown"], str(run))
+                saved_state, serve.STATE = serve.STATE, {"idle": True}
+                status, blocked = req("POST", f"/api/cases/{case['id']}/run",
+                                      {"runbookId": "rb-block-ip"})
+                serve.STATE = saved_state
+                check("ineligible case runbook returns 409 with the rule-owned reason",
+                      status == 409 and bool(blocked.get("reason")), str(blocked))
                 status, case = req("PATCH", f"/api/cases/{case['id']}",
                                    {"notes": "checked the firewall",
                                     "status": "investigating"})
                 check("case PATCH round-trips fields",
                       status == 200 and case["notes"] == "checked the firewall"
                       and case["status"] == "investigating")
+                check("case status transitions append activity",
+                      any(a["kind"] == "state" and "investigating" in a["text"]
+                          for a in case["activity"]), str(case["activity"][-2:]))
                 status, case = req("PATCH", "/api/cases/case-1", {"status": "escalated"})
                 check("case escalated", status == 200 and case["status"] == "escalated")
                 status, case = req("PATCH", "/api/cases/case-1", {"status": "open"})

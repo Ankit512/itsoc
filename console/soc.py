@@ -54,6 +54,9 @@ INCIDENT_STATE_ALIASES = {"acknowledged": "triaged"}
 INCIDENT_TERMINAL = ("resolved", "closed")
 CASE_STATUSES = ("new", "triaged", "investigating", "escalated", "resolved", "closed")
 CASE_STATUS_ALIASES = {"open": "new"}
+CASE_ACTIVITY_KINDS = ("comment", "note", "attachment", "observable", "runbook", "state", "assignee", "system")
+CASE_OBSERVABLE_TYPES = ("url", "ip", "hash", "domain", "email")
+CASE_ATTACHMENT_KINDS = ("note", "json", "html", "image", "other")
 CLUSTER_GAP_SECONDS = 30 * 60                 # the documented correlation window
 
 
@@ -762,7 +765,34 @@ def _public_case(case):
     st = normalize_case_status(out.get("status"))
     if st in CASE_STATUSES:
         out["status"] = st
+    # These additive fields are deliberately populated for old saved cases too:
+    # clients can use one stable case-file shape without inventing data.
+    out["activity"] = list(out.get("activity") or [])
+    out["observables"] = list(out.get("observables") or [])
+    out["attachments"] = list(out.get("attachments") or [])
     return out
+
+
+def _case_activity(case, kind, text, actor="analyst"):
+    """Append one analyst/system action to a case's honest local timeline."""
+    if kind not in CASE_ACTIVITY_KINDS:
+        raise ValueError(f"activity kind must be one of {CASE_ACTIVITY_KINDS}")
+    activity = list(case.get("activity") or [])
+    activity.append({
+        "at": _now(),
+        "actor": str(actor or "analyst")[:100],
+        "kind": kind,
+        "text": str(text or "")[:10000],
+    })
+    case["activity"] = activity
+
+
+def _save_case(store, case):
+    case["updatedAt"] = _now()
+    store[case["id"]] = case
+    _save("cases.json", store)
+    _try_absorb_cases()                        # keep incidents in sync (C1-T1)
+    return _public_case(case)
 
 
 def list_cases():
@@ -788,6 +818,9 @@ def create_case(payload):
         "assignee": str(payload.get("assignee") or "")[:100],
         "status": "new",
         "history": [{"status": "new", "at": _now()}],
+        "activity": [],
+        "observables": [],
+        "attachments": [],
         "links": {
             "findings": [str(x) for x in (payload.get("links") or {}).get("findings", [])],
             "incidents": [str(x) for x in (payload.get("links") or {}).get("incidents", [])],
@@ -795,6 +828,22 @@ def create_case(payload):
         "createdAt": _now(),
         "updatedAt": _now(),
     }
+    category = str(payload.get("category") or "").strip()[:100]
+    if category:
+        case["category"] = category
+    summary = payload.get("summary")
+    if summary is not None:
+        if not isinstance(summary, dict):
+            raise ValueError("summary must be an object")
+        case["summary"] = {
+            key: str(summary.get(key) or "")[:2000]
+            for key in ("what", "impact", "when")
+            if summary.get(key) is not None
+        }
+    _case_activity(case, "system", "Case created", "system")
+    _case_activity(case, "state", "Status changed to new", "system")
+    if case["assignee"]:
+        _case_activity(case, "assignee", f"Assignee changed to {case['assignee']}", "system")
     store[cid] = case
     _save("cases.json", store)
     _try_absorb_cases()                        # keep incidents in sync (C1-T1)
@@ -802,7 +851,7 @@ def create_case(payload):
 
 
 def patch_case(cid, payload):
-    """Update any subset of title/notes/assignee/status/links. None for an
+    """Update analyst-entered case fields. None for an
     unknown id; ValueError for an invalid field value."""
     store = _load("cases.json")
     case = store.get(cid)
@@ -816,6 +865,8 @@ def patch_case(cid, payload):
             hist = list(case.get("history") or [])
             hist.append({"status": status, "at": _now()})
             case["history"] = hist
+            _case_activity(case, "state", f"Status changed to {status}",
+                           payload.get("actor") or "analyst")
         case["status"] = status
     if "title" in payload:
         title = str(payload["title"] or "").strip()
@@ -823,19 +874,137 @@ def patch_case(cid, payload):
             raise ValueError("a case needs a title")
         case["title"] = title[:200]
     if "notes" in payload:
-        case["notes"] = str(payload["notes"] or "")[:10000]
+        notes = str(payload["notes"] or "")[:10000]
+        if case.get("notes") != notes:
+            _case_activity(case, "note", "Case notes updated", payload.get("actor") or "analyst")
+        case["notes"] = notes
     if "assignee" in payload:
-        case["assignee"] = str(payload["assignee"] or "")[:100]
+        assignee = str(payload["assignee"] or "")[:100]
+        if case.get("assignee") != assignee:
+            _case_activity(case, "assignee",
+                           f"Assignee changed to {assignee or 'unassigned'}",
+                           payload.get("actor") or "analyst")
+        case["assignee"] = assignee
+    if "category" in payload:
+        category = str(payload["category"] or "").strip()[:100]
+        if category:
+            case["category"] = category
+        else:
+            case.pop("category", None)
+    if "summary" in payload:
+        summary = payload["summary"]
+        if summary is not None and not isinstance(summary, dict):
+            raise ValueError("summary must be an object")
+        cleaned = ({
+            key: str(summary.get(key) or "")[:2000]
+            for key in ("what", "impact", "when")
+            if summary.get(key) is not None
+        } if summary is not None else None)
+        if cleaned:
+            case["summary"] = cleaned
+        else:
+            case.pop("summary", None)
     if "links" in payload:
         links = payload["links"] or {}
         case["links"] = {
             "findings": [str(x) for x in links.get("findings", [])],
             "incidents": [str(x) for x in links.get("incidents", [])],
         }
-    case["updatedAt"] = _now()
-    _save("cases.json", store)
-    _try_absorb_cases()                        # keep incidents in sync (C1-T1)
-    return _public_case(case)
+    return _save_case(store, case)
+
+
+def add_case_comment(cid, payload):
+    text = str(payload.get("text") or "").strip()
+    if not text:
+        raise ValueError("a comment needs text")
+    store = _load("cases.json")
+    case = store.get(cid)
+    if not case:
+        return None
+    _case_activity(case, "comment", text, payload.get("actor") or "analyst")
+    return _save_case(store, case)
+
+
+def add_case_observable(cid, payload):
+    observable_type = str(payload.get("type") or "").strip().lower()
+    value = str(payload.get("value") or "").strip()
+    if observable_type not in CASE_OBSERVABLE_TYPES:
+        raise ValueError(f"observable type must be one of {CASE_OBSERVABLE_TYPES}")
+    if not value:
+        raise ValueError("an observable needs a value")
+    verdict = payload.get("verdict")
+    if verdict is not None and str(verdict).strip().upper() in SEV_RANK:
+        raise ValueError("observable verdict must not be a rule severity")
+    store = _load("cases.json")
+    case = store.get(cid)
+    if not case:
+        return None
+    observables = list(case.get("observables") or [])
+    oid = f"observable-{len(observables) + 1}"
+    item = {"id": oid, "type": observable_type, "value": value[:2000]}
+    if verdict is not None and str(verdict).strip():
+        item["verdict"] = str(verdict).strip()[:200]
+    observables.append(item)
+    case["observables"] = observables
+    _case_activity(case, "observable", f"Observable added: {observable_type} {item['value']}",
+                   payload.get("actor") or "analyst")
+    return _save_case(store, case)
+
+
+def add_case_attachment(cid, payload):
+    name = str(payload.get("name") or "").strip()
+    kind = str(payload.get("kind") or "other").strip().lower()
+    if not name:
+        raise ValueError("an attachment needs a name")
+    if kind not in CASE_ATTACHMENT_KINDS:
+        raise ValueError(f"attachment kind must be one of {CASE_ATTACHMENT_KINDS}")
+    size = payload.get("size")
+    if size is not None:
+        try:
+            size = int(size)
+        except (TypeError, ValueError):
+            raise ValueError("attachment size must be an integer") from None
+        if size < 0:
+            raise ValueError("attachment size must not be negative")
+    store = _load("cases.json")
+    case = store.get(cid)
+    if not case:
+        return None
+    attachments = list(case.get("attachments") or [])
+    item = {"id": f"attachment-{len(attachments) + 1}", "name": name[:500], "kind": kind}
+    if size is not None:
+        item["size"] = size
+    attachments.append(item)
+    case["attachments"] = attachments
+    _case_activity(case, "attachment", f"Attachment metadata added: {item['name']}",
+                   payload.get("actor") or "analyst")
+    return _save_case(store, case)
+
+
+def add_case_runbook(cid, runbook_id, state):
+    """Record an eligible shipped runbook reference; never execute a command."""
+    store = _load("cases.json")
+    case = store.get(cid)
+    if not case:
+        return None, None
+    scan = copilot_runbook_scan(state)
+    row = next((item for item in scan.get("runbooks") or []
+                if item.get("id") == runbook_id), None)
+    if not row:
+        return case, {"eligible": False, "reason": "runbook is not shipped"}
+    if not row.get("eligible"):
+        return case, {"eligible": False,
+                      "reason": "; ".join(row.get("missing") or ["not eligible"])}
+    _case_activity(case, "runbook",
+                   f"Runbook added: {row.get('name') or runbook_id} ({runbook_id}); advisory only, not executed",
+                   "analyst")
+    case = _save_case(store, case)
+    markdown = (
+        f"# Advisory playbook: {row.get('name') or runbook_id}\n\n"
+        f"Shipped runbook `{runbook_id}` is eligible for incident `{row.get('incidentId')}` on this run.\n\n"
+        "This records an advisory case-file reference only. No containment, quarantine, connector, or command was executed."
+    )
+    return case, {"eligible": True, "markdown": markdown, "runbook": row}
 
 
 # ---------------------------------------------------------------------------

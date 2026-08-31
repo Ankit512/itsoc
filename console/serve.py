@@ -1573,7 +1573,13 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/metrics":
             self._json(soc.metrics(STATE, [r.get("label") for r in list_runs()]))
         elif path == "/api/copilot/suggest":
-            self._json({"questions": copilot.suggested_questions(STATE)})
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            case_id = (qs.get("caseId") or [None])[0]
+            case = soc.get_case(case_id) if case_id else None
+            if case_id and not case:
+                self._json({"error": "no such case"}, 404)
+            else:
+                self._json({"questions": copilot.suggested_questions(STATE, case=case)})
         elif path == "/api/copilot/runbooks":
             self._json(soc.copilot_runbook_scan(STATE))
         elif path == "/api/copilot/forecast":
@@ -1725,6 +1731,14 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._incident_state(path.split("/")[3])
         elif path == "/api/cases":
             self._create_case()
+        elif path.startswith("/api/cases/") and path.endswith("/comment"):
+            self._case_action(path.split("/")[3], "comment")
+        elif path.startswith("/api/cases/") and path.endswith("/observables"):
+            self._case_action(path.split("/")[3], "observable")
+        elif path.startswith("/api/cases/") and path.endswith("/attachments"):
+            self._case_action(path.split("/")[3], "attachment")
+        elif path.startswith("/api/cases/") and path.endswith("/run"):
+            self._case_action(path.split("/")[3], "run")
         # --- gated response approvals (C3-T2 / D3) — thin delegation to soc.py.
         # These sit AFTER the _api_authorized gate above (line ~1581), so they
         # inherit the bearer check AND additionally require step-up in the soc
@@ -2113,6 +2127,37 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError) as e:
             return self._json({"error": str(e)}, 400)
         print(f"  case created: {case['id']} {case['title'][:40]!r}", flush=True)
+        return self._json(case, 201)
+
+    def _case_action(self, cid, action):
+        """Thin route dispatch for analyst case-file mutations in soc.py."""
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        try:
+            if action == "comment":
+                case = soc.add_case_comment(cid, payload)
+            elif action == "observable":
+                case = soc.add_case_observable(cid, payload)
+            elif action == "attachment":
+                case = soc.add_case_attachment(cid, payload)
+            else:
+                runbook_id = str(payload.get("runbookId") or "").strip()
+                if not runbook_id:
+                    raise ValueError("a run needs runbookId")
+                case, result = soc.add_case_runbook(cid, runbook_id, STATE)
+                if case is None:
+                    return self._json({"error": "no such case"}, 404)
+                if not result.get("eligible"):
+                    return self._json({"error": "runbook is not eligible",
+                                       "reason": result.get("reason"),
+                                       "runbookId": runbook_id}, 409)
+                return self._json({"case": case, "markdown": result["markdown"],
+                                   "advisory": True, "executed": False})
+        except ValueError as e:
+            return self._json({"error": str(e)}, 400)
+        if not case:
+            return self._json({"error": "no such case"}, 404)
         return self._json(case, 201)
 
     # ---- gated response approvals (C3-T2 / D3) ------------------------------

@@ -594,13 +594,28 @@ export type CaseStatus =
 export const CASE_STATUSES: CaseStatus[] =
   ["new", "triaged", "investigating", "escalated", "resolved", "closed"];
 
+export type CaseActivityKind =
+  | "comment" | "note" | "attachment" | "observable"
+  | "runbook" | "state" | "assignee" | "system";
+export interface CaseActivity { at: string; actor: string; kind: CaseActivityKind; text: string }
+export type ObservableType = "url" | "ip" | "hash" | "domain" | "email";
+export interface CaseObservable { id: string; type: ObservableType; value: string; verdict?: string }
+export type AttachmentKind = "note" | "json" | "html" | "image" | "other";
+export interface CaseAttachment { id: string; name: string; size?: number; kind: AttachmentKind }
+export interface CaseSummary { what?: string; impact?: string; when?: string }
+
 export interface Case {
   id: string;
   title: string;
   notes: string;
   assignee: string;
+  category?: string;
+  summary?: CaseSummary;
   status: CaseStatus;
   history?: { status: CaseStatus; at: string }[];
+  activity: CaseActivity[];
+  observables: CaseObservable[];
+  attachments: CaseAttachment[];
   links: { findings: string[]; incidents: string[] };
   createdAt: string;
   updatedAt: string;
@@ -610,10 +625,16 @@ export interface CaseCreate {
   title: string;
   notes?: string;
   assignee?: string;
+  category?: string;
+  summary?: CaseSummary;
   links?: { findings?: string[]; incidents?: string[] };
 }
 
-export type CasePatch = Partial<Pick<Case, "title" | "notes" | "assignee" | "status">>;
+export type CasePatch = Partial<Pick<Case, "title" | "notes" | "assignee" | "status" | "category" | "summary">> & { actor?: string };
+export interface CaseCommentInput { text: string; actor?: string }
+export interface CaseObservableInput { type: ObservableType; value: string; verdict?: string; actor?: string }
+export interface CaseAttachmentInput { name: string; size?: number; kind?: AttachmentKind; actor?: string }
+export interface CaseRunResult { case: Case; markdown: string; advisory: true; executed: false }
 
 // --- Settings (Phase C) ---
 /** Masked compute config from /api/compute — the key is never exposed, only
@@ -935,9 +956,10 @@ export const api = {
     }
   },
 
-  copilotSuggest: async (): Promise<string[]> => {
+  copilotSuggest: async (caseId?: string): Promise<string[]> => {
     try {
-      const res = await fetch("/api/copilot/suggest");
+      const suffix = caseId ? `?caseId=${encodeURIComponent(caseId)}` : "";
+      const res = await fetch(`/api/copilot/suggest${suffix}`);
       if (!res.ok) return [];
       const body = (await res.json().catch(() => ({}))) as { questions?: string[] };
       return Array.isArray(body.questions) ? body.questions.filter((q) => typeof q === "string") : [];
@@ -1181,6 +1203,39 @@ export const api = {
     const body = await res.json().catch(() => ({}));
     return res.ok ? { ok: true, case: body as Case }
                   : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  addCaseComment: async (id: string, input: CaseCommentInput): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/comment`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  addCaseObservable: async (id: string, input: CaseObservableInput): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/observables`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  addCaseAttachment: async (id: string, input: CaseAttachmentInput): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/attachments`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  addCaseRunbook: async (id: string, runbookId: string): Promise<{ ok: boolean; result?: CaseRunResult; error?: string; reason?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/run`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runbookId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, result: body as CaseRunResult }
+                  : { ok: false, error: body.error ?? `HTTP ${res.status}`, reason: body.reason };
   },
 
   // --- Settings (Phase C) ---
@@ -1535,4 +1590,3 @@ export interface EfficacyResponse {
   run: EfficacyRun | null;
   error: string | null;
 }
-

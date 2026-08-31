@@ -63,8 +63,19 @@ def _ranked(findings):
     return sorted(findings, key=lambda f: (_SEV_RANK.get(_sev(f), 9), -_occ(f)))
 
 
-def suggested_questions(state):
+def suggested_questions(state, case=None):
     """Run-aware prompts. Never suggest a band/story the run does not have."""
+    if case:
+        qs = ["Summarize this case"]
+        for observable in case.get("observables") or []:
+            if observable.get("type") == "url" and observable.get("value"):
+                qs.append(f"Analyze {observable['value']}")
+        if case.get("attachments"):
+            qs.append("Scan attachments")
+        if (case.get("links") or {}).get("findings") or (case.get("links") or {}).get("incidents"):
+            qs.append("Find related cases")
+        # Preserve order while making a stable, object-scoped chip list.
+        return list(dict.fromkeys(qs))
     if not state or state.get("idle"):
         return ["Analyze a log first, then I can walk the evidence with you."]
     if state.get("unrecognized") or state.get("emptyInput"):
@@ -698,7 +709,36 @@ def _alert_report(f, events, extras=None):
     return "\n".join(parts), cites
 
 
-def investigate(question, state, extras=None):
+def _case_description(case):
+    """Render analyst-entered case-file facts without adding a verdict/story."""
+    lines = []
+    summary = case.get("summary") or {}
+    for key, label in (("what", "What"), ("impact", "Impact"), ("when", "When")):
+        if summary.get(key):
+            lines.append(f"{label}: {summary[key]}")
+    if case.get("notes"):
+        lines.append(f"Notes: {case['notes']}")
+    for observable in case.get("observables") or []:
+        value = observable.get("value")
+        if not value:
+            continue
+        detail = f"Observable ({observable.get('type') or 'unknown'}): {value}"
+        if observable.get("verdict"):
+            detail += f" — {observable['verdict']}"
+        lines.append(detail)
+    for attachment in case.get("attachments") or []:
+        detail = f"Attachment ({attachment.get('kind') or 'other'}): {attachment.get('name') or 'unnamed'}"
+        if attachment.get("size") is not None:
+            detail += f" ({attachment['size']} bytes)"
+        lines.append(detail)
+    for item in case.get("activity") or []:
+        text = item.get("text")
+        if text:
+            lines.append(f"Activity ({item.get('kind') or 'system'}): {text}")
+    return "\n".join(lines) or "No analyst notes, observables, attachments, or activity have been recorded for this case."
+
+
+def investigate(question, state, extras=None, case=None):
     """Deterministic investigation. Never a new verdict."""
     empty = {
         "answer": "",
@@ -707,6 +747,32 @@ def investigate(question, state, extras=None):
         "facts": {},
         "source": "rules",
     }
+    q = str(question or "").strip()
+    ql = q.lower()
+    if case and "quarantine" in ql:
+        scan = (extras or {}).get("runbooks") or {}
+        eligible = [r for r in scan.get("runbooks") or [] if r.get("eligible")]
+        if eligible:
+            names = ", ".join(str(r.get("id")) for r in eligible)
+            empty["answer"] = (
+                f"Quarantine is never executed from Copilot. Eligible shipped runbook(s) on this run: {names}; "
+                "add one to the case through the advisory Run endpoint if appropriate."
+            )
+        else:
+            empty["answer"] = "Quarantine is not eligible for this case/run. Copilot did not execute anything."
+        empty["source"] = "case"
+        empty["followups"] = suggested_questions(state, case=case)
+        return empty
+    if case and (not q or "summarize this case" in ql or "summary" in ql):
+        empty["answer"] = f"Title: {case.get('title') or 'Untitled case'}\nDescription:\n{_case_description(case)}"
+        empty["source"] = "case"
+        empty["followups"] = suggested_questions(state, case=case)
+        empty["facts"] = {
+            "observables": len(case.get("observables") or []),
+            "attachments": len(case.get("attachments") or []),
+            "activity": len(case.get("activity") or []),
+        }
+        return empty
     if not state or state.get("idle"):
         empty["answer"] = (
             "No run is loaded. Analyze a log first — I only investigate "
@@ -722,8 +788,6 @@ def investigate(question, state, extras=None):
 
     findings = _findings(state)
     events = _events(state)
-    q = str(question or "").strip()
-    ql = q.lower()
     angles = collect_angles(state, extras)
     facts = {
         "findings": len(findings),
