@@ -124,30 +124,28 @@ function countSev(findings: Finding[], band: string): number {
   return findings.filter((f) => (f.sev || f.ruleSev || "").toUpperCase() === want).length;
 }
 
-/** Deterministic briefing for the CURRENT run — display aggregation of
- *  rule-owned findings, never a new verdict. Bound to console-state so it
- *  cannot lag a run switch. */
+/** One-line run context — never a new verdict. */
 function RunBriefing({ state, loading }: { state?: ConsoleState; loading?: boolean }) {
   if (loading && !state) {
     return (
-      <div className="rounded border bg-background px-2.5 py-2 text-[11.5px] leading-relaxed text-muted-foreground" data-testid="copilot-run-brief">
+      <div className="text-[11px] text-muted-foreground" data-testid="copilot-run-brief">
         Loading current run…
       </div>
     );
   }
   if (!state || state.idle) {
     return (
-      <div className="rounded border bg-background px-2.5 py-2 text-[11.5px] leading-relaxed text-muted-foreground" data-testid="copilot-run-brief">
+      <div className="text-[11px] text-muted-foreground" data-testid="copilot-run-brief">
         No run loaded — analyze a log first. I only interpret findings that exist for the current run.
       </div>
     );
   }
   if (state.unrecognized || state.emptyInput) {
     return (
-      <div className="rounded border bg-background px-2.5 py-2 text-[11.5px] leading-relaxed text-muted-foreground" data-testid="copilot-run-brief">
+      <div className="text-[11px] text-muted-foreground" data-testid="copilot-run-brief">
         Run <span className="is-mono">{state.runId ?? "n/a"}</span> was not recognized
-        {typeof state.linesUnparsed === "number" ? ` — ${state.linesUnparsed} unparsed line(s)` : ""}.
-        That is not an all-clear.
+        {typeof state.linesUnparsed === "number" ? ` — ${state.linesUnparsed} unparsed` : ""}.
+        Not an all-clear.
       </div>
     );
   }
@@ -156,20 +154,42 @@ function RunBriefing({ state, loading }: { state?: ConsoleState; loading?: boole
   const high = countSev(findings, "HIGH");
   const matching = findings.reduce((n, f) => n + (f.occurrences || 1), 0);
   return (
-    <div className="rounded border bg-background px-2.5 py-2 text-[11.5px] leading-relaxed" data-testid="copilot-run-brief">
-      <div className="font-semibold text-foreground">
-        Interpreting <span className="is-mono">{state.runId}</span>
-      </div>
-      <div className="mt-0.5 text-muted-foreground">
-        {state.sourceLabel || state.runHosts || "current log"}
-        {state.runParsed ? ` · ${state.runParsed}` : ""}
-      </div>
-      <div className="mt-1 is-mono text-muted-foreground">
-        {findings.length} finding(s)
-        {matching > findings.length ? ` · ${matching.toLocaleString()} matching lines` : ""}
-        {" "}· {crit} critical · {high} high
-        {state.llmNote ? ` · ${state.llmNote}` : ""}
-      </div>
+    <div className="truncate text-[11px] text-muted-foreground" data-testid="copilot-run-brief">
+      <span className="is-mono font-medium text-foreground">{state.runId}</span>
+      {" · "}{findings.length} finding(s)
+      {matching > findings.length ? ` · ${matching.toLocaleString()} lines` : ""}
+      {" · "}{crit} critical · {high} high
+    </div>
+  );
+}
+
+function CitationsPanel({ citations }: { citations: CopilotCitation[] }) {
+  const [open, setOpen] = useState(false);
+  const extra = citations.length > 2;
+  const shown = open ? citations.slice(0, 8) : citations.slice(0, 2);
+  return (
+    <div className="rounded border bg-background px-2 py-1.5" data-testid="copilot-citations">
+      <button
+        type="button"
+        onClick={() => extra && setOpen((o) => !o)}
+        className="is-mono is-mut mb-1 text-left"
+        style={{ fontSize: 10 }}
+      >
+        {citations.length} cited line{citations.length === 1 ? "" : "s"}
+        {extra ? (open ? " · hide" : " · show") : ""}
+      </button>
+      {shown.map((c, ci) => (
+        <div key={ci} className="flex gap-2 text-[11px]" style={{ padding: "2px 0" }}>
+          <span className="is-mono is-mut" style={{ minWidth: 36 }}>
+            {c.findingId ? (
+              <Link to={`/alerts?sel=${encodeURIComponent(c.findingId)}`} style={{ color: "var(--acc)" }}>
+                {`{${c.n ?? "n"}}`}
+              </Link>
+            ) : `{${c.n ?? "n"}}`}
+          </span>
+          <span className="is-mono line-clamp-2" style={{ wordBreak: "break-all" }}>{c.raw}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -403,25 +423,58 @@ export function CopilotRail({
     ? SHOWCASE_NO_CRIT
     : SHOWCASE_CHIPS;
 
+  const composer = (
+    <form
+      data-testid="copilot-composer"
+      className="flex shrink-0 items-end gap-1.5 border-t pt-2"
+      onSubmit={(e) => { e.preventDefault(); ask(draft); }}
+    >
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            ask(draft);
+          }
+        }}
+        rows={2}
+        placeholder={blockAsk ? "Analyze a log first…" : "Ask about this run…"}
+        aria-label="Ask the AI analyst"
+        disabled={streaming || blockAsk}
+        className="min-h-[52px] min-w-0 flex-1 resize-none rounded-md border-2 border-primary/50 bg-background px-2.5 py-2 text-[13px] outline-none focus:border-primary disabled:opacity-60"
+      />
+      <button
+        type="submit"
+        aria-label="Send"
+        disabled={streaming || !draft.trim() || blockAsk}
+        className="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+      >
+        <Send className="h-4 w-4" aria-hidden />
+      </button>
+    </form>
+  );
+
   const content = (
     <section
       aria-label="AI Analyst"
       data-testid="copilot-rail"
       className={cn(
-        "flex min-h-0 flex-col gap-2.5 bg-card p-3.5 text-[13px]",
+        "flex min-h-0 flex-col gap-2 overflow-hidden bg-card p-3 text-[13px]",
         docked ? "h-full w-full" : "max-h-[min(680px,calc(100vh-100px))] w-[380px] rounded-lg border shadow-[var(--shadow-pop)]",
         className,
       )}
     >
       {/* Copilot Header */}
-      <div className="flex items-center justify-between border-b pb-2.5">
+      <div className="flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-primary" strokeWidth={2} aria-hidden />
           <span className="font-bold tracking-tight text-foreground">
-            itsoc analyst{effectiveModel && effectiveModel !== "not configured" ? ` (${effectiveModel})` : ""}
+            itsoc analyst
           </span>
           <span
             data-testid="copilot-advisory-chip"
+            title={effectiveModel}
             className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-foreground"
           >
             advisory
@@ -437,14 +490,12 @@ export function CopilotRail({
           </button>
         )}
       </div>
+      <p className="shrink-0 text-[10.5px] leading-snug text-muted-foreground">
+        Advisory only — severities come from rules and are never changed here.
+      </p>
 
-      {/* Advisory Disclaimer Notice */}
-      <div className="rounded border bg-background px-3 py-2 text-[11.5px] leading-relaxed text-muted-foreground">
-        Advisory only: the model explains findings in plain language. Severities and verdicts come from the deterministic rules and are never changed here.
-      </div>
-
-      {/* 5 Grounded Roles Tabs */}
-      <div className="flex flex-wrap gap-1 rounded-md bg-background p-1 text-[11.5px] font-medium" role="tablist">
+      {/* 5 Grounded Roles Tabs — single row so they never eat the composer */}
+      <div className="flex shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md bg-background p-1 text-[11px] font-medium" role="tablist">
         <button
           role="tab"
           aria-selected={activeTab === "ask"}
@@ -543,15 +594,15 @@ export function CopilotRail({
 
       {/* Role 1 & Q&A View: Interpret & Chat */}
       {activeTab === "ask" && (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden" data-testid="copilot-chat">
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden" data-testid="copilot-chat">
           <RunBriefing state={state} loading={stateLoading} />
-          <div aria-live="polite" className="flex min-h-[160px] flex-1 flex-col gap-2 overflow-y-auto pr-1 text-[12px]">
+          <div aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 text-[12px]">
             {log.length === 0 && (
-              <div className="flex flex-col gap-2">
-                <p className="text-[12px] leading-normal text-muted-foreground">
-                  I investigate this run like an analyst: grouped cards plus the matching source lines Overview hides. I cite {`{n}`} from the log. Ask in plain language — answers are advisory; rules still own severity.
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[12px] text-muted-foreground">
+                  Ask anything about this run. Type below or tap a starter.
                 </p>
-                {runPrompts.map((q) => (
+                {runPrompts.slice(0, 4).map((q) => (
                   <button
                     key={q}
                     onClick={() => ask(q)}
@@ -580,30 +631,14 @@ export function CopilotRail({
                       {m.text}
                       {isStreamingAnswer && !m.text && (
                         <span className="text-muted-foreground">
-                          {gotFirstToken ? "" : `investigating this run… ${elapsed}s`}
+                          {gotFirstToken ? "" : `investigating… ${elapsed}s`}
                         </span>
                       )}
                       {isStreamingAnswer && m.text && <span className="animate-pulse">▍</span>}
                     </div>
                   )}
                   {m.who === "a" && m.citations && m.citations.length > 0 && (
-                    <div className="rounded border bg-background px-2 py-1.5" data-testid="copilot-citations">
-                      <div className="is-mono is-mut" style={{ fontSize: 10, marginBottom: 4 }}>
-                        cited source lines (verbatim — not shown as Overview cards)
-                      </div>
-                      {m.citations.slice(0, 8).map((c, ci) => (
-                        <div key={ci} className="flex gap-2 text-[11px]" style={{ padding: "2px 0" }}>
-                          <span className="is-mono is-mut" style={{ minWidth: 36 }}>
-                            {c.findingId ? (
-                              <Link to={`/alerts?sel=${encodeURIComponent(c.findingId)}`} style={{ color: "var(--acc)" }}>
-                                {`{${c.n ?? "n"}}`}
-                              </Link>
-                            ) : `{${c.n ?? "n"}}`}
-                          </span>
-                          <span className="is-mono" style={{ wordBreak: "break-all" }}>{c.raw}</span>
-                        </div>
-                      ))}
-                    </div>
+                    <CitationsPanel citations={m.citations} />
                   )}
                   {m.who === "a" && m.followups && m.followups.length > 0 && !isStreamingAnswer && (
                     <div className="flex flex-wrap gap-1.5" data-testid="copilot-followups">
@@ -624,15 +659,13 @@ export function CopilotRail({
             })}
           </div>
 
-          {/* Showcase chips — pull a real is-* result card into the rail.
-              Run-aware: never advertise "critical incidents" on a 0-crit run. */}
-          <div className="flex flex-wrap gap-1.5 pt-1" data-testid="copilot-showcase-chips">
+          <div className="flex shrink-0 flex-wrap gap-1" data-testid="copilot-showcase-chips">
             {showcaseChips.map((p) => (
               <button
                 key={p}
                 onClick={() => ask(p)}
                 disabled={streaming}
-                className="rounded-full border border-primary/40 bg-background px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-accent disabled:opacity-50"
+                className="rounded-full border border-primary/40 bg-background px-2 py-0.5 text-[10.5px] font-medium text-primary hover:bg-accent disabled:opacity-50"
               >
                 {p}
               </button>
@@ -640,8 +673,8 @@ export function CopilotRail({
           </div>
 
           {streaming && (
-            <div className="flex items-center gap-2 text-[11.5px] text-muted-foreground">
-              <span className="tabular-nums">streaming · {elapsed}s</span>
+            <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
+              <span className="tabular-nums">{elapsed}s</span>
               <button
                 onClick={stop}
                 className="ml-auto inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] hover:border-primary"
@@ -650,31 +683,12 @@ export function CopilotRail({
               </button>
             </div>
           )}
-
-          <form className="flex shrink-0 gap-1.5" onSubmit={(e) => { e.preventDefault(); ask(draft); }}>
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={blockAsk ? "Analyze a log first…" : "Ask about a hidden line, HRESULT, host…"}
-              aria-label="Ask the AI analyst"
-              disabled={streaming || blockAsk}
-              className="min-w-0 flex-1 rounded border bg-card px-2.5 py-1.5 text-[12.5px] outline-none focus:border-primary disabled:opacity-60"
-            />
-            <button
-              type="submit"
-              aria-label="Send"
-              disabled={streaming || !draft.trim() || blockAsk}
-              className="inline-flex w-8 items-center justify-center rounded border border-primary bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
-            >
-              <Send className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          </form>
         </div>
       )}
 
       {/* Role 4 View: Prioritize ("Start Here") */}
       {activeTab === "prioritize" && (
-        <div data-testid="copilot-prioritize-card" className="flex flex-1 flex-col gap-2.5 overflow-y-auto">
+        <div data-testid="copilot-prioritize-card" className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto">
           <div className="rounded-lg border bg-background p-3">
             <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
@@ -721,7 +735,7 @@ export function CopilotRail({
 
       {/* Role 2 View: Trend Digest */}
       {activeTab === "trend" && (
-        <div data-testid="copilot-trend-card" className="flex flex-1 flex-col gap-2.5 overflow-y-auto">
+        <div data-testid="copilot-trend-card" className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto">
           <div className="rounded-lg border bg-background p-3 space-y-2">
             <div className="flex items-center justify-between text-xs font-bold text-foreground">
               <span className="flex items-center gap-1.5">
@@ -779,7 +793,7 @@ export function CopilotRail({
 
       {/* Role 3 View: Honest Forecast */}
       {activeTab === "forecast" && (
-        <div data-testid="copilot-forecast-card" className="flex flex-1 flex-col gap-2.5 overflow-y-auto">
+        <div data-testid="copilot-forecast-card" className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto">
           <div className="rounded-lg border bg-background p-3 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-xs font-bold text-foreground">
@@ -828,7 +842,7 @@ export function CopilotRail({
 
       {/* Role 5 View: Cited Resolution via Runbook Engine */}
       {activeTab === "resolution" && (
-        <div data-testid="copilot-resolution-card" className="flex flex-1 flex-col gap-2.5 overflow-y-auto">
+        <div data-testid="copilot-resolution-card" className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto">
           {matchedRunbook ? (
             <div className="rounded-lg border bg-background p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -863,15 +877,12 @@ export function CopilotRail({
         </div>
       )}
 
-      {/* Model footer line */}
-      <div className="font-mono text-[11px] text-muted-foreground">
-        Model: {effectiveModel}
-      </div>
+      {composer}
 
       {/* Verbatim Copilot Footer */}
       <div
         data-testid="copilot-footer"
-        className="cop-f border-t pt-2 text-[11px] font-medium text-muted-foreground"
+        className="cop-f shrink-0 pt-1 text-[10.5px] font-medium text-muted-foreground"
       >
         Rules set severity. I interpret &amp; explain — I don&apos;t decide.
       </div>
