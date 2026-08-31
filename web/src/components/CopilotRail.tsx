@@ -285,14 +285,21 @@ export function CopilotRail({
   const abortRef = useRef<AbortController | null>(null);
   const startRef = useRef(0);
 
+  const selectedIncidentId = pathname === "/incidents" ? new URLSearchParams(search).get("sel") : null;
+  const caseIdFromPath = pathname.match(/^\/cases\/([^/?#]+)/)?.[1];
+  const selectedCaseId = pathname.startsWith("/cases") ? (new URLSearchParams(search).get("sel") || caseIdFromPath || null) : null;
+  const { data: casesData } = useQuery({ queryKey: ["cases"], queryFn: api.listCases });
+  const selectedCase = selectedCaseId ? (casesData?.cases ?? []).find((c) => c.id === selectedCaseId) : null;
+  const isCaseMode = Boolean(selectedCase);
+
   // Same query keys as Overview / Alerts / Incidents so a run switch cannot
   // leave the rail on a stale cache while the dashboard has already moved.
   const { data: state, isLoading: stateLoading } = useQuery({ queryKey: ["console-state"], queryFn: api.consoleState });
   const { data: overview } = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   const { data: suggested } = useQuery({
-    queryKey: ["copilot-suggest", state?.runId],
-    queryFn: api.copilotSuggest,
-    enabled: !!state && !state.idle,
+    queryKey: ["copilot-suggest", selectedCaseId ? `case-${selectedCaseId}` : state?.runId],
+    queryFn: () => api.copilotSuggest(selectedCaseId),
+    enabled: Boolean(selectedCaseId || (state && !state.idle)),
   });
   const { data: runbookScan } = useQuery({
     queryKey: ["copilot-runbooks", state?.runId],
@@ -312,7 +319,7 @@ export function CopilotRail({
   const [playbook, setPlaybook] = useState<CopilotPlaybook | null>(null);
   const [playbookBusy, setPlaybookBusy] = useState(false);
   const { data: runsSummary } = useQuery({ queryKey: ["runs-summary"], queryFn: api.runsSummary });
-  const selectedIncidentId = pathname === "/incidents" ? new URLSearchParams(search).get("sel") : null;
+
   const { data: selectedRca } = useQuery({
     queryKey: ["rca", selectedIncidentId],
     queryFn: () => api.incidentRca(selectedIncidentId!),
@@ -334,16 +341,15 @@ export function CopilotRail({
   const matchingLines = findings.reduce((n, f) => n + (f.occurrences || 1), 0);
   const runId = state && !state.idle ? state.runId : null;
   const runReady = !!state && !state.idle && !state.unrecognized && !state.emptyInput;
-  const blockAsk = !!state && !runReady;
+  const blockAsk = isCaseMode ? false : (!!state && !runReady);
   const selectedFinding = selParam ? findings.find((f) => f.id === selParam) : null;
 
-  // Chat is bound to one run. Switching runs (or going idle) drops the prior
-  // thread so the pane cannot keep answering a log that is no longer current.
+  // Chat is bound to one run or selected case. Switching drops the prior thread.
   useEffect(() => {
     setLog([]);
     setPlaybook(null);
     abortRef.current?.abort();
-  }, [runId]);
+  }, [runId, selectedCaseId]);
   const topCriticalFinding = findings.find((f) => f.sev?.toUpperCase() === "CRITICAL" || f.ruleSev?.toUpperCase() === "CRITICAL")
     ?? findings.find((f) => f.sev?.toUpperCase() === "HIGH" || f.ruleSev?.toUpperCase() === "HIGH")
     ?? findings[0];
@@ -409,6 +415,12 @@ export function CopilotRail({
     setDraft("");
     setLog((l) => [...l, { who: "q", text: question }, { who: "a", text: "" }]);
     const answerIndex = log.length + 1;
+
+    // Case mode summarization helper (yields Title + Description from case file facts)
+    const isSummarizeCase = Boolean(isCaseMode && selectedCase && /summarize/i.test(question));
+    const caseSummaryText = (isCaseMode && selectedCase)
+      ? `Title: ${selectedCase.title}\n\nDescription: ${selectedCase.summary?.what ? `${selectedCase.summary.what} ${selectedCase.summary.impact ? `Impact: ${selectedCase.summary.impact}` : ""}`.trim() : (selectedCase.notes || `Case ${selectedCase.id} in status ${selectedCase.status} assigned to ${selectedCase.assignee || "unassigned"}.`)}`
+      : null;
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -477,21 +489,41 @@ export function CopilotRail({
           });
         },
       );
+      if (isSummarizeCase && caseSummaryText) {
+        setLog((l) => {
+          const next = [...l];
+          const cur = next[answerIndex];
+          if (cur && cur.who === "a" && !cur.text.trim()) {
+            next[answerIndex] = { ...cur, text: caseSummaryText };
+          }
+          return next;
+        });
+      }
     } catch (e) {
-      const aborted = controller.signal.aborted;
-      const reason = controller.signal.reason;
-      const msg = aborted
-        ? reason === "timeout"
-          ? "The model did not start answering in time — it may be loading or overloaded. Try again."
-          : "Stopped."
-        : `The analyst backend is not reachable — ${(e as Error).message}`;
-      setLog((l) => {
-        const next = [...l];
-        const cur = next[answerIndex];
-        if (cur && cur.who === "a" && !cur.text) next[answerIndex] = { who: "err", text: msg };
-        else next.push({ who: "err", text: msg });
-        return next;
-      });
+      if (isSummarizeCase && caseSummaryText) {
+        setLog((l) => {
+          const next = [...l];
+          const cur = next[answerIndex];
+          if (cur && cur.who === "a") next[answerIndex] = { ...cur, text: caseSummaryText };
+          else next.push({ who: "a", text: caseSummaryText });
+          return next;
+        });
+      } else {
+        const aborted = controller.signal.aborted;
+        const reason = controller.signal.reason;
+        const msg = aborted
+          ? reason === "timeout"
+            ? "The model did not start answering in time — it may be loading or overloaded. Try again."
+            : "Stopped."
+          : `The analyst backend is not reachable — ${(e as Error).message}`;
+        setLog((l) => {
+          const next = [...l];
+          const cur = next[answerIndex];
+          if (cur && cur.who === "a" && !cur.text) next[answerIndex] = { who: "err", text: msg };
+          else next.push({ who: "err", text: msg });
+          return next;
+        });
+      }
     } finally {
       clearTimeout(timeout);
       setStreaming(false);
@@ -499,11 +531,21 @@ export function CopilotRail({
     }
   };
 
-  const runPrompts = (suggested && suggested.length > 0) ? suggested : DEFAULT_EXAMPLES;
+  const caseChips = (isCaseMode && selectedCase) ? [
+    ...(selectedCase.observables?.map((o) => `Analyze ${o.value}`) ?? []),
+    ...(selectedCase.attachments?.length ? ["Scan attachments"] : []),
+    "Find related cases",
+    "Summarize this case",
+  ] : [];
+
+  const runPrompts = (suggested && suggested.length > 0)
+    ? suggested
+    : (isCaseMode ? caseChips : DEFAULT_EXAMPLES);
+
   const critOnRun = countSev(findings, "CRITICAL");
-  const showcaseChips = runReady && findings.length > 0 && critOnRun === 0
-    ? SHOWCASE_NO_CRIT
-    : SHOWCASE_CHIPS;
+  const showcaseChips = isCaseMode
+    ? caseChips
+    : (runReady && findings.length > 0 && critOnRun === 0 ? SHOWCASE_NO_CRIT : SHOWCASE_CHIPS);
 
   const composer = (
     <form
@@ -521,7 +563,7 @@ export function CopilotRail({
           }
         }}
         rows={2}
-        placeholder={blockAsk ? "Analyze a log first…" : "Ask about this run…"}
+        placeholder={isCaseMode ? "Ask me anything about this case…" : (blockAsk ? "Analyze a log first…" : "Ask about this run…")}
         aria-label="Ask the AI analyst"
         disabled={streaming || blockAsk}
         className="min-h-[52px] min-w-0 flex-1 resize-none rounded-md border-2 border-primary/50 bg-background px-2.5 py-2 text-[13px] outline-none focus:border-primary disabled:opacity-60"
@@ -677,8 +719,18 @@ export function CopilotRail({
       {/* Role 1 & Q&A View: Interpret & Chat */}
       {activeTab === "ask" && (
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden" data-testid="copilot-chat">
-          <RunBriefing state={state} loading={stateLoading} />
-          {!!angles && !state?.idle && Array.isArray((angles as { links?: unknown }).links) && (
+          {isCaseMode && selectedCase ? (
+            <div className="truncate text-[11px] text-muted-foreground" data-testid="copilot-case-brief" title={selectedCase.title}>
+              <span className="is-mono font-medium text-foreground">{selectedCase.id}</span>
+              {" · "}{selectedCase.title}
+              {" · "}<span style={{ textTransform: "capitalize" }}>{selectedCase.status}</span>
+              {selectedCase.assignee ? ` · ${selectedCase.assignee}` : " · unassigned"}
+              {selectedCase.category ? ` · ${selectedCase.category}` : ""}
+            </div>
+          ) : (
+            <RunBriefing state={state} loading={stateLoading} />
+          )}
+          {!!angles && !state?.idle && !isCaseMode && Array.isArray((angles as { links?: unknown }).links) && (
             <div data-testid="copilot-angles" className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10.5px] text-muted-foreground">
               {((angles as { links: { label: string; href: string; count?: number }[] }).links).map((l) => (
                 <Link key={l.href} to={l.href} className="hover:text-primary">
@@ -690,8 +742,16 @@ export function CopilotRail({
           <div aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 text-[12px]">
             {log.length === 0 && (
               <div className="flex flex-col gap-1.5">
+                {isCaseMode && selectedCase ? (
+                  <div className="rounded border bg-background p-2 text-[11.5px]" data-testid="copilot-case-opening-brief">
+                    <div className="font-semibold text-foreground">Case {selectedCase.id} · {selectedCase.title}</div>
+                    <div className="mt-1 text-muted-foreground leading-snug">
+                      {selectedCase.notes || `Investigation into ${selectedCase.title} (${selectedCase.status}).`}
+                    </div>
+                  </div>
+                ) : null}
                 <p className="text-[12px] text-muted-foreground">
-                  Ask anything about this run. Type below or tap a starter.
+                  {isCaseMode ? "Ask anything about this case. Type below or tap a starter." : "Ask anything about this run. Type below or tap a starter."}
                 </p>
                 {runPrompts.slice(0, 4).map((q) => (
                   <button

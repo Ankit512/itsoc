@@ -56,6 +56,7 @@ export default function App() {
           <Route path="history" element={<History />} />
           <Route path="reports" element={<Reports />} />
           <Route path="cases" element={<Cases />} />
+          <Route path="cases/:id" element={<Cases />} />
           <Route path="settings" element={<Settings />} />
           <Route path="collectors" element={<Sources />} />
           <Route path="sources" element={<Sources />} />

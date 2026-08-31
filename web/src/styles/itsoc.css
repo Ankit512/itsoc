@@ -691,3 +691,161 @@
   background: var(--inset);
 }
 
+/* ── 23. KANBAN & CASE FILE UI (feat/case-file-ui) ─────────────────────── */
+.is-kanban {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(200px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  align-items: start;
+}
+.is-kanban-col {
+  background: var(--pan);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 440px;
+}
+.is-kanban-col__h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--bd);
+}
+.is-kanban-col__title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+.is-kanban-col__count {
+  font-size: 10.5px;
+  font-family: var(--mono);
+  color: var(--mut);
+  background: var(--inset);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+.is-kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 40px;
+}
+.is-kanban-card {
+  background: var(--inset);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  text-decoration: none;
+  color: inherit;
+}
+.is-kanban-card:hover {
+  background: var(--pan2);
+  border-color: var(--bd2);
+}
+.is-kanban-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.is-kanban-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--mut);
+}
+.is-kanban-empty {
+  font-size: 11px;
+  color: var(--mut2);
+  text-align: center;
+  padding: 24px 8px;
+  border: 1px dashed var(--bd);
+  border-radius: var(--radius-xs);
+}
+
+/* Case file detail */
+.is-casefile {
+  display: grid;
+  grid-template-columns: minmax(320px, 380px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media(max-width: 960px) {
+  .is-casefile {
+    grid-template-columns: 1fr;
+  }
+}
+.is-casefile__left {
+  background: var(--pan);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.is-casefile__right {
+  background: var(--pan);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.is-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.is-timeline__item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  background: var(--inset);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.is-timeline__h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--mut);
+}
+.is-timeline__actor {
+  font-weight: 600;
+  color: var(--ink);
+}
+.is-timeline__ts {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--mut2);
+}
+.is-timeline__body {
+  color: var(--ink2);
+  line-height: 1.45;
+}
+
+

@@ -594,12 +594,59 @@ export type CaseStatus =
 export const CASE_STATUSES: CaseStatus[] =
   ["new", "triaged", "investigating", "escalated", "resolved", "closed"];
 
+export interface CaseActivity {
+  id?: string;
+  ts: string;
+  actor: string;
+  action: string;
+  message?: string;
+  kind?: "human" | "system" | "comment";
+}
+
+export interface CaseObservable {
+  id?: string;
+  type: string;
+  value: string;
+  addedAt?: string;
+  source?: string;
+}
+
+export interface CaseAttachment {
+  id?: string;
+  name: string;
+  size?: number;
+  type?: string;
+  uploadedAt?: string;
+  url?: string;
+}
+
+export interface CaseSummary {
+  what?: string;
+  impact?: string;
+  when?: string;
+}
+
+export interface CaseEvent {
+  id?: string;
+  ts: string;
+  level?: string;
+  source?: string;
+  message: string;
+  raw?: string;
+}
+
 export interface Case {
   id: string;
   title: string;
   notes: string;
   assignee: string;
   status: CaseStatus;
+  category?: string;
+  summary?: CaseSummary;
+  activity?: CaseActivity[];
+  observables?: CaseObservable[];
+  attachments?: CaseAttachment[];
+  events?: CaseEvent[];
   history?: { status: CaseStatus; at: string }[];
   links: { findings: string[]; incidents: string[] };
   createdAt: string;
@@ -610,10 +657,11 @@ export interface CaseCreate {
   title: string;
   notes?: string;
   assignee?: string;
+  category?: string;
   links?: { findings?: string[]; incidents?: string[] };
 }
 
-export type CasePatch = Partial<Pick<Case, "title" | "notes" | "assignee" | "status">>;
+export type CasePatch = Partial<Pick<Case, "title" | "notes" | "assignee" | "status" | "category">>;
 
 // --- Settings (Phase C) ---
 /** Masked compute config from /api/compute — the key is never exposed, only
@@ -935,9 +983,10 @@ export const api = {
     }
   },
 
-  copilotSuggest: async (): Promise<string[]> => {
+  copilotSuggest: async (caseId?: string | null): Promise<string[]> => {
     try {
-      const res = await fetch("/api/copilot/suggest");
+      const url = caseId ? `/api/copilot/suggest?caseId=${encodeURIComponent(caseId)}` : "/api/copilot/suggest";
+      const res = await fetch(url);
       if (!res.ok) return [];
       const body = (await res.json().catch(() => ({}))) as { questions?: string[] };
       return Array.isArray(body.questions) ? body.questions.filter((q) => typeof q === "string") : [];
@@ -1160,6 +1209,7 @@ export const api = {
   // required), PATCH one by id. The store is the only writer; nothing is
   // derived — an empty store honestly means no cases.
   listCases: () => getJson<{ cases: Case[] }>("/api/cases"),
+  getCase: (id: string) => getJson<Case | { error: string }>(`/api/cases/${encodeURIComponent(id)}`),
 
   createCase: async (input: CaseCreate): Promise<{ ok: boolean; case?: Case; error?: string }> => {
     const res = await fetch("/api/cases", {
@@ -1180,6 +1230,50 @@ export const api = {
     });
     const body = await res.json().catch(() => ({}));
     return res.ok ? { ok: true, case: body as Case }
+                  : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  caseComment: async (id: string, comment: string): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/comment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comment, text: comment }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case }
+                  : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  addCaseObservable: async (id: string, observable: { type: string; value: string }): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/observables`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(observable),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case }
+                  : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  addCaseAttachment: async (id: string, attachment: { name: string; size?: number; type?: string }): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/attachments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(attachment),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case }
+                  : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  runCaseWorkflow: async (id: string, runbookId: string): Promise<{ ok: boolean; error?: string; result?: unknown }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ runbookId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, ...(body as object) }
                   : { ok: false, error: body.error ?? `HTTP ${res.status}` };
   },
 
