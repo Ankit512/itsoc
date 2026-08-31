@@ -36,7 +36,7 @@ import rules_syslog         # noqa: E402
 from anomaly_detector import detect  # noqa: E402
 
 SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-AUTH_SOURCES = ("failed_password", "invalid_user", "pam_failure")
+AUTH_SOURCES = ("failed_password", "invalid_user", "pam_failure", "auth_csv")
 
 
 def entity_of(anomaly):
@@ -51,12 +51,10 @@ def entity_of(anomaly):
 def analyze(path):
     """Run one file through the full deterministic path. Returns (findings, meta)."""
     records, stats = normalize.load(path)
-    # Syslog-family formats (rfc3164, rfc5424, jsonlog, log360_syslog) carry the
-    # same message vocabulary ("Failed password for ...") that rules_syslog
-    # translates into canonical form ("auth failed for user ...") for the
-    # detector's AUTH_FAIL_RE to match.
+    # Formats that need rules_syslog vocabulary translation before the frozen
+    # AUTH_FAIL_RE (syslog phrasing, JSON-line Failed-password, auth CSV cells).
     syslog_family = stats["format"] in (
-        "rfc3164", "rfc5424", "jsonlog", "log360_syslog",
+        "rfc3164", "rfc5424", "jsonlog", "log360_syslog", "auth_csv",
     )
     extra = []
     auth_events = 0

@@ -1275,6 +1275,18 @@ export const api = {
                   : { ok: false, error: body.error ?? `HTTP ${res.status}`, reason: body.reason };
   },
 
+  requestCaseApproval: async (
+    id: string, runbookId: string,
+  ): Promise<{ ok: boolean; approval?: Approval; error?: string; reason?: string; missing?: string[] }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/request-approval`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runbookId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok
+      ? { ok: true, approval: (body as { approval?: Approval }).approval }
+      : { ok: false, error: body.error ?? `HTTP ${res.status}`, reason: body.reason, missing: body.missing };
+  },
+
   // --- Settings (Phase C) ---
   // The masked compute config (never the API key itself). Only real,
   // effective knobs — mode local/remote, and for remote the base URL/model.

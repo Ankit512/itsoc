@@ -277,6 +277,18 @@
           "expected": false
         }
       ]
+    },
+    {
+      "id": "P20",
+      "file": "cases/pos_auth_csv_bruteforce.csv",
+      "description": "5 auth CSV failures then success from one IP (timestamp,ip,username,status)",
+      "expected": [
+        {
+          "type": "auth_bruteforce_success",
+          "severity": "critical",
+          "entity": "203.0.113.50"
+        }
+      ]
     }
   ]
 }

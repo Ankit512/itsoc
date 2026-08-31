@@ -20,6 +20,8 @@ Formats handled:
                (space-padded day, no year, no timezone, no level)
   - loghub     Apache error_log, Java/log4j (Hadoop/ZK/Spark/HDFS/OpenStack),
                BGL RAS, Thunderbird-prefixed syslog — sibling console/formats/loghub.py
+  - auth_csv   timestamp,ip_address,username,status[,source] exports
+               — sibling console/formats/auth_csv.py (not Log360 CSV)
 
 Lines that match neither are counted and surfaced — never silently dropped.
 
@@ -62,6 +64,10 @@ try:
     import iso8601_syslog  # noqa: E402
 except ImportError:
     iso8601_syslog = None
+try:
+    import auth_csv  # noqa: E402
+except ImportError:
+    auth_csv = None
 
 
 # "Mon DD HH:MM:SS host proc[pid]: message" — day may be space-padded ("Jul  3").
@@ -146,6 +152,10 @@ def sniff_format(path, probe_lines=50):
         l360 = log360.sniff(path, probe_lines=probe_lines)
         if l360:
             return l360
+    # Auth CSV (timestamp + ip + username + status). After Log360 so a
+    # Message/Time/Device export is never stolen by a Source column.
+    if auth_csv is not None and auth_csv.sniff(path, probe_lines=probe_lines):
+        return "auth_csv"
     # Android logcat's "MM-DD HH:MM:SS.mmm PID TID L TAG:" signature cannot be
     # produced by a canonical, rfc3164, or Log360 line, and the sniff demands a
     # clear majority match — so existing formats keep their exact prior behaviour.
@@ -266,6 +276,8 @@ def load(path):
                     if line.strip() and n not in matched]
     elif fmt in ("log360_csv", "log360_syslog") and log360 is not None:
         records, unparsed, total = log360.load(path, fmt)
+    elif fmt == "auth_csv" and auth_csv is not None:
+        records, unparsed, total = auth_csv.load(path)
     elif fmt == "logcat" and logcat is not None:
         # Android logcat omits the year, exactly like rfc3164: infer it from the
         # file mtime, backing off one year when the log's first month is ahead

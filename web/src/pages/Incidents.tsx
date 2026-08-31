@@ -1273,6 +1273,7 @@ export function Incidents() {
         <span className="is-panel__sub" style={{ flex: 1 }}>
           {incidents.length} incident(s){stateFilter && ` · ${stateFilter}`} · rule-detected clusters + analyst-created cases
         </span>
+        <Link to="/cases" className="is-btn">Case board</Link>
         <NewCase />
       </div>
 

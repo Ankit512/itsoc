@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
-  Antenna, Bell, Cable, Database, FileText, House, Link as LinkIcon, LogOut, Monitor,
+  Antenna, Bell, Cable, Database, FileText, FolderKanban, House, Link as LinkIcon, LogOut, Monitor,
   Radar, RefreshCw, Search, Settings, Shield, ShieldCheck, Sparkles, TriangleAlert, Upload, X,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,11 +20,12 @@ import { isBlobPageUrl, rawFileUrl } from "@/lib/rawUrl";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
-/** Core navigation per DESIGN_HANDOFF §2 + Stage C §1 consolidation (12-screen roster) */
+/** Core navigation per DESIGN_HANDOFF §2 + Stage C §1, plus the case-file board. */
 export const CORE_NAV = [
   { to: "/", label: "Overview", icon: House, ready: true },
   { to: "/alerts", label: "Findings", icon: Bell, ready: true },
   { to: "/incidents", label: "Incidents", icon: TriangleAlert, ready: true },
+  { to: "/cases", label: "Cases", icon: FolderKanban, ready: true },
   { to: "/approvals", label: "Approvals", icon: ShieldCheck, ready: true },
   { to: "/intel", label: "Intel", icon: Shield, ready: true },
   { to: "/network", label: "Network", icon: Radar, ready: true },

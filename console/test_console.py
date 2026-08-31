@@ -1279,6 +1279,74 @@ def check_iso8601_syslog():
     return 0 if all(results) else 1
 
 
+def check_auth_csv():
+    """Auth CSV envelope (timestamp,ip,username,status) plus vocabulary.
+
+    Console sniff used to call these unknown; the universal CSV fallback parsed
+    rows but left msg as a JSON dump, so the frozen brute-force rule never saw
+    'auth failed for user … from …'. Envelope maps columns; rules_syslog
+    translates status/user/ip; detector is untouched.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    import normalize
+    import rules_syslog
+    from anomaly_detector import detect
+
+    results = []
+
+    def check(name, cond, detail=""):
+        results.append(bool(cond))
+        print(f"  [{'PASS' if cond else 'FAIL'}] {name}" + (f" — {detail}" if not cond else ""))
+
+    sample = ROOT / "samples" / "authentication_logs.csv"
+    records, stats = normalize.load(sample)
+    check("sniffs as auth_csv", stats["format"] == "auth_csv", stats["format"])
+    check("every data row parsed (header is envelope)",
+          stats["parsed"] == 12 and stats["unparsed"] == 0,
+          f"parsed={stats['parsed']} unparsed={stats['unparsed']}")
+    src_lines = sample.read_text().splitlines()
+    check("raw is the verbatim CSV row",
+          records and all(r["raw"] == src_lines[r["n"] - 1] for r in records))
+    check("ts key present (detector contract)",
+          records and all("ts" in r and r["ts"] is not None for r in records))
+    check("level is UNKNOWN — status is not a guessed syslog severity",
+          records and all(r["level"] == "UNKNOWN" for r in records),
+          records[0]["level"] if records else "")
+    check("structured cells stay on the record",
+          records[1].get("username") == "admin@example.com"
+          and records[1].get("status") == "failure"
+          and records[1].get("ip_address") == "203.0.113.50",
+          str({k: records[1].get(k) for k in ("username", "status", "ip_address")}))
+
+    _, s = normalize.load(ROOT / "samples" / "log360_export.csv")
+    check("Log360 CSV is not stolen", s["format"] == "log360_csv", s["format"])
+    _, s = normalize.load(ROOT / "sample-2.log")
+    check("canonical syslog is not stolen", s["format"] == "canonical", s["format"])
+
+    canon, counts = rules_syslog.canonicalize(records)
+    check("vocabulary translates failure and success cells",
+          counts.get("auth_fail", 0) == 10 and counts.get("auth_ok", 0) == 2,
+          str(counts))
+    check("canonical msg matches frozen AUTH_FAIL_RE shape",
+          canon[1]["msg"] == "auth failed for user 'admin@example.com' from 203.0.113.50",
+          canon[1].get("msg"))
+    check("raw is unchanged by canonicalize",
+          canon[1]["raw"] == src_lines[canon[1]["n"] - 1])
+
+    findings = detect(canon)
+    types = {f["type"] for f in findings}
+    check("brute-force-then-success fires (rule-owned, 5 fails + login)",
+          any(f.get("type") == "auth_bruteforce_success" and f.get("severity") == "critical"
+              for f in findings),
+          str([(f.get("type"), f.get("severity"), f.get("summary")) for f in findings]))
+    check("no extra invented finding types",
+          types <= {"auth_bruteforce_success", "auth_bruteforce"},
+          str(types))
+
+    return 0 if all(results) else 1
+
+
 def check_loghub_formats():
     """Loghub/LogPAI sibling parsers (console/formats/loghub.py).
 
@@ -2525,6 +2593,30 @@ def check_soc_subsystems():
                 serve.STATE = saved_state
                 check("ineligible case runbook returns 409 with the rule-owned reason",
                       status == 409 and bool(blocked.get("reason")), str(blocked))
+                status, pending = req("POST", f"/api/cases/{case['id']}/request-approval",
+                                      {"runbookId": "rb-block-ip"})
+                check("case request-approval creates a pending approval and does not execute",
+                      status == 201 and pending.get("executed") is False
+                      and pending.get("advisory") is True
+                      and (pending.get("approval") or {}).get("state") == "pending",
+                      str(pending)[:400])
+                status, refused = req("POST", f"/api/cases/{case['id']}/request-approval",
+                                      {"runbookId": "rb-quarantine-host"})
+                check("unshipped/quarantine runbook is refused from the case file",
+                      status in (404, 409) and refused.get("executed") is False,
+                      str(refused))
+                status, ip_case = req("POST", f"/api/cases/{case['id']}/observables",
+                                      {"type": "ip", "value": "203.0.113.50"})
+                ip_oid = ip_case["observables"][-1]["id"]
+                status, ip_case = req("POST",
+                                      f"/api/cases/{case['id']}/observables/{ip_oid}/enrich", {})
+                ip_verdict = (ip_case["observables"][-1].get("verdict") or "")
+                check("IP enrich is advisory, names the OEM fence, never a rule severity",
+                      status == 200 and "CRITICAL" not in ip_verdict.upper()
+                      and "Advisory" in ip_verdict
+                      and ("ITSOC_OEM" in ip_verdict or "No remote" in ip_verdict
+                           or "Live lookup" in ip_verdict),
+                      ip_verdict)
                 status, case = req("PATCH", f"/api/cases/{case['id']}",
                                    {"notes": "checked the firewall",
                                     "status": "investigating"})
@@ -6236,6 +6328,7 @@ def main():
     log360 = check_log360()
     logcat_ = check_logcat()
     iso8601_ = check_iso8601_syslog()
+    authcsv_ = check_auth_csv()
     loghub_ = check_loghub_formats()
     remote = check_remote_compute()
     dashboard = check_dashboard_data()
@@ -6271,7 +6364,7 @@ def main():
     orgctx_ = check_org_context()
     actions_ = check_action_layer_and_firewall()
     sigma_ = check_sigma_ingest_triage()
-    if (result.returncode or routing or log360 or logcat_ or iso8601_ or loghub_ or remote or dashboard
+    if (result.returncode or routing or log360 or logcat_ or iso8601_ or authcsv_ or loghub_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
@@ -6279,7 +6372,7 @@ def main():
             or investigate_ or advisory_ or orgctx_ or actions_ or sigma_):
         print("\nFAILED")
         return 1
-    print("\nPASSED — render + routing + log360 + logcat + iso8601-syslog + loghub-formats + remote-compute + dashboard-data "
+    print("\nPASSED — render + routing + log360 + logcat + iso8601-syslog + auth-csv + loghub-formats + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + efficacy-api + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "

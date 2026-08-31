@@ -598,6 +598,7 @@
 .is-case-runbook b,.is-case-runbook code{ display:block; }
 .is-case-runbook b{ font-size:12px; }.is-case-runbook code{ margin-top:2px; color:var(--mut); font-size:10px; }
 .is-case-runbook p{ margin:4px 0 0; font-size:10px; }.is-case-ineligible{ max-width:180px; color:var(--mut); font-size:10.5px; text-align:right; line-height:1.35; }
+.is-case-runbook__actions{ display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
 @media(max-width:900px){ .is-case-file__grid{ grid-template-columns:1fr; }.is-case-board{ grid-template-columns:repeat(6,220px); }.is-case-form{ grid-template-columns:1fr; }.is-case-form label:last-of-type{ grid-column:auto; } }
 
 /* Single-column variant of the RCA layout for manual incidents (no rule rail). */

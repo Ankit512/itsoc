@@ -1061,9 +1061,71 @@ def open_incident_case(iid):
     })
 
 
+def _stix_matches(value):
+    hits = []
+    for indicator in (threat_intel_summary().get("indicators") or []):
+        pattern = str(indicator.get("pattern") or "")
+        if value and value in pattern:
+            hits.append(str(indicator.get("name") or indicator.get("id") or "indicator"))
+    return hits
+
+
+def _live_ip_intel(value):
+    """OTX/AbuseIPDB only when ITSOC_OEM=1. Never a rule severity string."""
+    import os
+    try:
+        import ti_oem
+    except ImportError:
+        return "Live lookup unavailable (ti_oem not importable)."
+    keys = ti_oem.ti_key_status()
+    have_keys = any(keys.values())
+    if os.environ.get("ITSOC_OEM", "").strip() != "1":
+        if have_keys:
+            return "Provider keys are stored; live lookup is off until ITSOC_OEM=1."
+        return "No remote lookup. Configure OTX/AbuseIPDB on Intel and opt in with ITSOC_OEM=1."
+    result = ti_oem.enrich_ip(value)
+    bits = []
+    for ioc in result.get("results") or []:
+        bits.append(
+            f"{ioc.get('provider')}: {ioc.get('verdict')} (score {ioc.get('score')})"
+        )
+    for err in result.get("errors") or []:
+        bits.append(f"{err.get('provider')} failed: {err.get('error')}")
+    for name in result.get("notConfigured") or []:
+        bits.append(f"{name} not configured")
+    if result.get("error"):
+        bits.append(str(result["error"]))
+    if bits:
+        return "Live lookup (ITSOC_OEM=1): " + "; ".join(bits) + "."
+    return "Live lookup opted in but no provider returned a result."
+
+
+def _advisory_observable_verdict(item):
+    """Compose an advisory intel note. Offline STIX always; live IP only behind
+    the OEM fence. VirusTotal is not called. Never a rule severity word."""
+    value = str(item.get("value") or "")
+    matches = _stix_matches(value)
+    parts = []
+    if matches:
+        parts.append("Offline STIX match: " + ", ".join(matches[:5]) + ".")
+    else:
+        parts.append("No match in the offline STIX bundle.")
+    if item.get("type") == "ip":
+        try:
+            parts.append(_live_ip_intel(value))
+        except Exception as exc:  # pragma: no cover - vendor path
+            parts.append(f"Live lookup failed honestly: {exc}")
+    else:
+        parts.append("Live lookup is IP-only (OTX/AbuseIPDB). VirusTotal is not called.")
+    parts.append("Advisory, not a rule severity.")
+    verdict = " ".join(p for p in parts if p)
+    if str(verdict).strip().upper() in SEV_RANK:
+        verdict = "Advisory intel note. " + verdict
+    return verdict[:800]
+
+
 def enrich_case_observable(cid, oid):
-    """Advisory intel on one observable. Never a rule severity. No remote lookup
-    unless the OEM fence is already on for IP enrichment."""
+    """Advisory intel on one observable. Never a rule severity."""
     store = _load("cases.json")
     case = store.get(cid)
     if not case:
@@ -1073,30 +1135,10 @@ def enrich_case_observable(cid, oid):
     if not item:
         raise ValueError("no such observable")
     value = str(item.get("value") or "")
-    matches = []
-    for indicator in (threat_intel_summary().get("indicators") or []):
-        pattern = str(indicator.get("pattern") or "")
-        if value and value in pattern:
-            matches.append(str(indicator.get("name") or indicator.get("id") or "indicator"))
-    if matches:
-        verdict = ("Offline STIX match: " + ", ".join(matches[:5])
-                   + ". Advisory, not a rule severity.")
-    else:
-        verdict = "No match in the offline STIX bundle. No remote lookup was made."
-    if item.get("type") == "ip":
-        try:
-            import os
-            import ti_oem
-            if os.environ.get("ITSOC_OEM", "").strip() == "1":
-                result = ti_oem.enrich_ip(value)
-                note = result.get("summary") or result.get("note") or str(result)[:300]
-                if note:
-                    verdict = f"OEM lookup (opt-in): {note}. Advisory, not a rule severity."
-        except Exception as exc:  # pragma: no cover - vendor path
-            verdict = f"OEM lookup failed honestly: {exc}"
+    verdict = _advisory_observable_verdict(item)
     if str(verdict).strip().upper() in SEV_RANK:
         raise ValueError("observable verdict must not be a rule severity")
-    item["verdict"] = verdict[:500]
+    item["verdict"] = verdict
     case["observables"] = observables
     _case_activity(case, "observable",
                    f"Enrichment (advisory) on {item.get('type')} {value}: {item['verdict']}",
@@ -1252,6 +1294,58 @@ def add_case_runbook(cid, runbook_id, state):
         "This records an advisory case-file reference only. No containment, quarantine, connector, or command was executed."
     )
     return case, {"eligible": True, "markdown": markdown, "runbook": row}
+
+
+def _is_quarantine_runbook(row):
+    blob = f"{row.get('id') or ''} {row.get('name') or ''}".lower()
+    return "quarantine" in blob
+
+
+def request_case_approval(cid, runbook_id, state):
+    """Create a PENDING approval for an eligible shipped runbook.
+
+    Approving still happens only on /approvals with step-up. This path never
+    executes a connector, and it refuses anything named quarantine.
+    """
+    store = _load("cases.json")
+    case = store.get(cid)
+    if not case:
+        return None, None
+    scan = copilot_runbook_scan(state)
+    row = next((item for item in scan.get("runbooks") or []
+                if item.get("id") == runbook_id), None)
+    if not row:
+        return case, {"ok": False, "status": 404, "error": "runbook is not shipped"}
+    if _is_quarantine_runbook(row):
+        return case, {"ok": False, "status": 409,
+                      "error": "Quarantine is never requested or executed from case files."}
+    if not row.get("eligible"):
+        return case, {"ok": False, "status": 409,
+                      "error": "runbook is not eligible",
+                      "reason": "; ".join(row.get("missing") or ["not eligible"])}
+    incident_id = row.get("incidentId")
+    if not incident_id:
+        linked = (case.get("links") or {}).get("incidents") or []
+        incident_id = linked[0] if linked else None
+    if not incident_id:
+        return case, {"ok": False, "status": 409,
+                      "error": "no linked incident to request approval against"}
+    status, body = create_approval(
+        {"incidentId": incident_id, "runbookId": runbook_id}, state)
+    if status != 201:
+        return case, {"ok": False, "status": status,
+                      "error": (body or {}).get("error") or "could not create approval",
+                      "missing": (body or {}).get("missing"),
+                      "reason": "; ".join((body or {}).get("missing") or [])}
+    _case_activity(
+        case, "runbook",
+        f"Pending approval {body.get('id')} for {row.get('name') or runbook_id} "
+        f"on {incident_id}. Nothing executed — approve on Approvals.",
+        "analyst",
+    )
+    case = _save_case(store, case)
+    return case, {"ok": True, "status": 201, "approval": body,
+                  "advisory": True, "executed": False}
 
 
 # ---------------------------------------------------------------------------

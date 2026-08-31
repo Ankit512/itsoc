@@ -1269,6 +1269,11 @@ def analyze(source, value, compare, filename=None, data=None, threat_intel=None)
         state["llmNote"] = llm_note
         STATE = state
         try:
+            soc.sync_incidents(STATE)
+            soc.ensure_incident_cases()
+        except Exception:
+            pass
+        try:
             STATE_FILE.write_text(json.dumps(state, indent=2))
         except OSError:
             pass
@@ -1756,6 +1761,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._case_attachment_upload(path.split("/")[3])
         elif path.startswith("/api/cases/") and path.endswith("/run"):
             self._case_action(path.split("/")[3], "run")
+        elif path.startswith("/api/cases/") and path.endswith("/request-approval"):
+            self._case_request_approval(path.split("/")[3])
         elif path.startswith("/api/cases/") and path.endswith("/summary"):
             self._case_action(path.split("/")[3], "summary")
         elif path.startswith("/api/cases/") and path.endswith("/links"):
@@ -2241,6 +2248,29 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         if not case:
             return self._json({"error": "no such case"}, 404)
         return self._json(case, 201)
+
+    def _case_request_approval(self, cid):
+        """Pending approval only — never execute. Step-up still lives on /approvals."""
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        runbook_id = str((payload or {}).get("runbookId") or "").strip()
+        if not runbook_id:
+            return self._json({"error": "a request needs runbookId"}, 400)
+        try:
+            case, result = soc.request_case_approval(cid, runbook_id, STATE)
+        except ValueError as e:
+            return self._json({"error": str(e)}, 400)
+        if case is None:
+            return self._json({"error": "no such case"}, 404)
+        if not result or not result.get("ok"):
+            body = {"error": (result or {}).get("error") or "could not request approval",
+                    "reason": (result or {}).get("reason"),
+                    "missing": (result or {}).get("missing"),
+                    "executed": False}
+            return self._json(body, int((result or {}).get("status") or 409))
+        return self._json({"case": case, "approval": result["approval"],
+                           "advisory": True, "executed": False}, 201)
 
     # ---- gated response approvals (C3-T2 / D3) ------------------------------
     # DELEGATION ONLY: parse the request, call the soc.py function, emit the

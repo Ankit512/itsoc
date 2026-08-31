@@ -27,6 +27,17 @@ const FILE_CASE = {
 };
 
 describe("Cases page (CRUD)", () => {
+  it("exposes Cases in the main nav from Overview", async () => {
+    mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS,
+                "/api/cases": { cases: [CASE] } });
+    renderApp(<App />, { route: "/" });
+    const link = await screen.findByRole("link", { name: "Cases" });
+    expect(link).toHaveAttribute("href", "/cases");
+    await userEvent.click(link);
+    expect(await screen.findByText("Investigate 203.0.113.44")).toBeInTheDocument();
+    expect(screen.getByText("case-1")).toBeInTheDocument();
+  });
+
   it("renders real cases from /api/cases with their status", async () => {
     mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS,
                 "/api/cases": { cases: [CASE] } });
@@ -137,5 +148,41 @@ describe("Cases page (CRUD)", () => {
     const file = new File(["hello"], "note.txt", { type: "text/plain" });
     await userEvent.upload(screen.getByLabelText("Upload attachment"), file);
     await waitFor(() => expect(uploaded).toBe("note.txt"));
+  });
+
+  it("requests approval from an eligible runbook and never offers quarantine execute", async () => {
+    let requested = "";
+    mockFetch({
+      "/api/overview": OVERVIEW, "/api/metrics": METRICS,
+      "/api/cases": { cases: [FILE_CASE] },
+      "/api/copilot/runbooks": {
+        runbooks: [
+          { id: "rb-block-ip", name: "Block source IP at the perimeter", eligible: true,
+            triggerRules: ["auth_bruteforce"], incidentId: "inc-1" },
+          { id: "rb-quarantine-host", name: "Quarantine host", eligible: true,
+            triggerRules: [], incidentId: "inc-1" },
+        ],
+      },
+    });
+    const realFetch = globalThis.fetch as unknown as (u: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+    vi.stubGlobal("fetch", vi.fn((u: RequestInfo | URL, init?: RequestInit) => {
+      if (String(u).includes("/request-approval") && init?.method === "POST") {
+        requested = JSON.parse(String(init.body)).runbookId;
+        return Promise.resolve({
+          ok: true, status: 201,
+          json: async () => ({ case: FILE_CASE, approval: { id: "appr-1", state: "pending" },
+                               advisory: true, executed: false }),
+        } as Response);
+      }
+      return realFetch(u, init);
+    }));
+    renderApp(<App />, { route: "/cases?sel=case-1" });
+    expect(await screen.findByRole("button", { name: "Request approval" })).toBeInTheDocument();
+    expect(screen.getByText(/Quarantine is never executed from case files/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /quarantine/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Request approval" }));
+    await waitFor(() => expect(requested).toBe("rb-block-ip"));
+    expect(await screen.findByText(/Pending approval appr-1/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Approvals" })).toHaveAttribute("href", "/approvals");
   });
 });

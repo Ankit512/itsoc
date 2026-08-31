@@ -43,6 +43,16 @@ WINDOWS_SPECIAL_PRIV_IDS = {"4672"}
 CANON_FAIL = "auth failed for user '{user}' from {ip}"
 CANON_OK = "auth success for user '{user}' from {ip}"
 
+# Structured auth CSV / SIEM status cells. Field-based, like Windows 4625/4624 —
+# not a guess from free-text. Outcome words only, never a syslog level.
+AUTH_STATUS_FAIL = {
+    "failure", "failed", "fail", "denied", "rejected", "unsuccessful", "invalid",
+}
+AUTH_STATUS_OK = {
+    "success", "succeeded", "successful", "ok", "accepted", "allow", "allowed",
+}
+_IPV4 = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
+
 
 def _field(record, *names, default=None):
     """Case-insensitive field lookup for Windows/SIEM exports."""
@@ -69,7 +79,19 @@ def _record_ip(record):
         record,
         "src_ip", "SourceNetworkAddress", "IpAddress", "SourceIp",
         "SourceIP", "ClientAddress", "ClientIP", "source_ip",
+        "ip_address", "ip", "client_ip",
     )
+
+
+def _usable_ip(ip):
+    ip = str(ip or "").strip()
+    if not ip or ip in {"-", "::1", "127.0.0.1", "0.0.0.0"}:
+        return None
+    return ip if _IPV4.match(ip) else None
+
+
+def _record_status(record):
+    return str(_field(record, "status", "result", "outcome", "auth_status") or "").strip().lower()
 
 
 def _record_user(record):
@@ -146,6 +168,22 @@ def canonical_form(msg, record=None):
             return (
                 CANON_OK.format(user=user, ip=ip),
                 "auth_ok", "windows_4624", str(ip)
+            )
+
+    # Auth CSV / SIEM row: status + user + IPv4 cells, not syslog phrasing.
+    status = _record_status(record)
+    ip = _usable_ip(_record_ip(record))
+    if status and ip:
+        user = _record_user(record)
+        if status in AUTH_STATUS_FAIL:
+            return (
+                CANON_FAIL.format(user=user, ip=ip),
+                "auth_fail", "auth_csv", ip,
+            )
+        if status in AUTH_STATUS_OK:
+            return (
+                CANON_OK.format(user=user, ip=ip),
+                "auth_ok", "auth_csv", ip,
             )
 
     return msg, None, None, None

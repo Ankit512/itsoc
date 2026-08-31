@@ -56,6 +56,7 @@ function ObservableTab({ item }: { item: Case }) {
       <button className="is-btn" disabled={!value.trim() || add.isPending}>Add</button>
     </form>
     {error && <p className="is-case-error">{error}</p>}
+    <p className="is-mut" style={{ fontSize: 11, margin: "8px 0 0" }}>Enrichment is advisory. Offline STIX always; live OTX/AbuseIPDB for IPs only when ITSOC_OEM=1. Never a rule severity. VirusTotal is not called.</p>
   </>;
 }
 
@@ -126,7 +127,53 @@ function EventsTab({ item }: { item: Case }) {
   return <ol className="is-case-activity">{events.slice().reverse().map((entry, index) => <li key={`${entry.at}-${index}`}><span className="is-mono">{entry.at.slice(0, 16).replace("T", " ")}</span><b>{entry.actor}</b><span className="is-chip">{entry.kind}</span><p>{entry.text}</p></li>)}</ol>;
 }
 
-function Runbooks({ item }: { item: Case }) { const qc = useQueryClient(); const { data } = useQuery({ queryKey: ["copilot-runbooks"], queryFn: api.copilotRunbooks }); const [notice, setNotice] = useState(""); const run = useMutation({ mutationFn: (row: CopilotRunbookRow) => api.addCaseRunbook(item.id, row.id), onSuccess: (out) => { setNotice(out.ok ? "Advisory runbook reference added. Nothing was executed." : out.reason ?? out.error ?? "Could not add runbook."); if (out.ok) qc.invalidateQueries({ queryKey: ["cases"] }); } }); const runbooks = data?.runbooks ?? []; return <section className="is-case-runbooks"><div className="is-panel__h"><div><h3>Run a workflow</h3><p className="is-panel__sub">Eligible shipped runbooks are recorded as advisory references. They never execute here.</p></div></div>{!runbooks.length ? <p className="is-case-empty">No shipped runbooks are available for this run.</p> : runbooks.map((row) => { const quarantine = /quarantine/i.test(`${row.id} ${row.name ?? ""}`); const canRun = row.eligible && !quarantine; return <div className="is-case-runbook" key={row.id}><div><b>{row.name || row.id}</b><code>{row.id}</code>{row.triggerRules?.length ? <p className="is-mut">Triggers: {row.triggerRules.join(", ")}</p> : null}</div>{canRun ? <button className="is-btn" disabled={run.isPending} onClick={() => run.mutate(row)}><Play size={12} />Add to case</button> : <span className="is-case-ineligible">{quarantine ? "Quarantine is never executed from case files." : row.missing?.join("; ") || "Not eligible for this case/run."}</span>}</div>; })}{notice && <p className="is-note">{notice}</p>}</section>; }
+function Runbooks({ item }: { item: Case }) {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["copilot-runbooks"], queryFn: api.copilotRunbooks });
+  const [notice, setNotice] = useState("");
+  const run = useMutation({
+    mutationFn: (row: CopilotRunbookRow) => api.addCaseRunbook(item.id, row.id),
+    onSuccess: (out) => {
+      setNotice(out.ok ? "Advisory runbook reference added. Nothing was executed." : out.reason ?? out.error ?? "Could not add runbook.");
+      if (out.ok) qc.invalidateQueries({ queryKey: ["cases"] });
+    },
+  });
+  const request = useMutation({
+    mutationFn: (row: CopilotRunbookRow) => api.requestCaseApproval(item.id, row.id),
+    onSuccess: (out) => {
+      if (out.ok && out.approval) {
+        setNotice(`Pending approval ${out.approval.id}. Nothing executed — approve on Approvals.`);
+        qc.invalidateQueries({ queryKey: ["cases"] });
+        qc.invalidateQueries({ queryKey: ["approvals"] });
+      } else {
+        setNotice(out.reason ?? out.error ?? "Could not request approval.");
+      }
+    },
+  });
+  const runbooks = data?.runbooks ?? [];
+  return <section className="is-case-runbooks">
+    <div className="is-panel__h"><div>
+      <h3>Run a workflow</h3>
+      <p className="is-panel__sub">Eligible shipped runbooks can be recorded here or sent to Approvals. They never execute on this page. Quarantine is never requested from a case file.</p>
+    </div></div>
+    {!runbooks.length ? <p className="is-case-empty">No shipped runbooks are available for this run.</p> : runbooks.map((row) => {
+      const quarantine = /quarantine/i.test(`${row.id} ${row.name ?? ""}`);
+      const canRun = row.eligible && !quarantine;
+      return <div className="is-case-runbook" key={row.id}>
+        <div>
+          <b>{row.name || row.id}</b>
+          <code>{row.id}</code>
+          {row.triggerRules?.length ? <p className="is-mut">Triggers: {row.triggerRules.join(", ")}</p> : null}
+        </div>
+        {canRun ? <div className="is-case-runbook__actions">
+          <button className="is-btn" disabled={run.isPending} onClick={() => run.mutate(row)}><Play size={12} />Add to case</button>
+          <button className="is-btn is-btn--primary" disabled={request.isPending} onClick={() => request.mutate(row)}>Request approval</button>
+        </div> : <span className="is-case-ineligible">{quarantine ? "Quarantine is never executed from case files." : row.missing?.join("; ") || "Not eligible for this case/run."}</span>}
+      </div>;
+    })}
+    {notice && <p className="is-note">{notice}{notice.includes("Approvals") && <> <Link to="/approvals">Open Approvals</Link></>}</p>}
+  </section>;
+}
 
 function Detail({ item, cases }: { item: Case; cases: Case[] }) {
   const [tab, setTab] = useState<DetailTab>("Overview"); const navigate = useNavigate(); const qc = useQueryClient(); const update = useMutation({ mutationFn: (status: CaseStatus) => api.patchCase(item.id, { status }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) });

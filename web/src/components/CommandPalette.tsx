@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  House, Bell, TriangleAlert, Antenna, Settings, FileText,
+  House, Bell, TriangleAlert, Antenna, Settings, FileText, FolderKanban,
   Shield, ShieldCheck, Monitor, Database, Radar, Cable,
   Sun, Moon, Upload, RefreshCw, Sparkles, LogOut, CornerDownLeft, Search
 } from "lucide-react";
@@ -69,16 +69,17 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
     navigate(path);
   };
 
-  /** Canonical 12-screen roster + Logout. Every old screen name aliases to its new home:
-   *  - Cases -> Incidents (/incidents)
+  /** Core screens + Logout. Old names still alias:
    *  - Threat Intel / Enrichment -> Intel (/intel)
    *  - Discovery / Vulnerabilities -> Network (/network)
    *  - Collectors -> Sources (/sources)
+   *  Cases is its own board (case file), not an Incidents alias.
    */
   const navItems: CommandItem[] = [
     { id: "nav-overview", label: "Overview", group: "Navigation", icon: House, onSelect: () => go("/"), keywords: ["overview", "home", "dashboard"] },
     { id: "nav-findings", label: "Findings", group: "Navigation", icon: Bell, onSelect: () => go("/alerts"), keywords: ["findings", "alerts", "events"] },
-    { id: "nav-incidents", label: "Incidents", group: "Navigation", icon: TriangleAlert, onSelect: () => go("/incidents"), keywords: ["incidents", "rca", "incident", "investigate", "cases", "case", "tracking", "ticket", "workflow"] },
+    { id: "nav-incidents", label: "Incidents", group: "Navigation", icon: TriangleAlert, onSelect: () => go("/incidents"), keywords: ["incidents", "rca", "incident", "investigate", "tracking", "ticket", "workflow"] },
+    { id: "nav-cases", label: "Cases", group: "Navigation", icon: FolderKanban, onSelect: () => go("/cases"), keywords: ["cases", "case", "case file", "board", "observables", "attachments"] },
     { id: "nav-approvals", label: "Approvals", group: "Navigation", icon: ShieldCheck, onSelect: () => go("/approvals"), keywords: ["approvals", "approval", "gated", "response", "actions"] },
     { id: "nav-intel", label: "Intel", group: "Navigation", icon: Shield, onSelect: () => go("/intel"), keywords: ["intel", "threat intel", "threat-intel", "enrichment", "feeds", "taxii", "stix", "otx", "abuseipdb", "mitre", "attack", "ioc"] },
     { id: "nav-network", label: "Network", group: "Navigation", icon: Radar, onSelect: () => go("/network"), keywords: ["network", "discovery", "vulnerabilities", "nmap", "scan", "cve", "ports", "vuln"] },

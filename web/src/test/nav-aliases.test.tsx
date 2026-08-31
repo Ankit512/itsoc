@@ -7,7 +7,7 @@ import { renderApp, mockFetch, OVERVIEW, METRICS } from "./helpers";
 
 afterEach(() => vi.restoreAllMocks());
 
-describe("C1-T6 · Nav reduction + Cmd-K aliases (12-screen roster)", () => {
+describe("C1-T6 · Nav + Cmd-K aliases (core roster + case file)", () => {
   beforeEach(() => {
     mockFetch({
       "/api/overview": OVERVIEW,
@@ -21,16 +21,17 @@ describe("C1-T6 · Nav reduction + Cmd-K aliases (12-screen roster)", () => {
       "/api/discovery": { subnet: "192.168.1.0/24", running: false, lastScan: null, hosts: [] },
       "/api/vulnerabilities": { items: [], total: 0 },
       "/api/collectors": { collectors: [], stats: { totalPackets: 0, droppedPackets: 0, activeListeners: 0 } },
+      "/api/cases": { cases: [] },
     });
   });
 
-  it("(a) nav shows exactly the 12 entries (11 core + 1 experimental)", async () => {
-    expect(NAV).toHaveLength(12);
-    expect(CORE_NAV).toHaveLength(11);
+  it("(a) nav shows the core roster plus Cases and OEM Engine", async () => {
+    expect(NAV).toHaveLength(13);
+    expect(CORE_NAV).toHaveLength(12);
     expect(EXPERIMENTAL_NAV).toHaveLength(1);
 
     expect(CORE_NAV.map((n) => n.label)).toEqual([
-      "Overview", "Findings", "Incidents", "Approvals", "Intel",
+      "Overview", "Findings", "Incidents", "Cases", "Approvals", "Intel",
       "Network", "Assets", "Sources", "History", "Reports", "Settings"
     ]);
     expect(EXPERIMENTAL_NAV.map((n) => n.label)).toEqual(["OEM Engine"]);
@@ -50,7 +51,7 @@ describe("C1-T6 · Nav reduction + Cmd-K aliases (12-screen roster)", () => {
   });
 
   describe("(b) Cmd-K aliases resolve old screen names to their new destinations", () => {
-    it("typing 'Cases' filters to 'Incidents' and navigates to /incidents", async () => {
+    it("typing 'Cases' filters to 'Cases' and navigates to /cases", async () => {
       renderApp(<App />);
       await screen.findByTestId("wordmark");
 
@@ -58,12 +59,12 @@ describe("C1-T6 · Nav reduction + Cmd-K aliases (12-screen roster)", () => {
       const input = screen.getByPlaceholderText(/search screens, actions, or ask itsoc/i);
       await userEvent.type(input, "Cases");
 
-      const incidentOption = screen.getByRole("button", { name: /incidents/i });
-      expect(incidentOption).toBeInTheDocument();
-      await userEvent.click(incidentOption);
+      const casesOption = screen.getByRole("button", { name: /^cases$/i });
+      expect(casesOption).toBeInTheDocument();
+      await userEvent.click(casesOption);
 
-      expect(screen.getByRole("link", { name: "Incidents" })).toHaveClass("active");
-      expect(screen.getByRole("heading", { name: "Incidents" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Cases" })).toHaveClass("active");
+      expect(await screen.findByText(/Analyst-entered case files/i)).toBeInTheDocument();
     });
 
     it("typing 'Threat Intel' filters to 'Intel' and navigates to /intel", async () => {
