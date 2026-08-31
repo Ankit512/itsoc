@@ -518,9 +518,10 @@ function EvidenceCard({ inc }: { inc: Incident }) {
   const lines = members.flatMap((f) => f.lines ?? []);
 
   return (
-    <details className="is-panel" data-testid="incident-evidence-wrap" open>
+    <details className="is-panel" data-testid="incident-evidence-wrap">
       <summary className="is-panel__h" style={{ cursor: "pointer", listStyle: "revert" }}>
         <h3>Evidence — {lines.length ? `${lines.length.toLocaleString()} verbatim line(s)` : "verbatim log lines"}</h3>
+        <span className="is-mut2" style={{ fontSize: 10, fontFamily: "var(--mono)" }}>collapsed · click to expand</span>
       </summary>
       {lines.length ? (
         <div className="is-logpane" style={{ marginTop: 8 }}>
@@ -1033,6 +1034,10 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
   });
   const advReport = advisory.data && !("error" in advisory.data) ? (advisory.data as AdvisoryReport) : null;
 
+  // A huge indicator list (hundreds of distinct IPs/hashes) must not stretch the
+  // incident ruler out of sight — preview the head, keep the rest one click away.
+  const [showAllIocs, setShowAllIocs] = useState(false);
+
   if (isLoading) {
     return (
       <section className="is-panel" data-testid="investigation-file">
@@ -1069,9 +1074,9 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
         <div className="is-block is-det" data-testid="investigation-deterministic">
           <div className="cap authoritative">Timeline · reconstructed from the events store · every line cited</div>
           {inv.timeline.length ? (
-            <details className="is-logpane" open>
+            <details className="is-logpane">
               <summary className="is-logpane__meta" data-testid="investigation-log-count">
-                {inv.timeline.length.toLocaleString()} reconstructed line(s) · every line cited
+                {inv.timeline.length.toLocaleString()} reconstructed line(s) · every line cited · collapsed, click to expand
               </summary>
               <pre className="is-evidence" data-testid="investigation-timeline">
                 {inv.timeline.map((e) => (
@@ -1115,12 +1120,33 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
         {/* ---- DETERMINISTIC: IOC extraction */}
         <div className="is-block is-det" data-testid="investigation-iocs">
           <div className="cap authoritative">Indicators · extracted from the records, not inferred</div>
-          {inv.iocs.length ? inv.iocs.map((i) => (
-            <div key={`${i.type}:${i.value}`} className="is-facts-row">
-              <span><span className="is-tag is-tag--info is-mono">{i.type}</span> <span className="is-mono">{i.value}</span> <span className="is-mut">· ×{i.count}</span></span>
-              <b><CiteList ns={i.records} byN={byN} /></b>
-            </div>
-          )) : (
+          {inv.iocs.length ? (() => {
+            const preview = 24;
+            const iocs = showAllIocs ? inv.iocs : inv.iocs.slice(0, preview);
+            const extra = inv.iocs.length - preview;
+            return (
+              <>
+                {iocs.map((i) => (
+                  <div key={`${i.type}:${i.value}`} className="is-facts-row">
+                    <span><span className="is-tag is-tag--info is-mono">{i.type}</span> <span className="is-mono">{i.value}</span> <span className="is-mut">· ×{i.count}</span></span>
+                    <b><CiteList ns={i.records} byN={byN} /></b>
+                  </div>
+                ))}
+                {extra > 0 && (
+                  <button
+                    type="button"
+                    className="is-cite-more"
+                    style={{ marginTop: 6 }}
+                    aria-expanded={showAllIocs}
+                    data-testid="ioc-show-more"
+                    onClick={() => setShowAllIocs((v) => !v)}
+                  >
+                    {showAllIocs ? `show fewer · ${inv.iocs.length} total` : `+${extra} more indicators (${inv.iocs.length} total)`}
+                  </button>
+                )}
+              </>
+            );
+          })() : (
             <div className="space-y-2 py-1">
               <p className="is-mut" style={{ fontSize: "11.5px", margin: 0 }}>No indicators extracted from the reconstructed records.</p>
               <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/20 p-2.5 rounded border border-border/50">
@@ -1379,7 +1405,7 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
                 {inc.firstSeen ? inc.firstSeen.slice(0, 19).replace("T", " ") : "Rule engine"}
               </span>
             </div>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between pb-2">
               <div>
                 <span className="font-semibold text-foreground">Lifecycle State: <span className="capitalize text-foreground font-bold">{inc.state}</span></span>
                 <p className="text-muted-foreground text-[11px] mt-0.5">

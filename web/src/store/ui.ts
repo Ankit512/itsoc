@@ -32,6 +32,8 @@ interface UiState {
   search: string;
   commandPaletteOpen: boolean;
   experimentalEnabled: boolean;
+  tourOpen: boolean;
+  tourPage?: string;
   toggleTheme: () => void;
   setSidebarOpen: (open: boolean) => void;
   setTimeWindow: (w: string) => void;
@@ -39,6 +41,10 @@ interface UiState {
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
   toggleExperimental: () => void;
+  /** Guided tour (SpotlightTour). `page` optionally seeds the tour at the
+   *  current route so the assistant's "explain this page" can focus it. */
+  startTour: (page?: string) => void;
+  stopTour: () => void;
   /** Clear local UI state to a neutral default — used by the honest Logout,
    *  which has no server session to end. Forgets the saved theme too. */
   resetUi: () => void;
@@ -51,6 +57,8 @@ export const useUi = create<UiState>((set, get) => ({
   search: "",
   commandPaletteOpen: false,
   experimentalEnabled: false,
+  tourOpen: false,
+  tourPage: undefined,
   toggleTheme: () => {
     const theme: Theme = get().theme === "dark" ? "light" : "dark";
     try { localStorage.setItem(THEME_KEY, theme); } catch { /* not persistable */ }
@@ -63,9 +71,11 @@ export const useUi = create<UiState>((set, get) => ({
   setCommandPaletteOpen: (commandPaletteOpen) => set({ commandPaletteOpen }),
   toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
   toggleExperimental: () => set((s) => ({ experimentalEnabled: !s.experimentalEnabled })),
+  startTour: (page) => set({ tourOpen: true, tourPage: page }),
+  stopTour: () => set({ tourOpen: false }),
   resetUi: () => {
     try { localStorage.removeItem(THEME_KEY); } catch { /* storage unavailable */ }
     applyThemeClass("light");
-    set({ theme: "light", search: "", timeWindow: "Current run", commandPaletteOpen: false, experimentalEnabled: false });
+    set({ theme: "light", search: "", timeWindow: "Current run", commandPaletteOpen: false, experimentalEnabled: false, tourOpen: false, tourPage: undefined });
   },
 }));

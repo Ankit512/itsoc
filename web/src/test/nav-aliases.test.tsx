@@ -26,13 +26,13 @@ describe("C1-T6 · Nav + Cmd-K aliases (core roster + case file)", () => {
   });
 
   it("(a) nav shows the core roster plus Cases and OEM Engine", async () => {
-    expect(NAV).toHaveLength(13);
-    expect(CORE_NAV).toHaveLength(12);
+    expect(NAV).toHaveLength(14);
+    expect(CORE_NAV).toHaveLength(13);
     expect(EXPERIMENTAL_NAV).toHaveLength(1);
 
     expect(CORE_NAV.map((n) => n.label)).toEqual([
       "Overview", "Findings", "Incidents", "Cases", "Approvals", "Intel",
-      "Network", "Assets", "Sources", "History", "Reports", "Settings"
+      "Network", "Assets", "Sources", "Integrations", "History", "Reports", "Settings"
     ]);
     expect(EXPERIMENTAL_NAV.map((n) => n.label)).toEqual(["OEM Engine"]);
 

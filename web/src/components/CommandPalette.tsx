@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   House, Bell, TriangleAlert, Antenna, Settings, FileText, FolderKanban,
   Shield, ShieldCheck, Monitor, Database, Radar, Cable, Plug,
-  Sun, Moon, Upload, RefreshCw, Sparkles, LogOut, CornerDownLeft, Search
+  Sun, Moon, Upload, RefreshCw, Sparkles, LogOut, CornerDownLeft, Search, Map
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUi } from "@/store/ui";
@@ -35,7 +35,8 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
     theme,
     toggleTheme,
     experimentalEnabled,
-    toggleExperimental
+    toggleExperimental,
+    startTour
   } = useUi();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -125,6 +126,14 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
       icon: Sparkles,
       onSelect: () => { toggleExperimental(); close(); },
       keywords: ["experimental", "command center", "flag", "features"]
+    },
+    {
+      id: "act-tour",
+      label: "Start guided tour",
+      group: "Actions",
+      icon: Map,
+      onSelect: () => { startTour(window.location.pathname); close(); },
+      keywords: ["tour", "guide", "walkthrough", "onboarding", "help", "explore"]
     },
   ];
 

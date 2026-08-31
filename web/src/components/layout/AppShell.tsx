@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Antenna, Bell, Cable, Database, FileText, FolderKanban, House, Link as LinkIcon, LogOut, Monitor,
-  Radar, RefreshCw, Search, Settings, Shield, ShieldCheck, Sparkles, TriangleAlert, Upload, X,
+  Plug, Radar, RefreshCw, Search, Settings, Shield, ShieldCheck, Sparkles, TriangleAlert, Upload, X,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -12,6 +12,7 @@ import { RunHistory } from "@/components/RunHistory";
 import { RunSwitcher } from "@/components/RunSwitcher";
 import { CommandPalette } from "@/components/CommandPalette";
 import { CopilotRail } from "@/components/CopilotRail";
+import { SpotlightTour } from "@/components/SpotlightTour";
 import { IngestNotifier } from "@/components/IngestNotifier";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useJobs } from "@/store/jobs";
@@ -31,6 +32,7 @@ export const CORE_NAV = [
   { to: "/network", label: "Network", icon: Radar, ready: true },
   { to: "/assets", label: "Assets", icon: Monitor, ready: true },
   { to: "/sources", label: "Sources", icon: Antenna, ready: true },
+  { to: "/integrations", label: "Integrations", icon: Plug, ready: true },
   { to: "/history", label: "History", icon: Database, ready: true },
   { to: "/reports", label: "Reports", icon: FileText, ready: true },
   { to: "/settings", label: "Settings", icon: Settings, ready: true },
@@ -117,6 +119,7 @@ function Sidebar() {
             key={to}
             to={to}
             end={to === "/"}
+            data-tour={to === "/" ? "nav-overview" : `nav-${label.toLowerCase()}`}
             title={ready ? undefined : "Not built yet — the page says so honestly"}
             className={({ isActive }) => cn(isActive && "active")}
           >
@@ -409,6 +412,7 @@ export function AppShell() {
       <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} />
       <CommandPalette onUploadClick={() => setUploadOpen(true)} />
       <IngestNotifier />
+      <SpotlightTour />
     </div>
   );
 }

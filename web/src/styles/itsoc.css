@@ -264,7 +264,7 @@
 .is-approval-actions{ display:flex; gap:10px; padding-top:2px; }
 
 /* ---- 12b. INCIDENT / RCA v3 composition (center + right rail) ---------- */
-.is-rca-layout{ display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:18px; min-width:0; overflow-x:clip; flex:1; }
+.is-rca-layout{ display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:18px; min-width:0; overflow-x:clip; flex:1; align-items:start; }
 .is-rca-center{ display:flex; flex-direction:column; gap:16px; min-width:0; overflow-x:clip; flex:1; }
 .is-rca-rail{ display:flex; flex-direction:column; gap:14px; position:sticky; top:16px; }
 .is-crumb{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mut2); }
@@ -359,6 +359,48 @@
 .is-palette__item.active .ic{ color:var(--ink); }
 .is-palette__item .enter{ margin-left:auto; color:var(--mut); flex:none; }
 .is-palette__foot{ display:flex; justify-content:space-between; gap:12px; flex:none; padding:12px 18px; border-top:1px solid var(--bd); color:var(--mut); font-size:10.5px; }
+
+/* ---- GUIDED TOUR (SpotlightTour) --------------------------------------- */
+.is-tour-root{ position:fixed; inset:0; z-index:100; }
+/* Dimmed backdrop. Darkening uses alpha off the `black` keyword (not a
+ * fixed hex/rgb) so it stays theme-aware and passes the token guards. */
+.is-tour-backdrop{ position:absolute; inset:0; background:color-mix(in srgb, var(--bg) 55%, black); cursor:pointer; }
+/* Spotlight "hole": transparent window whose tunnel shadow dims the rest of
+ * the screen around the focused element. The shadow lives in a custom property
+ * so the box-shadow line references only a token. */
+.is-tour-spotlight{
+  --tour-hole: 0 0 0 100vmax color-mix(in srgb, var(--bg) 55%, black);
+  position:fixed;
+  border-radius:10px;
+  border:2px solid var(--acc);
+  box-shadow:var(--tour-hole);
+  pointer-events:none;
+}
+.is-tour-card{
+  position:fixed; left:50%; bottom:28px; transform:translateX(-50%);
+  width:min(420px, calc(100vw - 32px));
+  background:var(--pan); border:1px solid var(--bd2); border-radius:14px;
+  box-shadow:var(--shadow-pop, var(--shadow));
+  padding:14px 16px; display:flex; flex-direction:column; gap:6px;
+}
+.is-tour-card--center{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); bottom:auto; }
+.is-tour-card__head{ display:flex; align-items:center; gap:8px; color:var(--ink); }
+.is-tour-card__count{ margin-left:auto; font-family:var(--mono); font-size:10px; color:var(--mut); }
+.is-tour-card__close{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border:0; background:transparent; color:var(--mut); border-radius:6px; cursor:pointer; }
+.is-tour-card__close:hover{ background:var(--inset); color:var(--ink); }
+.is-tour-card__title{ margin:0; font-size:14px; font-weight:700; color:var(--ink); }
+.is-tour-card__body{ margin:0; font-size:12.5px; line-height:1.5; color:var(--ink2); }
+.is-tour-card__actions{ display:flex; align-items:center; gap:8px; margin-top:4px; }
+.is-tour-btn{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:7px 12px; border-radius:8px; border:1px solid var(--bd2);
+  background:var(--pan2, transparent); color:var(--ink); font-size:12.5px; font-weight:600; cursor:pointer;
+}
+.is-tour-btn:hover:not(:disabled){ border-color:var(--acc); color:var(--acc); }
+.is-tour-btn:disabled{ opacity:.4; cursor:default; }
+.is-tour-btn--ghost{ background:transparent; color:var(--mut); }
+.is-tour-btn--primary{ background:var(--acc); border-color:var(--acc); color:var(--acc-ink); }
+.is-tour-btn--primary:hover:not(:disabled){ color:var(--acc-ink); }
 
 /* ---- 16. RUN SWITCHER (dropdown) --------------------------------------- */
 .is-popover{ z-index:70; }

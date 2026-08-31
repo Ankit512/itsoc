@@ -8,6 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotCitation, CopilotForecastPhase, CopilotPlaybook, type Case } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { sevVar } from "@/lib/severity";
+import { useUi } from "@/store/ui";
+import { stepForRoute } from "@/lib/tour";
 
 interface Msg {
   who: "q" | "a" | "err";
@@ -16,6 +18,31 @@ interface Msg {
   view?: AskView | null;
   citations?: CopilotCitation[];
   followups?: string[];
+}
+
+/** Typewriter reveal for assistant answers. Drives toward the latest `text`
+ *  without resetting as a stream appends, so a live answer types out and a
+ *  finished answer finishes typing in a bounded, short time. A trailing caret
+ *  shows only while characters remain to reveal. */
+function TypeText({ text }: { text: string }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    if (shown >= text.length) return;
+    const id = setInterval(() => {
+      setShown((s) => {
+        if (s >= text.length) return s;
+        return s + 1;
+      });
+    }, 5);
+    return () => clearInterval(id);
+  }, [text, shown]);
+  const animating = shown < text.length;
+  return (
+    <span data-testid="copilot-typewriter">
+      {text.slice(0, shown)}
+      {animating && <span className="animate-pulse">▍</span>}
+    </span>
+  );
 }
 
 /** Severity tag (is-tag) coloured by the rule-owned level. Never recomputes a
@@ -325,6 +352,7 @@ export function CopilotRail({
   className,
 }: CopilotRailProps) {
   const { pathname, search } = useLocation();
+  const { startTour } = useUi();
   const [open, setOpen] = useState(defaultOpen);
   const [activeTab, setActiveTab] = useState<CopilotTab>("ask");
   const [log, setLog] = useState<Msg[]>([]);
@@ -757,6 +785,36 @@ export function CopilotRail({
           <div aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 text-[12px]">
             {log.length === 0 && (
               <div className="flex flex-col gap-1.5">
+                {runReady && !caseScoped && (
+                  <div className="flex flex-col gap-1.5" data-testid="copilot-greeting">
+                    <p className="text-[12px] font-medium text-foreground">
+                      Hi — I&apos;m itsoc&apos;s advisory analyst.
+                    </p>
+                    <p className="text-[11.5px] leading-snug text-muted-foreground">
+                      Rules set severity; I interpret and explain. New here? Take a 60-second tour or ask me what&apos;s on screen.
+                    </p>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-1" data-testid="copilot-quickstart">
+                  {!caseScoped && runReady && (
+                    <>
+                      <button
+                        onClick={() => startTour(pathname)}
+                        data-testid="copilot-start-tour"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-primary/50 bg-background px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-accent"
+                      >
+                        <BookOpen className="h-3 w-3" aria-hidden /> Take the tour
+                      </button>
+                      <button
+                        onClick={() => ask(`Explain what is on this screen (${stepForRoute(pathname)?.title ?? "this page"}) and how to use it.`)}
+                        data-testid="copilot-explain-page"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:border-primary hover:text-foreground"
+                      >
+                        <Compass className="h-3 w-3" aria-hidden /> Explain this page
+                      </button>
+                    </>
+                  )}
+                </div>
                 <p className="text-[12px] text-muted-foreground">
                   {caseScoped ? "Ask anything about this case. Type below or tap a starter." : "Ask anything about this run. Type below or tap a starter."}
                 </p>
@@ -776,25 +834,30 @@ export function CopilotRail({
               const isStreamingAnswer = streaming && m.who === "a" && i === log.length - 1;
               return (
                 <div key={i} className="flex flex-col gap-1.5">
-                  {m.who === "a" && m.view && <ShowcaseCard view={m.view} />}
-                  {(m.text || m.who !== "a" || isStreamingAnswer) && (
-                    <div
-                      className={cn(
-                        "max-w-[95%] whitespace-pre-wrap rounded-lg px-2.5 py-2",
-                        m.who === "q" && "self-end bg-accent text-accent-foreground font-medium",
-                        m.who === "a" && "bg-background text-foreground",
-                        m.who === "err" && "border border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
+                      {m.who === "a" && m.view && <ShowcaseCard view={m.view} />}
+                      {(m.text || m.who !== "a" || isStreamingAnswer) && (
+                        <div
+                          className={cn(
+                            "max-w-[95%] whitespace-pre-wrap rounded-lg px-2.5 py-2",
+                            m.who === "q" && "self-end bg-accent text-accent-foreground font-medium",
+                            m.who === "a" && "bg-background text-foreground",
+                            m.who === "err" && "border border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
+                          )}
+                        >
+                          {m.who === "a" && m.text ? (
+                            <TypeText text={m.text} />
+                          ) : (
+                            <>
+                              {m.text}
+                              {isStreamingAnswer && !m.text && (
+                                <span className="text-muted-foreground">
+                                  {gotFirstToken ? "" : `investigating… ${elapsed}s`}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
                       )}
-                    >
-                      {m.text}
-                      {isStreamingAnswer && !m.text && (
-                        <span className="text-muted-foreground">
-                          {gotFirstToken ? "" : `investigating… ${elapsed}s`}
-                        </span>
-                      )}
-                      {isStreamingAnswer && m.text && <span className="animate-pulse">▍</span>}
-                    </div>
-                  )}
                   {m.who === "a" && m.citations && m.citations.length > 0 && (
                     <CitationsPanel citations={m.citations} />
                   )}

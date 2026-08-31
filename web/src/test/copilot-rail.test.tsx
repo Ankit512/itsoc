@@ -153,6 +153,35 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(angles).toHaveTextContent(/Incidents/);
   });
 
+  it("greets the user with quick-start chips and a tour + explain-this-page tie-in when a run is loaded", async () => {
+    const streamSpy = vi.spyOn(api, "askStream").mockResolvedValue(undefined);
+    renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
+    const greeting = await screen.findByTestId("copilot-greeting");
+    expect(greeting).toHaveTextContent(/advisory analyst/i);
+
+    expect(screen.getByTestId("copilot-start-tour")).toBeInTheDocument();
+    expect(screen.getByTestId("copilot-explain-page")).toBeInTheDocument();
+
+    // "Explain this page" asks the copilot about the current screen.
+    await userEvent.click(screen.getByTestId("copilot-explain-page"));
+    expect(streamSpy).toHaveBeenCalled();
+  });
+
+  it("renders a typewriter cursor on assistant answers and completes the text", async () => {
+    const streamSpy = vi.spyOn(api, "askStream").mockImplementation(async (_q, onDelta) => {
+      onDelta("Walk the timeline: logins from 203.0.113.44 failed repeatedly.");
+    });
+    renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
+    const promptChip = await screen.findByText(/Walk me through Brute-force then SUCCESSFUL/i);
+    await userEvent.click(promptChip);
+    expect(await screen.findByText(/failed repeatedly\./)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="copilot-typewriter"]')?.textContent)
+        .toBe("Walk the timeline: logins from 203.0.113.44 failed repeatedly.");
+    });
+    expect(streamSpy).toHaveBeenCalled();
+  });
+
   it("keeps a type-and-send chat box pinned (not clipped under chrome)", async () => {
     const streamSpy = vi.spyOn(api, "askStream").mockImplementation(async (_q, onDelta) => {
       onDelta("Cited the matching lines.");

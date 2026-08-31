@@ -3,6 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import App from "@/App";
 import { renderApp, mockFetch, OVERVIEW, METRICS } from "./helpers";
+import { CATALOG } from "@/pages/Integrations";
+
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 describe("Integrations Page (Sovereign Connectors Gallery)", () => {
   beforeEach(() => {
@@ -31,6 +34,25 @@ describe("Integrations Page (Sovereign Connectors Gallery)", () => {
     expect(screen.getByText("Sovereign Integrations & Connectors")).toBeInTheDocument();
     expect(screen.getByText("SSH / nftables Firewall")).toBeInTheDocument();
     expect(screen.getByText("TAXII / STIX 2.1 Threat Feeds")).toBeInTheDocument();
+  });
+
+  it("is reachable from the left sidebar nav and navigates to the gallery", async () => {
+    renderApp(<App />, { route: "/incidents" });
+    await screen.findByTestId("wordmark");
+
+    const navLink = screen.getByRole("link", { name: /^integrations$/i });
+    expect(navLink).toBeInTheDocument();
+
+    await userEvent.click(navLink);
+    expect(await screen.findByTestId("integrations-page")).toBeInTheDocument();
+  });
+
+  it("keeps the Integrations nav item active on the Integrations route", async () => {
+    renderApp(<App />, { route: "/integrations" });
+    await screen.findByTestId("integrations-page");
+
+    const navLink = screen.getByRole("link", { name: /^integrations$/i });
+    expect(navLink).toHaveAttribute("aria-current", "page");
   });
 
   it("renders catalog cards with explicit egress disclosure badges", async () => {
@@ -90,5 +112,37 @@ describe("Integrations Page (Sovereign Connectors Gallery)", () => {
     await userEvent.click(testBtn);
 
     expect(await screen.findByText(/connected successfully/i)).toBeInTheDocument();
+  });
+
+  it("opens each connector's Configure modal and runs Test Connection with an honest ping", async () => {
+    renderApp(<App />, { route: "/integrations" });
+    await screen.findByTestId("integrations-page");
+
+    // Unfiltered grid renders the full catalog, one Configure button per card.
+    expect(screen.getAllByRole("button", { name: /configure/i })).toHaveLength(CATALOG.length);
+
+    for (let i = 0; i < CATALOG.length; i++) {
+      const conn = CATALOG[i];
+
+      await userEvent.click(screen.getAllByRole("button", { name: /configure/i })[i]);
+
+      // The modal belongs to THIS connector (not a stale/previous one).
+      expect(
+        await screen.findByRole("heading", { name: new RegExp(`^configure ${esc(conn.name)}$`, "i") })
+      ).toBeInTheDocument();
+      expect(screen.getByText(/egress boundary:/i)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /test connection/i }));
+
+      // None of the catalog statuses are "disabled", so every one reports the
+      // honest local ping against its resolved endpoint (defaultEndpoint or name).
+      const ok = await screen.findByText(/connected successfully/i);
+      const endpoint = conn.defaultEndpoint || conn.name;
+      expect(ok).toHaveTextContent(`Connected successfully to ${endpoint}`);
+
+      // Close to move on to the next connector.
+      await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+      await screen.findByTestId("integrations-page");
+    }
   });
 });
