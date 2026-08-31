@@ -5044,6 +5044,55 @@ def check_copilot_investigate():
           "not opening a case" in every["answer"].lower()
           and "not a new verdict" in every["answer"].lower(),
           every["answer"][:240])
+
+    bf_events = [
+        {"n": 5, "raw": "auth failed for user 'admin' from 203.0.113.44",
+         "msg": "auth failed", "host": "server-01", "findingId": "detector-0"},
+        {"n": 6, "raw": "Accepted password for admin from 203.0.113.44",
+         "msg": "Accepted", "host": "server-01", "findingId": "detector-0"},
+    ]
+    bf_state = {
+        "idle": False, "runId": "auth-1",
+        "findings": [{
+            "id": "detector-0", "sev": "CRITICAL",
+            "type": "auth_bruteforce_success",
+            "title": "Brute-force then SUCCESSFUL login for 'admin' from 203.0.113.44",
+            "host": "server-01", "occurrences": 6,
+            "chips": [{"text": "203.0.113.44"}],
+            "mitre": [{"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"},
+                      {"id": "T1078", "name": "Valid Accounts", "tactic": "Defense Evasion"}],
+            "ruleWhy": "Failures then a success.",
+            "lines": [{"n": 5, "a": "auth failed for user 'admin' from ", "hit": "203.0.113.44", "b": ""}],
+            "timeline": [{"t": "02:16:44", "label": "First failed login", "line": 5}],
+        }],
+        "events": bf_events,
+    }
+    failq = copilot.investigate("Show me all failed administrator logins during the last 24 hours.", bf_state)
+    check("failed-admin question cites auth-failed lines and does not invent a 24h lake",
+          failq["citations"] and failq["citations"][0]["n"] == 5
+          and "admin" in (failq["answer"].lower() + (failq["citations"][0].get("raw") or "").lower())
+          and "data lake" in failq["answer"].lower(),
+          failq["answer"][:220])
+    mitreq = copilot.investigate("What MITRE techniques are involved?", bf_state)
+    check("MITRE question lists T1110 and T1078 from the finding, not invented techniques",
+          "T1110" in mitreq["answer"] and "T1078" in mitreq["answer"]
+          and "T1486" not in mitreq["answer"],
+          mitreq["answer"])
+    hostq = copilot.investigate("Show me all hosts communicating with 203.0.113.44", bf_state)
+    check("hosts-for-IP question names server-01 from this run",
+          "server-01" in hostq["answer"] and "203.0.113.44" in hostq["answer"],
+          hostq["answer"])
+    whyq = copilot.investigate("Why was this alert classified as high risk?", bf_state)
+    check("why-classified explains rule-owned severity and does not let AI rate it",
+          "rule-owned" in whyq["answer"] and "not an AI rating" in whyq["answer"]
+          and "CRITICAL" in whyq["answer"],
+          whyq["answer"][:240])
+    invq = copilot.investigate("Investigate this alert.", bf_state)
+    check("investigate-this-alert report names user, host, IP, MITRE, timeline",
+          "admin" in invq["answer"].lower() and "server-01" in invq["answer"]
+          and "203.0.113.44" in invq["answer"] and "T1110" in invq["answer"]
+          and "not opening a case" in invq["answer"].lower(),
+          invq["answer"][:400])
     return 0 if all(results) else 1
 
 
