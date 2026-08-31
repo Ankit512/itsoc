@@ -4930,6 +4930,9 @@ def check_copilot_investigate():
           qs and not any("top 5 critical" in q.lower() for q in qs)
           and any("cbs" in q.lower() or "hresult" in q.lower() or "matching" in q.lower() for q in qs),
           str(qs))
+    check("suggested questions include a cross-module walk",
+          any("every connected module" in q.lower() for q in qs),
+          str(qs))
     inv = copilot.investigate("Show me top 5 critical alerts", state)
     check("asking for critical on a 0-crit run is honest, not invented CRITICAL",
           "0 CRITICAL" in inv["answer"] and inv["source"] == "rules",
@@ -5021,6 +5024,26 @@ def check_copilot_investigate():
           "not eligible" in pb.get("markdown", "").lower()
           and "executable: false" in pb.get("markdown", ""),
           pb.get("markdown", "")[:400])
+    extras = {
+        "incidents": [{"id": "inc-1", "severity": "HIGH", "entity": "CBS",
+                       "title": "CBS cluster"}],
+        "assets": [{"name": "CBS", "maxSeverity": "HIGH"}],
+        "users": [],
+        "ti": {"indicators": [], "indicatorSource": "offline"},
+        "runbooks": scan,
+        "forecast": fc,
+    }
+    every = copilot.investigate("Walk this run from every connected module", state, extras=extras)
+    check("every-angle brief walks detections, incidents, assets, MITRE, intel, runbooks",
+          "Detections:" in every["answer"] and "Incidents:" in every["answer"]
+          and "Assets:" in every["answer"] and "MITRE:" in every["answer"]
+          and "Intel:" in every["answer"] and "Runbooks" in every["answer"]
+          and "not opening a case" in every["answer"].lower(),
+          every["answer"][:400])
+    check("every-angle does not open a case or fire a runbook",
+          "not opening a case" in every["answer"].lower()
+          and "not a new verdict" in every["answer"].lower(),
+          every["answer"][:240])
     return 0 if all(results) else 1
 
 

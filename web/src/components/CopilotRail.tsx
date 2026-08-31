@@ -304,6 +304,11 @@ export function CopilotRail({
     queryFn: api.copilotForecast,
     enabled: !!state && !state.idle && activeTab === "forecast",
   });
+  const { data: angles } = useQuery({
+    queryKey: ["copilot-angles", state?.runId],
+    queryFn: api.copilotAngles,
+    enabled: !!state && !state.idle,
+  });
   const [playbook, setPlaybook] = useState<CopilotPlaybook | null>(null);
   const [playbookBusy, setPlaybookBusy] = useState(false);
   const { data: runsSummary } = useQuery({ queryKey: ["runs-summary"], queryFn: api.runsSummary });
@@ -673,6 +678,15 @@ export function CopilotRail({
       {activeTab === "ask" && (
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden" data-testid="copilot-chat">
           <RunBriefing state={state} loading={stateLoading} />
+          {!!angles && !state?.idle && Array.isArray((angles as { links?: unknown }).links) && (
+            <div data-testid="copilot-angles" className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10.5px] text-muted-foreground">
+              {((angles as { links: { label: string; href: string; count?: number }[] }).links).map((l) => (
+                <Link key={l.href} to={l.href} className="hover:text-primary">
+                  {l.label} {typeof l.count === "number" ? l.count : ""}
+                </Link>
+              ))}
+            </div>
+          )}
           <div aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 text-[12px]">
             {log.length === 0 && (
               <div className="flex flex-col gap-1.5">

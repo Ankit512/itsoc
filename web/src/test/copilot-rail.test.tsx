@@ -68,6 +68,15 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
         note: "Observed up to Spreading Inside. Later phases were not in this log — shown as watch, not detections.",
         source: "rules",
       },
+      "/api/copilot/angles": {
+        idle: false,
+        links: [
+          { label: "Findings", href: "/alerts", count: 2 },
+          { label: "Incidents", href: "/incidents", count: 1 },
+          { label: "Assets", href: "/assets", count: 1 },
+          { label: "Intel", href: "/intel", count: 0 },
+        ],
+      },
       "/api/copilot/playbook": {
         advisory: true,
         executable: false,
@@ -139,6 +148,9 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(screen.getByLabelText("Ask the AI analyst")).not.toBeDisabled();
     expect(screen.getByLabelText("Ask the AI analyst").tagName.toLowerCase()).toBe("textarea");
     expect(await screen.findByText(/Walk me through Brute-force then SUCCESSFUL/i)).toBeInTheDocument();
+    const angles = await screen.findByTestId("copilot-angles");
+    expect(angles).toHaveTextContent(/Findings/);
+    expect(angles).toHaveTextContent(/Incidents/);
   });
 
   it("keeps a type-and-send chat box pinned (not clipped under chrome)", async () => {

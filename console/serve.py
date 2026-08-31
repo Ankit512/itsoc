@@ -639,8 +639,9 @@ def overview_state(window=None):
 ASK_SYSTEM = (
     "You are an advisory SOC analyst copilot for a local log-analysis console. "
     "You investigate the CURRENT run the way a Tier-1 analyst would: walk "
-    "grouped findings, cite hidden matching source lines by {n}, and say "
-    "plainly when a requested band (e.g. critical) has zero findings. "
+    "grouped findings, cite hidden matching source lines by {n}, and connect "
+    "the same run's incidents, assets, users, MITRE, intel, and runbooks. "
+    "Say plainly when a requested band (e.g. critical) has zero findings. "
     "Use the investigation facts and findings summary provided. "
     "Severities and verdicts were assigned by deterministic rules and are final: "
     "you explain and advise, you never change, suppress, or escalate them. "
@@ -683,6 +684,22 @@ def ask_analyst(question, state=None, compute=None):
     return (answer or reply).strip()
 
 
+def _copilot_extras(state):
+    """Same-run facts from every SOC module. Display aggregations, not verdicts."""
+    if not state or state.get("idle"):
+        return {}
+    labels = [r.get("label") for r in list_runs()]
+    return {
+        "incidents": soc.derive_incidents(state),
+        "assets": soc.derive_assets(state),
+        "users": soc.derive_users(state),
+        "ti": soc.threat_intel_summary(),
+        "metrics": soc.metrics(state, labels),
+        "runbooks": soc.copilot_runbook_scan(state),
+        "forecast": copilot.forecast_view(state, runs_summary().get("runs")),
+    }
+
+
 def _ask_prompt(question, state=None, compute=None):
     """Build the (base, key, model, user) for one analyst question.
 
@@ -695,7 +712,10 @@ def _ask_prompt(question, state=None, compute=None):
     question = str(question)[:2000]
 
     findings = state.get("findings", [])
-    inv = copilot.investigate(question, state)
+    extras = _copilot_extras(state)
+    inv = copilot.investigate(question, state, extras=extras)
+    if not inv.get("angles"):
+        inv["angles"] = copilot.collect_angles(state, extras)
     parts = [f"Run {state.get('runId', '?')} — {state.get('sourceLabel') or state.get('runHosts') or 'current log'} — "
              f"{state.get('runParsed', '')} — {len(findings)} finding(s)."]
     if state.get("unrecognized") or state.get("emptyInput"):
@@ -1553,6 +1573,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json(copilot.forecast_view(STATE, runs_summary().get("runs")))
         elif path == "/api/copilot/playbook":
             self._json(copilot.draft_playbook(STATE, soc.copilot_runbook_scan(STATE)))
+        elif path == "/api/copilot/angles":
+            self._json(copilot.collect_angles(STATE, _copilot_extras(STATE)))
         # --- detector efficacy (D2). Pass-through of the harness JSON; serve.py
         # computes no precision/recall/F1 of its own and imports no detector.
         elif path == "/api/efficacy":
@@ -2170,12 +2192,13 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         # offline. `view` is null when the question is not a showcase request.
         if payload.get("view"):
             return self._json({"view": soc.build_view(question, STATE)})
+        extras = _copilot_extras(STATE)
         if payload.get("investigate"):
-            inv = copilot.investigate(question, STATE)
+            inv = copilot.investigate(question, STATE, extras=extras)
             return self._json({"investigation": inv, "view": soc.build_view(question, STATE)})
         if payload.get("stream"):
             return self._ask_stream(question)
-        inv = copilot.investigate(question, STATE)
+        inv = copilot.investigate(question, STATE, extras=extras)
         try:
             answer = ask_analyst(question)
             source = "llm"
@@ -2274,7 +2297,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(f"data: {json.dumps(obj)}\n\n".encode())
             self.wfile.flush()
 
-        inv = copilot.investigate(question, STATE)
+        extras = _copilot_extras(STATE)
+        inv = copilot.investigate(question, STATE, extras=extras)
         try:
             send({"investigation": {
                 "answer": inv.get("answer") or "",
