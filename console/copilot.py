@@ -254,9 +254,12 @@ def _hidden_lines(findings, events):
         )
         fid = top.get("id")
         mine = [e for e in events if e.get("findingId") == fid]
-        sig = str((top.get("entities") or {}).get("hresult_name")
-                  or (top.get("entities") or {}).get("signature")
-                  or "")
+        ent = top.get("entities") or {}
+        sig = str(ent.get("hresult_name") or ent.get("signature") or "")
+        if not sig:
+            tokens = re.findall(r"[A-Z][A-Z0-9_]{6,}", str(top.get("title") or ""))
+            if tokens:
+                sig = max(tokens, key=len)
         if sig:
             seen = {e.get("n") for e in mine}
             for e in _search_events(events, [sig.lower()]):

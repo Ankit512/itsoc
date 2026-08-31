@@ -4963,6 +4963,13 @@ def check_copilot_investigate():
     check("hidden-lines also cites signature hits that were never tagged on the card",
           any(c.get("n") == 99 for c in hidden["citations"]),
           str(hidden["citations"]))
+    state_no_ent = dict(state)
+    state_no_ent["findings"] = [{**f, "entities": {}} for f in state["findings"]]
+    hidden2 = copilot.investigate(
+        "What did Overview group, and which matching lines are hidden?", state_no_ent)
+    check("hidden-lines falls back to the HRESULT in the title when entities are absent",
+          any(c.get("n") == 99 for c in hidden2["citations"]),
+          str(hidden2["citations"]))
     idle = copilot.investigate("anything", {"idle": True})
     check("idle investigate is honest — no run, no invented facts",
           "No run" in idle["answer"] and idle["citations"] == [])
