@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Check, Sparkles, Pencil, X, Shield, ShieldCheck, FolderKanban, Search } from "lucide-react";
@@ -1197,6 +1197,32 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
 }
 
 function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) {
+  const qc = useQueryClient();
+  const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.runs });
+  const runs = runsQuery.data?.runs ?? [];
+  const currentRun = runsQuery.data?.current;
+
+  // Find matching run file for this incident
+  const matchingRun = runs.find((r) => r.runId === inc.runId);
+  const isDifferentRun = Boolean(matchingRun?.file && currentRun !== matchingRun.file && currentRun !== inc.runId);
+
+  const openRun = useMutation({
+    mutationFn: (file: string) => api.openRun(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rca", inc.id] });
+      qc.invalidateQueries({ queryKey: ["advisory", inc.id] });
+      qc.invalidateQueries({ queryKey: ["console-state"] });
+      qc.invalidateQueries({ queryKey: ["runs"] });
+    },
+  });
+
+  // Auto-switch run on mount so memory evidence, timeline & correlations load immediately
+  useEffect(() => {
+    if (matchingRun?.file && isDifferentRun && !openRun.isPending) {
+      openRun.mutate(matchingRun.file);
+    }
+  }, [matchingRun?.file, isDifferentRun]);
+
   const spanLabel = (() => {
     const a = toMs(inc.firstSeen), b = toMs(inc.lastSeen);
     if (a == null || b == null || b < a) return null;
