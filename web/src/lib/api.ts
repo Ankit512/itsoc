@@ -601,7 +601,10 @@ export interface CaseActivity { at: string; actor: string; kind: CaseActivityKin
 export type ObservableType = "url" | "ip" | "hash" | "domain" | "email";
 export interface CaseObservable { id: string; type: ObservableType; value: string; verdict?: string }
 export type AttachmentKind = "note" | "json" | "html" | "image" | "other";
-export interface CaseAttachment { id: string; name: string; size?: number; kind: AttachmentKind }
+export interface CaseAttachment {
+  id: string; name: string; size?: number; kind: AttachmentKind;
+  sha256?: string; stored?: boolean; contentType?: string;
+}
 export interface CaseSummary { what?: string; impact?: string; when?: string }
 
 export interface Case {
@@ -1222,12 +1225,15 @@ export const api = {
     return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
   },
 
-  addCaseAttachment: async (id: string, input: CaseAttachmentInput): Promise<{ ok: boolean; case?: Case; error?: string }> => {
-    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/attachments`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
-    });
-    const body = await res.json().catch(() => ({}));
-    return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  caseAttachmentUrl: (caseId: string, attachmentId: string) =>
+    `/api/cases/${encodeURIComponent(caseId)}/attachments/${encodeURIComponent(attachmentId)}`,
+
+  addCaseAttachment: async (id: string, file: File): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/attachments`, { method: "POST", body });
+    const payload = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: payload as Case } : { ok: false, error: payload.error ?? `HTTP ${res.status}` };
   },
 
   regenerateCaseSummary: async (id: string): Promise<{ ok: boolean; case?: Case; error?: string }> => {

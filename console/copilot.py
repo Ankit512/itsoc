@@ -802,10 +802,14 @@ def investigate(question, state, extras=None, case=None):
         if not attachments:
             empty["answer"] = "No attachments are recorded on this case file."
         else:
-            lines = ["Attachments on the case file (metadata only, not scanned remotely):"]
+            lines = ["Attachments on the case file:"]
             for item in attachments:
-                extra = f" ({item['size']} bytes)" if item.get("size") is not None else ""
-                lines.append(f"- {item.get('name') or 'unnamed'} [{item.get('kind') or 'other'}]{extra}")
+                extra = f" {item['size']} bytes" if item.get("size") is not None else ""
+                digest = (item.get("sha256") or "")[:12]
+                stored = "stored" if item.get("stored") else "bytes missing"
+                sha = f" sha256={digest}…" if digest else ""
+                lines.append(f"- {item.get('name') or 'unnamed'} [{item.get('kind') or 'other'}]{extra}{sha} ({stored})")
+            lines.append("Copilot listed stored files; it did not scan them as malware and did not look them up remotely.")
             empty["answer"] = "\n".join(lines)
         empty["source"] = "case"
         empty["followups"] = suggested_questions(state, case=case)

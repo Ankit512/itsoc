@@ -2232,6 +2232,22 @@ def check_soc_subsystems():
                 except urllib.error.HTTPError as e:
                     return e.code, json.loads(e.read() or b"{}")
 
+            def req_file(path, filename, blob, content_type="application/octet-stream"):
+                bound = "----itsocTestBoundary"
+                body = (
+                    f"--{bound}\r\n"
+                    f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+                    f"Content-Type: {content_type}\r\n\r\n"
+                ).encode() + blob + f"\r\n--{bound}--\r\n".encode()
+                r = urllib.request.Request(
+                    f"http://127.0.0.1:{port}{path}", data=body, method="POST",
+                    headers={"Content-Type": f"multipart/form-data; boundary={bound}"})
+                try:
+                    with urllib.request.urlopen(r) as resp:
+                        return resp.status, json.loads(resp.read())
+                except urllib.error.HTTPError as e:
+                    return e.code, json.loads(e.read() or b"{}")
+
             try:
                 # --- incidents: correlation ------------------------------------
                 _, out = req("GET", "/api/incidents")
@@ -2347,11 +2363,41 @@ def check_soc_subsystems():
                 check("case observables preserve analyst verdict text, not a rule severity",
                       status == 201 and case["observables"][-1]["type"] == "url"
                       and case["observables"][-1]["verdict"] == "SPF passed")
-                status, case = req("POST", f"/api/cases/{case['id']}/attachments",
-                                   {"name": "headers.json", "size": 128, "kind": "json"})
-                check("case attachments are metadata only and appear in activity",
-                      status == 201 and case["attachments"][-1]["name"] == "headers.json"
-                      and case["activity"][-1]["kind"] == "attachment")
+                status, named = req("POST", f"/api/cases/{case['id']}/attachments",
+                                    {"name": "headers.json", "size": 128, "kind": "json"})
+                check("metadata-only attachment names are refused",
+                      status == 400 and "multipart" in (named.get("error") or ""),
+                      str(named))
+                payload = b'{"spf":"passed"}'
+                status, case = req_file(f"/api/cases/{case['id']}/attachments",
+                                        "headers.json", payload, "application/json")
+                att = case["attachments"][-1]
+                check("case attachment stores real bytes and a sha256",
+                      status == 201 and att["name"] == "headers.json"
+                      and att["stored"] is True and att["size"] == len(payload)
+                      and att["sha256"] and att["kind"] == "json"
+                      and case["activity"][-1]["kind"] == "attachment",
+                      str(att))
+                raw_req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/cases/{case['id']}/attachments/{att['id']}")
+                with urllib.request.urlopen(raw_req) as resp:
+                    raw = resp.read()
+                    raw_type = resp.headers.get("Content-Type")
+                check("GET attachment returns the uploaded bytes verbatim",
+                      raw == payload and "json" in (raw_type or ""))
+                html_status, html_case = req_file(
+                    f"/api/cases/{case['id']}/attachments", "email_body.html",
+                    b"<html><script>alert(1)</script></html>", "text/html")
+                html_att = html_case["attachments"][-1]
+                html_req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/cases/{case['id']}/attachments/{html_att['id']}")
+                with urllib.request.urlopen(html_req) as resp:
+                    html_type = resp.headers.get("Content-Type")
+                    html_disp = resp.headers.get("Content-Disposition") or ""
+                check("HTML attachments download as text/plain, never execute",
+                      html_status == 201 and html_att["kind"] == "html"
+                      and html_type.startswith("text/plain")
+                      and "attachment" in html_disp)
                 status, case = req("POST", f"/api/cases/{case['id']}/summary", {})
                 check("regenerate summary is deterministic from case-file objects",
                       status == 201

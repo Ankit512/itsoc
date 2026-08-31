@@ -588,6 +588,7 @@
 .is-case-list>div,.is-case-list>a{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-height:32px; padding:7px 9px; border:1px solid var(--bd); border-radius:var(--radius); background:var(--inset); color:var(--ink2); font-size:11px; text-decoration:none; }
 .is-case-list>a:hover{ background:var(--pan2); color:var(--ink); }
 .is-case-list code{ color:var(--ink); font-family:var(--mono); overflow-wrap:anywhere; }
+.is-case-thumb{ display:block; width:100%; max-width:280px; max-height:140px; object-fit:contain; margin-top:6px; border:1px solid var(--bd); border-radius:var(--radius-xs); background:var(--pan); }
 .is-case-inline-form{ display:grid; grid-template-columns:120px minmax(0,1fr) auto; gap:7px; margin-top:11px; }
 .is-case-inline-form .is-select,.is-case-inline-form .is-input{ padding:7px 9px; }
 .is-case-runbooks{ margin-top:14px; padding-top:14px; border-top:1px solid var(--bd); }

@@ -44,6 +44,7 @@ from rule_mitre_map import RULE_TECHNIQUES  # noqa: E402
 from tactic_phase_map import phase_for_tactics  # noqa: E402
 
 SOC_DIR = HERE / ".soc"                       # monkeypatched to a tmp dir in tests
+import case_store  # noqa: E402  # after SOC_DIR so tests can patch the same path
 
 # Analyst lifecycle — full CASE/incident machine:
 #   NEW → TRIAGED → INVESTIGATING → ESCALATED → RESOLVED → CLOSED
@@ -1041,33 +1042,54 @@ def add_case_observable(cid, payload):
 
 
 def add_case_attachment(cid, payload):
+    """Store real file bytes. Metadata-only names are refused."""
     name = str(payload.get("name") or "").strip()
-    kind = str(payload.get("kind") or "other").strip().lower()
+    data = payload.get("data")
     if not name:
         raise ValueError("an attachment needs a name")
-    if kind not in CASE_ATTACHMENT_KINDS:
-        raise ValueError(f"attachment kind must be one of {CASE_ATTACHMENT_KINDS}")
-    size = payload.get("size")
-    if size is not None:
-        try:
-            size = int(size)
-        except (TypeError, ValueError):
-            raise ValueError("attachment size must be an integer") from None
-        if size < 0:
-            raise ValueError("attachment size must not be negative")
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("upload the file as multipart/form-data")
     store = _load("cases.json")
     case = store.get(cid)
     if not case:
         return None
     attachments = list(case.get("attachments") or [])
-    item = {"id": f"attachment-{len(attachments) + 1}", "name": name[:500], "kind": kind}
-    if size is not None:
-        item["size"] = size
+    att_id = f"attachment-{len(attachments) + 1}"
+    kind, content_type = case_store.sniff(name, data)
+    blob = case_store.put(cid, att_id, data)
+    item = {
+        "id": att_id,
+        "name": name[:500],
+        "kind": kind,
+        "size": blob["size"],
+        "sha256": blob["sha256"],
+        "stored": True,
+        "contentType": content_type,
+    }
     attachments.append(item)
     case["attachments"] = attachments
-    _case_activity(case, "attachment", f"Attachment metadata added: {item['name']}",
+    _case_activity(case, "attachment",
+                   f"Attachment added: {item['name']} ({item['size']} bytes)",
                    payload.get("actor") or "analyst")
     return _save_case(store, case)
+
+
+def get_case_attachment(cid, att_id):
+    """Return (meta, bytes) for a stored attachment; (None, None) if missing."""
+    case = get_case(cid)
+    if not case:
+        return None, None
+    meta = next((item for item in (case.get("attachments") or [])
+                 if item.get("id") == att_id), None)
+    if not meta:
+        return None, None
+    try:
+        data = case_store.get(cid, att_id)
+    except ValueError:
+        return None, None
+    if data is None:
+        return meta, None
+    return meta, data
 
 
 def add_case_runbook(cid, runbook_id, state):

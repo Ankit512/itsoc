@@ -68,6 +68,7 @@ import sigma_match  # noqa: E402
 import triage  # noqa: E402
 import org_context  # noqa: E402
 import redact  # noqa: E402
+import case_store  # noqa: E402
 import soc  # noqa: E402
 import store  # noqa: E402  # persistent SOC Command Center store (console/store.py)
 import syslog_collector  # noqa: E402  # live syslog listener -> store (socf-syslog)
@@ -1425,13 +1426,16 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
 
     protocol_version = "HTTP/1.1"
 
-    def _send(self, body, content_type, status=200):
+    def _send(self, body, content_type, status=200, headers=None):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "0")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -1549,6 +1553,11 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
                 self._json({"users": soc.derive_users(STATE)})
         elif path == "/api/cases":
             self._json({"cases": soc.list_cases()})
+        elif path.startswith("/api/cases/") and "/attachments/" in path:
+            parts = path.split("/")
+            if len(parts) < 6:
+                return self._json({"error": "no such attachment"}, 404)
+            self._case_attachment_get(parts[3], parts[5])
         elif path.startswith("/api/cases/"):
             case = soc.get_case(path.split("/")[3])
             self._json(case) if case else self._json({"error": "no such case"}, 404)
@@ -1736,7 +1745,7 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         elif path.startswith("/api/cases/") and path.endswith("/observables"):
             self._case_action(path.split("/")[3], "observable")
         elif path.startswith("/api/cases/") and path.endswith("/attachments"):
-            self._case_action(path.split("/")[3], "attachment")
+            self._case_attachment_upload(path.split("/")[3])
         elif path.startswith("/api/cases/") and path.endswith("/run"):
             self._case_action(path.split("/")[3], "run")
         elif path.startswith("/api/cases/") and path.endswith("/summary"):
@@ -2133,6 +2142,47 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         print(f"  case created: {case['id']} {case['title'][:40]!r}", flush=True)
         return self._json(case, 201)
 
+    def _case_attachment_upload(self, cid):
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > case_store.MAX_ATTACHMENT_BYTES + 65536:
+            return self._json({"error": "file too large"}, 413)
+        body = self.rfile.read(length) if length else b""
+        ctype = self.headers.get("Content-Type", "")
+        if not ctype.startswith("multipart/form-data"):
+            return self._json({"error": "upload the file as multipart/form-data"}, 400)
+        fields = parse_multipart(body, ctype)
+        filename, data = fields.get("file", (None, None))
+        if not filename or data is None:
+            return self._json({"error": "a file field named file is required"}, 400)
+        try:
+            case = soc.add_case_attachment(cid, {"name": filename, "data": data})
+        except ValueError as e:
+            msg = str(e)
+            return self._json({"error": msg}, 413 if "larger" in msg else 400)
+        if not case:
+            return self._json({"error": "no such case"}, 404)
+        return self._json(case, 201)
+
+    def _case_attachment_get(self, cid, att_id):
+        try:
+            meta, data = soc.get_case_attachment(cid, att_id)
+        except ValueError:
+            return self._json({"error": "no such attachment"}, 404)
+        if meta is None:
+            return self._json({"error": "no such attachment"}, 404)
+        if data is None:
+            return self._json({"error": "attachment bytes are missing"}, 404)
+        name = str(meta.get("name") or att_id).replace('"', "").replace("\r", "").replace("\n", "")[:180]
+        kind = meta.get("kind")
+        content_type = str(meta.get("contentType") or "application/octet-stream")
+        if kind == "image" and content_type.startswith("image/"):
+            disp = f'inline; filename="{name}"'
+        else:
+            if kind == "html":
+                content_type = "text/plain; charset=utf-8"
+            disp = f'attachment; filename="{name}"'
+        self._send(data, content_type, 200, {"Content-Disposition": disp})
+
     def _case_action(self, cid, action):
         """Thin route dispatch for analyst case-file mutations in soc.py."""
         payload = self._read_json_body()
@@ -2143,8 +2193,6 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
                 case = soc.add_case_comment(cid, payload)
             elif action == "observable":
                 case = soc.add_case_observable(cid, payload)
-            elif action == "attachment":
-                case = soc.add_case_attachment(cid, payload)
             elif action == "summary":
                 case = soc.regenerate_case_summary(cid, payload.get("actor") or "analyst")
             elif action == "link":

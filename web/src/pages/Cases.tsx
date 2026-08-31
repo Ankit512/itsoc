@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Paperclip, Play, Plus, Send, X } from "lucide-react";
-import { api, CASE_STATUSES, type Case, type CaseAttachmentInput, type CaseObservableInput, type CaseStatus, type CopilotRunbookRow } from "@/lib/api";
+import { api, CASE_STATUSES, type Case, type CaseObservableInput, type CaseStatus, type CopilotRunbookRow } from "@/lib/api";
 
 const LABEL: Record<CaseStatus, string> = { new: "New", triaged: "Triaged", investigating: "Investigating", escalated: "Escalated", resolved: "Resolved", closed: "Closed" };
 const COLOR: Record<CaseStatus, string> = { new: "var(--acc)", triaged: "var(--med)", investigating: "var(--high)", escalated: "var(--crit)", resolved: "var(--low)", closed: "var(--mut)" };
@@ -31,7 +31,34 @@ function CommentComposer({ item }: { item: Case }) { const qc = useQueryClient()
 
 function ObservableTab({ item }: { item: Case }) { const qc = useQueryClient(); const [type, setType] = useState<CaseObservableInput["type"]>("url"); const [value, setValue] = useState(""); const [error, setError] = useState(""); const add = useMutation({ mutationFn: () => api.addCaseObservable(item.id, { type, value }), onSuccess: (out) => { if (!out.ok) return setError(out.error ?? "Could not add observable."); setValue(""); setError(""); qc.invalidateQueries({ queryKey: ["cases"] }); } }); return <><div className="is-case-list">{item.observables.length ? item.observables.map((observable) => <div key={observable.id}><span className="is-chip">{observable.type}</span><code>{observable.value}</code>{observable.verdict && <span className="is-mut">{observable.verdict}</span>}</div>) : <p className="is-case-empty">No observables are attached to this case.</p>}</div><form className="is-case-inline-form" onSubmit={(e) => { e.preventDefault(); if (value.trim()) add.mutate(); }}><select className="is-select" value={type} onChange={(e) => setType(e.target.value as CaseObservableInput["type"])} aria-label="Observable type">{["url", "ip", "hash", "domain", "email"].map((kind) => <option key={kind}>{kind}</option>)}</select><input className="is-input" value={value} onChange={(e) => setValue(e.target.value)} aria-label="Observable value" placeholder="Value" /><button className="is-btn" disabled={!value.trim() || add.isPending}>Add</button></form>{error && <p className="is-case-error">{error}</p>}</>; }
 
-function AttachmentTab({ item }: { item: Case }) { const qc = useQueryClient(); const [name, setName] = useState(""); const [kind, setKind] = useState<CaseAttachmentInput["kind"]>("other"); const [error, setError] = useState(""); const add = useMutation({ mutationFn: () => api.addCaseAttachment(item.id, { name, kind }), onSuccess: (out) => { if (!out.ok) return setError(out.error ?? "Could not add attachment."); setName(""); setError(""); qc.invalidateQueries({ queryKey: ["cases"] }); } }); return <><div className="is-case-list">{item.attachments.length ? item.attachments.map((attachment) => <div key={attachment.id}><Paperclip size={13} /><span>{attachment.name}</span><span className="is-mut">{attachment.kind}{typeof attachment.size === "number" ? ` · ${attachment.size} bytes` : ""}</span></div>) : <p className="is-case-empty">No attachments are recorded for this case.</p>}</div><form className="is-case-inline-form" onSubmit={(e) => { e.preventDefault(); if (name.trim()) add.mutate(); }}><input className="is-input" value={name} onChange={(e) => setName(e.target.value)} aria-label="Attachment name" placeholder="Attachment name" /><select className="is-select" value={kind} onChange={(e) => setKind(e.target.value as CaseAttachmentInput["kind"])} aria-label="Attachment kind">{["note", "json", "html", "image", "other"].map((itemKind) => <option key={itemKind}>{itemKind}</option>)}</select><button className="is-btn" disabled={!name.trim() || add.isPending}>Add</button></form>{error && <p className="is-case-error">{error}</p>}</>; }
+function AttachmentTab({ item }: { item: Case }) {
+  const qc = useQueryClient();
+  const [error, setError] = useState("");
+  const add = useMutation({
+    mutationFn: (file: File) => api.addCaseAttachment(item.id, file),
+    onSuccess: (out) => {
+      if (!out.ok) return setError(out.error ?? "Could not add the file.");
+      setError("");
+      qc.invalidateQueries({ queryKey: ["cases"] });
+    },
+  });
+  return <>
+    <div className="is-case-list">{item.attachments.length ? item.attachments.map((attachment) => {
+      const href = api.caseAttachmentUrl(item.id, attachment.id);
+      return <div key={attachment.id}>
+        <Paperclip size={13} />
+        <a href={href}>{attachment.name}</a>
+        <span className="is-mut">{attachment.kind}{typeof attachment.size === "number" ? ` · ${attachment.size} bytes` : ""}{attachment.stored ? " · stored" : ""}</span>
+        {attachment.kind === "image" && <img className="is-case-thumb" src={href} alt="" />}
+      </div>;
+    }) : <p className="is-case-empty">No files are stored on this case.</p>}</div>
+    <label className="is-field"><span>Upload a file</span>
+      <input className="is-input" type="file" aria-label="Upload attachment" disabled={add.isPending}
+             onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) add.mutate(file); }} />
+    </label>
+    {error && <p className="is-case-error">{error}</p>}
+  </>;
+}
 
 function LinkedTab({ item, cases }: { item: Case; cases: Case[] }) {
   const qc = useQueryClient();
