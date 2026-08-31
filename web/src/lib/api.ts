@@ -45,6 +45,19 @@ export interface AskView {
   citedFindings?: number;
 }
 
+export interface CopilotCitation {
+  n?: number | string | null;
+  raw?: string;
+  findingId?: string | null;
+}
+export interface CopilotInvestigation {
+  answer?: string;
+  citations?: CopilotCitation[];
+  followups?: string[];
+  facts?: Record<string, unknown>;
+  source?: string;
+}
+
 export interface OverviewData {
   generatedAt: string;
   timeWindowLabel: string;
@@ -815,6 +828,32 @@ export const api = {
     }
   },
 
+  copilotSuggest: async (): Promise<string[]> => {
+    try {
+      const res = await fetch("/api/copilot/suggest");
+      if (!res.ok) return [];
+      const body = (await res.json().catch(() => ({}))) as { questions?: string[] };
+      return Array.isArray(body.questions) ? body.questions.filter((q) => typeof q === "string") : [];
+    } catch {
+      return [];
+    }
+  },
+
+  investigate: async (question: string): Promise<CopilotInvestigation | null> => {
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, investigate: true }),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json().catch(() => ({}))) as { investigation?: CopilotInvestigation | null };
+      return body.investigation ?? null;
+    } catch {
+      return null;
+    }
+  },
+
   /** Stream the analyst reply token-by-token over SSE. `onDelta` fires per
    *  chunk; resolves when the model sends `done`. Pass an AbortSignal to
    *  cancel — the backend stops when the connection drops. Errors (unreachable
@@ -823,6 +862,7 @@ export const api = {
     question: string,
     onDelta: (text: string) => void,
     signal?: AbortSignal,
+    onInvestigation?: (inv: CopilotInvestigation) => void,
   ): Promise<void> => {
     const res = await fetch("/api/ask", {
       method: "POST",
@@ -851,8 +891,9 @@ export const api = {
         const line = frame.split("\n").find((l) => l.startsWith("data:"));
         if (!line) continue;
         const evt = JSON.parse(line.slice(5).trim()) as
-          { delta?: string; done?: boolean; error?: string };
+          { delta?: string; done?: boolean; error?: string; investigation?: CopilotInvestigation };
         if (evt.error) throw new Error(evt.error);
+        if (evt.investigation && onInvestigation) onInvestigation(evt.investigation);
         if (evt.done) return;
         if (evt.delta) onDelta(evt.delta);
       }

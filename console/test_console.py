@@ -2037,10 +2037,11 @@ def check_soc_overview():
                 check("/api/ask answers via the LLM path (prose + honest null view)",
                       status == 200 and out.get("answer") == "advisory answer"
                       and out.get("view") is None, str(out))
-                check("prompt carries the findings summary, not the raw log",
+                check("prompt carries the findings summary plus investigation facts",
                       "auth_bruteforce_success" in captured[-1]["user"]
                       and "what happened?" in captured[-1]["user"]
-                      and "auth failed for user" not in captured[-1]["user"])
+                      and "Investigation facts" in captured[-1]["user"],
+                      captured[-1]["user"][:240])
                 check("the system prompt forbids changing verdicts",
                       "never change" in captured[-1]["system"])
                 check("/api/ask never mutates state or severities",
@@ -2063,8 +2064,11 @@ def check_soc_overview():
 
                 la.chat_completion = broken_chat
                 status, out = post("/api/ask", {"question": "hello?"})
-                check("unreachable model -> honest error, never a fabricated answer",
-                      status == 502 and "not reachable" in out.get("error", ""), str(out))
+                check("unreachable model falls back to deterministic investigation, never a blank copilot",
+                      status == 200 and out.get("source") == "rules"
+                      and bool(out.get("answer"))
+                      and "not reachable" in (out.get("note") or ""),
+                      str(out)[:300])
 
                 # --- routing (Phase E): the React SOC app owns / and /alerts;
                 #     the old vanilla pages moved to /legacy/*. (Full serve.py ->
@@ -4863,6 +4867,92 @@ def check_auth():
     return 0 if all(results) else 1
 
 
+def check_copilot_investigate():
+    """Run-bound investigation copilot (console/copilot.py).
+
+    Digs matching source lines the Overview collapses. Never a new verdict:
+    0 CRITICAL stays 0 CRITICAL; CBS HRESULT is servicing, not ATT&CK.
+    Suggested questions are run-aware (no 'top 5 critical' on a no-crit run).
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import copilot
+    import hashlib
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}"
+              + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nCopilot investigation (hidden matching lines, advisory only):")
+    sha = hashlib.sha256((ROOT / "anomaly_detector.py").read_bytes()).hexdigest()
+    check("anomaly_detector.py sha256 matches the pivot baseline",
+          sha == "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876", sha)
+
+    import inspect
+    import serve as serve_mod
+    stream_src = inspect.getsource(serve_mod.ConsoleHandler._ask_stream)
+    check("stream answers from investigation immediately (does not wait on the model)",
+          'inv.get("answer")' in stream_src
+          and 'send({"delta": inv["answer"]})' in stream_src,
+          stream_src[stream_src.find("investigation"):stream_src.find("investigation")+400])
+
+    state = {
+        "idle": False, "runId": "Windows_2k", "linesParsed": 2000,
+        "findings": [{
+            "id": "detector-0", "sev": "HIGH", "type": "windows_cbs_hresult",
+            "title": "CBS HRESULT CBS_E_MANIFEST_INVALID_ITEM ×448",
+            "occurrences": 448, "mitre": [],
+            "entities": {"hresult_name": "CBS_E_MANIFEST_INVALID_ITEM", "channel": "CBS"},
+            "lines": [{"n": 11, "a": "2016-09-28 04:30:31, Info  CBS  Failed [HRESULT = 0x800f080d - CBS_E_MANIFEST_INVALID_ITEM]",
+                       "hit": "", "b": ""}],
+        }, {
+            "id": "detector-1", "sev": "LOW", "type": "windows_cbs_warning",
+            "title": "CBS warning ×280", "occurrences": 280, "mitre": [],
+        }],
+        "events": [
+            {"n": 11, "raw": "2016-09-28 04:30:31, Info  CBS  Failed [HRESULT = 0x800f080d - CBS_E_MANIFEST_INVALID_ITEM]",
+             "msg": "Failed", "findingId": "detector-0"},
+            {"n": 12, "raw": "2016-09-28 04:30:31, Info  CBS  Expecting attribute [HRESULT = 0x800f080d - CBS_E_MANIFEST_INVALID_ITEM]",
+             "msg": "Expecting", "findingId": "detector-0"},
+        ],
+    }
+    qs = copilot.suggested_questions(state)
+    check("suggested questions are run-aware (no 'top 5 critical' on a 0-crit CBS run)",
+          qs and not any("top 5 critical" in q.lower() for q in qs)
+          and any("cbs" in q.lower() or "hresult" in q.lower() or "matching" in q.lower() for q in qs),
+          str(qs))
+    inv = copilot.investigate("Show me top 5 critical alerts", state)
+    check("asking for critical on a 0-crit run is honest, not invented CRITICAL",
+          "0 CRITICAL" in inv["answer"] and inv["source"] == "rules",
+          inv["answer"][:160])
+    inv2 = copilot.investigate("What are the recent attack patterns?", state)
+    check("attack-pattern question on CBS is servicing noise, not a fabricated intrusion",
+          "servicing" in inv2["answer"].lower() and "ATT&CK" in inv2["answer"],
+          inv2["answer"][:160])
+    inv3 = copilot.investigate("Walk me through CBS_E_MANIFEST_INVALID_ITEM", state)
+    check("walkthrough cites hidden matching source lines by {n}",
+          inv3["citations"] and inv3["citations"][0]["n"] == 11
+          and "448 matching" in inv3["answer"]
+          and "Failed" in (inv3["citations"][0].get("raw") or ""),
+          str(inv3["citations"][:1]))
+    check("investigation never invents a severity other than the finding's HIGH",
+          "[HIGH]" in inv3["answer"] and "CRITICAL" not in inv3["answer"])
+    hidden = copilot.investigate(
+        "What did Overview group, and which matching lines are hidden?", state)
+    check("hidden-lines intent cites collapsed matching events, not dashboard cards only",
+          hidden["citations"] and "448" in hidden["answer"]
+          and "grouped card" in hidden["answer"].lower(),
+          hidden["answer"][:200])
+    idle = copilot.investigate("anything", {"idle": True})
+    check("idle investigate is honest — no run, no invented facts",
+          "No run" in idle["answer"] and idle["citations"] == [])
+    return 0 if all(results) else 1
+
+
 def check_ask_view():
     """Design-v2 P3 — AI copilot Showcase: the /api/ask {view} directive.
     soc.build_view chooses WHAT real data to surface; it never invents rows or
@@ -5652,6 +5742,7 @@ def main():
     phase4_ = check_redesign_phase4()
     auth_ = check_auth()
     askview_ = check_ask_view()
+    copilotinv_ = check_copilot_investigate()
     bfseries_ = check_bruteforce_series()
     runbooks_ = check_runbooks()
     audit_ = check_audit()
@@ -5665,7 +5756,7 @@ def main():
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
-            or askview_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
+            or askview_ or copilotinv_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
             or investigate_ or advisory_ or orgctx_ or actions_):
         print("\nFAILED")
         return 1
@@ -5673,7 +5764,7 @@ def main():
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + efficacy-api + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
-          "+ ask-view + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
+          "+ ask-view + copilot-investigate + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
           "+ inc-4a7f-scenario + investigation-engine + parallel-advisory + org-context-priority "
           "+ action-layer-ssh-firewall checks green")
     return 0
