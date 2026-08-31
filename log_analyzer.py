@@ -630,7 +630,9 @@ def parse_text_stream(path: Path, encoding=None):
             record["src_ip"] = ip_match.group(1)
         if dst_match:
             record["dst_ip"] = dst_match.group(1)
-        records.append(record)
+        # Detector contract: every record has {n, ts, level, host, msg, raw}.
+        # ts may be None; the key must exist (KeyError in detect_auth_bruteforce).
+        records.append(_normalize_record(record, line_no, raw))
 
     return records, {
         "format": "generic_text",

@@ -1214,6 +1214,71 @@ def check_logcat():
     return 0 if all(results) else 1
 
 
+def check_iso8601_syslog():
+    """journald/rsyslog ISO-8601 envelope (sshd-session Failed password).
+
+    This is the format that KeyError:'ts' on detect_auth_bruteforce: native sniff
+    used to call it unknown, generic_text records lacked a ts key. Envelope only.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    import normalize
+    from anomaly_detector import detect
+
+    results = []
+
+    def check(name, cond, detail=""):
+        results.append(bool(cond))
+        print(f"  [{'PASS' if cond else 'FAIL'}] {name}" + (f" — {detail}" if not cond else ""))
+
+    sample = ROOT / "samples" / "iso8601_sshd.log"
+    records, stats = normalize.load(sample)
+    check("sniffs as iso8601_syslog", stats["format"] == "iso8601_syslog", stats["format"])
+    check("every sshd line parsed", stats["parsed"] >= 7, str(stats))
+    check("every record has a ts key (detector contract)",
+          records and all("ts" in r for r in records))
+    check("host is the syslog hostname, not the stamp",
+          records[0]["host"] == "Debian", records[0].get("host"))
+    check("msg is the sshd wording, raw is the full line",
+          "Failed password" in records[1]["msg"]
+          and records[1]["raw"].startswith("2026-05-05T21:35:23"),
+          records[1].get("msg", "")[:60])
+    check("raw is verbatim", records[0]["raw"] == sample.read_text().splitlines()[0])
+
+    # Canonical must not be stolen (second token is LEVEL, not a host).
+    _, s = normalize.load(ROOT / "sample-2.log")
+    check("sample-2.log still sniffs as canonical", s["format"] == "canonical", s["format"])
+
+    import rules_syslog
+    canon, _counts = rules_syslog.canonicalize(records)
+    try:
+        findings = detect(canon)
+        crashed = False
+    except KeyError as e:
+        findings, crashed = [], True
+        check("detect() does not KeyError on ts", False, str(e))
+    if not crashed:
+        check("detect() runs without KeyError", True)
+        check("bruteforce can fire on Failed-password bursts (rule-owned)",
+              any(f.get("type") == "auth_bruteforce" for f in findings)
+              or len([r for r in canon if "auth failed" in str(r.get("msg") or "").lower()]) >= 5,
+              str([f.get("type") for f in findings]))
+
+    # Fallback path: generic_text records must still carry ts so detect() cannot
+    # KeyError if sniff ever misses.
+    import log_analyzer as la
+    recs, st = la.parse_text_stream(sample)
+    check("generic_text fallback still has a ts key",
+          recs and all("ts" in r for r in recs), st.get("format"))
+    try:
+        detect(recs)
+        check("detect() on generic_text fallback does not KeyError", True)
+    except KeyError as e:
+        check("detect() on generic_text fallback does not KeyError", False, str(e))
+
+    return 0 if all(results) else 1
+
+
 def check_loghub_formats():
     """Loghub/LogPAI sibling parsers (console/formats/loghub.py).
 
@@ -6170,6 +6235,7 @@ def main():
     routing = check_server_routing()
     log360 = check_log360()
     logcat_ = check_logcat()
+    iso8601_ = check_iso8601_syslog()
     loghub_ = check_loghub_formats()
     remote = check_remote_compute()
     dashboard = check_dashboard_data()
@@ -6205,7 +6271,7 @@ def main():
     orgctx_ = check_org_context()
     actions_ = check_action_layer_and_firewall()
     sigma_ = check_sigma_ingest_triage()
-    if (result.returncode or routing or log360 or logcat_ or loghub_ or remote or dashboard
+    if (result.returncode or routing or log360 or logcat_ or iso8601_ or loghub_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
@@ -6213,7 +6279,7 @@ def main():
             or investigate_ or advisory_ or orgctx_ or actions_ or sigma_):
         print("\nFAILED")
         return 1
-    print("\nPASSED — render + routing + log360 + logcat + loghub-formats + remote-compute + dashboard-data "
+    print("\nPASSED — render + routing + log360 + logcat + iso8601-syslog + loghub-formats + remote-compute + dashboard-data "
           "+ layout + all-runs + soc-overview + soc-subsystems + stream + export + serve-react "
           "+ store + efficacy-api + syslog + discovery + ti-oem + evtx + validate-real + formats-universal "
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "

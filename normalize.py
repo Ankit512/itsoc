@@ -58,6 +58,10 @@ try:
     import loghub  # noqa: E402
 except ImportError:
     loghub = None
+try:
+    import iso8601_syslog  # noqa: E402
+except ImportError:
+    iso8601_syslog = None
 
 
 # "Mon DD HH:MM:SS host proc[pid]: message" — day may be space-padded ("Jul  3").
@@ -151,6 +155,10 @@ def sniff_format(path, probe_lines=50):
     # that canonical and rfc3164 lines cannot match (requires <NN>1 prefix).
     if rfc5424 is not None and rfc5424.sniff(path, probe_lines=probe_lines):
         return "rfc5424"
+    # journald / rsyslog short-iso-precise: ISO-8601 stamp, hostname, then tag.
+    # Second token is a host, never INFO/WARN/ERROR, so canonical is not stolen.
+    if iso8601_syslog is not None and iso8601_syslog.sniff(path, probe_lines=probe_lines):
+        return "iso8601_syslog"
     # JSON-line / JSONL: one JSON object per line. Checked after all syslog
     # variants so a syslog line that happens to be valid JSON is not stolen.
     if jsonlog is not None and jsonlog.sniff(path, probe_lines=probe_lines):
@@ -275,6 +283,8 @@ def load(path):
             year -= 1               # log predates the mtime calendar year
         base_year = year
         records, unparsed, total = _parse_rfc3164(path, year)
+    elif fmt == "iso8601_syslog" and iso8601_syslog is not None:
+        records, unparsed, total = iso8601_syslog.load(path, synthesize_level)
     elif fmt == "rfc5424" and rfc5424 is not None:
         records, p_stats = rfc5424.parse(path)
         unparsed = []  # parser counts them internally

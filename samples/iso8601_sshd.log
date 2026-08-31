@@ -1,0 +1,8 @@
+2026-05-05T21:34:48.582192-03:00 Debian sshd-session[9136]: Invalid user fakeuser from 10.0.2.5 port 46916
+2026-05-05T21:35:23.101666-03:00 Debian sshd-session[9136]: Failed password for invalid user fakeuser from 10.0.2.5 port 46916 ssh2
+2026-05-05T21:35:29.398541-03:00 Debian sshd-session[9136]: Failed password for invalid user fakeuser from 10.0.2.5 port 46916 ssh2
+2026-05-05T21:35:34.585329-03:00 Debian sshd-session[9136]: Failed password for invalid user fakeuser from 10.0.2.5 port 46916 ssh2
+2026-05-05T21:37:26.153106-03:00 Debian sshd-session[9143]: Failed password for analyst from 10.0.2.5 port 54394 ssh2
+2026-05-05T21:37:31.785700-03:00 Debian sshd-session[9143]: Failed password for analyst from 10.0.2.5 port 54394 ssh2
+2026-05-05T21:37:35.164358-03:00 Debian sshd-session[9143]: Failed password for analyst from 10.0.2.5 port 54394 ssh2
+2026-05-05T21:41:01.647787-03:00 Debian sudo:     root : TTY=pts/0 ; PWD=/root ; USER=root ; COMMAND=/usr/bin/grep -E 'Failed password|Invalid user' /var/log/auth.log
