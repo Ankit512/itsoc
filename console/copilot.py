@@ -215,25 +215,16 @@ def _brief(findings, events):
     matching = sum(_occ(f) for f in findings)
     leftover = matching - len(findings)
     parts.append(
-        f"This run has {len(findings)} grouped finding(s) covering "
-        f"{matching} matching line(s) across {n_events} parsed event(s). "
-        "Overview shows the cards; the matching lines sit in the source log."
+        f"{len(findings)} cards · {matching} matching lines · {n_events} events."
     )
     if leftover > 0:
+        parts.append(f"{leftover} lines sit behind those cards, not on the dashboard.")
+    for f in _ranked(findings)[:4]:
         parts.append(
-            f"{leftover} matching line(s) are collapsed behind those cards — "
-            "not missing, just not one-row dashboard tiles."
+            f"- [{_sev(f)}] {f.get('title')} ×{_occ(f)}"
         )
-    for f in _ranked(findings)[:6]:
-        parts.append(
-            f"- [{_sev(f)}] {f.get('type')}: {f.get('title')} "
-            f"(×{_occ(f)}; host {f.get('host') or f.get('scope') or 'n/a'})"
-        )
-    if len(findings) > 6:
-        parts.append(f"- …and {len(findings) - 6} more grouped finding(s).")
-    parts.append(
-        "Severity is rule-owned. I can pull the hidden matching lines for any card."
-    )
+    if len(findings) > 4:
+        parts.append(f"- …and {len(findings) - 4} more.")
     return "\n".join(parts)
 
 
@@ -242,16 +233,13 @@ def _hidden_lines(findings, events):
     matching = sum(_occ(f) for f in findings)
     leftover = matching - len(findings)
     parts = [
-        f"Overview shows {len(findings)} grouped card(s) covering "
-        f"{matching} matching source line(s) across {len(events)} parsed event(s)."
+        f"{len(findings)} grouped card(s) cover {matching} matching lines "
+        f"({len(events)} parsed events)."
     ]
     cites = []
     top = _ranked(findings)[0] if findings else None
     if leftover > 0 and top:
-        parts.append(
-            f"{leftover} matching line(s) are not one-row cards — they sit in "
-            "the source log. Cited below from the parsed event store (verbatim)."
-        )
+        parts.append(f"{leftover} of those lines are hidden behind the cards. Cited below.")
         fid = top.get("id")
         mine = [e for e in events if e.get("findingId") == fid]
         ent = top.get("entities") or {}
@@ -465,16 +453,11 @@ def investigate(question, state):
         occ = _occ(matched_finding)
         shown = len(cites)
         answer = (
-            f"[{_sev(matched_finding)}] {matched_finding.get('type')}: "
-            f"{matched_finding.get('title')} — {occ} matching source line(s). "
-            f"Overview collapses those into one card; here are "
-            f"{shown} cited line(s) from the log (verbatim)."
+            f"[{_sev(matched_finding)}] {matched_finding.get('title')} — "
+            f"{occ} matching line(s) in one Overview card. {shown} cited below."
         )
         if occ > shown:
-            answer += f" {occ - shown} further matching line(s) are not listed here."
-        rationale = matched_finding.get("ruleWhy") or matched_finding.get("rationale") or ""
-        if rationale:
-            answer += f"\nRule rationale: {rationale}"
+            answer += f" {occ - shown} more in the log."
         return {
             "answer": answer,
             "citations": cites,

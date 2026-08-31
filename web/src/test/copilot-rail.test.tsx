@@ -86,8 +86,24 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(brief).toHaveTextContent("2 finding(s)");
     expect(brief).toHaveTextContent("1 critical");
     expect(screen.getByTestId("copilot-chat")).toBeInTheDocument();
+    expect(screen.getByTestId("copilot-composer")).toBeInTheDocument();
     expect(screen.getByLabelText("Ask the AI analyst")).not.toBeDisabled();
+    expect(screen.getByLabelText("Ask the AI analyst").tagName.toLowerCase()).toBe("textarea");
     expect(await screen.findByText(/Walk me through Brute-force then SUCCESSFUL/i)).toBeInTheDocument();
+  });
+
+  it("keeps a type-and-send chat box pinned (not clipped under chrome)", async () => {
+    const streamSpy = vi.spyOn(api, "askStream").mockImplementation(async (_q, onDelta) => {
+      onDelta("Cited the matching lines.");
+    });
+    renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
+    const box = await screen.findByLabelText("Ask the AI analyst");
+    expect(box.tagName.toLowerCase()).toBe("textarea");
+    expect(box).not.toBeDisabled();
+    await userEvent.type(box, "show hidden matching lines");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(streamSpy).toHaveBeenCalled();
+    expect(await screen.findByText(/Cited the matching lines/)).toBeInTheDocument();
   });
 
   it("run-aware suggestions do not ask for critical alerts the run does not have", async () => {
@@ -139,6 +155,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     renderApp(<CopilotRail defaultOpen={true} />);
     expect(await screen.findByText(/No run loaded/i)).toBeInTheDocument();
     expect(screen.getByTestId("copilot-run-brief")).toHaveTextContent(/No run loaded/i);
+    expect(screen.getByTestId("copilot-composer")).toBeInTheDocument();
     expect(screen.getByLabelText("Ask the AI analyst")).toBeDisabled();
   });
 
