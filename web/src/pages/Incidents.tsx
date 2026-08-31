@@ -1069,9 +1069,9 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
         <div className="is-block is-det" data-testid="investigation-deterministic">
           <div className="cap authoritative">Timeline · reconstructed from the events store · every line cited</div>
           {inv.timeline.length ? (
-            <details className="is-logpane">
+            <details className="is-logpane" open>
               <summary className="is-logpane__meta" data-testid="investigation-log-count">
-                {inv.timeline.length.toLocaleString()} reconstructed line(s) · closed by default — host logs stay in this pane
+                {inv.timeline.length.toLocaleString()} reconstructed line(s) · every line cited
               </summary>
               <pre className="is-evidence" data-testid="investigation-timeline">
                 {inv.timeline.map((e) => (
@@ -1349,6 +1349,49 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
 
         {/* Absorbed Cases surface — any analyst case(s) linked to this incident */}
         <CasesPanel inc={inc} />
+
+        {/* Incident History & Audit Log */}
+        <section className="is-panel" data-testid="incident-audit">
+          <div className="is-panel__h">
+            <h3>Incident History & Audit Log</h3>
+            <span className="is-mut text-[11px]">Tamper-evident system log</span>
+          </div>
+          <div className="space-y-2 text-xs">
+            <div className="flex items-start justify-between border-b border-border/40 pb-2">
+              <div>
+                <span className="font-semibold text-foreground">Detection Cluster Created</span>
+                <p className="text-muted-foreground text-[11px] mt-0.5">
+                  Cluster initialized from correlated findings on entity <code className="font-mono">{inc.entity}</code> ({inc.findingCount} detections).
+                </p>
+              </div>
+              <span className="is-mono text-muted-foreground text-[11px] whitespace-nowrap">
+                {inc.createdAt ? inc.createdAt.slice(0, 19).replace("T", " ") : "Initial run"}
+              </span>
+            </div>
+            <div className="flex items-start justify-between border-b border-border/40 pb-2">
+              <div>
+                <span className="font-semibold text-foreground">Rule Engine Verdict Assigned</span>
+                <p className="text-muted-foreground text-[11px] mt-0.5">
+                  Severity set to <span className={`font-semibold ${inc.severity === 'CRITICAL' ? 'text-red-500' : 'text-amber-500'}`}>{inc.severity}</span> with Priority <span className="font-semibold">{(inc as { priority?: string }).priority || 'P2'}</span>.
+                </p>
+              </div>
+              <span className="is-mono text-muted-foreground text-[11px] whitespace-nowrap">
+                {inc.firstSeen ? inc.firstSeen.slice(0, 19).replace("T", " ") : "Rule engine"}
+              </span>
+            </div>
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="font-semibold text-foreground">Lifecycle State: <span className="capitalize text-foreground font-bold">{inc.state}</span></span>
+                <p className="text-muted-foreground text-[11px] mt-0.5">
+                  Current status in SOC triage workflow. All transitions are recorded in the audit store.
+                </p>
+              </div>
+              <span className="is-mono text-muted-foreground text-[11px] whitespace-nowrap">
+                {inc.acknowledgedAt ? inc.acknowledgedAt.slice(0, 19).replace("T", " ") : "Active"}
+              </span>
+            </div>
+          </div>
+        </section>
       </div>
 
       <IncidentRail inc={inc} />

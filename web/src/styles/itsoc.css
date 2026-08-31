@@ -264,7 +264,7 @@
 .is-approval-actions{ display:flex; gap:10px; padding-top:2px; }
 
 /* ---- 12b. INCIDENT / RCA v3 composition (center + right rail) ---------- */
-.is-rca-layout{ display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:18px; align-items:start; min-width:0; overflow-x:clip; flex:1; }
+.is-rca-layout{ display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:18px; min-width:0; overflow-x:clip; flex:1; }
 .is-rca-center{ display:flex; flex-direction:column; gap:16px; min-width:0; overflow-x:clip; flex:1; }
 .is-rca-rail{ display:flex; flex-direction:column; gap:14px; position:sticky; top:16px; }
 .is-crumb{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mut2); }
