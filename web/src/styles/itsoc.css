@@ -362,19 +362,29 @@
 
 /* ---- GUIDED TOUR (SpotlightTour) --------------------------------------- */
 .is-tour-root{ position:fixed; inset:0; z-index:100; }
-/* Dimmed backdrop. Darkening uses alpha off the `black` keyword (not a
- * fixed hex/rgb) so it stays theme-aware and passes the token guards. */
-.is-tour-backdrop{ position:absolute; inset:0; background:color-mix(in srgb, var(--bg) 55%, black); cursor:pointer; }
-/* Spotlight "hole": transparent window whose tunnel shadow dims the rest of
- * the screen around the focused element. The shadow lives in a custom property
- * so the box-shadow line references only a token. */
+/* Light scrim only — the page must stay readable so users can actually see
+ * the options being walked. Darkening uses alpha off the `black` keyword (not
+ * a fixed hex/rgb) so it stays theme-aware and passes the token guards. */
+.is-tour-backdrop{ position:absolute; inset:0; background:color-mix(in srgb, var(--bg) 92%, black); cursor:pointer; }
+/* Highlight ring around the target element. A thick accent border plus a soft
+ * token-driven glow draws the eye while the rest of the page remains visible. */
 .is-tour-spotlight{
-  --tour-hole: 0 0 0 100vmax color-mix(in srgb, var(--bg) 55%, black);
+  --tour-glow: 0 0 0 3px color-mix(in srgb, var(--acc) 35%, transparent), 0 6px 24px color-mix(in srgb, var(--acc) 25%, transparent);
   position:fixed;
   border-radius:10px;
-  border:2px solid var(--acc);
-  box-shadow:var(--tour-hole);
+  border:3px solid var(--acc);
+  box-shadow:var(--tour-glow);
   pointer-events:none;
+  animation:is-tour-pulse 1.8s ease-in-out infinite;
+}
+@keyframes is-tour-pulse{ 0%,100%{ border-color:var(--acc); } 50%{ border-color:var(--acc-weak); } }
+.is-tour-spotlight__tag{
+  position:absolute; left:0; top:0;
+  transform:translateY(calc(-100% - 8px));
+  background:var(--acc); color:var(--acc-ink); border-radius:6px;
+  font-size:10px; font-weight:700; letter-spacing:.02em;
+  padding:4px 8px; white-space:nowrap;
+  box-shadow:var(--shadow);
 }
 .is-tour-card{
   position:fixed; left:50%; bottom:28px; transform:translateX(-50%);

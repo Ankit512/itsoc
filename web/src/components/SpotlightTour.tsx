@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, BookOpen, X } from "lucide-react";
 import { useUi } from "@/store/ui";
-import { TOUR_STEPS, stepForRoute, type TourStep } from "@/lib/tour";
+import { TOUR_STEPS, type TourStep } from "@/lib/tour";
 import { cn } from "@/lib/utils";
 
 /** Fallback when a spotlight target isn't found — center the card instead of
@@ -29,7 +29,7 @@ function waitForSelector(selector: string, timeoutMs = 2500): Promise<Element | 
 }
 
 export function SpotlightTour() {
-  const { tourOpen, tourPage, stopTour } = useUi();
+  const { tourOpen, stopTour } = useUi();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -37,17 +37,13 @@ export function SpotlightTour() {
   const [rect, setRect] = useState<Rect | null>(null);
   const [targetFound, setTargetFound] = useState(false);
 
-  // Reset the tour when it opens, seeding at the current page if requested.
+  // Reset the tour when it opens. Always begin at step 1 (Overview) so a
+  // first-time walkthrough is predictable — never jumps to wherever you are.
   useEffect(() => {
-    if (!tourOpen) {
-      setTargetFound(false);
-      setRect(null);
-      return;
-    }
-    const seed = tourPage ? stepForRoute(tourPage) : undefined;
-    const startAt = seed ? Math.max(0, TOUR_STEPS.findIndex((s) => s.route === seed.route)) : 0;
-    setStepIdx(startAt > -1 ? startAt : 0);
-  }, [tourOpen, tourPage]);
+    setStepIdx(0);
+    setTargetFound(false);
+    setRect(null);
+  }, [tourOpen]);
 
   const step: TourStep = TOUR_STEPS[Math.min(stepIdx, TOUR_STEPS.length - 1)];
 
@@ -105,7 +101,7 @@ export function SpotlightTour() {
 
   return (
     <div data-testid="spotlight-tour" className="itsoc is-tour-root" role="dialog" aria-modal="true" aria-label="Guided tour">
-      {/* Dimmed backdrop with a spotlight "hole" over the target */}
+      {/* Light scrim so the page stays readable while the target is ringed */}
       <div className="is-tour-backdrop" onClick={stopTour} aria-hidden />
       {targetFound && rect && (
         <div
@@ -113,7 +109,9 @@ export function SpotlightTour() {
           style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }}
           data-testid="spotlight-tour-focus"
           aria-hidden
-        />
+        >
+          <span className="is-tour-spotlight__tag">Highlighted — {step.title}</span>
+        </div>
       )}
 
       {/* Step card */}

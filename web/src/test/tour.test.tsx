@@ -40,6 +40,16 @@ describe("Guided Tour (SpotlightTour)", () => {
     await waitFor(() => expect(screen.queryByTestId("spotlight-tour")).not.toBeInTheDocument());
   });
 
+  it("always begins at Overview, even when launched on a later screen", async () => {
+    renderApp(<App />, { route: "/settings" });
+    await screen.findByTestId("wordmark");
+    useUi.getState().startTour("/settings");
+
+    const card = await screen.findByTestId("spotlight-tour-card");
+    expect(card).toHaveTextContent(TOUR_STEPS[0].title); // Overview, not Settings
+    expect(card).toHaveTextContent(`1 / ${TOUR_STEPS.length}`);
+  });
+
   it("Done on the last step closes the tour", async () => {
     renderApp(<App />);
     await screen.findByTestId("wordmark");
