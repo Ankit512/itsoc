@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
-import { Check, Sparkles, Pencil, X } from "lucide-react";
+import { Check, Sparkles, Pencil, X, Shield, ShieldCheck, FolderKanban, Search } from "lucide-react";
 import { api, INCIDENT_STATES, CASE_STATUSES, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport } from "@/lib/api";
 import { RunbookCard, type RunbookCardData } from "@/components/RunbookCard";
 import { cn } from "@/lib/utils";
@@ -518,7 +518,7 @@ function EvidenceCard({ inc }: { inc: Incident }) {
   const lines = members.flatMap((f) => f.lines ?? []);
 
   return (
-    <details className="is-panel" data-testid="incident-evidence-wrap">
+    <details className="is-panel" data-testid="incident-evidence-wrap" open>
       <summary className="is-panel__h" style={{ cursor: "pointer", listStyle: "revert" }}>
         <h3>Evidence — {lines.length ? `${lines.length.toLocaleString()} verbatim line(s)` : "verbatim log lines"}</h3>
       </summary>
@@ -1165,6 +1165,40 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
           <span className="is-ro">severity is rule-owned</span>
         </div>
 
+        {/* Quick Investigation Action Bar */}
+        <div className="flex items-center gap-1.5 py-1 px-1 overflow-x-auto border-b border-border/50 text-[11px]" style={{ marginBottom: 12 }}>
+          <span className="text-muted-foreground mr-1 text-[10.5px] font-medium uppercase tracking-wider">Quick Actions:</span>
+          <button
+            type="button"
+            onClick={openCopilot}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-border bg-background hover:bg-accent text-foreground transition-colors font-medium cursor-pointer"
+          >
+            <Sparkles size={11} className="text-primary" />
+            Ask Incident Copilot
+          </button>
+          <Link
+            to="/intel"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-border bg-background hover:bg-accent text-foreground transition-colors font-medium"
+          >
+            <Shield size={11} className="text-blue-400" />
+            Threat Intel Lookup
+          </Link>
+          <Link
+            to="/approvals"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-border bg-background hover:bg-accent text-foreground transition-colors font-medium"
+          >
+            <ShieldCheck size={11} className="text-amber-500" />
+            Remediation Approvals
+          </Link>
+          <Link
+            to="/cases"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-border bg-background hover:bg-accent text-foreground transition-colors font-medium"
+          >
+            <FolderKanban size={11} className="text-purple-400" />
+            Case Board
+          </Link>
+        </div>
+
         <LifecycleStepper inc={inc} />
 
         {/* Attack timeline (real sub-events, positioned by time) */}
@@ -1209,7 +1243,10 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
 
         {/* Correlated findings (rule-derived — kept SEPARATE from analyst-linked) */}
         <section className="is-panel">
-          <div className="is-panel__h"><h3>{inc.findingCount} correlated finding(s)</h3></div>
+          <div className="is-panel__h">
+            <h3>{inc.findingCount} correlated finding(s)</h3>
+            <span className="is-mut text-[11px]">Rule-derived detection members</span>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {(inc.findingIds || []).map((fid) => (
               <a key={fid} href={`/alerts?sel=${encodeURIComponent(fid)}`}
@@ -1232,6 +1269,7 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
 export function Incidents() {
   const [params, setParams] = useSearchParams();
   const [stateFilter, setStateFilter] = useState<IncidentState | "">("");
+  const [search, setSearch] = useState("");
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["incidents", stateFilter],
     queryFn: () => api.incidents(stateFilter || undefined),
@@ -1242,6 +1280,17 @@ export function Incidents() {
   const selId = params.get("sel");
   const selected = incidents.find((i) => i.id === selId) ?? null;
   const clearSel = () => setParams({});
+
+  const filteredIncidents = incidents.filter((inc) => {
+    if (!search.trim()) return true;
+    const s = search.toLowerCase();
+    return (
+      inc.id.toLowerCase().includes(s) ||
+      inc.entity.toLowerCase().includes(s) ||
+      (inc.title || "").toLowerCase().includes(s) ||
+      inc.findingIds.some((f) => f.toLowerCase().includes(s))
+    );
+  });
 
   if (isLoading) return <p className="is-mut">Loading incidents…</p>;
   if (isError) {
@@ -1258,23 +1307,68 @@ export function Incidents() {
 
   // Otherwise → the incident index: filter + list + case creation, honest empty.
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-2.5">
-        <select
-          className="is-select"
-          style={{ maxWidth: 150 }}
-          aria-label="Lifecycle filter"
-          value={stateFilter}
-          onChange={(e) => setStateFilter(e.target.value as IncidentState | "")}
-        >
-          <option value="">All states</option>
-          {INCIDENT_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <span className="is-panel__sub" style={{ flex: 1 }}>
-          {incidents.length} incident(s){stateFilter && ` · ${stateFilter}`} · rule-detected clusters + analyst-created cases
-        </span>
-        <Link to="/cases" className="is-btn">Case board</Link>
-        <NewCase />
+    <div className="space-y-4">
+      {/* Incident Summary KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[10.5px] font-medium text-muted-foreground uppercase tracking-wider">Total Incidents</div>
+          <div className="text-xl font-bold font-mono mt-0.5">{incidents.length}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Correlated finding clusters</div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[10.5px] font-medium text-muted-foreground uppercase tracking-wider">Critical / High</div>
+          <div className="text-xl font-bold font-mono mt-0.5 text-red-500">
+            {incidents.filter((i) => i.severity === "CRITICAL" || i.severity === "HIGH").length}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Rule-owned severity</div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[10.5px] font-medium text-muted-foreground uppercase tracking-wider">In Progress</div>
+          <div className="text-xl font-bold font-mono mt-0.5 text-amber-500">
+            {incidents.filter((i) => i.state === "investigating" || i.state === "triaged").length}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Under active review</div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[10.5px] font-medium text-muted-foreground uppercase tracking-wider">Resolved / Closed</div>
+          <div className="text-xl font-bold font-mono mt-0.5 text-emerald-500">
+            {incidents.filter((i) => i.state === "resolved" || i.state === "closed").length}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Lifecycle completed</div>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2">
+          <select
+            className="is-select"
+            style={{ maxWidth: 150 }}
+            aria-label="Lifecycle filter"
+            value={stateFilter}
+            onChange={(e) => setStateFilter(e.target.value as IncidentState | "")}
+          >
+            <option value="">All states</option>
+            {INCIDENT_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <span className="is-panel__sub">
+            {incidents.length} incident(s){stateFilter && ` · ${stateFilter}`} · rule-detected clusters + analyst-created cases
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-56">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="is-input pl-8 py-1 text-xs"
+              placeholder="Search incidents…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search incidents"
+            />
+          </div>
+          <Link to="/cases" className="is-btn">Case board</Link>
+          <NewCase />
+        </div>
       </div>
 
       {incidents.length === 0 ? (
@@ -1286,7 +1380,7 @@ export function Incidents() {
       ) : (
         <div className="is-md !grid-cols-1">
           <div className="is-md__list">
-            <div className="overflow-auto max-h-[60vh]">
+            <div className="overflow-auto">
               <table className="is-table">
                 <thead>
                   <tr>
@@ -1297,7 +1391,7 @@ export function Incidents() {
                   </tr>
                 </thead>
                 <tbody>
-                  {incidents.map((inc) => (
+                  {filteredIncidents.map((inc) => (
                     <tr
                       key={inc.id}
                       data-testid="incident-row"
@@ -1329,6 +1423,6 @@ export function Incidents() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
