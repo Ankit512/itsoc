@@ -157,6 +157,18 @@ export interface Finding {
   lines: EvidenceLine[];
   linesNote: string | null;
   timeline: { t: string; label: string; line?: number; dot?: string }[];
+  /** Advisory AI recommendation. NEVER a verdict — `sev` stays rule-owned. */
+  aiTriage?: {
+    advisory: boolean;
+    ruleSeverity: string;
+    aiSeverity: string;
+    confidence: string;
+    agrees: boolean;
+    cause: string;
+    falsePositiveHint?: string;
+    nextSteps?: string[];
+    note: string;
+  };
 }
 
 export interface ConsoleState {
@@ -248,10 +260,13 @@ export interface RunsSummary {
 export interface Technique { id: string; name: string; tactic: string }
 
 /** Analyst lifecycle: the ONLY mutable part of an incident. Rules still own
- *  severity — `severity` here is the max member verdict, a display rollup. */
-export type IncidentState = "new" | "acknowledged" | "investigating" | "resolved";
+ *  severity — `severity` here is the max member verdict, a display rollup.
+ *  NEW → TRIAGED → INVESTIGATING → ESCALATED → RESOLVED → CLOSED.
+ *  `acknowledged` is accepted as an alias of `triaged` by the API. */
+export type IncidentState =
+  | "new" | "triaged" | "investigating" | "escalated" | "resolved" | "closed";
 export const INCIDENT_STATES: IncidentState[] =
-  ["new", "acknowledged", "investigating", "resolved"];
+  ["new", "triaged", "investigating", "escalated", "resolved", "closed"];
 
 export interface Incident {
   id: string;
@@ -574,8 +589,10 @@ export const EXPORT_FORMATS: { format: ExportFormat; label: string; ext: string 
 type OrError<T> = T | { error: string };
 
 // --- Cases (Phase C) ---
-export type CaseStatus = "open" | "investigating" | "closed";
-export const CASE_STATUSES: CaseStatus[] = ["open", "investigating", "closed"];
+export type CaseStatus =
+  | "new" | "triaged" | "investigating" | "escalated" | "resolved" | "closed";
+export const CASE_STATUSES: CaseStatus[] =
+  ["new", "triaged", "investigating", "escalated", "resolved", "closed"];
 
 export interface Case {
   id: string;
@@ -583,6 +600,7 @@ export interface Case {
   notes: string;
   assignee: string;
   status: CaseStatus;
+  history?: { status: CaseStatus; at: string }[];
   links: { findings: string[]; incidents: string[] };
   createdAt: string;
   updatedAt: string;
@@ -1208,6 +1226,35 @@ export const api = {
     return res.ok ? { ok: true, status: body as SyslogStatus }
                   : { ok: false, error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
   },
+
+  ingestWebhook: async (input: {
+    source: "edr" | "firewall" | "cloud" | "webhook";
+    events?: unknown[] | Record<string, unknown>;
+    event?: Record<string, unknown>;
+  }): Promise<{
+    ok: boolean;
+    accepted?: number; stored?: number; duplicates?: number; unparsed?: number;
+    sigmaHits?: { id: string; title: string; level: string; count: number }[];
+    note?: string; error?: string;
+  }> => {
+    const res = await fetch("/api/ingest/webhook", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok
+      ? { ok: true, ...(body as object) }
+      : { ok: false, error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
+  },
+
+  ingestStatus: () => getJson<{ sources: Record<string, number>; total: number }>("/api/ingest/status"),
+  sigmaRules: () => getJson<{ rules: { id: string; title: string; level: string }[] }>("/api/sigma/rules"),
+  copilotTriage: () => getJson<{
+    advisory: boolean; count: number; disagreements: number;
+    items: { id: string; ruleSeverity: string; aiSeverity: string; agrees: boolean }[];
+    note: string;
+  }>("/api/copilot/triage"),
 
   // --- nmap discovery + vuln scan (socf-discovery) ---
   // Poll the REAL scanner state; launch a scan (always user-initiated). A

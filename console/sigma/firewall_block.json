@@ -1,0 +1,16 @@
+{
+  "title": "Firewall deny / drop / block",
+  "id": "itsoc-firewall-block",
+  "status": "stable",
+  "level": "medium",
+  "logsource": {"category": "firewall"},
+  "detection": {
+    "selection_action": {
+      "action|contains": ["deny", "drop", "block", "reject"]
+    },
+    "selection_msg": {
+      "msg|contains": ["firewall", "denied", "dropped packet", "blocked connection"]
+    },
+    "condition": "selection_action or selection_msg"
+  }
+}

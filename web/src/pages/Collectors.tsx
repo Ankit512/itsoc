@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Antenna } from "lucide-react";
 import { api, type SyslogStatus } from "@/lib/api";
 
+type IngestSource = "edr" | "firewall" | "cloud" | "webhook";
+
 /** Sources — the control panel for the live syslog listener (UDP + TCP), in the
  *  itsoc. design system (mirrors prototype #p-sources). Every value shown is the
  *  REAL listener state polled from /api/syslog/status; received messages land in
@@ -220,6 +222,75 @@ function RecentEvents({ running }: { running: boolean }) {
   );
 }
 
+function WebhookIngest() {
+  const queryClient = useQueryClient();
+  const [source, setSource] = useState<IngestSource>("webhook");
+  const [body, setBody] = useState("{\n  \"message\": \"example event\",\n  \"host\": \"sensor-01\"\n}\n");
+  const [result, setResult] = useState<string>("");
+  const [err, setErr] = useState("");
+
+  const send = useMutation({
+    mutationFn: async () => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        throw new Error("JSON is not valid — nothing was stored.");
+      }
+      const events = Array.isArray(parsed) ? parsed
+        : (parsed && typeof parsed === "object" && "events" in (parsed as object))
+          ? parsed
+          : { event: parsed as Record<string, unknown> };
+      const payload = Array.isArray(parsed)
+        ? { source, events: parsed }
+        : (parsed && typeof parsed === "object" && "source" in (parsed as object))
+          ? parsed as { source: IngestSource; events?: unknown }
+          : { source, ...(events as object) };
+      return api.ingestWebhook(payload as Parameters<typeof api.ingestWebhook>[0]);
+    },
+    onSuccess: (out) => {
+      if (!out.ok) { setErr(out.error ?? "Ingest failed."); setResult(""); return; }
+      setErr("");
+      const hits = (out.sigmaHits || []).map((h) => `${h.id}×${h.count}`).join(", ") || "none";
+      setResult(`stored ${out.stored ?? 0} of ${out.accepted ?? 0} · Sigma hits: ${hits}`);
+      queryClient.invalidateQueries({ queryKey: ["syslog", "events"] });
+      queryClient.invalidateQueries({ queryKey: ["ingest"] });
+    },
+    onError: (e) => { setErr((e as Error).message); setResult(""); },
+  });
+
+  return (
+    <div className="is-panel" data-testid="webhook-ingest">
+      <div className="is-panel__h"><h3>Webhook / EDR / firewall / cloud</h3></div>
+      <p className="is-mut" style={{ fontSize: 12, lineHeight: 1.5, margin: "0 0 8px" }}>
+        POST JSON into the persistent store. Severity is whatever the event itself reported.
+        Sigma may match after ingest — that is a rule hit, not an AI verdict.
+      </p>
+      <label className="is-field" style={{ margin: "8px 0" }}>
+        <span>Source</span>
+        <select className="is-select" aria-label="Ingest source" value={source}
+                onChange={(e) => setSource(e.target.value as IngestSource)}>
+          <option value="webhook">webhook</option>
+          <option value="edr">edr</option>
+          <option value="firewall">firewall</option>
+          <option value="cloud">cloud</option>
+        </select>
+      </label>
+      <label className="is-field">
+        <span>JSON event or array</span>
+        <textarea className="is-input" style={{ minHeight: 120, fontFamily: "var(--mono)", fontSize: 11 }}
+                  aria-label="Ingest JSON" value={body} onChange={(e) => setBody(e.target.value)} />
+      </label>
+      {err && <p style={{ color: "var(--crit)", fontSize: 11.5, margin: "6px 0 0" }}>{err}</p>}
+      {result && <p className="is-mut" data-testid="ingest-result" style={{ fontSize: 12, margin: "6px 0 0" }}>{result}</p>}
+      <button className="is-btn is-btn--primary" style={{ marginTop: 10 }}
+              disabled={send.isPending} onClick={() => send.mutate()}>
+        {send.isPending ? "Sending…" : "POST to /api/ingest/webhook"}
+      </button>
+    </div>
+  );
+}
+
 export function Collectors() {
   const { data: status, error } = useQuery({
     queryKey: ["syslog", "status"], queryFn: api.syslogStatus, refetchInterval: 3000,
@@ -240,6 +311,7 @@ export function Collectors() {
         <Controls status={status} />
         <LiveStatus status={status} />
       </div>
+      <WebhookIngest />
       <RecentEvents running={!!status?.running} />
     </>
   );

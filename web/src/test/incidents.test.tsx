@@ -20,7 +20,7 @@ function incident(over: Partial<Incident & { priority?: string; priorityRational
 
 describe("Incidents page", () => {
   it("renders the incident list from real data", async () => {
-    mockFetch({ "/api/incidents": { incidents: [incident(), incident({ id: "inc-def456", entity: "app-01", entityKind: "host", severity: "HIGH", state: "acknowledged" }) ] } });
+    mockFetch({ "/api/incidents": { incidents: [incident(), incident({ id: "inc-def456", entity: "app-01", entityKind: "host", severity: "HIGH", state: "triaged" }) ] } });
     renderApp(<App />, { route: "/incidents" });
 
     expect(await screen.findByText(/2 incident\(s\)/)).toBeInTheDocument();
@@ -40,7 +40,7 @@ describe("Incidents page", () => {
   it("opens the detail with lifecycle controls and posts a state transition", async () => {
     const post = vi.fn(async () => ({
       ok: true, status: 200,
-      json: async () => incident({ state: "acknowledged", acknowledgedAt: "2026-08-13T03:00:00+00:00" }),
+      json: async () => incident({ state: "triaged", acknowledgedAt: "2026-08-13T03:00:00+00:00" }),
     } as Response));
     // Route the POST /state before the list route (substring, insertion order).
     mockFetch({ "/api/incidents/inc-abc123/state": { incidents: [] }, "/api/incidents": { incidents: [incident()] } });
@@ -54,7 +54,7 @@ describe("Incidents page", () => {
     renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
 
     expect(await screen.findByText(/Lifecycle · analyst-owned/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "acknowledged" }));
+    await userEvent.click(screen.getByRole("button", { name: "triaged" }));
     expect(post).toHaveBeenCalledTimes(1);
   });
 
@@ -152,7 +152,7 @@ function embeddedCase(over: Partial<EmbeddedCase> = {}): EmbeddedCase {
   return {
     caseId: "case-2", title: "Analyst-only triage note",
     notes: "no rule fired — following a hunch on host web-07",
-    assignee: "lee", caseStatus: "open",
+    assignee: "lee", caseStatus: "new",
     caseCreatedAt: "2026-08-20T12:00:00+00:00", caseUpdatedAt: "2026-08-20T12:00:00+00:00",
     linkedFindings: [], linkedIncidents: [], ...over,
   };
