@@ -289,10 +289,15 @@ export function CopilotRail({
   // leave the rail on a stale cache while the dashboard has already moved.
   const { data: state, isLoading: stateLoading } = useQuery({ queryKey: ["console-state"], queryFn: api.consoleState });
   const { data: overview } = useQuery({ queryKey: ["overview"], queryFn: api.overview });
+  const selectedCaseId = pathname === "/cases" ? new URLSearchParams(search).get("sel") : null;
+  const { data: casesData } = useQuery({
+    queryKey: ["cases"], queryFn: api.listCases, enabled: Boolean(selectedCaseId),
+  });
+  const selectedCase = selectedCaseId ? casesData?.cases.find((item) => item.id === selectedCaseId) : undefined;
   const { data: suggested } = useQuery({
-    queryKey: ["copilot-suggest", state?.runId],
-    queryFn: api.copilotSuggest,
-    enabled: !!state && !state.idle,
+    queryKey: ["copilot-suggest", selectedCaseId ?? state?.runId],
+    queryFn: () => api.copilotSuggest(selectedCaseId ?? undefined),
+    enabled: Boolean(selectedCaseId) || (!!state && !state.idle),
   });
   const { data: runbookScan } = useQuery({
     queryKey: ["copilot-runbooks", state?.runId],
@@ -334,7 +339,8 @@ export function CopilotRail({
   const matchingLines = findings.reduce((n, f) => n + (f.occurrences || 1), 0);
   const runId = state && !state.idle ? state.runId : null;
   const runReady = !!state && !state.idle && !state.unrecognized && !state.emptyInput;
-  const blockAsk = !!state && !runReady;
+  const caseScoped = Boolean(selectedCase);
+  const blockAsk = !caseScoped && !!state && !runReady;
   const selectedFinding = selParam ? findings.find((f) => f.id === selParam) : null;
 
   // Chat is bound to one run. Switching runs (or going idle) drops the prior
@@ -343,7 +349,7 @@ export function CopilotRail({
     setLog([]);
     setPlaybook(null);
     abortRef.current?.abort();
-  }, [runId]);
+  }, [runId, selectedCaseId]);
   const topCriticalFinding = findings.find((f) => f.sev?.toUpperCase() === "CRITICAL" || f.ruleSev?.toUpperCase() === "CRITICAL")
     ?? findings.find((f) => f.sev?.toUpperCase() === "HIGH" || f.ruleSev?.toUpperCase() === "HIGH")
     ?? findings[0];
@@ -394,6 +400,14 @@ export function CopilotRail({
   const ask = async (q: string) => {
     const question = q.trim();
     if (!question || streaming) return;
+    if (caseScoped && /^summarize this case$/i.test(question)) {
+      const facts = selectedCase!;
+      const description = [facts.summary?.what, facts.summary?.impact, facts.summary?.when, facts.notes]
+        .filter(Boolean).join("\n\n") || "No description has been recorded for this case.";
+      setActiveTab("ask"); setDraft("");
+      setLog((l) => [...l, { who: "q", text: question }, { who: "a", text: `${facts.title}\n\n${description}` }]);
+      return;
+    }
     if (blockAsk) {
       setActiveTab("ask");
       setLog((l) => [...l, { who: "q", text: question }, {
@@ -409,6 +423,9 @@ export function CopilotRail({
     setDraft("");
     setLog((l) => [...l, { who: "q", text: question }, { who: "a", text: "" }]);
     const answerIndex = log.length + 1;
+    const requestQuestion = caseScoped
+      ? `Case ${selectedCase!.id}: ${selectedCase!.title}. Category: ${selectedCase!.category || "not recorded"}. Notes: ${selectedCase!.notes || "none"}. Observables: ${(selectedCase!.observables ?? []).map((item) => `${item.type} ${item.value}`).join(", ") || "none"}. User request: ${question}`
+      : question;
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -421,7 +438,7 @@ export function CopilotRail({
     // deterministic + model-free, so the card appears even if the LLM is slow
     // or offline. Attaching it to the answer message renders an is-* card.
     // A null view (not a showcase question) simply leaves prose-only.
-    api.askView(question).then((view) => {
+    api.askView(requestQuestion).then((view) => {
       if (!view) return;
       setLog((l) => {
         const next = [...l];
@@ -438,7 +455,7 @@ export function CopilotRail({
 
     try {
       await api.askStream(
-        question,
+        requestQuestion,
         (delta) => {
           if (!first) {
             first = true;
@@ -499,9 +516,15 @@ export function CopilotRail({
     }
   };
 
-  const runPrompts = (suggested && suggested.length > 0) ? suggested : DEFAULT_EXAMPLES;
+  const casePrompts = selectedCase ? [
+    ...(selectedCase.observables.some((item) => item.type === "url") ? ["Analyze this URL"] : []),
+    ...(selectedCase.attachments.length ? ["Scan attachments"] : []),
+    ...(selectedCase.links.findings.length || selectedCase.links.incidents.length ? ["Related cases"] : []),
+    "Summarize this case",
+  ] : [];
+  const runPrompts = caseScoped ? casePrompts : (suggested && suggested.length > 0) ? suggested : DEFAULT_EXAMPLES;
   const critOnRun = countSev(findings, "CRITICAL");
-  const showcaseChips = runReady && findings.length > 0 && critOnRun === 0
+  const showcaseChips = caseScoped ? casePrompts : runReady && findings.length > 0 && critOnRun === 0
     ? SHOWCASE_NO_CRIT
     : SHOWCASE_CHIPS;
 
@@ -521,7 +544,7 @@ export function CopilotRail({
           }
         }}
         rows={2}
-        placeholder={blockAsk ? "Analyze a log first…" : "Ask about this run…"}
+        placeholder={caseScoped ? "Ask me anything" : blockAsk ? "Analyze a log first…" : "Ask about this run…"}
         aria-label="Ask the AI analyst"
         disabled={streaming || blockAsk}
         className="min-h-[52px] min-w-0 flex-1 resize-none rounded-md border-2 border-primary/50 bg-background px-2.5 py-2 text-[13px] outline-none focus:border-primary disabled:opacity-60"
@@ -677,7 +700,7 @@ export function CopilotRail({
       {/* Role 1 & Q&A View: Interpret & Chat */}
       {activeTab === "ask" && (
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden" data-testid="copilot-chat">
-          <RunBriefing state={state} loading={stateLoading} />
+          {caseScoped ? <div className="text-[11px] text-muted-foreground" data-testid="copilot-case-brief">Scoped to case <span className="is-mono">{selectedCase?.id}</span> — advisory only.</div> : <RunBriefing state={state} loading={stateLoading} />}
           {!!angles && !state?.idle && Array.isArray((angles as { links?: unknown }).links) && (
             <div data-testid="copilot-angles" className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10.5px] text-muted-foreground">
               {((angles as { links: { label: string; href: string; count?: number }[] }).links).map((l) => (
@@ -691,7 +714,7 @@ export function CopilotRail({
             {log.length === 0 && (
               <div className="flex flex-col gap-1.5">
                 <p className="text-[12px] text-muted-foreground">
-                  Ask anything about this run. Type below or tap a starter.
+                  {caseScoped ? "Ask anything about this case. Type below or tap a starter." : "Ask anything about this run. Type below or tap a starter."}
                 </p>
                 {runPrompts.slice(0, 4).map((q) => (
                   <button

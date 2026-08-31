@@ -1,214 +1,45 @@
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, X } from "lucide-react";
-import { api, CASE_STATUSES, type Case, type CaseStatus } from "@/lib/api";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ChevronLeft, Paperclip, Play, Plus, Send, X } from "lucide-react";
+import { api, CASE_STATUSES, type Case, type CaseAttachmentInput, type CaseObservableInput, type CaseStatus, type CopilotRunbookRow } from "@/lib/api";
 
-/** Cases — analyst-entered investigation records (cases.json), in the itsoc.
- *  design system (mirrors handoff §3). Full CRUD over the real /api/cases
- *  endpoints: this is the one subsystem whose data is honestly stored because
- *  the analyst types it. No derivation, no invented rows — an empty store shows
- *  an honest empty state. */
+const LABEL: Record<CaseStatus, string> = { new: "New", triaged: "Triaged", investigating: "Investigating", escalated: "Escalated", resolved: "Resolved", closed: "Closed" };
+const COLOR: Record<CaseStatus, string> = { new: "var(--acc)", triaged: "var(--med)", investigating: "var(--high)", escalated: "var(--crit)", resolved: "var(--low)", closed: "var(--mut)" };
+const TABS = ["Overview", "Observables", "Notes", "Attachments", "Linked", "Events"] as const;
+type DetailTab = typeof TABS[number];
 
-const STATUS_COLOR: Record<CaseStatus, string> = {
-  new: "var(--acc)",
-  triaged: "var(--med)",
-  investigating: "var(--high)",
-  escalated: "var(--crit)",
-  resolved: "var(--low)",
-  closed: "var(--mut)",
-};
-const STATUS_LABEL: Record<CaseStatus, string> = {
-  new: "New", triaged: "Triaged", investigating: "Investigating",
-  escalated: "Escalated", resolved: "Resolved", closed: "Closed",
-};
-
-function StatusPill({ status }: { status: CaseStatus }) {
-  const c = STATUS_COLOR[status];
-  return (
-    <span className="is-state" style={{ color: c, borderColor: "color-mix(in srgb, " + c + " 45%, transparent)" }}>
-      <i style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: c }} />
-      {STATUS_LABEL[status]}
-    </span>
-  );
-}
+function StatusPill({ status }: { status: CaseStatus }) { const color = COLOR[status]; return <span className="is-state" style={{ color, borderColor: `color-mix(in srgb, ${color} 45%, transparent)` }}><i style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: color }} />{LABEL[status]}</span>; }
 
 function CreateCase() {
-  const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [assignee, setAssignee] = useState("");
-  const [notes, setNotes] = useState("");
-  const [err, setErr] = useState("");
-
-  const create = useMutation({
-    mutationFn: () => api.createCase({ title, assignee, notes }),
-    onSuccess: (out) => {
-      if (!out.ok) { setErr(out.error ?? "Could not create the case."); return; }
-      setTitle(""); setAssignee(""); setNotes(""); setErr(""); setOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["cases"] });
-    },
-  });
-
-  if (!open) {
-    return <button className="is-btn is-btn--primary" onClick={() => setOpen(true)}>+ New case</button>;
-  }
-
-  return (
-    <div className="is-panel" style={{ width: "100%" }}>
-      <form style={{ display: "flex", flexDirection: "column", gap: 12 }}
-            onSubmit={(e) => { e.preventDefault(); if (title.trim()) create.mutate(); }}>
-        <div className="is-panel__h">
-          <h3>New case</h3>
-          <button type="button" className="is-icobtn" aria-label="Cancel new case"
-                  onClick={() => { setOpen(false); setErr(""); }} style={{ width: 26, height: 26 }}><X size={14} aria-hidden /></button>
-        </div>
-        <label className="is-field"><span>Title (required)</span>
-          <input className="is-input" value={title} onChange={(e) => setTitle(e.target.value)}
-                 aria-label="Case title" placeholder="e.g. Investigate brute-force from 203.0.113.44" />
-        </label>
-        <label className="is-field"><span>Assignee</span>
-          <input className="is-input" value={assignee} onChange={(e) => setAssignee(e.target.value)}
-                 aria-label="Case assignee" placeholder="who is looking at this" />
-        </label>
-        <label className="is-field"><span>Notes</span>
-          <textarea className="is-input" style={{ minHeight: 64, resize: "vertical" }} value={notes}
-                    onChange={(e) => setNotes(e.target.value)} aria-label="Case notes" />
-        </label>
-        {err && <p style={{ color: "var(--crit)", fontSize: 11.5, margin: 0 }}>{err}</p>}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button className="is-btn is-btn--primary" type="submit" disabled={!title.trim() || create.isPending}>
-            {create.isPending ? "Creating…" : "Create case"}
-          </button>
-          <span className="is-mut" style={{ fontSize: 11 }}>Status starts as NEW.</span>
-        </div>
-      </form>
-    </div>
-  );
+  const qc = useQueryClient(); const [open, setOpen] = useState(false); const [title, setTitle] = useState(""); const [assignee, setAssignee] = useState(""); const [category, setCategory] = useState(""); const [notes, setNotes] = useState(""); const [error, setError] = useState("");
+  const create = useMutation({ mutationFn: () => api.createCase({ title, assignee, category, notes }), onSuccess: (out) => { if (!out.ok) return setError(out.error ?? "Could not create the case."); setTitle(""); setAssignee(""); setCategory(""); setNotes(""); setError(""); setOpen(false); qc.invalidateQueries({ queryKey: ["cases"] }); } });
+  if (!open) return <button className="is-btn is-btn--primary" onClick={() => setOpen(true)}><Plus size={14} />New case</button>;
+  return <section className="is-panel is-case-create"><div className="is-panel__h"><h3>New case</h3><button className="is-icobtn" aria-label="Cancel new case" onClick={() => setOpen(false)}><X size={14} /></button></div><form className="is-case-form" onSubmit={(e) => { e.preventDefault(); if (title.trim()) create.mutate(); }}><label className="is-field"><span>Title (required)</span><input className="is-input" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Case title" placeholder="What needs investigation?" /></label><label className="is-field"><span>Category</span><input className="is-input" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Case category" placeholder="e.g. identity" /></label><label className="is-field"><span>Assignee</span><input className="is-input" value={assignee} onChange={(e) => setAssignee(e.target.value)} aria-label="Case assignee" /></label><label className="is-field"><span>Notes</span><textarea className="is-input" value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Case notes" /></label>{error && <p className="is-case-error">{error}</p>}<button className="is-btn is-btn--primary" disabled={!title.trim() || create.isPending}>{create.isPending ? "Creating…" : "Create case"}</button></form></section>;
 }
 
-function CaseRow({ c }: { c: Case }) {
-  const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useState(c.title);
-  const [assignee, setAssignee] = useState(c.assignee);
-  const [notes, setNotes] = useState(c.notes);
-  const [err, setErr] = useState("");
-
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["cases"] });
-  const patch = useMutation({
-    mutationFn: (p: Parameters<typeof api.patchCase>[1]) => api.patchCase(c.id, p),
-    onSuccess: (out) => {
-      if (!out.ok) { setErr(out.error ?? "Could not save."); return; }
-      setErr(""); setEditing(false); invalidate();
-    },
-  });
-
-  const links = [...c.links.findings, ...c.links.incidents];
-
-  return (
-    <div className="is-panel">
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          {editing ? (
-            <input className="is-input" value={title} onChange={(e) => setTitle(e.target.value)} aria-label={`Edit title of ${c.id}`} />
-          ) : (
-            <div style={{ fontSize: 14, fontWeight: 650 }}>{c.title}</div>
-          )}
-          <div className="is-mono" style={{ marginTop: 2, fontSize: 10.5, color: "var(--mut)" }}>{c.id}</div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <StatusPill status={c.status} />
-          <div className="is-lifecycle" data-testid={`case-lifecycle-${c.id}`} style={{ margin: 0 }}>
-            <div className="steps">
-              {CASE_STATUSES.map((s) => (
-                <button key={s} type="button" className={s === c.status ? "step on" : "step"}
-                        style={{ textTransform: "capitalize" }}
-                        aria-label={`Status of ${c.id}: ${s}`}
-                        disabled={s === c.status || patch.isPending}
-                        onClick={() => patch.mutate({ status: s })}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        {!editing && (
-          <button className="is-icobtn" style={{ width: 28, height: 28 }} onClick={() => setEditing(true)} aria-label={`Edit ${c.id}`}><Pencil size={13} aria-hidden /></button>
-        )}
-      </div>
-
-      {editing ? (
-        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-          <label className="is-field"><span>Assignee</span>
-            <input className="is-input" value={assignee} onChange={(e) => setAssignee(e.target.value)} aria-label={`Edit assignee of ${c.id}`} />
-          </label>
-          <label className="is-field"><span>Notes</span>
-            <textarea className="is-input" style={{ minHeight: 64, resize: "vertical" }} value={notes}
-                      onChange={(e) => setNotes(e.target.value)} aria-label={`Edit notes of ${c.id}`} />
-          </label>
-          {err && <p style={{ color: "var(--crit)", fontSize: 11.5, margin: 0 }}>{err}</p>}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button className="is-btn is-btn--primary" disabled={!title.trim() || patch.isPending}
-                    onClick={() => title.trim() && patch.mutate({ title, assignee, notes })}>
-              {patch.isPending ? "Saving…" : "Save"}
-            </button>
-            <button className="is-btn" onClick={() => { setEditing(false); setTitle(c.title); setAssignee(c.assignee); setNotes(c.notes); setErr(""); }}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {c.notes && <p className="is-mut" style={{ marginTop: 10, whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.55 }}>{c.notes}</p>}
-          <div className="is-mut" style={{ marginTop: 12, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 16px", borderTop: "1px solid var(--bd)", paddingTop: 10, fontSize: 11 }}>
-            {c.assignee && <span>Assignee: <b style={{ color: "var(--ink)" }}>{c.assignee}</b></span>}
-            <span>Created {c.createdAt.slice(0, 16).replace("T", " ")}</span>
-            <span>Updated {c.updatedAt.slice(0, 16).replace("T", " ")}</span>
-            {links.length > 0 && (
-              <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-                Linked:
-                {links.map((l) => <span key={l} className="is-mono" style={{ border: "1px solid var(--bd)", borderRadius: 4, padding: "0 5px", fontSize: 10 }}>{l}</span>)}
-              </span>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
+function CaseCard({ item }: { item: Case }) {
+  const navigate = useNavigate(); const qc = useQueryClient(); const update = useMutation({ mutationFn: (status: CaseStatus) => api.patchCase(item.id, { status }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) });
+  return <article className="is-case-card" onClick={() => navigate(`/cases?sel=${encodeURIComponent(item.id)}`)}><button className="is-case-card__title">{item.title}</button><div className="is-mono is-mut" style={{ fontSize: 9.5, marginTop: 4 }}>{item.id}</div><div className="is-case-card__meta"><span>{item.assignee || "Unassigned"}</span><span>{item.category || "Uncategorized"}</span>{item.links.findings.map((id) => <span key={id} className="is-mono">{id}</span>)}</div><div className="is-case-card__foot"><StatusPill status={item.status} /><div className="is-case-card__steps" aria-label={`Move ${item.id}`} onClick={(e) => e.stopPropagation()}>{CASE_STATUSES.map((status) => <button key={status} type="button" aria-label={`Status of ${item.id}: ${status}`} disabled={status === item.status || update.isPending} onClick={() => update.mutate(status)}>{LABEL[status]}</button>)}</div></div></article>;
 }
 
-export function Cases() {
-  const { data, isLoading, error } = useQuery({ queryKey: ["cases"], queryFn: api.listCases });
-  const cases = data?.cases ?? [];
+function Board({ cases }: { cases: Case[] }) { return <div className="is-case-board" aria-label="Case board">{CASE_STATUSES.map((status) => { const items = cases.filter((item) => item.status === status); return <section key={status} className="is-case-column" aria-label={LABEL[status]}><header><span>{LABEL[status]}</span><span className="is-mono">{items.length}</span></header><div className="is-case-column__cards">{items.length ? items.map((item) => <CaseCard key={item.id} item={item} />) : <p className="is-case-empty">No cases in {LABEL[status].toLowerCase()}.</p>}</div></section>; })}</div>; }
 
-  return (
-    <>
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
-        <div className="is-note" style={{ flex: 1, minWidth: 260 }}>
-          <b>Analyst-entered CASE lifecycle NEW → CLOSED — no sample cases invented.</b> Investigation
-          cases you create live in <span className="is-mono" style={{ color: "var(--ink)" }}>cases.json</span>.
-        </div>
-        <CreateCase />
-      </div>
+function Activity({ item }: { item: Case }) { const activity = item.activity ?? []; if (!activity.length) return <p className="is-case-empty">No human or system actions have been recorded.</p>; return <ol className="is-case-activity">{activity.slice().reverse().map((entry, index) => <li key={`${entry.at}-${index}`}><span className="is-mono">{entry.at.slice(0, 16).replace("T", " ")}</span><b>{entry.actor}</b><span className="is-chip">{entry.kind}</span><p>{entry.text}</p></li>)}</ol>; }
 
-      {isLoading && <p className="is-mut">Loading cases…</p>}
-      {error && (
-        <div className="is-note">
-          The console backend is not reachable — start it with{" "}
-          <span className="is-mono">python3 console/serve.py</span>.
-        </div>
-      )}
-      {!isLoading && !error && cases.length === 0 && (
-        <div className="is-note" style={{ textAlign: "center", padding: "28px 14px" }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>No cases yet.</div>
-          <p className="is-mut" style={{ margin: "6px auto 0", maxWidth: 420, fontSize: 12 }}>
-            Create a case to track an investigation. Nothing is shown here until you add one — no sample
-            cases are invented.
-          </p>
-        </div>
-      )}
+function CommentComposer({ item }: { item: Case }) { const qc = useQueryClient(); const [text, setText] = useState(""); const [error, setError] = useState(""); const comment = useMutation({ mutationFn: () => api.addCaseComment(item.id, { text }), onSuccess: (out) => { if (!out.ok) return setError(out.error ?? "Could not add comment."); setText(""); setError(""); qc.invalidateQueries({ queryKey: ["cases"] }); } }); return <form className="is-case-comment" onSubmit={(e) => { e.preventDefault(); if (text.trim()) comment.mutate(); }}><textarea className="is-input" value={text} onChange={(e) => setText(e.target.value)} aria-label="Add a comment" placeholder="Add a case comment…" />{error && <p className="is-case-error">{error}</p>}<button className="is-btn is-btn--primary" disabled={!text.trim() || comment.isPending}><Send size={13} />{comment.isPending ? "Posting…" : "Comment"}</button></form>; }
 
-      {cases.map((c) => <CaseRow key={c.id} c={c} />)}
-    </>
-  );
+function ObservableTab({ item }: { item: Case }) { const qc = useQueryClient(); const [type, setType] = useState<CaseObservableInput["type"]>("url"); const [value, setValue] = useState(""); const [error, setError] = useState(""); const add = useMutation({ mutationFn: () => api.addCaseObservable(item.id, { type, value }), onSuccess: (out) => { if (!out.ok) return setError(out.error ?? "Could not add observable."); setValue(""); setError(""); qc.invalidateQueries({ queryKey: ["cases"] }); } }); return <><div className="is-case-list">{item.observables.length ? item.observables.map((observable) => <div key={observable.id}><span className="is-chip">{observable.type}</span><code>{observable.value}</code>{observable.verdict && <span className="is-mut">{observable.verdict}</span>}</div>) : <p className="is-case-empty">No observables are attached to this case.</p>}</div><form className="is-case-inline-form" onSubmit={(e) => { e.preventDefault(); if (value.trim()) add.mutate(); }}><select className="is-select" value={type} onChange={(e) => setType(e.target.value as CaseObservableInput["type"])} aria-label="Observable type">{["url", "ip", "hash", "domain", "email"].map((kind) => <option key={kind}>{kind}</option>)}</select><input className="is-input" value={value} onChange={(e) => setValue(e.target.value)} aria-label="Observable value" placeholder="Value" /><button className="is-btn" disabled={!value.trim() || add.isPending}>Add</button></form>{error && <p className="is-case-error">{error}</p>}</>; }
+
+function AttachmentTab({ item }: { item: Case }) { const qc = useQueryClient(); const [name, setName] = useState(""); const [kind, setKind] = useState<CaseAttachmentInput["kind"]>("other"); const [error, setError] = useState(""); const add = useMutation({ mutationFn: () => api.addCaseAttachment(item.id, { name, kind }), onSuccess: (out) => { if (!out.ok) return setError(out.error ?? "Could not add attachment."); setName(""); setError(""); qc.invalidateQueries({ queryKey: ["cases"] }); } }); return <><div className="is-case-list">{item.attachments.length ? item.attachments.map((attachment) => <div key={attachment.id}><Paperclip size={13} /><span>{attachment.name}</span><span className="is-mut">{attachment.kind}{typeof attachment.size === "number" ? ` · ${attachment.size} bytes` : ""}</span></div>) : <p className="is-case-empty">No attachments are recorded for this case.</p>}</div><form className="is-case-inline-form" onSubmit={(e) => { e.preventDefault(); if (name.trim()) add.mutate(); }}><input className="is-input" value={name} onChange={(e) => setName(e.target.value)} aria-label="Attachment name" placeholder="Attachment name" /><select className="is-select" value={kind} onChange={(e) => setKind(e.target.value as CaseAttachmentInput["kind"])} aria-label="Attachment kind">{["note", "json", "html", "image", "other"].map((itemKind) => <option key={itemKind}>{itemKind}</option>)}</select><button className="is-btn" disabled={!name.trim() || add.isPending}>Add</button></form>{error && <p className="is-case-error">{error}</p>}</>; }
+
+function Runbooks({ item }: { item: Case }) { const qc = useQueryClient(); const { data } = useQuery({ queryKey: ["copilot-runbooks"], queryFn: api.copilotRunbooks }); const [notice, setNotice] = useState(""); const run = useMutation({ mutationFn: (row: CopilotRunbookRow) => api.addCaseRunbook(item.id, row.id), onSuccess: (out) => { setNotice(out.ok ? "Advisory runbook reference added. Nothing was executed." : out.reason ?? out.error ?? "Could not add runbook."); if (out.ok) qc.invalidateQueries({ queryKey: ["cases"] }); } }); const runbooks = data?.runbooks ?? []; return <section className="is-case-runbooks"><div className="is-panel__h"><div><h3>Run a workflow</h3><p className="is-panel__sub">Eligible shipped runbooks are recorded as advisory references. They never execute here.</p></div></div>{!runbooks.length ? <p className="is-case-empty">No shipped runbooks are available for this run.</p> : runbooks.map((row) => { const quarantine = /quarantine/i.test(`${row.id} ${row.name ?? ""}`); const canRun = row.eligible && !quarantine; return <div className="is-case-runbook" key={row.id}><div><b>{row.name || row.id}</b><code>{row.id}</code>{row.triggerRules?.length ? <p className="is-mut">Triggers: {row.triggerRules.join(", ")}</p> : null}</div>{canRun ? <button className="is-btn" disabled={run.isPending} onClick={() => run.mutate(row)}><Play size={12} />Add to case</button> : <span className="is-case-ineligible">{quarantine ? "Quarantine is never executed from case files." : row.missing?.join("; ") || "Not eligible for this case/run."}</span>}</div>; })}{notice && <p className="is-note">{notice}</p>}</section>; }
+
+function Detail({ item }: { item: Case }) {
+  const [tab, setTab] = useState<DetailTab>("Overview"); const navigate = useNavigate(); const qc = useQueryClient(); const update = useMutation({ mutationFn: (status: CaseStatus) => api.patchCase(item.id, { status }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) });
+  const overview = <><div className="is-case-summary">{(["what", "impact", "when"] as const).map((field) => item.summary?.[field] ? <div key={field}><span>{field}</span><p>{item.summary[field]}</p></div> : null)}{!item.summary?.what && !item.summary?.impact && !item.summary?.when && <p className="is-case-empty">No case summary has been recorded.</p>}</div><Runbooks item={item} /></>;
+  const contents: Record<DetailTab, ReactNode> = { Overview: overview, Observables: <ObservableTab item={item} />, Notes: item.notes ? <p className="is-case-notes">{item.notes}</p> : <p className="is-case-empty">No notes have been recorded for this case.</p>, Attachments: <AttachmentTab item={item} />, Linked: <div className="is-case-list">{[...item.links.findings, ...item.links.incidents].length ? <>{item.links.findings.map((id) => <Link key={id} to={`/alerts?sel=${encodeURIComponent(id)}`}>Finding · {id}</Link>)}{item.links.incidents.map((id) => <Link key={id} to={`/incidents?sel=${encodeURIComponent(id)}`}>Incident · {id}</Link>)}</> : <p className="is-case-empty">No findings or incidents are linked to this case.</p>}</div>, Events: <p className="is-case-empty">No case events are available. Host logs are not shown in this case file.</p> };
+  return <section className="is-case-file"><button className="is-case-back" onClick={() => navigate("/cases")}><ChevronLeft size={15} />All cases</button><header className="is-case-file__head"><div><div className="is-mono is-mut">{item.id}</div><h2>{item.title}</h2><div className="is-case-file__meta"><StatusPill status={item.status} /><span>{item.category || "Uncategorized"}</span><span>{item.assignee || "Unassigned"}</span></div></div><select className="is-select is-case-status-select" aria-label="Case status" value={item.status} disabled={update.isPending} onChange={(e) => update.mutate(e.target.value as CaseStatus)}>{CASE_STATUSES.map((status) => <option key={status} value={status}>{LABEL[status]}</option>)}</select></header><div className="is-case-file__grid"><section className="is-case-file__left"><h3>Activity</h3><Activity item={item} /><CommentComposer item={item} /></section><section className="is-case-file__right"><div className="is-case-tabs" role="tablist">{TABS.map((next) => <button key={next} role="tab" aria-selected={tab === next} onClick={() => setTab(next)}>{next}</button>)}</div><div className="is-case-tab-content">{contents[tab]}</div></section></div></section>;
 }
+
+export function Cases() { const { data, isLoading, error } = useQuery({ queryKey: ["cases"], queryFn: api.listCases }); const [params] = useSearchParams(); const selected = params.get("sel"); const cases = data?.cases ?? []; const item = useMemo(() => cases.find((entry) => entry.id === selected), [cases, selected]); if (isLoading) return <p className="is-mut">Loading cases…</p>; if (error) return <div className="is-note">The console backend is not reachable — start it with <code>python3 console/serve.py</code>.</div>; if (selected && item) return <Detail item={item} />; return <><div className="is-case-toolbar"><div className="is-note"><b>Analyst-entered case files.</b> No sample cases or host-log events are invented.</div><CreateCase /></div>{selected && <div className="is-note">This case is no longer available.</div>}{!cases.length && <div className="is-note"><b>No cases yet.</b> Nothing is shown until an analyst creates a case — no sample cases are invented.</div>}<Board cases={cases} /></>; }
