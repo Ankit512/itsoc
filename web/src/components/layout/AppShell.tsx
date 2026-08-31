@@ -359,13 +359,15 @@ function Header({ onOpenUpload }: { onOpenUpload: () => void }) {
 }
 
 export function AppShell() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
 
   // Copilot is a slide-in drawer (.is-rail) launched by the floating
   // .is-cop-fab (DESIGN_HANDOFF §2 / §4). Hidden on the logout screen.
-  const showCopilot = pathname !== "/logout";
+  // On an open case file the case overlay owns Copilot so we don't stack two chats.
+  const caseFileOpen = pathname === "/cases" && new URLSearchParams(search).has("sel");
+  const showCopilot = pathname !== "/logout" && !caseFileOpen;
 
   return (
     <div className="itsoc is-app">

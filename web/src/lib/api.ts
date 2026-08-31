@@ -1244,6 +1244,20 @@ export const api = {
     return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
   },
 
+  enrichCaseObservable: async (id: string, observableId: string): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/observables/${encodeURIComponent(observableId)}/enrich`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  openIncidentCase: async (incidentId: string): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/incidents/${encodeURIComponent(incidentId)}/case`, { method: "POST" });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
   addCaseLink: async (id: string, caseId: string): Promise<{ ok: boolean; case?: Case; error?: string }> => {
     const res = await fetch(`/api/cases/${encodeURIComponent(id)}/links`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caseId }),

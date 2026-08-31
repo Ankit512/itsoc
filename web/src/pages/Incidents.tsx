@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Check, Sparkles, Pencil, X } from "lucide-react";
 import { api, INCIDENT_STATES, CASE_STATUSES, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport } from "@/lib/api";
 import { RunbookCard, type RunbookCardData } from "@/components/RunbookCard";
@@ -170,16 +170,26 @@ function EmbeddedCaseCard({ c }: { c: EmbeddedCase }) {
  *  it (many-to-many is fine). Honest empty when nothing is linked. */
 function CasesPanel({ inc }: { inc: Incident }) {
   const cases = inc.cases ?? [];
-  const manual = isManual(inc);
-  if (!manual && cases.length === 0) return null;
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const openCase = useMutation({
+    mutationFn: () => api.openIncidentCase(inc.id),
+    onSuccess: (out) => {
+      qc.invalidateQueries({ queryKey: ["incidents"] });
+      qc.invalidateQueries({ queryKey: ["cases"] });
+      if (out.ok && out.case) navigate(`/cases?sel=${encodeURIComponent(out.case.id)}`);
+    },
+  });
   return (
     <section className="is-panel" data-testid="incident-cases">
       <div className="is-panel__h" style={{ justifyContent: "space-between" }}>
-        <h3>{manual ? "Analyst case" : "Linked analyst cases"}</h3>
-        <span className="is-chip">{manual ? "analyst-created" : "absorbed from Cases"}</span>
+        <h3>Linked analyst cases</h3>
+        <button className="is-btn" type="button" disabled={openCase.isPending} onClick={() => openCase.mutate()}>
+          {openCase.isPending ? "Opening…" : cases.length ? "Open case file" : "Open case"}
+        </button>
       </div>
       {cases.length === 0 ? (
-        <p className="is-mut2" style={{ fontSize: 11.5 }}>No analyst case is linked to this incident.</p>
+        <p className="is-mut2" style={{ fontSize: 11.5 }}>No analyst case is linked yet. Open case creates one from this incident — not a new verdict.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {cases.map((c) => <EmbeddedCaseCard key={c.caseId} c={c} />)}
@@ -1013,10 +1023,10 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
         <div className="is-block is-det" data-testid="investigation-deterministic">
           <div className="cap authoritative">Timeline · reconstructed from the events store · every line cited</div>
           {inv.timeline.length ? (
-            <div className="is-logpane">
-              <div className="is-logpane__meta" data-testid="investigation-log-count">
-                {inv.timeline.length.toLocaleString()} reconstructed line(s) · scroll inside this pane — the page does not grow with the log
-              </div>
+            <details className="is-logpane">
+              <summary className="is-logpane__meta" data-testid="investigation-log-count">
+                {inv.timeline.length.toLocaleString()} reconstructed line(s) · closed by default — host logs stay in this pane
+              </summary>
               <pre className="is-evidence" data-testid="investigation-timeline">
                 {inv.timeline.map((e) => (
                   <div key={e.n} className={e.isFinding ? "eline crit" : "eline"} data-testid={`tl-${e.n}`}>
@@ -1025,7 +1035,7 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
                   </div>
                 ))}
               </pre>
-            </div>
+            </details>
           ) : (
             <p className="is-mut" style={{ fontSize: "11.5px" }}>No records reconstructed for this entity in the loaded run.</p>
           )}

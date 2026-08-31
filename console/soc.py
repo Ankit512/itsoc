@@ -817,7 +817,41 @@ def _save_case(store, case):
     return _public_case(case)
 
 
+def ensure_incident_cases():
+    """Open one analyst case per derived incident that has none. Idempotent.
+
+    Does not invent a verdict. Manual incidents already came from a case.
+    """
+    incidents = _load("incidents.json")
+    store = _load("cases.json")
+    linked = set()
+    for case in store.values():
+        for iid in ((case.get("links") or {}).get("incidents") or []):
+            linked.add(str(iid))
+    opened = []
+    for inc in incidents.values():
+        iid = str(inc.get("id") or "")
+        if not iid or iid in linked:
+            continue
+        if inc.get("origin") == "manual":
+            continue
+        title = str(inc.get("title") or f"Incident {iid}").strip()[:200]
+        create_case({
+            "title": title or f"Incident {iid}",
+            "notes": "Opened from a derived incident. Display linkage only — not a new verdict.",
+            "category": "incident",
+            "links": {
+                "incidents": [iid],
+                "findings": [str(x) for x in (inc.get("findingIds") or [])],
+            },
+        })
+        opened.append(iid)
+        linked.add(iid)
+    return opened
+
+
 def list_cases():
+    ensure_incident_cases()
     store = _load("cases.json")
     return sorted((_public_case(c) for c in store.values()),
                   key=lambda c: c.get("createdAt") or "", reverse=True)
@@ -1001,6 +1035,108 @@ def add_case_link(cid, payload):
     _case_activity(case, "system", f"Linked case {other_id}",
                    payload.get("actor") or "analyst")
     return _save_case(store, case)
+
+
+def open_incident_case(iid):
+    """Create or return the case linked to this incident. Not a new verdict."""
+    iid = str(iid or "").strip()
+    if not iid:
+        raise ValueError("an incident id is required")
+    incidents = _load("incidents.json")
+    inc = incidents.get(iid)
+    if not inc:
+        return None
+    for case in list_cases():
+        if iid in ((case.get("links") or {}).get("incidents") or []):
+            return case
+    title = str(inc.get("title") or f"Incident {iid}").strip()[:200]
+    return create_case({
+        "title": title or f"Incident {iid}",
+        "notes": "Opened from a derived incident. Display linkage only — not a new verdict.",
+        "category": "incident",
+        "links": {
+            "incidents": [iid],
+            "findings": [str(x) for x in (inc.get("findingIds") or [])],
+        },
+    })
+
+
+def enrich_case_observable(cid, oid):
+    """Advisory intel on one observable. Never a rule severity. No remote lookup
+    unless the OEM fence is already on for IP enrichment."""
+    store = _load("cases.json")
+    case = store.get(cid)
+    if not case:
+        return None
+    observables = list(case.get("observables") or [])
+    item = next((o for o in observables if o.get("id") == oid), None)
+    if not item:
+        raise ValueError("no such observable")
+    value = str(item.get("value") or "")
+    matches = []
+    for indicator in (threat_intel_summary().get("indicators") or []):
+        pattern = str(indicator.get("pattern") or "")
+        if value and value in pattern:
+            matches.append(str(indicator.get("name") or indicator.get("id") or "indicator"))
+    if matches:
+        verdict = ("Offline STIX match: " + ", ".join(matches[:5])
+                   + ". Advisory, not a rule severity.")
+    else:
+        verdict = "No match in the offline STIX bundle. No remote lookup was made."
+    if item.get("type") == "ip":
+        try:
+            import os
+            import ti_oem
+            if os.environ.get("ITSOC_OEM", "").strip() == "1":
+                result = ti_oem.enrich_ip(value)
+                note = result.get("summary") or result.get("note") or str(result)[:300]
+                if note:
+                    verdict = f"OEM lookup (opt-in): {note}. Advisory, not a rule severity."
+        except Exception as exc:  # pragma: no cover - vendor path
+            verdict = f"OEM lookup failed honestly: {exc}"
+    if str(verdict).strip().upper() in SEV_RANK:
+        raise ValueError("observable verdict must not be a rule severity")
+    item["verdict"] = verdict[:500]
+    case["observables"] = observables
+    _case_activity(case, "observable",
+                   f"Enrichment (advisory) on {item.get('type')} {value}: {item['verdict']}",
+                   "system")
+    return _save_case(store, case)
+
+
+def inspect_attachment(cid, att_id):
+    """Read stored bytes for advisory body/headers/scan. Not a malware verdict."""
+    meta, data = get_case_attachment(cid, att_id)
+    if meta is None:
+        return None
+    out = {
+        "id": meta.get("id"),
+        "name": meta.get("name"),
+        "kind": meta.get("kind"),
+        "size": meta.get("size"),
+        "sha256": meta.get("sha256"),
+        "stored": bool(data),
+        "headers": None,
+        "bodyPreview": None,
+        "note": "Read from stored bytes. Not a malware scan and not a remote lookup.",
+    }
+    if not data:
+        out["note"] = "Attachment metadata exists but bytes are missing."
+        return out
+    text = data.decode("utf-8", errors="replace")
+    sample = text[:8000]
+    if any(token in sample.lower() for token in ("\nfrom:", "\nto:", "\nsubject:", "received:")):
+        header, sep, rest = sample.partition("\n\n")
+        if sep:
+            out["headers"] = header[:4000]
+            out["bodyPreview"] = rest[:2000]
+        else:
+            out["headers"] = sample[:2000]
+    elif meta.get("kind") in ("html", "note", "json"):
+        stripped = re.sub(r"<[^>]+>", " ", text)
+        stripped = re.sub(r"\s+", " ", stripped).strip()
+        out["bodyPreview"] = stripped[:2000] or text[:2000]
+    return out
 
 
 def add_case_comment(cid, payload):

@@ -1738,10 +1738,18 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._ask()
         elif path.startswith("/api/incidents/") and path.endswith("/state"):
             self._incident_state(path.split("/")[3])
+        elif path.startswith("/api/incidents/") and path.endswith("/case"):
+            self._open_incident_case(path.split("/")[3])
         elif path == "/api/cases":
             self._create_case()
         elif path.startswith("/api/cases/") and path.endswith("/comment"):
             self._case_action(path.split("/")[3], "comment")
+        elif path.startswith("/api/cases/") and path.endswith("/enrich"):
+            parts = path.split("/")
+            if len(parts) >= 6:
+                self._case_enrich(parts[3], parts[5])
+            else:
+                self._json({"error": "no such observable"}, 404)
         elif path.startswith("/api/cases/") and path.endswith("/observables"):
             self._case_action(path.split("/")[3], "observable")
         elif path.startswith("/api/cases/") and path.endswith("/attachments"):
@@ -2131,6 +2139,24 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             return self._json({"error": "no such incident"}, 404)
         print(f"  incident {iid}: -> {inc['state']}", flush=True)
         return self._json(inc)
+
+    def _open_incident_case(self, iid):
+        try:
+            case = soc.open_incident_case(iid)
+        except ValueError as e:
+            return self._json({"error": str(e)}, 400)
+        if not case:
+            return self._json({"error": "no such incident"}, 404)
+        return self._json(case, 201)
+
+    def _case_enrich(self, cid, oid):
+        try:
+            case = soc.enrich_case_observable(cid, oid)
+        except ValueError as e:
+            return self._json({"error": str(e)}, 400)
+        if not case:
+            return self._json({"error": "no such case"}, 404)
+        return self._json(case)
 
     def _create_case(self):
         length = int(self.headers.get("Content-Length") or 0)

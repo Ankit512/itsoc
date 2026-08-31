@@ -265,6 +265,7 @@ export interface CopilotRailProps {
   model?: string;
   defaultOpen?: boolean;
   docked?: boolean;
+  embedded?: boolean;
   className?: string;
 }
 
@@ -272,6 +273,7 @@ export function CopilotRail({
   model: propModel,
   defaultOpen = false,
   docked = false,
+  embedded = false,
   className,
 }: CopilotRailProps) {
   const { pathname, search } = useLocation();
@@ -556,10 +558,11 @@ export function CopilotRail({
   const content = (
     <section
       aria-label="AI Analyst"
-      data-testid="copilot-rail"
+      data-testid={embedded ? "copilot-case-overlay" : "copilot-rail"}
       className={cn(
         "flex min-h-0 flex-col gap-2 overflow-hidden bg-card p-3 text-[13px]",
         docked ? "h-full w-full" : "max-h-[min(680px,calc(100vh-100px))] w-[380px] rounded-lg border shadow-[var(--shadow-pop)]",
+        embedded && "is-case-copilot max-h-[min(48vh,420px)] w-full rounded-lg border",
         className,
       )}
     >
@@ -593,7 +596,7 @@ export function CopilotRail({
       </p>
 
       {/* 5 Grounded Roles Tabs — single row so they never eat the composer */}
-      <div className="flex shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md bg-background p-1 text-[11px] font-medium" role="tablist">
+      {!embedded && <div className="flex shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md bg-background p-1 text-[11px] font-medium" role="tablist">
         <button
           role="tab"
           aria-selected={activeTab === "ask"}
@@ -654,7 +657,7 @@ export function CopilotRail({
           <BookOpen className="h-3 w-3" />
           Runbook
         </button>
-      </div>
+      </div>}
 
       {/* Pending approvals read-only card (C4-F3) */}
       {pendingApprovals.length > 0 && (

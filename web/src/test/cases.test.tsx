@@ -44,7 +44,7 @@ describe("Cases page (CRUD)", () => {
                 "/api/cases": { cases: [] } });
     renderApp(<App />, { route: "/cases" });
     expect(await screen.findByText("No cases yet.")).toBeInTheDocument();
-    expect(screen.getByText(/no sample cases are invented/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing is invented/i)).toBeInTheDocument();
   });
 
   it("creates a case via POST /api/cases with the typed title", async () => {
@@ -97,6 +97,7 @@ describe("Cases page (CRUD)", () => {
                   links: { findings: [], incidents: [], cases: ["case-1"] } }] } });
     renderApp(<App />, { route: "/cases?sel=case-1" });
     expect(await screen.findByRole("heading", { name: "Investigate 203.0.113.44" })).toBeInTheDocument();
+    expect(screen.getByTestId("copilot-case-overlay")).toBeInTheDocument();
     expect(screen.getByText(/advisory summary from objects on this file/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Events" }));

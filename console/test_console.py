@@ -2398,6 +2398,10 @@ def check_soc_subsystems():
                       html_status == 201 and html_att["kind"] == "html"
                       and html_type.startswith("text/plain")
                       and "attachment" in html_disp)
+                bodyq = copilot.investigate("Analyze email body", serve.STATE, case=html_case)
+                check("analyze body reads stored attachment bytes",
+                      "Body preview" in bodyq["answer"] or "alert" in bodyq["answer"].lower(),
+                      bodyq["answer"][:400])
                 status, case = req("POST", f"/api/cases/{case['id']}/summary", {})
                 check("regenerate summary is deterministic from case-file objects",
                       status == 201
@@ -2434,6 +2438,17 @@ def check_soc_subsystems():
                       "Title: Investigate 203.0.113.44" in summary["answer"]
                       and "SPF passed" in summary["answer"] and "headers.json" in summary["answer"],
                       summary["answer"])
+                oid = case["observables"][-1]["id"]
+                status, case = req("POST",
+                                   f"/api/cases/{case['id']}/observables/{oid}/enrich", {})
+                verdict = (case["observables"][-1].get("verdict") or "")
+                check("observable enrichment is advisory and not a rule severity",
+                      status == 200 and "CRITICAL" not in verdict.upper()
+                      and ("No match" in verdict or "STIX" in verdict or "Advisory" in verdict),
+                      verdict)
+                _, listed = req("GET", "/api/cases")
+                check("listing cases opens one per derived incident",
+                      len(listed["cases"]) >= 2, str([c["id"] for c in listed["cases"]]))
                 status, run = req("POST", f"/api/cases/{case['id']}/run",
                                   {"runbookId": "rb-block-ip"})
                 check("eligible case runbook is advisory-only and does not execute containment",

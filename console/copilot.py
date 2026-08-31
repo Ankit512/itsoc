@@ -72,6 +72,8 @@ def suggested_questions(state, case=None):
                 qs.append(f"Analyze {observable['value']}")
         if case.get("attachments"):
             qs.append("Scan attachments")
+            qs.append("Analyze email headers")
+            qs.append("Analyze email body")
         links = case.get("links") or {}
         if links.get("cases") or links.get("findings") or links.get("incidents"):
             cid = case.get("id") or ""
@@ -775,6 +777,33 @@ def investigate(question, state, extras=None, case=None):
             "activity": len(case.get("activity") or []),
         }
         return empty
+    if case and (("scan" in ql and "attach" in ql) or "analyze email" in ql or "analyze body" in ql or "analyze headers" in ql):
+        import soc as _soc
+        attachments = list(case.get("attachments") or [])
+        if not attachments:
+            empty["answer"] = "No attachments are recorded on this case file."
+        else:
+            want_headers = "header" in ql
+            want_body = "body" in ql or "html" in ql
+            lines = ["Attachments on the case file (stored bytes, not a malware verdict):"]
+            for item in attachments:
+                extra = f" {item['size']} bytes" if item.get("size") is not None else ""
+                digest = (item.get("sha256") or "")[:12]
+                stored = "stored" if item.get("stored") else "bytes missing"
+                sha = f" sha256={digest}…" if digest else ""
+                lines.append(f"- {item.get('name') or 'unnamed'} [{item.get('kind') or 'other'}]{extra}{sha} ({stored})")
+                inspected = _soc.inspect_attachment(case.get("id"), item.get("id"))
+                if not inspected:
+                    continue
+                if (want_headers or "scan" in ql) and inspected.get("headers"):
+                    lines.append("  Headers:\n" + inspected["headers"][:1500])
+                if (want_body or "scan" in ql) and inspected.get("bodyPreview"):
+                    lines.append("  Body preview: " + inspected["bodyPreview"][:800])
+            lines.append(inspected.get("note") if inspected else "Read from stored bytes when present.")
+            empty["answer"] = "\n".join(lines)
+        empty["source"] = "case"
+        empty["followups"] = suggested_questions(state, case=case)
+        return empty
     if case and ("analyze" in ql):
         observables = list(case.get("observables") or [])
         hit = None
@@ -794,23 +823,6 @@ def investigate(question, state, extras=None, case=None):
                 + (f" Recorded note: {verdict}." if verdict else
                    " No enrichment is recorded on this object — Copilot did not look it up remotely.")
             )
-        empty["source"] = "case"
-        empty["followups"] = suggested_questions(state, case=case)
-        return empty
-    if case and ("scan" in ql and "attach" in ql):
-        attachments = list(case.get("attachments") or [])
-        if not attachments:
-            empty["answer"] = "No attachments are recorded on this case file."
-        else:
-            lines = ["Attachments on the case file:"]
-            for item in attachments:
-                extra = f" {item['size']} bytes" if item.get("size") is not None else ""
-                digest = (item.get("sha256") or "")[:12]
-                stored = "stored" if item.get("stored") else "bytes missing"
-                sha = f" sha256={digest}…" if digest else ""
-                lines.append(f"- {item.get('name') or 'unnamed'} [{item.get('kind') or 'other'}]{extra}{sha} ({stored})")
-            lines.append("Copilot listed stored files; it did not scan them as malware and did not look them up remotely.")
-            empty["answer"] = "\n".join(lines)
         empty["source"] = "case"
         empty["followups"] = suggested_questions(state, case=case)
         return empty
