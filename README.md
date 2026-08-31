@@ -15,12 +15,15 @@ no logs leave it by default.
 
 - **Log anomaly detection** — deterministic rules (brute-force, failure→success compromise,
   error-burst, suspicious-port, disk pressure) over a wide range of formats: canonical
-  `timestamp LEVEL host msg`, RFC 3164 syslog, ManageEngine Log360 (CSV + forwarded syslog),
-  Android logcat, Windows EVTX, and more via the universal format layer.
+  `timestamp LEVEL host msg`, RFC 3164 syslog, ISO-8601 journald/rsyslog, RFC 5424, JSON-line,
+  auth CSV (`timestamp,ip,username,status`), ManageEngine Log360 (CSV + forwarded syslog),
+  Android logcat, Windows EVTX, Loghub envelopes, and more via the universal format layer.
 - **Plain-language explanations** — the local model narrates each rule-caught finding with its
   evidence, rule predicate, and timeline. Advisory only.
-- **SOC subsystems** — correlated incidents with an analyst lifecycle, observed assets/users,
-  analyst cases, generated/exported reports, an offline threat-intel summary, and honest metrics.
+- **SOC subsystems** — correlated incidents with a six-state analyst lifecycle, observed
+  assets/users, a **Cases** board and case file (activity, observables, real attachments,
+  eligible runbooks → pending approval only), generated/exported reports, offline STIX plus
+  optional OEM IP lookup (`ITSOC_OEM=1`), and honest metrics.
 - **Live ingestion** — a UDP/TCP syslog collector streams real events into a persistent store.
 - **Enrichment & connectors** — offline MITRE ATT&CK mapping; optional threat-intel provider
   lookups and vendor (OEM) API connectors, all with user-supplied, write-only credentials.
@@ -64,7 +67,7 @@ cd web && npm install && npm run dev     # dashboard on :5173, proxies /api → 
 ## Tests
 
 ```bash
-python3 tests/eval/run_eval.py        # labeled detection eval
+python3 tests/eval/run_eval.py        # labeled detection eval (20/20)
 python3 console/test_console.py       # backend + subsystems
 cd web && npm test                    # React dashboard (vitest)
 ```
