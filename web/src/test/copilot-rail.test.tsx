@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CopilotRail } from "@/components/CopilotRail";
 import { api } from "@/lib/api";
@@ -21,6 +21,12 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
   beforeEach(() => {
     mockFetch({
       "/api/overview": OVERVIEW,
+      "/api/copilot/suggest": {
+        questions: [
+          "Walk me through Brute-force then SUCCESSFUL login for 'admin'",
+          "Walk the brute-force timeline with evidence line citations",
+        ],
+      },
       "/api/runs-summary": {
         totals: {
           runCount: 3,
@@ -81,6 +87,47 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(brief).toHaveTextContent("1 critical");
     expect(screen.getByTestId("copilot-chat")).toBeInTheDocument();
     expect(screen.getByLabelText("Ask the AI analyst")).not.toBeDisabled();
+    expect(await screen.findByText(/Walk me through Brute-force then SUCCESSFUL/i)).toBeInTheDocument();
+  });
+
+  it("run-aware suggestions do not ask for critical alerts the run does not have", async () => {
+    renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
+    const chips = await screen.findAllByTestId("copilot-suggested-q");
+    const text = chips.map((el) => el.textContent || "").join(" | ");
+    expect(text.toLowerCase()).not.toMatch(/top 5 critical/);
+    expect(text.toLowerCase()).not.toMatch(/summarize today's threats/);
+  });
+
+  it("showcase chips drop 'critical incidents' when the run has 0 CRITICAL findings", async () => {
+    mockFetch({
+      "/api/overview": OVERVIEW,
+      "/api/copilot/suggest": {
+        questions: [
+          "Walk me through CBS HRESULT CBS_E_MANIFEST_INVALID_ITEM",
+          "Are these CBS HRESULTs a security incident or servicing noise?",
+        ],
+      },
+      "/api/runs-summary": { totals: { runCount: 1, linesParsed: 2000, findingCount: 2, severityCounts: {}, mitreFrequency: [] }, runs: [] },
+      "/console_state.json": consoleState([
+        finding(0, {
+          id: "detector-0",
+          sev: "HIGH",
+          type: "windows_cbs_hresult",
+          host: "CBS",
+          title: "CBS HRESULT CBS_E_MANIFEST_INVALID_ITEM ×448",
+          occurrences: 448,
+        }),
+      ]),
+    });
+    renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
+    expect(await screen.findByText(/Walk me through CBS HRESULT/i)).toBeInTheDocument();
+    await waitFor(() => {
+      const showcase = screen.getByTestId("copilot-showcase-chips");
+      expect(showcase.textContent?.toLowerCase() || "").not.toMatch(/critical incidents/);
+    });
+    const suggested = (await screen.findAllByTestId("copilot-suggested-q")).map((el) => el.textContent || "").join(" | ");
+    expect(suggested.toLowerCase()).not.toMatch(/top 5 critical/);
+    expect(suggested.toLowerCase()).not.toMatch(/attack patterns/);
   });
 
   it("honest idle: briefing says no run and the composer is disabled", async () => {
@@ -96,7 +143,12 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
   });
 
   it("Role 1: interprets current view on prompt with streaming tokens and Stop control", async () => {
-    const streamSpy = vi.spyOn(api, "askStream").mockImplementation(async (_q, onDelta) => {
+    const streamSpy = vi.spyOn(api, "askStream").mockImplementation(async (_q, onDelta, _s, onInv) => {
+      onInv?.({
+        citations: [{ n: 5, raw: "auth failed from 203.0.113.44", findingId: "detector-0" }],
+        followups: ["Walk the brute-force timeline with evidence line citations"],
+        source: "rules",
+      });
       onDelta("Root cause: ");
       onDelta("Credential compromise ");
       onDelta("on server-01 from 203.0.113.44.");
@@ -104,13 +156,15 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
 
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
 
-    // Click quick prompt chip:
-    const promptChip = await screen.findByText("What changed since last run?");
+    // Click a run-aware suggested question (not a generic "critical/attack" chip).
+    const promptChip = await screen.findByText(/Walk me through Brute-force then SUCCESSFUL/i);
     await userEvent.click(promptChip);
 
     expect(await screen.findByText(/Root cause: Credential compromise on server-01 from 203.0.113.44\./))
       .toBeInTheDocument();
     expect(streamSpy).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("copilot-citations")).toHaveTextContent("{5}");
+    expect(screen.getByTestId("copilot-citations")).toHaveTextContent("auth failed from 203.0.113.44");
   });
 
   it("Role 2: Trend Digest shows what is rising across multiple saved runs", async () => {

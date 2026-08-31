@@ -60,6 +60,7 @@ import discovery  # noqa: E402  # nmap discovery + vuln scan -> store (socf-disc
 import efficacy_api  # noqa: E402  # /api/efficacy state (D2) — harness pass-through, no detector import
 import evtx_ingest  # noqa: E402  # Windows .evtx ingest -> store (socf-evtx-history)
 import export  # noqa: E402
+import copilot  # noqa: E402  # run-bound analyst investigation — digs hidden events, never a verdict
 import investigate  # noqa: E402  # deterministic investigation engine (C2) — never waits on the LLM
 import org_context  # noqa: E402
 import redact  # noqa: E402
@@ -636,11 +637,15 @@ def overview_state(window=None):
 
 
 ASK_SYSTEM = (
-    "You are an advisory SOC analyst assistant for a local log-analysis console. "
-    "Answer the reviewer's question using ONLY the findings summary provided. "
+    "You are an advisory SOC analyst copilot for a local log-analysis console. "
+    "You investigate the CURRENT run the way a Tier-1 analyst would: walk "
+    "grouped findings, cite hidden matching source lines by {n}, and say "
+    "plainly when a requested band (e.g. critical) has zero findings. "
+    "Use the investigation facts and findings summary provided. "
     "Severities and verdicts were assigned by deterministic rules and are final: "
     "you explain and advise, you never change, suppress, or escalate them. "
-    'If the summary does not hold the answer, say so plainly. '
+    "Do not invent attacks, ATT&CK techniques, or extra alerts. "
+    'If the facts do not hold the answer, say so plainly. '
     'Reply as JSON: {"answer": "<your answer>"}.'
 )
 
@@ -648,11 +653,14 @@ ASK_SYSTEM = (
 # prose — a JSON wrapper would leak braces into the stream. Same advisory
 # framing and same read-only contract as ASK_SYSTEM, minus the JSON envelope.
 ASK_SYSTEM_STREAM = (
-    "You are an advisory SOC analyst assistant for a local log-analysis console. "
-    "Answer the reviewer's question using ONLY the findings summary provided. "
+    "You are an advisory SOC analyst copilot for a local log-analysis console. "
+    "Investigate the CURRENT run: walk grouped findings, cite hidden matching "
+    "source lines by {n}, and be honest when a requested band has zero findings. "
+    "Use the investigation facts and findings summary provided. "
     "Severities and verdicts were assigned by deterministic rules and are final: "
     "you explain and advise, you never change, suppress, or escalate them. "
-    "If the summary does not hold the answer, say so plainly. "
+    "Do not invent attacks, ATT&CK techniques, or extra alerts. "
+    "If the facts do not hold the answer, say so plainly. "
     "Reply in plain prose — no JSON, no code fences."
 )
 
@@ -666,7 +674,7 @@ def ask_analyst(question, state=None, compute=None):
     explanations — before leaving. The reply is prose for a human; nothing
     here writes to STATE, severities, or verdicts.
     """
-    base, key, model, user = _ask_prompt(question, state, compute)
+    base, key, model, user, _inv = _ask_prompt(question, state, compute)
     reply = la.strip_fences(la.chat_completion(base, key, model, ASK_SYSTEM, user))
     try:                       # chat_completion asks for a JSON object reply
         answer = json.loads(reply).get("answer")
@@ -676,15 +684,18 @@ def ask_analyst(question, state=None, compute=None):
 
 
 def _ask_prompt(question, state=None, compute=None):
-    """Build the (base, key, model, user) for one analyst question — the shared
-    summary + redaction both the blocking and streaming paths use. The summary
-    carries finding metadata only (severity, rule, title, host, time), never
-    raw log text; remote compute routes it through the redaction choke point."""
+    """Build the (base, key, model, user) for one analyst question.
+
+    Includes a findings summary plus deterministic investigation facts
+    (cited matching lines Overview does not list as cards). Remote compute
+    runs the whole bundle through the redaction choke point before egress.
+    """
     state = STATE if state is None else state
     compute = COMPUTE if compute is None else compute
     question = str(question)[:2000]
 
     findings = state.get("findings", [])
+    inv = copilot.investigate(question, state)
     parts = [f"Run {state.get('runId', '?')} — {state.get('sourceLabel') or state.get('runHosts') or 'current log'} — "
              f"{state.get('runParsed', '')} — {len(findings)} finding(s)."]
     if state.get("unrecognized") or state.get("emptyInput"):
@@ -693,10 +704,18 @@ def _ask_prompt(question, state=None, compute=None):
     if state.get("llmNote"):
         parts.append(f"Note: {state.get('llmNote')}")
     for f in findings[:40]:
-        parts.append(f"- [{f.get('sev')}] {f.get('type')}: {f.get('title')} "
+        try:
+            occ = int(f.get("occurrences") or 1)
+        except (TypeError, ValueError):
+            occ = 1
+        occ_s = f" ×{occ} matching" if occ > 1 else ""
+        parts.append(f"- [{f.get('sev')}] {f.get('type')}: {f.get('title')}{occ_s} "
                      f"(host {f.get('host')}, at {f.get('time') or 'unknown time'})")
     if len(findings) > 40:
         parts.append(f"...and {len(findings) - 40} more finding(s) not listed.")
+    facts = copilot.prompt_facts(inv)
+    if facts:
+        parts.append(facts)
 
     if compute.get("mode") == "remote":
         hosts = {f.get("host") for f in findings if f.get("hostDerived")}
@@ -709,13 +728,21 @@ def _ask_prompt(question, state=None, compute=None):
         base, key, model = la.LLM_BASE_URL, la.LLM_API_KEY, la.LLM_MODEL
 
     user = "Findings summary:\n" + "\n".join(parts) + f"\n\nQuestion: {question}"
-    return base, key, model, user
+    return base, key, model, user, inv
 
 
 def ask_analyst_stream(question, state=None, compute=None):
     """Yield the analyst reply as prose chunks (advisory, read-only). Same
     summary/redaction as ask_analyst; only the delivery differs."""
-    base, key, model, user = _ask_prompt(question, state, compute)
+    compute = COMPUTE if compute is None else compute
+    base, key, model, user, inv = _ask_prompt(question, state, compute)
+    if compute.get("mode") != "remote" and not llm_reachable():
+        text = (inv or {}).get("answer") or (
+            "The model is offline. Deterministic investigation found no "
+            "additional facts for that question."
+        )
+        yield text
+        return
     yield from la.chat_completion_stream(base, key, model, ASK_SYSTEM_STREAM, user)
 
 
@@ -1518,6 +1545,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json(soc.threat_intel_summary())
         elif path == "/api/metrics":
             self._json(soc.metrics(STATE, [r.get("label") for r in list_runs()]))
+        elif path == "/api/copilot/suggest":
+            self._json({"questions": copilot.suggested_questions(STATE)})
         # --- detector efficacy (D2). Pass-through of the harness JSON; serve.py
         # computes no precision/recall/F1 of its own and imports no detector.
         elif path == "/api/efficacy":
@@ -2135,15 +2164,35 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         # offline. `view` is null when the question is not a showcase request.
         if payload.get("view"):
             return self._json({"view": soc.build_view(question, STATE)})
+        if payload.get("investigate"):
+            inv = copilot.investigate(question, STATE)
+            return self._json({"investigation": inv, "view": soc.build_view(question, STATE)})
         if payload.get("stream"):
             return self._ask_stream(question)
+        inv = copilot.investigate(question, STATE)
         try:
             answer = ask_analyst(question)
+            source = "llm"
         except Exception as e:
-            # An unreachable model is an honest error, never a made-up answer.
+            # Model down: still return the deterministic investigation, never
+            # a fabricated narrative and never a blank copilot.
+            if inv.get("answer"):
+                print(f"  analyst asked (rules-only): {question[:60]!r}", flush=True)
+                return self._json({
+                    "answer": inv["answer"],
+                    "view": soc.build_view(question, STATE),
+                    "investigation": inv,
+                    "source": "rules",
+                    "note": f"the analyst model is not reachable: {e}",
+                })
             return self._json({"error": f"the analyst model is not reachable: {e}"}, 502)
         print(f"  analyst asked: {question[:60]!r}", flush=True)
-        return self._json({"answer": answer, "view": soc.build_view(question, STATE)})
+        return self._json({
+            "answer": answer,
+            "view": soc.build_view(question, STATE),
+            "investigation": inv,
+            "source": source,
+        })
 
     def _api_stream(self):
         """GET /api/stream?source=… — live SSE tail (Phase D contract in
@@ -2219,20 +2268,41 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(f"data: {json.dumps(obj)}\n\n".encode())
             self.wfile.flush()
 
+        inv = copilot.investigate(question, STATE)
         try:
+            send({"investigation": {
+                "answer": inv.get("answer") or "",
+                "citations": inv.get("citations") or [],
+                "followups": inv.get("followups") or [],
+                "source": inv.get("source") or "rules",
+                "facts": inv.get("facts") or {},
+            }})
+            # Investigation-first (HyperSOC-style): stream the cited run
+            # facts immediately. Waiting on the model is what made the rail
+            # look like a generic chatbot. LLM narration stays on the
+            # non-stream /api/ask path.
+            if inv.get("answer"):
+                send({"delta": inv["answer"]})
+                send({"done": True})
+                return
             any_token = False
             for chunk in ask_analyst_stream(question):
                 any_token = True
                 send({"delta": chunk})
             if not any_token:
-                send({"delta": "(the model returned an empty reply)"})
+                fallback = inv.get("answer") or "(the model returned an empty reply)"
+                send({"delta": fallback})
             send({"done": True})
         except (BrokenPipeError, ConnectionResetError):
             # The client cancelled — stop quietly; nothing was fabricated.
             return
         except Exception as e:
             try:
-                send({"error": f"the analyst model is not reachable: {e}"})
+                if inv.get("answer"):
+                    send({"delta": inv["answer"]})
+                    send({"done": True})
+                else:
+                    send({"error": f"the analyst model is not reachable: {e}"})
             except OSError:
                 pass
 

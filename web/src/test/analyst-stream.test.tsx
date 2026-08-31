@@ -21,7 +21,7 @@ describe("AI Analyst streaming", () => {
     renderApp(<AiAnalyst model="llama3.1:8b" />);
 
     await userEvent.click(screen.getByRole("button", { name: "Open AI Analyst" }));
-    await userEvent.click(screen.getByText("What are the recent attack patterns?"));
+    await userEvent.click(screen.getByText("Walk me through the highest-severity finding with source lines"));
 
     expect(await screen.findByText(/Brute-force against root is the top pattern\./))
       .toBeInTheDocument();
@@ -40,7 +40,7 @@ describe("AI Analyst streaming", () => {
 
     renderApp(<AiAnalyst model="llama3.1:8b" />);
     await userEvent.click(screen.getByRole("button", { name: "Open AI Analyst" }));
-    await userEvent.click(screen.getByText("Summarize today's threats"));
+    await userEvent.click(screen.getByText("Are these findings a security incident or operational noise?"));
 
     // While in flight: a Stop control and the elapsed/streaming line.
     expect(await screen.findByRole("button", { name: /stop/i })).toBeInTheDocument();

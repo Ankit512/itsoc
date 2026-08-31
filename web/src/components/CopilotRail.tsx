@@ -5,7 +5,7 @@ import {
   ChevronRight, Activity, ShieldCheck
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { api, Finding, RunsSummaryEntry, AskView, ConsoleState } from "@/lib/api";
+import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotCitation } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { sevVar } from "@/lib/severity";
 
@@ -14,6 +14,8 @@ interface Msg {
   text: string;
   source?: string;
   view?: AskView | null;
+  citations?: CopilotCitation[];
+  followups?: string[];
 }
 
 /** Severity tag (is-tag) coloured by the rule-owned level. Never recomputes a
@@ -97,41 +99,25 @@ function ShowcaseCard({ view }: { view: AskView }) {
 }
 
 const DEFAULT_EXAMPLES = [
-  "Show me top 5 critical alerts",
-  "What are the recent attack patterns?",
-  "Summarize today's threats",
+  "Walk me through the highest-severity finding with source lines",
+  "What did Overview group, and which matching lines are hidden?",
+  "Are these findings a security incident or operational noise?",
 ];
 
 /** Showcase triggers (design-v2 §4): each pulls a REAL is-* result card into
- *  the rail (incidents / dashboard / findings). */
+ *  the rail (incidents / dashboard / findings). Kept as the idle/empty fallback
+ *  so showcase tests still have a stable click target. */
 const SHOWCASE_CHIPS = [
   "Show me the critical incidents",
   "Summarize the dashboard",
   "Top 5 findings",
 ];
 
-const CONTEXTUAL_PROMPTS: Record<string, string[]> = {
-  "/": [
-    "What changed since last run?",
-    "Which host first?",
-    "Is brute-force trending up?",
-  ],
-  "/alerts": [
-    "Why is this critical?",
-    "Explain the evidence lines",
-    "What MITRE technique is this?",
-  ],
-  "/findings": [
-    "Why is this critical?",
-    "Explain the evidence lines",
-    "What MITRE technique is this?",
-  ],
-  "/incidents": [
-    "What's the root cause here?",
-    "Summarize for handoff",
-    "What is the attack chain?",
-  ],
-};
+const SHOWCASE_NO_CRIT = [
+  "What did Overview group, and which matching lines are hidden?",
+  "Summarize the dashboard",
+  "Top 5 findings",
+];
 
 function countSev(findings: Finding[], band: string): number {
   const want = band.toUpperCase();
@@ -220,6 +206,11 @@ export function CopilotRail({
   // leave the rail on a stale cache while the dashboard has already moved.
   const { data: state, isLoading: stateLoading } = useQuery({ queryKey: ["console-state"], queryFn: api.consoleState });
   const { data: overview } = useQuery({ queryKey: ["overview"], queryFn: api.overview });
+  const { data: suggested } = useQuery({
+    queryKey: ["copilot-suggest", state?.runId],
+    queryFn: api.copilotSuggest,
+    enabled: !!state && !state.idle,
+  });
   const { data: runsSummary } = useQuery({ queryKey: ["runs-summary"], queryFn: api.runsSummary });
   const selectedIncidentId = pathname === "/incidents" ? new URLSearchParams(search).get("sel") : null;
   const { data: selectedRca } = useQuery({
@@ -354,11 +345,35 @@ export function CopilotRail({
           setLog((l) => {
             const next = [...l];
             const cur = next[answerIndex];
-            if (cur && cur.who === "a") next[answerIndex] = { who: "a", text: cur.text + delta };
+            if (cur && cur.who === "a") {
+              // Investigation already stamped this same rules answer.
+              if (cur.text && delta === cur.text) return next;
+              next[answerIndex] = { ...cur, who: "a", text: cur.text + delta };
+            }
             return next;
           });
         },
         controller.signal,
+        (inv) => {
+          if (inv.answer) {
+            first = true;
+            setGotFirstToken(true);
+          }
+          setLog((l) => {
+            const next = [...l];
+            const cur = next[answerIndex];
+            if (cur && cur.who === "a") {
+              next[answerIndex] = {
+                ...cur,
+                text: inv.answer || cur.text,
+                citations: inv.citations,
+                followups: inv.followups,
+                source: inv.source,
+              };
+            }
+            return next;
+          });
+        },
       );
     } catch (e) {
       const aborted = controller.signal.aborted;
@@ -382,7 +397,11 @@ export function CopilotRail({
     }
   };
 
-  const currentPrompts = CONTEXTUAL_PROMPTS[pathname] ?? DEFAULT_EXAMPLES;
+  const runPrompts = (suggested && suggested.length > 0) ? suggested : DEFAULT_EXAMPLES;
+  const critOnRun = countSev(findings, "CRITICAL");
+  const showcaseChips = runReady && findings.length > 0 && critOnRun === 0
+    ? SHOWCASE_NO_CRIT
+    : SHOWCASE_CHIPS;
 
   const content = (
     <section
@@ -530,13 +549,14 @@ export function CopilotRail({
             {log.length === 0 && (
               <div className="flex flex-col gap-2">
                 <p className="text-[12px] leading-normal text-muted-foreground">
-                  Ask about this run in plain language. Answers are advisory — rules still own severity.
+                  I investigate this run like an analyst: grouped cards plus the matching source lines Overview hides. I cite {`{n}`} from the log. Ask in plain language — answers are advisory; rules still own severity.
                 </p>
-                {DEFAULT_EXAMPLES.map((q) => (
+                {runPrompts.map((q) => (
                   <button
                     key={q}
                     onClick={() => ask(q)}
                     className="rounded border bg-card px-2.5 py-1.5 text-left text-xs text-muted-foreground hover:border-primary hover:text-foreground"
+                    data-testid="copilot-suggested-q"
                   >
                     {q}
                   </button>
@@ -560,10 +580,43 @@ export function CopilotRail({
                       {m.text}
                       {isStreamingAnswer && !m.text && (
                         <span className="text-muted-foreground">
-                          {gotFirstToken ? "" : `waiting for the model… ${elapsed}s`}
+                          {gotFirstToken ? "" : `investigating this run… ${elapsed}s`}
                         </span>
                       )}
                       {isStreamingAnswer && m.text && <span className="animate-pulse">▍</span>}
+                    </div>
+                  )}
+                  {m.who === "a" && m.citations && m.citations.length > 0 && (
+                    <div className="rounded border bg-background px-2 py-1.5" data-testid="copilot-citations">
+                      <div className="is-mono is-mut" style={{ fontSize: 10, marginBottom: 4 }}>
+                        cited source lines (verbatim — not shown as Overview cards)
+                      </div>
+                      {m.citations.slice(0, 8).map((c, ci) => (
+                        <div key={ci} className="flex gap-2 text-[11px]" style={{ padding: "2px 0" }}>
+                          <span className="is-mono is-mut" style={{ minWidth: 36 }}>
+                            {c.findingId ? (
+                              <Link to={`/alerts?sel=${encodeURIComponent(c.findingId)}`} style={{ color: "var(--acc)" }}>
+                                {`{${c.n ?? "n"}}`}
+                              </Link>
+                            ) : `{${c.n ?? "n"}}`}
+                          </span>
+                          <span className="is-mono" style={{ wordBreak: "break-all" }}>{c.raw}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {m.who === "a" && m.followups && m.followups.length > 0 && !isStreamingAnswer && (
+                    <div className="flex flex-wrap gap-1.5" data-testid="copilot-followups">
+                      {m.followups.map((fq) => (
+                        <button
+                          key={fq}
+                          onClick={() => ask(fq)}
+                          disabled={streaming}
+                          className="rounded-full border bg-background px-2.5 py-1 text-[11px] text-muted-foreground hover:border-primary hover:text-foreground disabled:opacity-50"
+                        >
+                          {fq}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -571,28 +624,15 @@ export function CopilotRail({
             })}
           </div>
 
-          {/* Showcase chips — pull a real is-* result card into the rail */}
+          {/* Showcase chips — pull a real is-* result card into the rail.
+              Run-aware: never advertise "critical incidents" on a 0-crit run. */}
           <div className="flex flex-wrap gap-1.5 pt-1" data-testid="copilot-showcase-chips">
-            {SHOWCASE_CHIPS.map((p) => (
+            {showcaseChips.map((p) => (
               <button
                 key={p}
                 onClick={() => ask(p)}
                 disabled={streaming}
                 className="rounded-full border border-primary/40 bg-background px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-accent disabled:opacity-50"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-
-          {/* Contextual Chips */}
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {currentPrompts.map((p) => (
-              <button
-                key={p}
-                onClick={() => ask(p)}
-                disabled={streaming}
-                className="rounded-full border bg-background px-2.5 py-1 text-[11px] text-muted-foreground hover:border-primary hover:text-foreground disabled:opacity-50"
               >
                 {p}
               </button>
@@ -615,7 +655,7 @@ export function CopilotRail({
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={blockAsk ? "Analyze a log first…" : "Ask about this run…"}
+              placeholder={blockAsk ? "Analyze a log first…" : "Ask about a hidden line, HRESULT, host…"}
               aria-label="Ask the AI analyst"
               disabled={streaming || blockAsk}
               className="min-w-0 flex-1 rounded border bg-card px-2.5 py-1.5 text-[12.5px] outline-none focus:border-primary disabled:opacity-60"
