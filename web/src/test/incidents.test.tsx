@@ -54,6 +54,10 @@ describe("Incidents page", () => {
     renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
 
     expect(await screen.findByText(/Lifecycle · analyst-owned/)).toBeInTheDocument();
+    const life = screen.getByText(/Lifecycle · analyst-owned/).closest(".is-lifecycle");
+    const inv = screen.getByTestId("investigation-file");
+    expect(life).toBeTruthy();
+    expect(life!.compareDocumentPosition(inv) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "triaged" }));
     expect(post).toHaveBeenCalledTimes(1);
   });
@@ -328,6 +332,7 @@ describe("Incidents investigation file (C2-T4)", () => {
     const tl = await screen.findByTestId("investigation-timeline");
     expect(within(tl).getByTestId("tl-5")).toBeInTheDocument();
     expect(within(tl).getByTestId("tl-12")).toHaveTextContent("auth success for user 'admin'");
+    expect(screen.getByTestId("investigation-log-count")).toHaveTextContent("4 reconstructed line");
     // Correlation → host server-01.
     expect(within(screen.getByTestId("investigation-correlation")).getByText("server-01")).toBeInTheDocument();
     // IOCs — attacker IP + targeted account.
@@ -338,6 +343,22 @@ describe("Incidents investigation file (C2-T4)", () => {
     const blast = screen.getByTestId("investigation-blast");
     expect(within(blast).getByText("server-01")).toBeInTheDocument();
     expect(within(blast).getByText("admin")).toBeInTheDocument();
+  });
+
+  it("caps a long citation list behind +N more so chips cannot leak off-screen", async () => {
+    const rca = rcaWithInvestigation();
+    rca.investigation.blastRadius.records = Array.from({ length: 20 }, (_, i) => i + 1);
+    mockFetch({
+      "/api/incidents/inc-abc123/rca": rca,
+      "/api/incidents/inc-abc123/advisory": advComplete,
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+    const blast = await screen.findByTestId("investigation-blast");
+    expect(within(blast).getByRole("button", { name: /\+12 more/ })).toBeInTheDocument();
+    expect(within(blast).queryByTestId("cite-20")).not.toBeInTheDocument();
+    await userEvent.click(within(blast).getByRole("button", { name: /\+12 more/ }));
+    expect(within(blast).getByTestId("cite-20")).toBeInTheDocument();
   });
 
   it("(b) every deterministic fact carries a resolvable record {n} citation", async () => {

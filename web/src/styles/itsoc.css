@@ -192,7 +192,7 @@
 .is-detail-head{ display:flex; align-items:center; gap:10px; }
 .is-detail-head h2{ font-size:16px; font-weight:650; margin:0; }
 .is-detail-head .id{ margin-left:auto; color:var(--mut); font-family:var(--mono); font-size:11px; }
-.is-detail-meta{ color:var(--mut); font-size:12px; }
+.is-detail-meta{ color:var(--mut); font-size:12px; overflow-wrap:anywhere; min-width:0; }
 .is-detail-meta b{ color:var(--ink); font-weight:600; }
 .is-ro{ margin-left:8px; font-size:10px; border:1px solid var(--bd); border-radius:20px; padding:2px 8px; color:var(--mut); }
 
@@ -205,11 +205,15 @@
 .is-block.crit .verdict{ color:var(--crit); } .is-block.high .verdict{ color:var(--high); }
 .is-block.med .verdict{ color:var(--med); } .is-block.low .verdict{ color:var(--low); }
 .is-block p{ margin:0; font-size:12.5px; line-height:1.55; color:var(--ink2); }
-.is-evidence{ margin:0; background:var(--inset); border:1px solid var(--bd); border-left:3px solid var(--acc); border-radius:var(--radius-sm); padding:11px 13px; font-family:var(--mono); font-size:11.5px; line-height:1.7; overflow-x:auto; white-space:pre-wrap; word-break:break-word; }
-.is-evidence .ln{ color:var(--mut2); margin-right:10px; }
-.is-evidence .eline{ display:block; }
+.is-evidence{ margin:0; background:var(--inset); border:1px solid var(--bd); border-left:3px solid var(--acc); border-radius:var(--radius-sm); padding:11px 13px; font-family:var(--mono); font-size:11.5px; line-height:1.7; overflow:auto; overflow-wrap:anywhere; word-break:break-word; white-space:pre-wrap; max-height:min(28vh, 280px); }
+.is-evidence .ln{ color:var(--mut2); margin-right:10px; flex:0 0 auto; }
+.is-evidence .eline{ display:flex; gap:8px; overflow-wrap:anywhere; word-break:break-word; min-width:0; }
 .is-evidence .eline.crit{ color:var(--crit); }
 .is-evidence mark{ background:var(--acc-weak); color:var(--acc); padding:0 2px; border-radius:3px; }
+.is-logpane{ min-width:0; }
+.is-logpane__meta{ font-size:11px; color:var(--mut); margin-bottom:6px; }
+.is-cite-more{ font-family:var(--sans); font-size:10.5px; color:var(--acc); background:none; border:1px dashed color-mix(in srgb,var(--acc) 35%,transparent); border-radius:4px; padding:0 6px; margin:0 3px 3px 0; cursor:pointer; }
+.is-cite-row{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:0; min-width:0; max-width:100%; }
 
 /* ---- 12a2. Investigation file (C2-T4): deterministic fact vs advisory prose.
    The distinction is the point — a reader must tell rule-derived, cited fact from
@@ -259,15 +263,15 @@
 .is-approval-actions{ display:flex; gap:10px; padding-top:2px; }
 
 /* ---- 12b. INCIDENT / RCA v3 composition (center + right rail) ---------- */
-.is-rca-layout{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start; }
-.is-rca-center{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+.is-rca-layout{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start; min-width:0; overflow-x:clip; }
+.is-rca-center{ display:flex; flex-direction:column; gap:16px; min-width:0; overflow-x:clip; }
 .is-rca-rail{ display:flex; flex-direction:column; gap:14px; position:sticky; top:0; }
 .is-crumb{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mut2); }
 .is-crumb__link{ background:none; border:none; padding:0; color:var(--acc); cursor:pointer; font-size:12px; }
 .is-crumb__link:hover{ text-decoration:underline; }
 .is-crumb .sep{ color:var(--mut2); }
-.is-rca-head{ display:flex; align-items:center; gap:12px; }
-.is-rca-head .ttl{ flex:1; min-width:0; font-size:20px; font-weight:600; letter-spacing:-.015em; margin:0; }
+.is-rca-head{ display:flex; align-items:center; flex-wrap:wrap; gap:12px; min-width:0; }
+.is-rca-head .ttl{ flex:1; min-width:0; font-size:20px; font-weight:600; letter-spacing:-.015em; margin:0; overflow-wrap:anywhere; }
 /* Attack timeline */
 .is-tl__axis{ position:relative; height:72px; margin:2px 4px; }
 .is-tl__line{ position:absolute; left:0; right:0; bottom:24px; height:1px; background:var(--bd); }
@@ -292,11 +296,11 @@
 
 /* ---- 13. INCIDENT DETAIL (lifecycle, timestamps, RCA) ------------------ */
 .is-lifecycle .cap, .is-facts .cap{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin-bottom:9px; }
-.is-lifecycle .steps{ display:flex; gap:8px; }
+.is-lifecycle .steps{ display:flex; flex-wrap:wrap; gap:8px; }
 .is-lifecycle .step{ padding:7px 14px; border:1px solid var(--bd); border-radius:var(--radius-sm); background:var(--inset); color:var(--mut); font-size:12px; cursor:pointer; }
 .is-lifecycle .step.on{ background:var(--acc-weak); color:var(--acc); border-color:transparent; font-weight:600; }
-.is-facts-row{ display:flex; justify-content:space-between; padding:6px 0; font-size:12px; }
-.is-facts-row span{ color:var(--mut); } .is-facts-row b{ font-weight:550; font-variant-numeric:tabular-nums; }
+.is-facts-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:6px 0; font-size:12px; min-width:0; }
+.is-facts-row span{ color:var(--mut); flex:0 1 auto; } .is-facts-row b{ font-weight:550; font-variant-numeric:tabular-nums; min-width:0; text-align:right; overflow-wrap:anywhere; }
 .is-facts-row .na{ color:var(--mut); font-weight:400; }
 .is-rca{ border:1px solid var(--bd); border-radius:var(--radius-sm); padding:12px 14px; }
 .is-rca .h{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }

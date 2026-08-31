@@ -344,9 +344,10 @@ function RcaPanel({ incidentId }: { incidentId: string }) {
           <span className="is-mono">{rca.facts.firstSeen ?? "n/a"} → {rca.facts.lastSeen ?? "n/a"}</span>
         </div>
         {rca.facts.timeline.length > 0 && (
-          <ol style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
+          <ol className="is-logpane" data-testid="rca-facts-timeline"
+              style={{ marginTop: 8, paddingLeft: 0, listStyle: "none", maxHeight: 180, overflow: "auto" }}>
             {rca.facts.timeline.map((e, i) => (
-              <li key={i} style={{ fontSize: "11.5px", padding: "1px 0" }}>
+              <li key={i} style={{ fontSize: "11.5px", padding: "1px 0", overflowWrap: "anywhere" }}>
                 <span className="is-mono is-mut is-tnum">{e.t || "—"}</span>{" "}
                 <span>{e.label}</span>
                 {e.rule && <span className="is-mono is-mut" style={{ marginLeft: 6, fontSize: 10 }}>[{e.rule}]</span>}
@@ -455,24 +456,35 @@ function AttackTimeline({ incidentId }: { incidentId: string }) {
   const first = events.find((e) => e.t)?.t;
   const last = [...events].reverse().find((e) => e.t)?.t;
 
+  const dense = events.length > 48;
+  const plotted = events
+    .map((e, i) => ({ e, i }))
+    .filter(({ e }) => !dense || kindOf(e.rule, e.label) === "ok" || kindOf(e.rule, e.label) === "c2");
+
   return card(
     <>
+      {dense && (
+        <p className="is-mut" style={{ fontSize: "11.5px", margin: "0 0 8px" }}>
+          {events.length.toLocaleString()} sub-events — too dense for one tick each.
+          Plotting login-OK / C2 markers only; the reconstructed log is in the pane below.
+        </p>
+      )}
       <div className="is-tl__axis" role="img" aria-label="attack timeline">
         <div className="is-tl__line" />
-        {events.map((e, i) => {
+        {plotted.map(({ e, i }) => {
           const kind = kindOf(e.rule, e.label);
           const left = `${pctFor(i)}%`;
           const title = `${e.t || "—"} · ${e.label}${e.rule ? ` [${e.rule}]` : ""}`;
           if (kind === "ok" || kind === "c2") {
             return (
-              <span key={i} className="is-tl__dot" style={{ left, background: KIND_VAR[kind] }} title={title}>
+              <span key={`${e.t}-${i}`} className="is-tl__dot" style={{ left, background: KIND_VAR[kind] }} title={title}>
                 <span className="is-tl__dotlabel" style={{ color: KIND_VAR[kind] }}>
                   {kind === "ok" ? "login OK" : "C2 blocked"}
                 </span>
               </span>
             );
           }
-          return <span key={i} className="is-tl__tick" style={{ left, background: KIND_VAR[kind] }} title={title} />;
+          return <span key={`${e.t}-${i}`} className="is-tl__tick" style={{ left, background: KIND_VAR[kind] }} title={title} />;
         })}
         {first && <span className="is-tl__t" style={{ left: "8%" }}>{first.slice(-8)}</span>}
         {last && last !== first && <span className="is-tl__t" style={{ left: "88%" }}>{last.slice(-8)}</span>}
@@ -496,24 +508,28 @@ function EvidenceCard({ inc }: { inc: Incident }) {
   const lines = members.flatMap((f) => f.lines ?? []);
 
   return (
-    <section className="is-panel">
-      <div className="is-panel__h"><h3>Evidence — verbatim log lines</h3></div>
+    <details className="is-panel" data-testid="incident-evidence-wrap">
+      <summary className="is-panel__h" style={{ cursor: "pointer", listStyle: "revert" }}>
+        <h3>Evidence — {lines.length ? `${lines.length.toLocaleString()} verbatim line(s)` : "verbatim log lines"}</h3>
+      </summary>
       {lines.length ? (
-        <>
+        <div className="is-logpane" style={{ marginTop: 8 }}>
+          <div className="is-logpane__meta">
+            Scroll inside this pane. Same source lines as the findings — nothing generated.
+          </div>
           <pre className="is-evidence" data-testid="incident-evidence">
             {lines.map((l, i) => (
               <div key={i} className={l.crit ? "eline crit" : "eline"}>
                 <span className="ln">{l.n}</span>
-                {l.a}
-                {l.hit && <mark>{l.hit}</mark>}
-                {l.b}
+                <span style={{ minWidth: 0 }}>
+                  {l.a}
+                  {l.hit && <mark>{l.hit}</mark>}
+                  {l.b}
+                </span>
               </div>
             ))}
           </pre>
-          <div className="is-mono is-mut2" style={{ fontSize: "10.5px", marginTop: 8 }}>
-            verbatim from the source log — nothing generated
-          </div>
-        </>
+        </div>
       ) : (
         <p className="is-mut" style={{ fontSize: "11.5px" }}>
           {isError || !data
@@ -521,7 +537,7 @@ function EvidenceCard({ inc }: { inc: Incident }) {
             : "No stored evidence lines on this cluster's member findings."}
         </p>
       )}
-    </section>
+    </details>
   );
 }
 
@@ -867,6 +883,29 @@ function RecordCite({ n, byN }: { n: number; byN: Map<number, InvestigationEvent
   );
 }
 
+const CITE_PREVIEW = 8;
+
+/** Cap a long {n} chip list so hundreds of citations cannot leak off-screen.
+ *  Hidden ids stay in the DOM once expanded — tests with a handful of records
+ *  still see every chip without clicking. */
+function CiteList({ ns, byN }: { ns: number[]; byN: Map<number, InvestigationEvent> }) {
+  const [open, setOpen] = useState(false);
+  const extra = ns.length - CITE_PREVIEW;
+  const shown = open || extra <= 0 ? ns : ns.slice(0, CITE_PREVIEW);
+  return (
+    <span className="is-cite-row">
+      {shown.map((n) => <RecordCite key={n} n={n} byN={byN} />)}
+      {extra > 0 && (
+        <button type="button" className="is-cite-more"
+                aria-expanded={open}
+                onClick={() => setOpen((v) => !v)}>
+          {open ? "show fewer" : `+${extra} more`}
+        </button>
+      )}
+    </span>
+  );
+}
+
 /** One grounded advisory agent's block (narrative / ATT&CK / pivots). Model
  *  output, never a verdict — so it renders inside the advisory family (dashed
  *  accent + ADVISORY chip) and shows its three honest states: filled prose,
@@ -893,7 +932,7 @@ function AdvisoryBlockView({ block, byN }: { block: AdvisoryBlock; byN: Map<numb
           {block.sentences.map((s, i) => (
             <p key={i} style={{ fontSize: 12, lineHeight: 1.5 }}>
               {s.text}{" "}
-              {s.records.map((n) => <RecordCite key={n} n={n} byN={byN} />)}
+              <CiteList ns={s.records} byN={byN} />
             </p>
           ))}
         </div>
@@ -974,14 +1013,19 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
         <div className="is-block is-det" data-testid="investigation-deterministic">
           <div className="cap authoritative">Timeline · reconstructed from the events store · every line cited</div>
           {inv.timeline.length ? (
-            <pre className="is-evidence" data-testid="investigation-timeline">
-              {inv.timeline.map((e) => (
-                <div key={e.n} className={e.isFinding ? "eline crit" : "eline"} data-testid={`tl-${e.n}`}>
-                  <span className="ln">{`{${e.n}}`}</span>
-                  {e.raw}
-                </div>
-              ))}
-            </pre>
+            <div className="is-logpane">
+              <div className="is-logpane__meta" data-testid="investigation-log-count">
+                {inv.timeline.length.toLocaleString()} reconstructed line(s) · scroll inside this pane — the page does not grow with the log
+              </div>
+              <pre className="is-evidence" data-testid="investigation-timeline">
+                {inv.timeline.map((e) => (
+                  <div key={e.n} className={e.isFinding ? "eline crit" : "eline"} data-testid={`tl-${e.n}`}>
+                    <span className="ln">{`{${e.n}}`}</span>
+                    <span style={{ minWidth: 0 }}>{e.raw}</span>
+                  </div>
+                ))}
+              </pre>
+            </div>
           ) : (
             <p className="is-mut" style={{ fontSize: "11.5px" }}>No records reconstructed for this entity in the loaded run.</p>
           )}
@@ -993,7 +1037,7 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
           {c.assets.length ? c.assets.map((a) => (
             <div key={a.name} className="is-facts-row">
               <span><span className="is-mono">{a.name}</span> <span className="is-mut">· {a.role} · {a.eventCount} record(s)</span></span>
-              <b>{a.records.map((n) => <RecordCite key={n} n={n} byN={byN} />)}</b>
+              <b><CiteList ns={a.records} byN={byN} /></b>
             </div>
           )) : (
             <p className="is-mut" style={{ fontSize: "11.5px" }}>No correlated assets — the entity acted only on itself.</p>
@@ -1006,7 +1050,7 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
           {inv.iocs.length ? inv.iocs.map((i) => (
             <div key={`${i.type}:${i.value}`} className="is-facts-row">
               <span><span className="is-tag is-tag--info is-mono">{i.type}</span> <span className="is-mono">{i.value}</span> <span className="is-mut">· ×{i.count}</span></span>
-              <b>{i.records.map((n) => <RecordCite key={n} n={n} byN={byN} />)}</b>
+              <b><CiteList ns={i.records} byN={byN} /></b>
             </div>
           )) : (
             <p className="is-mut" style={{ fontSize: "11.5px" }}>No indicators extracted from the reconstructed records.</p>
@@ -1032,7 +1076,7 @@ function InvestigationFile({ incidentId }: { incidentId: string }) {
               {inv.blastRadius.accounts.length ? inv.blastRadius.accounts.map((u) => <span key={u} className="is-mono" style={{ marginRight: 8 }}>{u}</span>) : "none"}
             </b>
           </div>
-          <div style={{ marginTop: 4 }}>{inv.blastRadius.records.map((n) => <RecordCite key={n} n={n} byN={byN} />)}</div>
+          <div style={{ marginTop: 4 }}><CiteList ns={inv.blastRadius.records} byN={byN} /></div>
         </div>
 
         {inv.note && <p className="is-mut" style={{ fontSize: 11 }}>{inv.note}</p>}
@@ -1111,6 +1155,8 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
           <span className="is-ro">severity is rule-owned</span>
         </div>
 
+        <LifecycleStepper inc={inc} />
+
         {/* Attack timeline (real sub-events, positioned by time) */}
         <AttackTimeline incidentId={inc.id} />
 
@@ -1166,8 +1212,6 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
 
         {/* Absorbed Cases surface — any analyst case(s) linked to this incident */}
         <CasesPanel inc={inc} />
-
-        <LifecycleStepper inc={inc} />
       </div>
 
       <IncidentRail inc={inc} />
