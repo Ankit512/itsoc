@@ -4921,6 +4921,8 @@ def check_copilot_investigate():
              "msg": "Failed", "findingId": "detector-0"},
             {"n": 12, "raw": "2016-09-28 04:30:31, Info  CBS  Expecting attribute [HRESULT = 0x800f080d - CBS_E_MANIFEST_INVALID_ITEM]",
              "msg": "Expecting", "findingId": "detector-0"},
+            {"n": 99, "raw": "2016-09-28 04:30:40, Info  CBS  Failed [HRESULT = 0x800f080d - CBS_E_MANIFEST_INVALID_ITEM]",
+             "msg": "Failed"},
         ],
     }
     qs = copilot.suggested_questions(state)
@@ -4958,6 +4960,9 @@ def check_copilot_investigate():
           hidden["citations"] and "448" in hidden["answer"]
           and "grouped card" in hidden["answer"].lower(),
           hidden["answer"][:200])
+    check("hidden-lines also cites signature hits that were never tagged on the card",
+          any(c.get("n") == 99 for c in hidden["citations"]),
+          str(hidden["citations"]))
     idle = copilot.investigate("anything", {"idle": True})
     check("idle investigate is honest — no run, no invented facts",
           "No run" in idle["answer"] and idle["citations"] == [])
