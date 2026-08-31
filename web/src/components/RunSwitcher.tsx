@@ -153,7 +153,7 @@ export function RunSwitcher() {
         <div
           role="region"
           aria-label="Run switcher panel"
-          className="is-runs absolute right-0 top-full z-50 mt-2 max-w-[calc(100vw-32px)]"
+          className="is-runs is-popover absolute left-0 top-full mt-2 max-w-[calc(100vw-32px)]"
         >
           <div className="is-runs__search">
             <Search className="h-3.5 w-3.5" aria-hidden />

@@ -213,7 +213,7 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
                     className={cn("is-palette__item w-full", isSelected && "active")}
                   >
                     <Icon className="ic h-4 w-4 flex-none" strokeWidth={1.8} aria-hidden />
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className="lbl">{item.label}</span>
                     {item.group === "Ask" && (
                       <span className="is-chip is-chip--adv">
                         Ask AI <Sparkles className="h-3 w-3" />
