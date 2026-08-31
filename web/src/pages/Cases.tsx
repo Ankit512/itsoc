@@ -1,7 +1,10 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, Paperclip, Play, Plus, Send, X } from "lucide-react";
+import {
+  ChevronLeft, Paperclip, Play, Plus, Send, X, AlertTriangle, CheckCircle2,
+  Sparkles, Image, FileCode, Search, Shield
+} from "lucide-react";
 import { CopilotRail } from "@/components/CopilotRail";
 import { api, CASE_STATUSES, type Case, type CaseObservableInput, type CaseStatus, type CopilotRunbookRow } from "@/lib/api";
 
@@ -43,16 +46,33 @@ function ObservableTab({ item }: { item: Case }) {
     mutationFn: (oid: string) => api.enrichCaseObservable(item.id, oid),
     onSuccess: (out) => { if (!out.ok) setError(out.error ?? "Could not enrich."); else qc.invalidateQueries({ queryKey: ["cases"] }); },
   });
+
+  const getVerdictChip = (verdict?: string) => {
+    if (!verdict) return <span className="is-mut text-[11px]">Unreviewed</span>;
+    const v = verdict.toLowerCase();
+    if (v.includes("malicious") || v.includes("bad") || v.includes("threat")) {
+      return <span className="is-chip is-chip--crit inline-flex items-center gap-1 font-semibold"><AlertTriangle size={11} />{verdict}</span>;
+    }
+    if (v.includes("safe") || v.includes("clean")) {
+      return <span className="is-chip is-chip--low inline-flex items-center gap-1"><CheckCircle2 size={11} />{verdict}</span>;
+    }
+    return <span className="is-chip is-chip--med inline-flex items-center gap-1"><Sparkles size={11} />{verdict}</span>;
+  };
+
   return <>
-    <div className="is-case-list">{item.observables.length ? item.observables.map((observable) => <div key={observable.id}>
-      <span className="is-chip">{observable.type}</span>
-      <code>{observable.value}</code>
-      {observable.verdict && <span className="is-mut">{observable.verdict}</span>}
-      <button className="is-btn" type="button" disabled={enrich.isPending} onClick={() => enrich.mutate(observable.id)}>Enrich</button>
+    <div className="is-case-list">{item.observables.length ? item.observables.map((observable) => <div key={observable.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 8px", borderRadius: 6, border: "1px solid var(--bd)", background: "var(--pan)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <span className="is-chip is-mono" style={{ textTransform: "uppercase", fontSize: 9.5 }}>{observable.type}</span>
+        <code className="is-mono" style={{ wordBreak: "break-all" }}>{observable.value}</code>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        {getVerdictChip(observable.verdict)}
+        <button className="is-btn is-btn--xs" type="button" disabled={enrich.isPending} onClick={() => enrich.mutate(observable.id)}>{enrich.isPending ? "Enriching…" : "Enrich"}</button>
+      </div>
     </div>) : <p className="is-case-empty">No observables are attached to this case.</p>}</div>
     <form className="is-case-inline-form" onSubmit={(e) => { e.preventDefault(); if (value.trim()) add.mutate(); }}>
       <select className="is-select" value={type} onChange={(e) => setType(e.target.value as CaseObservableInput["type"])} aria-label="Observable type">{["url", "ip", "hash", "domain", "email"].map((kind) => <option key={kind}>{kind}</option>)}</select>
-      <input className="is-input" value={value} onChange={(e) => setValue(e.target.value)} aria-label="Observable value" placeholder="Value" />
+      <input className="is-input" value={value} onChange={(e) => setValue(e.target.value)} aria-label="Observable value" placeholder="Value (e.g. 192.168.1.1 or https://...)" />
       <button className="is-btn" disabled={!value.trim() || add.isPending}>Add</button>
     </form>
     {error && <p className="is-case-error">{error}</p>}
@@ -71,14 +91,25 @@ function AttachmentTab({ item }: { item: Case }) {
       qc.invalidateQueries({ queryKey: ["cases"] });
     },
   });
+
+  const getFileIcon = (kind: string, name: string) => {
+    if (kind === "image" || /\.(png|jpe?g|gif|svg)$/i.test(name)) return <Image size={14} className="text-purple-400 shrink-0" />;
+    if (/\.(json|xml|csv|log|txt)$/i.test(name)) return <FileCode size={14} className="text-emerald-400 shrink-0" />;
+    return <Paperclip size={14} className="text-muted-foreground shrink-0" />;
+  };
+
   return <>
     <div className="is-case-list">{item.attachments.length ? item.attachments.map((attachment) => {
       const href = api.caseAttachmentUrl(item.id, attachment.id);
-      return <div key={attachment.id}>
-        <Paperclip size={13} />
-        <a href={href}>{attachment.name}</a>
-        <span className="is-mut">{attachment.kind}{typeof attachment.size === "number" ? ` · ${attachment.size} bytes` : ""}{attachment.stored ? " · stored" : ""}</span>
-        {attachment.kind === "image" && <img className="is-case-thumb" src={href} alt="" />}
+      return <div key={attachment.id} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", borderRadius: 6, border: "1px solid var(--bd)", background: "var(--pan)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            {getFileIcon(attachment.kind, attachment.name)}
+            <a href={href} className="font-medium hover:underline text-[12px]">{attachment.name}</a>
+          </div>
+          <span className="is-mut is-mono text-[10.5px]">{attachment.kind}{typeof attachment.size === "number" ? ` · ${attachment.size} bytes` : ""}{attachment.stored ? " · stored" : ""}</span>
+        </div>
+        {attachment.kind === "image" && <img className="is-case-thumb" src={href} alt={attachment.name} style={{ maxHeight: 180, objectFit: "contain", borderRadius: 4, border: "1px solid var(--bd)" }} />}
       </div>;
     }) : <p className="is-case-empty">No files are stored on this case.</p>}</div>
     <label className="is-field"><span>Upload a file</span>
@@ -108,10 +139,20 @@ function LinkedTab({ item, cases }: { item: Case; cases: Case[] }) {
     <div className="is-case-list">
       {linkedCases.length ? linkedCases.map((id) => {
         const linked = cases.find((entry) => entry.id === id);
-        return <Link key={id} to={`/cases?sel=${encodeURIComponent(id)}`}>Case · {linked?.title || id}</Link>;
+        return <Link key={id} to={`/cases?sel=${encodeURIComponent(id)}`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderRadius: 6, border: "1px solid var(--bd)", background: "var(--pan)" }}>
+          <span className="is-chip is-chip--adv">Case</span>
+          <span className="font-medium">{linked?.title || id}</span>
+          <span className="is-mono is-mut ml-auto">{id}</span>
+        </Link>;
       }) : <p className="is-case-empty">No other cases are linked.</p>}
-      {findings.map((id) => <Link key={id} to={`/alerts?sel=${encodeURIComponent(id)}`}>Finding · {id}</Link>)}
-      {incidents.map((id) => <Link key={id} to={`/incidents?sel=${encodeURIComponent(id)}`}>Incident · {id}</Link>)}
+      {findings.map((id) => <Link key={id} to={`/alerts?sel=${encodeURIComponent(id)}`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderRadius: 6, border: "1px solid var(--bd)", background: "var(--pan)" }}>
+        <span className="is-chip">Finding</span>
+        <span className="is-mono">{id}</span>
+      </Link>)}
+      {incidents.map((id) => <Link key={id} to={`/incidents?sel=${encodeURIComponent(id)}`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderRadius: 6, border: "1px solid var(--bd)", background: "var(--pan)" }}>
+        <span className="is-chip is-chip--crit">Incident</span>
+        <span className="is-mono">{id}</span>
+      </Link>)}
     </div>
     <form className="is-case-inline-form is-case-link-form" onSubmit={(e) => { e.preventDefault(); if (caseId.trim()) add.mutate(); }}>
       <input className="is-input" value={caseId} onChange={(e) => setCaseId(e.target.value)} aria-label="Linked case id" placeholder="case-2" />
@@ -178,9 +219,83 @@ function Runbooks({ item }: { item: Case }) {
 function Detail({ item, cases }: { item: Case; cases: Case[] }) {
   const [tab, setTab] = useState<DetailTab>("Overview"); const navigate = useNavigate(); const qc = useQueryClient(); const update = useMutation({ mutationFn: (status: CaseStatus) => api.patchCase(item.id, { status }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) });
   const regen = useMutation({ mutationFn: () => api.regenerateCaseSummary(item.id), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) });
-  const overview = <><div className="is-case-summary-head"><p className="is-mut" style={{ margin: 0, fontSize: 11 }}>Advisory summary from objects on this file — not a verdict.</p><button className="is-btn" type="button" onClick={() => regen.mutate()} disabled={regen.isPending}>{regen.isPending ? "Regenerating…" : "Regenerate"}</button></div><div className="is-case-summary">{(["what", "impact", "when"] as const).map((field) => item.summary?.[field] ? <div key={field}><span>{field}</span><p>{item.summary[field]}</p></div> : null)}{!item.summary?.what && !item.summary?.impact && !item.summary?.when && <p className="is-case-empty">No case summary has been recorded.</p>}</div><Runbooks item={item} /></>;
-  const contents: Record<DetailTab, ReactNode> = { Overview: overview, Observables: <ObservableTab item={item} />, Notes: item.notes ? <p className="is-case-notes">{item.notes}</p> : <p className="is-case-empty">No notes have been recorded for this case.</p>, Attachments: <AttachmentTab item={item} />, Linked: <LinkedTab item={item} cases={cases} />, Events: <EventsTab item={item} /> };
-  return <section className="is-case-file"><button className="is-case-back" onClick={() => navigate("/cases")}><ChevronLeft size={15} />All cases</button><header className="is-case-file__head"><div><div className="is-mono is-mut">{item.id}</div><h2>{item.title}</h2><div className="is-case-file__meta"><StatusPill status={item.status} /><span>{item.category || "Uncategorized"}</span><span>{item.assignee || "Unassigned"}</span></div></div><select className="is-select is-case-status-select" aria-label="Case status" value={item.status} disabled={update.isPending} onChange={(e) => update.mutate(e.target.value as CaseStatus)}>{CASE_STATUSES.map((status) => <option key={status} value={status}>{LABEL[status]}</option>)}</select></header><div className="is-case-file__grid"><section className="is-case-file__left"><h3>Activity</h3><Activity item={item} /><CommentComposer item={item} /></section><section className="is-case-file__right"><div className="is-case-tabs" role="tablist">{TABS.map((next) => <button key={next} role="tab" aria-selected={tab === next} onClick={() => setTab(next)}>{next}</button>)}</div><div className="is-case-tab-content">{contents[tab]}</div></section></div><CopilotRail docked embedded defaultOpen /></section>;
+  
+  const overview = <>
+    <div className="is-case-summary-head">
+      <p className="is-mut" style={{ margin: 0, fontSize: 11 }}>Advisory summary from objects on this file — not a verdict.</p>
+      <button className="is-btn" type="button" onClick={() => regen.mutate()} disabled={regen.isPending}>{regen.isPending ? "Regenerating…" : "Regenerate"}</button>
+    </div>
+    <div className="is-case-summary">
+      {(["what", "impact", "when"] as const).map((field) => item.summary?.[field] ? <div key={field}><span>{field}</span><p>{item.summary[field]}</p></div> : null)}
+      {!item.summary?.what && !item.summary?.impact && !item.summary?.when && <p className="is-case-empty">No case summary has been recorded.</p>}
+    </div>
+    <Runbooks item={item} />
+  </>;
+  
+  const contents: Record<DetailTab, ReactNode> = {
+    Overview: overview,
+    Observables: <ObservableTab item={item} />,
+    Notes: <div className="space-y-3">
+      {item.notes ? <p className="is-case-notes">{item.notes}</p> : <p className="is-case-empty">No notes have been recorded for this case.</p>}
+    </div>,
+    Attachments: <AttachmentTab item={item} />,
+    Linked: <LinkedTab item={item} cases={cases} />,
+    Events: <EventsTab item={item} />
+  };
+
+  return <section className="is-case-file">
+    <button className="is-case-back" onClick={() => navigate("/cases")}><ChevronLeft size={15} />All cases</button>
+    <header className="is-case-file__head">
+      <div>
+        <div className="is-mono is-mut">{item.id}</div>
+        <h2>{item.title}</h2>
+        <div className="is-case-file__meta">
+          <StatusPill status={item.status} />
+          <span>{item.category || "Uncategorized"}</span>
+          <span>{item.assignee || "Unassigned"}</span>
+        </div>
+      </div>
+      <select className="is-select is-case-status-select" aria-label="Case status" value={item.status} disabled={update.isPending} onChange={(e) => update.mutate(e.target.value as CaseStatus)}>
+        {CASE_STATUSES.map((status) => <option key={status} value={status}>{LABEL[status]}</option>)}
+      </select>
+    </header>
+
+    {/* Quick Action Ribbon */}
+    <div className="flex items-center gap-1.5 py-1 px-1 overflow-x-auto border-b border-border/50 text-[11px]" style={{ marginBottom: 12 }}>
+      <span className="text-muted-foreground mr-1 text-[10.5px] font-medium uppercase tracking-wider">Quick Actions:</span>
+      <button type="button" onClick={() => setTab("Overview")} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border bg-background hover:bg-accent text-foreground transition-colors">
+        <Sparkles size={11} className="text-primary" />
+        Case Summary
+      </button>
+      <button type="button" onClick={() => setTab("Observables")} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border bg-background hover:bg-accent text-foreground transition-colors">
+        <Search size={11} className="text-primary" />
+        Analyze Observables ({item.observables.length})
+      </button>
+      <button type="button" onClick={() => setTab("Attachments")} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border bg-background hover:bg-accent text-foreground transition-colors">
+        <Paperclip size={11} className="text-purple-400" />
+        Attachments ({item.attachments.length})
+      </button>
+      <button type="button" onClick={() => setTab("Linked")} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border bg-background hover:bg-accent text-foreground transition-colors">
+        <Shield size={11} className="text-blue-400" />
+        Linked Findings ({item.links.findings.length})
+      </button>
+    </div>
+
+    <div className="is-case-file__grid">
+      <section className="is-case-file__left">
+        <h3>Activity</h3>
+        <Activity item={item} />
+        <CommentComposer item={item} />
+      </section>
+      <section className="is-case-file__right">
+        <div className="is-case-tabs" role="tablist">
+          {TABS.map((next) => <button key={next} role="tab" aria-selected={tab === next} onClick={() => setTab(next)}>{next}</button>)}
+        </div>
+        <div className="is-case-tab-content">{contents[tab]}</div>
+      </section>
+    </div>
+    <CopilotRail docked embedded defaultOpen />
+  </section>;
 }
 
 export function Cases() { const { data, isLoading, error } = useQuery({ queryKey: ["cases"], queryFn: api.listCases }); const [params] = useSearchParams(); const selected = params.get("sel"); const cases = data?.cases ?? []; const item = useMemo(() => cases.find((entry) => entry.id === selected), [cases, selected]); if (isLoading) return <p className="is-mut">Loading cases…</p>; if (error) return <div className="is-note">The console backend is not reachable — start it with <code>python3 console/serve.py</code>.</div>; if (selected && item) return <Detail item={item} cases={cases} />; return <><div className="is-case-toolbar"><div className="is-note"><b>Analyst-entered case files.</b> No sample cases or host-log events are invented.</div><CreateCase /></div>{selected && <div className="is-note">This case is no longer available.</div>}{!cases.length && <div className="is-note"><b>No cases yet.</b> Cases open from derived incidents when a run is loaded, or an analyst creates one — nothing is invented.</div>}<Board cases={cases} /></>; }

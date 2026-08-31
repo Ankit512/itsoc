@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Bot, Send, Square, X, Compass, TrendingUp, Sparkles, BookOpen,
-  ChevronRight, Activity, ShieldCheck, Download
+  ChevronRight, Activity, ShieldCheck, Download, Search, ShieldAlert, Mail, Link2, FileCode
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotCitation, CopilotForecastPhase, CopilotPlaybook } from "@/lib/api";
+import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotCitation, CopilotForecastPhase, CopilotPlaybook, type Case } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { sevVar } from "@/lib/severity";
 
@@ -255,6 +255,54 @@ function CitationsPanel({ citations }: { citations: CopilotCitation[] }) {
       ))}
     </div>
   );
+}
+
+function getActionIcon(text: string) {
+  const t = text.toLowerCase();
+  if (t.includes("block") || t.includes("quarantine") || t.includes("firewall") || t.includes("shield")) {
+    return <ShieldAlert className="h-3 w-3 text-amber-500 shrink-0" aria-hidden />;
+  }
+  if (t.includes("email") || t.includes("header") || t.includes("message")) {
+    return <Mail className="h-3 w-3 text-blue-400 shrink-0" aria-hidden />;
+  }
+  if (t.includes("case") || t.includes("link") || t.includes("related")) {
+    return <Link2 className="h-3 w-3 text-purple-400 shrink-0" aria-hidden />;
+  }
+  if (t.includes("attachment") || t.includes("file") || t.includes("invoice") || t.includes("blob") || t.includes("scan")) {
+    return <FileCode className="h-3 w-3 text-emerald-400 shrink-0" aria-hidden />;
+  }
+  if (t.includes("url") || t.includes("search") || t.includes("analyze") || t.includes("check") || t.includes("inspect") || t.includes("ip")) {
+    return <Search className="h-3 w-3 text-primary shrink-0" aria-hidden />;
+  }
+  return <Sparkles className="h-3 w-3 text-primary shrink-0" aria-hidden />;
+}
+
+function extractContextualChips(text: string, caseItem?: Case): string[] {
+  const chips: string[] = [];
+  const ipMatch = text.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+  if (ipMatch && !text.includes("No IP")) {
+    const ip = ipMatch[0];
+    if (ip !== "127.0.0.1" && ip !== "0.0.0.0") {
+      chips.push(`Analyze IP: ${ip}`);
+      chips.push(`Propose Perimeter Block: ${ip}`);
+    }
+  }
+  const urlMatch = text.match(/https?:\/\/[^\s"',;>)]+/i);
+  if (urlMatch) {
+    const url = urlMatch[0];
+    chips.push(`Analyze URL: ${url}`);
+    chips.push(`Quarantine URL: ${url}`);
+  }
+  if (/attachment|invoice|\.doc|\.pdf|\.exe/i.test(text)) {
+    chips.push("Scan email attachments for malicious content");
+  }
+  if (/header|dmarc|spf|sender|reply-to/i.test(text)) {
+    chips.push("Analyze email headers for potential threats");
+  }
+  if (caseItem && (/related|similar|cluster/i.test(text) || caseItem.id)) {
+    chips.push(`Find cases related to ${caseItem.id}`);
+  }
+  return Array.from(new Set(chips));
 }
 
 const FIRST_TOKEN_TIMEOUT_MS = 90_000;
@@ -750,20 +798,27 @@ export function CopilotRail({
                   {m.who === "a" && m.citations && m.citations.length > 0 && (
                     <CitationsPanel citations={m.citations} />
                   )}
-                  {m.who === "a" && m.followups && m.followups.length > 0 && !isStreamingAnswer && (
-                    <div className="flex flex-wrap gap-1.5" data-testid="copilot-followups">
-                      {m.followups.map((fq) => (
-                        <button
-                          key={fq}
-                          onClick={() => ask(fq)}
-                          disabled={streaming}
-                          className="rounded-full border bg-background px-2.5 py-1 text-[11px] text-muted-foreground hover:border-primary hover:text-foreground disabled:opacity-50"
-                        >
-                          {fq}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {m.who === "a" && !isStreamingAnswer && (() => {
+                    const chips = (m.followups && m.followups.length > 0)
+                      ? m.followups
+                      : extractContextualChips(m.text, selectedCase);
+                    if (!chips.length) return null;
+                    return (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5" data-testid="copilot-followups">
+                        {chips.map((fq) => (
+                          <button
+                            key={fq}
+                            onClick={() => ask(fq)}
+                            disabled={streaming}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-background/90 px-2.5 py-1 text-[11px] font-medium text-muted-foreground shadow-xs transition-colors hover:border-primary hover:bg-primary/5 hover:text-foreground disabled:opacity-50"
+                          >
+                            {getActionIcon(fq)}
+                            <span>{fq}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}

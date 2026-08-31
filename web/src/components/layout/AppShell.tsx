@@ -48,6 +48,7 @@ export const NAV = [...CORE_NAV, ...EXPERIMENTAL_NAV];
  *  restatement of the title. */
 const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/intel": { title: "Intel", subtitle: "feeds & live enrichment — external context" },
+  "/integrations": { title: "Integrations", subtitle: "sovereign local connectors · masked credentials" },
   "/": { title: "Overview", subtitle: "" },
   "/alerts": { title: "Findings", subtitle: "" },
   "/findings": { title: "Findings", subtitle: "" },

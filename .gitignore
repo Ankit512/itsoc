@@ -21,6 +21,8 @@ console/.soc/
 # graphify (local tooling: knowledge graph, project skill, hooks)
 graphify-out/
 .claude/
+.vite/
+.mcp.json
 
 # itsoc_mcp caches
 itsoc_mcp/__pycache__/

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   House, Bell, TriangleAlert, Antenna, Settings, FileText, FolderKanban,
-  Shield, ShieldCheck, Monitor, Database, Radar, Cable,
+  Shield, ShieldCheck, Monitor, Database, Radar, Cable, Plug,
   Sun, Moon, Upload, RefreshCw, Sparkles, LogOut, CornerDownLeft, Search
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -82,6 +82,7 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
     { id: "nav-cases", label: "Cases", group: "Navigation", icon: FolderKanban, onSelect: () => go("/cases"), keywords: ["cases", "case", "case file", "board", "observables", "attachments"] },
     { id: "nav-approvals", label: "Approvals", group: "Navigation", icon: ShieldCheck, onSelect: () => go("/approvals"), keywords: ["approvals", "approval", "gated", "response", "actions"] },
     { id: "nav-intel", label: "Intel", group: "Navigation", icon: Shield, onSelect: () => go("/intel"), keywords: ["intel", "threat intel", "threat-intel", "enrichment", "feeds", "taxii", "stix", "otx", "abuseipdb", "mitre", "attack", "ioc"] },
+    { id: "nav-integrations", label: "Integrations", group: "Navigation", icon: Plug, onSelect: () => go("/integrations"), keywords: ["integrations", "connectors", "gallery", "ssh", "firewall", "nftables", "catalog", "oem"] },
     { id: "nav-network", label: "Network", group: "Navigation", icon: Radar, onSelect: () => go("/network"), keywords: ["network", "discovery", "vulnerabilities", "nmap", "scan", "cve", "ports", "vuln"] },
     { id: "nav-assets", label: "Assets", group: "Navigation", icon: Monitor, onSelect: () => go("/assets"), keywords: ["assets", "hosts", "users", "inventory", "assets/users"] },
     { id: "nav-sources", label: "Sources", group: "Navigation", icon: Antenna, onSelect: () => go("/sources"), keywords: ["sources", "collectors", "syslog", "ingest", "listener"] },

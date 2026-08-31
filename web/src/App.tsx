@@ -16,6 +16,7 @@ import { Reports } from "@/pages/Reports";
 import { Cases } from "@/pages/Cases";
 import { Settings } from "@/pages/Settings";
 import { Sources } from "@/pages/Sources";
+import { Integrations } from "@/pages/Integrations";
 import { Logout } from "@/pages/Logout";
 import { Login } from "@/pages/Login";
 import { Placeholder } from "@/pages/Placeholder";
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="approvals" element={<Approvals />} />
           <Route path="intel" element={<Intel />} />
           <Route path="threat-intel" element={<ThreatIntel />} />
+          <Route path="integrations" element={<Integrations />} />
           <Route path="assets" element={<Assets />} />
           <Route path="network" element={<Network />} />
           <Route path="discovery" element={<Network defaultTab="discovery" />} />

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Cable, Plug, RefreshCw } from "lucide-react";
 import { api, type OemConnector } from "@/lib/api";
@@ -181,9 +182,15 @@ export function OemEngine() {
   const { error } = useQuery({ queryKey: ["oem", "connectors"], queryFn: api.oemConnectors });
   return (
     <>
-      <div className="is-note">
-        <b>Read-only OEM/API connectors · credentials stored masked · last-run is the real outcome.</b>{" "}
-        They poll a vendor's events feed into the persistent store — never a fabricated “connected”.
+      <div className="is-note" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <b>Read-only OEM/API connectors · credentials stored masked · last-run is the real outcome.</b>{" "}
+          They poll a vendor's events feed into the persistent store — never a fabricated “connected”.
+        </div>
+        <Link to="/integrations" className="is-btn is-btn--xs" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <Plug size={12} />
+          View Integrations Gallery
+        </Link>
       </div>
       {error && (
         <p className="is-mut" style={{ fontSize: 12.5 }}>
