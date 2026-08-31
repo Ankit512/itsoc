@@ -616,7 +616,7 @@ export interface Case {
   activity: CaseActivity[];
   observables: CaseObservable[];
   attachments: CaseAttachment[];
-  links: { findings: string[]; incidents: string[] };
+  links: { findings: string[]; incidents: string[]; cases: string[] };
   createdAt: string;
   updatedAt: string;
 }
@@ -627,7 +627,7 @@ export interface CaseCreate {
   assignee?: string;
   category?: string;
   summary?: CaseSummary;
-  links?: { findings?: string[]; incidents?: string[] };
+  links?: { findings?: string[]; incidents?: string[]; cases?: string[] };
 }
 
 export type CasePatch = Partial<Pick<Case, "title" | "notes" | "assignee" | "status" | "category" | "summary">> & { actor?: string };
@@ -968,12 +968,12 @@ export const api = {
     }
   },
 
-  investigate: async (question: string): Promise<CopilotInvestigation | null> => {
+  investigate: async (question: string, caseId?: string): Promise<CopilotInvestigation | null> => {
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, investigate: true }),
+        body: JSON.stringify({ question, investigate: true, caseId }),
       });
       if (!res.ok) return null;
       const body = (await res.json().catch(() => ({}))) as { investigation?: CopilotInvestigation | null };
@@ -992,11 +992,12 @@ export const api = {
     onDelta: (text: string) => void,
     signal?: AbortSignal,
     onInvestigation?: (inv: CopilotInvestigation) => void,
+    caseId?: string,
   ): Promise<void> => {
     const res = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, stream: true }),
+      body: JSON.stringify({ question, stream: true, caseId }),
       signal,
     });
     if (!res.ok) {
@@ -1224,6 +1225,22 @@ export const api = {
   addCaseAttachment: async (id: string, input: CaseAttachmentInput): Promise<{ ok: boolean; case?: Case; error?: string }> => {
     const res = await fetch(`/api/cases/${encodeURIComponent(id)}/attachments`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  regenerateCaseSummary: async (id: string): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/summary`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  },
+
+  addCaseLink: async (id: string, caseId: string): Promise<{ ok: boolean; case?: Case; error?: string }> => {
+    const res = await fetch(`/api/cases/${encodeURIComponent(id)}/links`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caseId }),
     });
     const body = await res.json().catch(() => ({}));
     return res.ok ? { ok: true, case: body as Case } : { ok: false, error: body.error ?? `HTTP ${res.status}` };

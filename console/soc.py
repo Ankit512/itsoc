@@ -758,6 +758,26 @@ def derive_users(state):
 # Cases — analyst-entered, so storing them IS the honest source
 # ---------------------------------------------------------------------------
 
+def _case_links(src, existing=None):
+    """Preserve findings/incidents and carry linked cases without inventing ids."""
+    src = src or {}
+    prev = existing or {}
+    out = {}
+    for key in ("findings", "incidents", "cases"):
+        if key in src:
+            raw = src.get(key) or []
+        else:
+            raw = prev.get(key) or []
+        seen, ids = set(), []
+        for item in raw:
+            value = str(item or "").strip()
+            if value and value not in seen:
+                seen.add(value)
+                ids.append(value)
+        out[key] = ids
+    return out
+
+
 def _public_case(case):
     if not case:
         return case
@@ -770,6 +790,7 @@ def _public_case(case):
     out["activity"] = list(out.get("activity") or [])
     out["observables"] = list(out.get("observables") or [])
     out["attachments"] = list(out.get("attachments") or [])
+    out["links"] = _case_links(out.get("links"))
     return out
 
 
@@ -821,10 +842,7 @@ def create_case(payload):
         "activity": [],
         "observables": [],
         "attachments": [],
-        "links": {
-            "findings": [str(x) for x in (payload.get("links") or {}).get("findings", [])],
-            "incidents": [str(x) for x in (payload.get("links") or {}).get("incidents", [])],
-        },
+        "links": _case_links(payload.get("links")),
         "createdAt": _now(),
         "updatedAt": _now(),
     }
@@ -905,11 +923,82 @@ def patch_case(cid, payload):
         else:
             case.pop("summary", None)
     if "links" in payload:
-        links = payload["links"] or {}
-        case["links"] = {
-            "findings": [str(x) for x in links.get("findings", [])],
-            "incidents": [str(x) for x in links.get("incidents", [])],
-        }
+        case["links"] = _case_links(payload.get("links"), case.get("links"))
+    return _save_case(store, case)
+
+
+def build_case_summary(case):
+    """Deterministic What/Impact/When from objects on the file. Advisory only."""
+    case = case or {}
+    observables = list(case.get("observables") or [])
+    attachments = list(case.get("attachments") or [])
+    what_parts = [str(case.get("title") or "").strip()]
+    notes = str(case.get("notes") or "").strip()
+    if notes:
+        what_parts.append(notes)
+    if observables:
+        bits = []
+        for item in observables[:8]:
+            value = item.get("value") or ""
+            if not value:
+                continue
+            bit = f"{item.get('type') or 'unknown'} {value}"
+            if item.get("verdict"):
+                bit += f" ({item['verdict']})"
+            bits.append(bit)
+        if bits:
+            what_parts.append("Observables on the file: " + "; ".join(bits) + ".")
+    what = " ".join(p for p in what_parts if p) or "No title or notes have been recorded."
+    if attachments:
+        names = ", ".join(str(a.get("name") or "unnamed") for a in attachments[:8])
+        impact = f"Attachments recorded: {names}."
+    else:
+        impact = "No impact statement has been recorded on this case file."
+    activity = list(case.get("activity") or [])
+    when = ""
+    if activity:
+        when = str((activity[-1] or {}).get("at") or "")
+    when = when or str(case.get("createdAt") or "") or "No timestamp is on this case file."
+    return {"what": what[:2000], "impact": impact[:2000], "when": when[:2000]}
+
+
+def regenerate_case_summary(cid, actor="analyst"):
+    store = _load("cases.json")
+    case = store.get(cid)
+    if not case:
+        return None
+    case["summary"] = build_case_summary(case)
+    _case_activity(case, "system",
+                   "Case summary regenerated from case-file objects (advisory, not a verdict)",
+                   actor or "analyst")
+    return _save_case(store, case)
+
+
+def add_case_link(cid, payload):
+    """Link another existing case. Does not invent a related case."""
+    other_id = str(payload.get("caseId") or payload.get("id") or "").strip()
+    if not other_id:
+        raise ValueError("a case link needs caseId")
+    if other_id == cid:
+        raise ValueError("a case cannot link to itself")
+    store = _load("cases.json")
+    case = store.get(cid)
+    if not case:
+        return None
+    if other_id not in store:
+        raise ValueError("no such case to link")
+    links = _case_links(case.get("links"))
+    if other_id not in links["cases"]:
+        links["cases"].append(other_id)
+    case["links"] = links
+    other = store[other_id]
+    other_links = _case_links(other.get("links"))
+    if cid not in other_links["cases"]:
+        other_links["cases"].append(cid)
+        other["links"] = other_links
+        store[other_id] = other
+    _case_activity(case, "system", f"Linked case {other_id}",
+                   payload.get("actor") or "analyst")
     return _save_case(store, case)
 
 

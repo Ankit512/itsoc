@@ -2352,6 +2352,31 @@ def check_soc_subsystems():
                 check("case attachments are metadata only and appear in activity",
                       status == 201 and case["attachments"][-1]["name"] == "headers.json"
                       and case["activity"][-1]["kind"] == "attachment")
+                status, case = req("POST", f"/api/cases/{case['id']}/summary", {})
+                check("regenerate summary is deterministic from case-file objects",
+                      status == 201
+                      and "SPF passed" in (case.get("summary") or {}).get("what", "")
+                      and "headers.json" in (case.get("summary") or {}).get("impact", ""),
+                      str(case.get("summary")))
+                status, other = req("POST", "/api/cases",
+                                   {"title": "Sister investigation",
+                                    "links": {"incidents": [iid]}})
+                check("second case created for linking",
+                      status == 201 and other["id"] == "case-2")
+                status, case = req("POST", f"/api/cases/{case['id']}/links",
+                                   {"caseId": other["id"]})
+                check("linking cases is bidirectional",
+                      status == 201 and other["id"] in case["links"]["cases"],
+                      str(case.get("links")))
+                related = copilot.investigate("Find related cases", serve.STATE, case=case)
+                check("related-case copilot lists the linked case",
+                      other["id"] in related["answer"], related["answer"])
+                analyzed = copilot.investigate("Analyze https://example.test/a",
+                                              serve.STATE, case=case)
+                check("analyze uses the case-file verdict, not a remote lookup",
+                      "SPF passed" in analyzed["answer"]
+                      and "did not look it up remotely" not in analyzed["answer"],
+                      analyzed["answer"])
                 _, chips = req("GET", f"/api/copilot/suggest?caseId={case['id']}")
                 check("case copilot chips use only this case and never offer quarantine execution",
                       "Summarize this case" in chips["questions"]

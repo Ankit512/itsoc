@@ -400,14 +400,6 @@ export function CopilotRail({
   const ask = async (q: string) => {
     const question = q.trim();
     if (!question || streaming) return;
-    if (caseScoped && /^summarize this case$/i.test(question)) {
-      const facts = selectedCase!;
-      const description = [facts.summary?.what, facts.summary?.impact, facts.summary?.when, facts.notes]
-        .filter(Boolean).join("\n\n") || "No description has been recorded for this case.";
-      setActiveTab("ask"); setDraft("");
-      setLog((l) => [...l, { who: "q", text: question }, { who: "a", text: `${facts.title}\n\n${description}` }]);
-      return;
-    }
     if (blockAsk) {
       setActiveTab("ask");
       setLog((l) => [...l, { who: "q", text: question }, {
@@ -423,9 +415,7 @@ export function CopilotRail({
     setDraft("");
     setLog((l) => [...l, { who: "q", text: question }, { who: "a", text: "" }]);
     const answerIndex = log.length + 1;
-    const requestQuestion = caseScoped
-      ? `Case ${selectedCase!.id}: ${selectedCase!.title}. Category: ${selectedCase!.category || "not recorded"}. Notes: ${selectedCase!.notes || "none"}. Observables: ${(selectedCase!.observables ?? []).map((item) => `${item.type} ${item.value}`).join(", ") || "none"}. User request: ${question}`
-      : question;
+    const requestQuestion = question;
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -493,6 +483,7 @@ export function CopilotRail({
             return next;
           });
         },
+        selectedCaseId ?? undefined,
       );
     } catch (e) {
       const aborted = controller.signal.aborted;
@@ -517,12 +508,14 @@ export function CopilotRail({
   };
 
   const casePrompts = selectedCase ? [
-    ...(selectedCase.observables.some((item) => item.type === "url") ? ["Analyze this URL"] : []),
+    ...((selectedCase.observables ?? []).filter((item) => item.value).map((item) => `Analyze ${item.value}`)),
     ...(selectedCase.attachments.length ? ["Scan attachments"] : []),
-    ...(selectedCase.links.findings.length || selectedCase.links.incidents.length ? ["Related cases"] : []),
+    ...((selectedCase.links.cases?.length || selectedCase.links.findings?.length || selectedCase.links.incidents?.length) ? [`Find cases related to ${selectedCase.id}`] : []),
     "Summarize this case",
   ] : [];
-  const runPrompts = caseScoped ? casePrompts : (suggested && suggested.length > 0) ? suggested : DEFAULT_EXAMPLES;
+  const runPrompts = caseScoped
+    ? ((suggested && suggested.length > 0) ? suggested : casePrompts)
+    : (suggested && suggested.length > 0) ? suggested : DEFAULT_EXAMPLES;
   const critOnRun = countSev(findings, "CRITICAL");
   const showcaseChips = caseScoped ? casePrompts : runReady && findings.length > 0 && critOnRun === 0
     ? SHOWCASE_NO_CRIT
@@ -700,7 +693,7 @@ export function CopilotRail({
       {/* Role 1 & Q&A View: Interpret & Chat */}
       {activeTab === "ask" && (
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden" data-testid="copilot-chat">
-          {caseScoped ? <div className="text-[11px] text-muted-foreground" data-testid="copilot-case-brief">Scoped to case <span className="is-mono">{selectedCase?.id}</span> — advisory only.</div> : <RunBriefing state={state} loading={stateLoading} />}
+          {caseScoped ? <div className="text-[11px] text-muted-foreground space-y-1" data-testid="copilot-case-brief"><p>Case <span className="is-mono">{selectedCase?.id}</span> — {selectedCase?.notes || "no notes yet"}. Advisory only; Copilot cannot change a verdict.</p>{selectedCase?.activity?.length ? <p>Last action: {selectedCase.activity[selectedCase.activity.length - 1].kind} — {selectedCase.activity[selectedCase.activity.length - 1].text}</p> : null}</div> : <RunBriefing state={state} loading={stateLoading} />}
           {!!angles && !state?.idle && Array.isArray((angles as { links?: unknown }).links) && (
             <div data-testid="copilot-angles" className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10.5px] text-muted-foreground">
               {((angles as { links: { label: string; href: string; count?: number }[] }).links).map((l) => (

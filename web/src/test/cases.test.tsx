@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import App from "@/App";
@@ -7,8 +7,23 @@ import { renderApp, mockFetch, OVERVIEW, METRICS } from "./helpers";
 const CASE = {
   id: "case-1", title: "Investigate 203.0.113.44", notes: "brute-force source",
   assignee: "sam", status: "new",
-  links: { findings: ["detector-0"], incidents: [] },
+  activity: [{ at: "2026-08-19T09:00:00Z", actor: "system", kind: "system", text: "Case created" }],
+  observables: [], attachments: [],
+  links: { findings: ["detector-0"], incidents: [], cases: [] },
   createdAt: "2026-08-19T09:00:00Z", updatedAt: "2026-08-19T09:00:00Z",
+};
+
+const FILE_CASE = {
+  ...CASE,
+  summary: { what: "Investigate 203.0.113.44", impact: "No impact statement has been recorded on this case file.", when: "2026-08-19T09:00:00Z" },
+  observables: [{ id: "observable-1", type: "url" as const, value: "https://walmart.com.mx", verdict: "Probably safe" }],
+  attachments: [{ id: "attachment-1", name: "invoice.doc", kind: "other" as const, size: 12 }],
+  activity: [
+    { at: "2026-08-19T09:00:00Z", actor: "system", kind: "system", text: "Case created" },
+    { at: "2026-08-19T09:05:00Z", actor: "sam", kind: "observable", text: "Observable added: url https://walmart.com.mx" },
+    { at: "2026-08-19T09:06:00Z", actor: "sam", kind: "comment", text: "Looks like a lookalike domain" },
+  ],
+  links: { findings: ["detector-0"], incidents: [], cases: ["case-2"] },
 };
 
 describe("Cases page (CRUD)", () => {
@@ -74,5 +89,22 @@ describe("Cases page (CRUD)", () => {
     await screen.findByText("Investigate 203.0.113.44");
     await userEvent.click(screen.getByRole("button", { name: "Status of case-1: escalated" }));
     await waitFor(() => expect(patched).toEqual({ status: "escalated" }));
+  });
+
+  it("opens the case file with summary, events, and linked cases", async () => {
+    mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS,
+                "/api/cases": { cases: [FILE_CASE, { ...CASE, id: "case-2", title: "Sister case",
+                  links: { findings: [], incidents: [], cases: ["case-1"] } }] } });
+    renderApp(<App />, { route: "/cases?sel=case-1" });
+    expect(await screen.findByRole("heading", { name: "Investigate 203.0.113.44" })).toBeInTheDocument();
+    expect(screen.getByText(/advisory summary from objects on this file/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Events" }));
+    const events = document.querySelector(".is-case-tab-content") as HTMLElement;
+    expect(within(events).getByText("Observable added: url https://walmart.com.mx")).toBeInTheDocument();
+    expect(within(events).queryByText("Looks like a lookalike domain")).not.toBeInTheDocument();
+    expect(screen.getByText("Looks like a lookalike domain")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Linked" }));
+    expect(await screen.findByText(/Sister case/)).toBeInTheDocument();
   });
 });

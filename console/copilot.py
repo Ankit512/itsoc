@@ -72,8 +72,10 @@ def suggested_questions(state, case=None):
                 qs.append(f"Analyze {observable['value']}")
         if case.get("attachments"):
             qs.append("Scan attachments")
-        if (case.get("links") or {}).get("findings") or (case.get("links") or {}).get("incidents"):
-            qs.append("Find related cases")
+        links = case.get("links") or {}
+        if links.get("cases") or links.get("findings") or links.get("incidents"):
+            cid = case.get("id") or ""
+            qs.append(f"Find cases related to {cid}" if cid else "Find related cases")
         # Preserve order while making a stable, object-scoped chip list.
         return list(dict.fromkeys(qs))
     if not state or state.get("idle"):
@@ -772,6 +774,68 @@ def investigate(question, state, extras=None, case=None):
             "attachments": len(case.get("attachments") or []),
             "activity": len(case.get("activity") or []),
         }
+        return empty
+    if case and ("analyze" in ql):
+        observables = list(case.get("observables") or [])
+        hit = None
+        for item in observables:
+            value = str(item.get("value") or "")
+            if value and value.lower() in ql:
+                hit = item
+                break
+        if hit is None and observables:
+            hit = observables[0]
+        if not hit:
+            empty["answer"] = "No observables are on this case file to analyze."
+        else:
+            verdict = hit.get("verdict")
+            empty["answer"] = (
+                f"Observable on the case file: {hit.get('type')} {hit.get('value')}."
+                + (f" Recorded note: {verdict}." if verdict else
+                   " No enrichment is recorded on this object — Copilot did not look it up remotely.")
+            )
+        empty["source"] = "case"
+        empty["followups"] = suggested_questions(state, case=case)
+        return empty
+    if case and ("scan" in ql and "attach" in ql):
+        attachments = list(case.get("attachments") or [])
+        if not attachments:
+            empty["answer"] = "No attachments are recorded on this case file."
+        else:
+            lines = ["Attachments on the case file (metadata only, not scanned remotely):"]
+            for item in attachments:
+                extra = f" ({item['size']} bytes)" if item.get("size") is not None else ""
+                lines.append(f"- {item.get('name') or 'unnamed'} [{item.get('kind') or 'other'}]{extra}")
+            empty["answer"] = "\n".join(lines)
+        empty["source"] = "case"
+        empty["followups"] = suggested_questions(state, case=case)
+        return empty
+    if case and ("related" in ql):
+        links = case.get("links") or {}
+        cases = list(links.get("cases") or [])
+        findings = list(links.get("findings") or [])
+        incidents = list(links.get("incidents") or [])
+        parts = []
+        if cases:
+            parts.append("Linked cases: " + ", ".join(cases) + ".")
+        else:
+            parts.append("No other cases are linked.")
+        if findings:
+            parts.append("Linked findings: " + ", ".join(findings) + ".")
+        if incidents:
+            parts.append("Linked incidents: " + ", ".join(incidents) + ".")
+        empty["answer"] = " ".join(parts)
+        empty["source"] = "case"
+        empty["followups"] = suggested_questions(state, case=case)
+        return empty
+    if case:
+        empty["answer"] = (
+            "I can only talk about objects on this case file (title, notes, "
+            "observables, attachments, activity, links). Ask to summarize, "
+            "analyze an observable, scan attachments, or find related cases."
+        )
+        empty["source"] = "case"
+        empty["followups"] = suggested_questions(state, case=case)
         return empty
     if not state or state.get("idle"):
         empty["answer"] = (

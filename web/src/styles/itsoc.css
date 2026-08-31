@@ -578,6 +578,8 @@
 .is-case-tabs button{ padding:5px 7px; background:transparent; border:0; border-radius:var(--radius-xs); color:var(--mut); font-size:11px; cursor:pointer; white-space:nowrap; }
 .is-case-tabs button:hover,.is-case-tabs button[aria-selected=true]{ background:var(--pan2); color:var(--ink); }
 .is-case-tab-content{ padding-top:12px; }
+.is-case-summary-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.is-case-inline-form.is-case-link-form,.is-case-list + .is-case-inline-form{ grid-template-columns:minmax(0,1fr) auto; }
 .is-case-summary{ display:flex; flex-direction:column; gap:10px; }
 .is-case-summary div{ padding:10px 12px; border:1px solid var(--bd); border-radius:var(--radius); background:var(--inset); }
 .is-case-summary span{ display:block; color:var(--mut2); font-size:9.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }

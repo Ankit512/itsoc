@@ -1739,6 +1739,10 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._case_action(path.split("/")[3], "attachment")
         elif path.startswith("/api/cases/") and path.endswith("/run"):
             self._case_action(path.split("/")[3], "run")
+        elif path.startswith("/api/cases/") and path.endswith("/summary"):
+            self._case_action(path.split("/")[3], "summary")
+        elif path.startswith("/api/cases/") and path.endswith("/links"):
+            self._case_action(path.split("/")[3], "link")
         # --- gated response approvals (C3-T2 / D3) — thin delegation to soc.py.
         # These sit AFTER the _api_authorized gate above (line ~1581), so they
         # inherit the bearer check AND additionally require step-up in the soc
@@ -2141,6 +2145,10 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
                 case = soc.add_case_observable(cid, payload)
             elif action == "attachment":
                 case = soc.add_case_attachment(cid, payload)
+            elif action == "summary":
+                case = soc.regenerate_case_summary(cid, payload.get("actor") or "analyst")
+            elif action == "link":
+                case = soc.add_case_link(cid, payload)
             else:
                 runbook_id = str(payload.get("runbookId") or "").strip()
                 if not runbook_id:
@@ -2261,7 +2269,11 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         question = str(payload.get("question") or "").strip()
         if not question:
             return self._json({"error": "ask a question"}, 400)
-        if STATE.get("idle"):
+        case_id = str(payload.get("caseId") or "").strip()
+        case = soc.get_case(case_id) if case_id else None
+        if case_id and not case:
+            return self._json({"error": "no such case"}, 404)
+        if STATE.get("idle") and not case:
             return self._json({"error": "no run yet — analyze a log first, "
                                         "then ask about its findings"}, 409)
         # Showcase directive (design-v2 §4): a deterministic view over REAL
@@ -2272,11 +2284,17 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             return self._json({"view": soc.build_view(question, STATE)})
         extras = _copilot_extras(STATE)
         if payload.get("investigate"):
-            inv = copilot.investigate(question, STATE, extras=extras)
+            inv = copilot.investigate(question, STATE, extras=extras, case=case)
             return self._json({"investigation": inv, "view": soc.build_view(question, STATE)})
         if payload.get("stream"):
-            return self._ask_stream(question)
-        inv = copilot.investigate(question, STATE, extras=extras)
+            return self._ask_stream(question, case=case)
+        inv = copilot.investigate(question, STATE, extras=extras, case=case)
+        if inv.get("source") == "case" and inv.get("answer"):
+            return self._json({
+                "answer": inv["answer"],
+                "investigation": inv,
+                "source": "case",
+            })
         try:
             answer = ask_analyst(question)
             source = "llm"
@@ -2358,7 +2376,7 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         finally:
             stop.set()
 
-    def _ask_stream(self, question):
+    def _ask_stream(self, question, case=None):
         """Stream the analyst reply as Server-Sent Events: one `{"delta": ...}`
         per token, a final `{"done": true}`, or `{"error": ...}` if the model
         is unreachable. The client can cancel by dropping the connection — the
@@ -2376,7 +2394,7 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.flush()
 
         extras = _copilot_extras(STATE)
-        inv = copilot.investigate(question, STATE, extras=extras)
+        inv = copilot.investigate(question, STATE, extras=extras, case=case)
         try:
             send({"investigation": {
                 "answer": inv.get("answer") or "",
