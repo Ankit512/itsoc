@@ -1637,6 +1637,55 @@ def eligible_runbooks(incident, state=None):
     return out
 
 
+def copilot_runbook_scan(state):
+    """Shipped runbooks vs THIS run's derived incidents — display only.
+
+    Rules own eligibility (`runbooks.eligible`). Nothing is executed, no
+    connector is contacted, and an empty/ineligible set is honest rather
+    than a fallback runbook. Used by the copilot Runbook tab so the analyst
+    does not have to already be on /incidents?sel= to see why a book does
+    or does not apply.
+    """
+    import runbooks
+    books = runbooks.load_runbooks()
+    idle = not state or state.get("idle") or state.get("unrecognized") or state.get("emptyInput")
+    incidents = [] if idle else derive_incidents(state)
+    rows = []
+    for rid, rb in sorted(books.items()):
+        row = {
+            "id": rid,
+            "name": rb.get("name") or rid,
+            "severityFloor": rb.get("severity_floor"),
+            "triggerRules": list((rb.get("trigger") or {}).get("rule_ids") or []),
+            "eligible": False,
+            "missing": ["no derived incident on this run"],
+            "incidentId": None,
+        }
+        for inc in incidents:
+            members = _incident_members(inc, state)
+            v = runbooks.eligible(rb, inc, members)
+            if v.get("eligible"):
+                row["eligible"] = True
+                row["missing"] = []
+                row["incidentId"] = inc.get("id")
+                break
+            miss = list(v.get("missing") or [])
+            if (row["missing"] == ["no derived incident on this run"]
+                    or (miss and len(miss) < len(row["missing"]))):
+                row["missing"] = miss
+                row["incidentId"] = inc.get("id")
+        rows.append(row)
+    n_ok = sum(1 for r in rows if r["eligible"])
+    return {
+        "runbooks": rows,
+        "incidentCount": len(incidents),
+        "note": (
+            f"{n_ok} of {len(rows)} shipped runbook(s) eligible on this run. "
+            "Eligibility is rule-owned. Nothing is executed from here."
+        ),
+    }
+
+
 def _call_reco_model(chat_fn, prompt, timeout):
     import log_analyzer as la
     return chat_fn(la.LLM_BASE_URL, la.LLM_API_KEY, la.LLM_MODEL,

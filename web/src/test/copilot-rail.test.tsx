@@ -27,6 +27,30 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
           "Walk the brute-force timeline with evidence line citations",
         ],
       },
+      "/api/copilot/runbooks": {
+        runbooks: [
+          {
+            id: "rb-block-ip",
+            name: "Block source IP at the perimeter",
+            eligible: true,
+            missing: [],
+            incidentId: "inc-1000",
+            severityFloor: "HIGH",
+            triggerRules: ["auth_bruteforce", "auth_bruteforce_success"],
+          },
+          {
+            id: "rb-draft-notify",
+            name: "Draft a notification for analyst review",
+            eligible: true,
+            missing: [],
+            incidentId: "inc-1000",
+            severityFloor: "LOW",
+            triggerRules: ["auth_bruteforce"],
+          },
+        ],
+        incidentCount: 1,
+        note: "2 of 2 shipped runbook(s) eligible on this run. Eligibility is rule-owned. Nothing is executed from here.",
+      },
       "/api/runs-summary": {
         totals: {
           runCount: 3,
@@ -267,28 +291,47 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(viewLink).toHaveAttribute("href", "/alerts?sel=detector-0");
   });
 
-  it("Role 5: without a selected incident, honestly requires derive_rca context", async () => {
+  it("Role 5: lists shipped runbooks against THIS run without requiring an incident URL", async () => {
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
 
     const resTab = await screen.findByRole("tab", { name: /runbook/i });
     await userEvent.click(resTab);
 
     const card = await screen.findByTestId("copilot-resolution-card");
-    expect(card).toHaveTextContent(/select an incident to request its real derive_rca runbook result/i);
+    expect(card).toHaveTextContent(/Block source IP at the perimeter/i);
+    expect(card).toHaveTextContent(/eligible/i);
+    expect(card).toHaveTextContent(/Nothing is executed from here/i);
+    expect(within(card).queryByRole("button", { name: /approve|execute|block/i })).toBeNull();
   });
 
-  it("Role 5 (no match): displays honest below-citation-threshold note", async () => {
+  it("Role 5 (no match): shows shipped runbooks as not eligible with a reason", async () => {
     mockFetch({
       "/api/overview": OVERVIEW,
       "/api/runs-summary": { totals: { runCount: 1, linesParsed: 100, findingCount: 0, severityCounts: {}, mitreFrequency: [] }, runs: [] },
       "/console_state.json": consoleState([]),
+      "/api/copilot/runbooks": {
+        runbooks: [
+          {
+            id: "rb-block-ip",
+            name: "Block source IP at the perimeter",
+            eligible: false,
+            missing: ["no derived incident on this run"],
+            incidentId: null,
+          },
+        ],
+        incidentCount: 0,
+        note: "0 of 1 shipped runbook(s) eligible on this run. Eligibility is rule-owned. Nothing is executed from here.",
+      },
     });
 
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
     const resTab = await screen.findByRole("tab", { name: /runbook/i });
     await userEvent.click(resTab);
 
-    expect(await screen.findByText(/select an incident to request its real derive_rca runbook result/i)).toBeInTheDocument();
+    const card = await screen.findByTestId("copilot-resolution-card");
+    expect(card).toHaveTextContent(/Block source IP at the perimeter/i);
+    expect(card).toHaveTextContent(/not eligible/i);
+    expect(card).toHaveTextContent(/no derived incident on this run/i);
   });
 
   it("surfaces pending approvals as read-only cards with an 'Open in Approvals →' link and ZERO approve controls (C4-F3)", async () => {

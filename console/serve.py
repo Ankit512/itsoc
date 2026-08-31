@@ -1547,6 +1547,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json(soc.metrics(STATE, [r.get("label") for r in list_runs()]))
         elif path == "/api/copilot/suggest":
             self._json({"questions": copilot.suggested_questions(STATE)})
+        elif path == "/api/copilot/runbooks":
+            self._json(soc.copilot_runbook_scan(STATE))
         # --- detector efficacy (D2). Pass-through of the harness JSON; serve.py
         # computes no precision/recall/F1 of its own and imports no detector.
         elif path == "/api/efficacy":

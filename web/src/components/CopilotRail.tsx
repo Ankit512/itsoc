@@ -231,6 +231,11 @@ export function CopilotRail({
     queryFn: api.copilotSuggest,
     enabled: !!state && !state.idle,
   });
+  const { data: runbookScan } = useQuery({
+    queryKey: ["copilot-runbooks", state?.runId],
+    queryFn: api.copilotRunbooks,
+    enabled: !!state && !state.idle,
+  });
   const { data: runsSummary } = useQuery({ queryKey: ["runs-summary"], queryFn: api.runsSummary });
   const selectedIncidentId = pathname === "/incidents" ? new URLSearchParams(search).get("sel") : null;
   const { data: selectedRca } = useQuery({
@@ -251,6 +256,7 @@ export function CopilotRail({
   // Active finding or incident from URL selection if any
   const selParam = new URLSearchParams(search).get("sel");
   const findings: Finding[] = state && !state.idle && state.findings ? state.findings : [];
+  const matchingLines = findings.reduce((n, f) => n + (f.occurrences || 1), 0);
   const runId = state && !state.idle ? state.runId : null;
   const runReady = !!state && !state.idle && !state.unrecognized && !state.emptyInput;
   const blockAsk = !!state && !runReady;
@@ -791,7 +797,7 @@ export function CopilotRail({
         </div>
       )}
 
-      {/* Role 3 View: Honest Forecast */}
+      {/* Role 3 View: Honest Forecast — this-run facts first, never an invented attack */}
       {activeTab === "forecast" && (
         <div data-testid="copilot-forecast-card" className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto">
           <div className="rounded-lg border bg-background p-3 space-y-2.5">
@@ -809,6 +815,31 @@ export function CopilotRail({
                   : "forecast · not enough runs"}
               </span>
             </div>
+
+            <div className="rounded border bg-card p-2 text-[12px]">
+              <div className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">This run</div>
+              <p className="mt-1 text-foreground">
+                {findings.length} finding(s)
+                {matchingLines > findings.length ? ` · ${matchingLines.toLocaleString()} matching lines` : ""}
+                {priorityFinding ? ` · highest ${priorityFinding.sev || priorityFinding.ruleSev}: ${priorityFinding.title}` : " · no findings"}
+              </p>
+              {(runsSummary?.totals?.mitreFrequency?.length ?? 0) === 0 && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  ATT&amp;CK is empty on this history — no attack-pattern forecast.
+                </p>
+              )}
+            </div>
+
+            {hasMultipleRuns && runs[0] && runs[1] && (
+              <p className="text-[12px] text-muted-foreground">
+                Previous saved run had {runs[1].findingCount ?? 0} finding(s); this one has {runs[0].findingCount ?? findings.length}.
+                {((runs[0].findingCount ?? 0) === (runs[1].findingCount ?? 0))
+                  ? " Flat card count."
+                  : ((runs[0].findingCount ?? 0) > (runs[1].findingCount ?? 0)
+                    ? " More cards than last time — that is volume, not a new tactic."
+                    : " Fewer cards than last time.")}
+              </p>
+            )}
 
             {hasEnoughRunsForForecast ? (
               <div className="space-y-2 text-[12px]">
@@ -831,6 +862,7 @@ export function CopilotRail({
             ) : (
               <div className="rounded bg-muted/40 p-2.5 text-[11.5px] text-muted-foreground">
                 not enough runs (need ≥3 runs to project trend, currently {totalRunsCount}).
+                I will not invent a next-run threat from this sample.
               </div>
             )}
           </div>
@@ -840,40 +872,70 @@ export function CopilotRail({
         </div>
       )}
 
-      {/* Role 5 View: Cited Resolution via Runbook Engine */}
+      {/* Role 5: shipped runbooks vs THIS run — eligibility only, never execute */}
       {activeTab === "resolution" && (
-        <div data-testid="copilot-resolution-card" className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto">
-          {matchedRunbook ? (
+        <div data-testid="copilot-resolution-card" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+          {matchedRunbook && (
             <div className="rounded-lg border bg-background p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-foreground">
                   <BookOpen className="h-3.5 w-3.5 text-primary" />
-                  Cited resolution
+                  Cited for selected incident
                 </span>
                 <span className="font-mono text-[10px] text-muted-foreground">
                   {matchedRunbook.file}
                 </span>
               </div>
-              <div className="text-xs font-semibold text-foreground">
-                {matchedRunbook.title}
-              </div>
-              {typeof matchedRunbook.score === "number" && typeof matchedRunbook.coverage === "number" && (
-                <div className="font-mono text-[10.5px] text-muted-foreground">
-                  score {matchedRunbook.score} · rule coverage {(matchedRunbook.coverage * 100).toFixed(0)}%
-                </div>
-              )}
-              <div className="space-y-1 rounded bg-card p-2 text-[11.5px]">
-                <div className="font-semibold text-foreground">Immediate steps:</div>
-                <p className="whitespace-pre-wrap text-muted-foreground">{matchedRunbook.passage}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-lg border bg-background p-3 text-[12px] text-muted-foreground">
-              {selectedIncidentId
-                ? "No runbook cleared the backend citation threshold for this incident."
-                : "Select an incident to request its real derive_rca runbook result."}
+              <div className="text-xs font-semibold text-foreground">{matchedRunbook.title}</div>
+              <p className="whitespace-pre-wrap text-[11.5px] text-muted-foreground">{matchedRunbook.passage}</p>
             </div>
           )}
+          <div className="rounded-lg border bg-background p-3 space-y-2">
+            <div className="text-xs font-bold text-foreground">Shipped runbooks on this run</div>
+            <p className="text-[11px] text-muted-foreground">
+              {runbookScan?.note
+                || (state?.idle ? "No run loaded." : "Eligibility is rule-owned. Nothing is executed from here.")}
+            </p>
+            {(runbookScan?.runbooks ?? []).length === 0 ? (
+              <p className="text-[12px] text-muted-foreground">
+                {state?.idle
+                  ? "Analyze a log first — there is no runbook to match."
+                  : "No shipped runbook definitions loaded."}
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {(runbookScan?.runbooks ?? []).map((rb) => (
+                  <li key={rb.id} className="rounded border bg-card px-2 py-1.5 text-[12px]">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-foreground">{rb.name || rb.id}</span>
+                      <span className={cn(
+                        "font-mono text-[10px]",
+                        rb.eligible ? "text-primary" : "text-muted-foreground",
+                      )}>
+                        {rb.eligible ? "eligible" : "not eligible"}
+                      </span>
+                    </div>
+                    {!rb.eligible && (rb.missing?.[0]) && (
+                      <div className="mt-0.5 text-[10.5px] leading-snug text-muted-foreground">
+                        {rb.missing[0]}
+                      </div>
+                    )}
+                    {rb.eligible && rb.incidentId && (
+                      <Link
+                        to={`/incidents?sel=${encodeURIComponent(rb.incidentId)}`}
+                        className="mt-1 inline-block text-[11px] text-primary"
+                      >
+                        Open incident →
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <p className="text-[10.5px] text-muted-foreground">
+            These are references, not actions. Approvals live on the Approvals screen.
+          </p>
         </div>
       )}
 
