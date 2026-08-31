@@ -60,6 +60,9 @@ describe("itsoc. Phase 1 App Shell", () => {
     await userEvent.click(screen.getByRole("button", { name: /open command palette/i }));
     expect(screen.getByRole("dialog", { name: "Command Palette" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/search screens, actions, or ask itsoc/i)).toBeInTheDocument();
+    const overview = screen.getByRole("button", { name: /^overview$/i });
+    expect(overview).toHaveClass("is-palette__item");
+    expect(overview.querySelector(".lbl")).toHaveTextContent("Overview");
   });
 
   it("an unknown route renders the honest placeholder inside the same shell", async () => {
