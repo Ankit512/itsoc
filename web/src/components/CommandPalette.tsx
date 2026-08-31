@@ -180,7 +180,7 @@ export function CommandPalette({ onUploadClick }: { onUploadClick?: () => void }
     >
       <div role="dialog" aria-modal="true" aria-label="Command Palette" className="is-palette">
         <div className="is-palette__in">
-          <Search className="ic h-4 w-4 flex-none" aria-hidden />
+          <Search className="ic" size={16} strokeWidth={1.8} aria-hidden />
           <input
             ref={inputRef}
             value={query}
