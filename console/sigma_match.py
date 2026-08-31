@@ -126,12 +126,15 @@ def _match_selection(rec, selection):
         else:
             field, modifier = str(key), "contains" if isinstance(expected, list) else ""
         values = _field_values(rec, field)
-        if not values and field.lower() in ("msg", "message", "raw"):
+        # Only search the concatenated text for fields that actually live in
+        # the line (msg/raw/event id). A missing `action` must NOT match the
+        # word "block" inside an HDFS block-id line.
+        if not values and field.lower() in (
+            "msg", "message", "raw", "eventid", "event_id",
+        ):
             values = [_blob(rec)]
         if not values:
-            # Fall back to the concatenated blob so EventID: 4625 still hits
-            # a syslog line that only has the id inside msg/raw.
-            values = [_blob(rec)]
+            return False
         want = expected if isinstance(expected, list) else [expected]
         if not any(_match_token(v, exp, modifier) for v in values for exp in want):
             return False

@@ -5881,6 +5881,15 @@ def check_sigma_ingest_triage():
     check("Sigma does not treat CBS HRESULT as a failed logon or malware",
           "itsoc-failed-logon" not in grouped_cbs
           and "itsoc-edr-malware" not in grouped_cbs, str(list(grouped_cbs)))
+    rec_hdfs = {
+        "n": 3, "ts": "", "level": "INFO", "host": "10.251.111.130",
+        "msg": "Receiving block blk_3587508140051953248 src: /10.251.42.84:50010",
+        "raw": "081109 204453 34 INFO dfs.FSNamesystem: Receiving block blk_3587508140051953248 src: /10.251.42.84:50010 dest: /10.251.111.130:50010",
+        "isFinding": False,
+    }
+    check("HDFS block-id lines are not a firewall deny (action is not in the blob)",
+          "itsoc-firewall-block" not in sigma_match.match_records([rec_hdfs], gap_fill=True),
+          str(list(sigma_match.match_records([rec_hdfs], gap_fill=True))))
     already = dict(rec_fail, isFinding=True)
     check("gap-fill skips events the detector already flagged",
           sigma_match.match_records([already], gap_fill=True) == {})
