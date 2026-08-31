@@ -29,7 +29,14 @@ _ATTACK_WORDS = (
     "intrusion", "c2", "beacon", "exploit",
 )
 _MAX_CITATIONS = 12
-_MAX_SUGGEST = 5
+_MAX_SUGGEST = 6
+_IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_FAIL_RE = re.compile(
+    r"auth failed|failed password|failed login|authentication failure|"
+    r"invalid user|login failed|failed for user",
+    re.I,
+)
+_ADMIN_RE = re.compile(r"\b(admin|root|administrator)\b", re.I)
 
 
 def _sev(f):
@@ -95,13 +102,22 @@ def suggested_questions(state):
         qs.append("Are these CBS HRESULTs a security incident or servicing noise?")
     if any(t.startswith("auth_bruteforce") for t in types):
         qs.append("Walk the brute-force timeline with evidence line citations")
+        qs.append("Show me failed administrator logins in this run")
+        qs.append("Investigate this alert")
     if any(_occ(f) > 1 for f in findings):
         qs.append("What did Overview group, and which matching lines are hidden?")
     qs.insert(0, "Walk this run from every connected module")
 
     mitre = [f for f in findings if f.get("mitre")]
-    if not mitre and findings:
+    if mitre:
+        qs.append("What MITRE techniques are involved?")
+    elif findings:
         qs.append("Why is ATT&CK empty on this run?")
+    if high or crit:
+        qs.append(f"Why was this classified as {_sev(top)}?")
+    ip = _first_ip(findings, _events(state))
+    if ip:
+        qs.append(f"Show me hosts communicating with {ip}")
 
     # Dedupe while preserving order.
     out, seen = [], set()
@@ -453,6 +469,211 @@ def render_angles(angles):
     return "\n".join(lines)
 
 
+def _blob(obj):
+    if not isinstance(obj, dict):
+        return str(obj or "")
+    return " ".join([
+        str(obj.get("raw") or ""),
+        str(obj.get("msg") or ""),
+        str(obj.get("title") or ""),
+        str(obj.get("host") or ""),
+    ])
+
+
+def _users_in(text):
+    out = []
+    for m in re.finditer(
+            r"(?:user '|for '|user=|invalid user )([^'\s,]+)", text or "", re.I):
+        u = m.group(1).strip("'\"")
+        if u and u.lower() not in ("from", "for"):
+            out.append(u)
+    return out
+
+
+def _first_ip(findings, events):
+    for f in findings:
+        for c in f.get("chips") or []:
+            m = _IPV4.search(str(c.get("text") or ""))
+            if m:
+                return m.group(0)
+        m = _IPV4.search(str(f.get("title") or "") + " " + str(f.get("host") or ""))
+        if m:
+            return m.group(0)
+        for line in f.get("lines") or []:
+            m = _IPV4.search(f"{line.get('a') or ''}{line.get('hit') or ''}{line.get('b') or ''}")
+            if m:
+                return m.group(0)
+    for e in events:
+        m = _IPV4.search(_blob(e))
+        if m:
+            return m.group(0)
+    return None
+
+
+def _failed_login_hits(events, want_admin=False):
+    hits = []
+    for e in events:
+        blob = _blob(e)
+        if not _FAIL_RE.search(blob):
+            continue
+        if want_admin and not _ADMIN_RE.search(blob):
+            continue
+        hits.append(e)
+        if len(hits) >= _MAX_CITATIONS:
+            break
+    return hits
+
+
+def _mitre_answer(findings, extras=None):
+    techs, seen = [], set()
+    for f in findings:
+        for t in f.get("mitre") or []:
+            tid = t.get("id")
+            if tid and tid not in seen:
+                seen.add(tid)
+                techs.append(t)
+    if not techs:
+        return (
+            "No MITRE ATT&CK techniques are mapped on this run. "
+            "That is honest empty — not a missed attack chain."
+        ), []
+    parts = ["MITRE techniques on this run (rule-mapped, not invented):"]
+    for t in techs:
+        parts.append(
+            f"- {t.get('id')} {t.get('name') or ''} "
+            f"({t.get('tactic') or 'n/a'})"
+        )
+    fc = (extras or {}).get("forecast") or {}
+    watch = [p.get("name") for p in (fc.get("phases") or []) if p.get("watch")]
+    if watch:
+        parts.append(
+            "Not in this log (watch, not a detection): " + ", ".join(watch) + "."
+        )
+    cites = _citations_from_finding(_ranked(findings)[0]) if findings else []
+    return "\n".join(parts), cites
+
+
+def _why_classified(f):
+    """Rules own severity. Explain the existing verdict; never change it."""
+    sev = _sev(f)
+    why = f.get("ruleWhy") or f.get("rationale") or ""
+    occ = _occ(f)
+    parts = [
+        f"[{sev}] {f.get('title')} — severity is rule-owned "
+        f"(rule `{f.get('type')}`), not an AI rating."
+    ]
+    if occ > 1:
+        parts.append(f"{occ} matching source lines were grouped into this one card.")
+    if why:
+        parts.append(f"Rule rationale: {why}")
+    else:
+        parts.append(
+            "The detector/rules assigned this band from the matched pattern. "
+            "I cannot raise or lower it."
+        )
+    return "\n".join(parts), _citations_from_finding(f)
+
+
+def _hosts_for_ip(ip, events, findings):
+    hosts, cites_src = [], []
+    seen_h = set()
+    for e in events:
+        blob = _blob(e)
+        if ip not in blob:
+            continue
+        h = e.get("host") or ""
+        if h and h not in seen_h:
+            seen_h.add(h)
+            hosts.append(h)
+        cites_src.append(e)
+        if len(cites_src) >= _MAX_CITATIONS:
+            break
+    if not cites_src:
+        for f in findings:
+            blob = _blob(f) + " ".join(
+                str(c.get("text") or "") for c in (f.get("chips") or []))
+            if ip in blob:
+                h = f.get("host") or ""
+                if h and h not in seen_h:
+                    seen_h.add(h)
+                    hosts.append(h)
+                cites_src.extend(
+                    {"n": ln.get("n"), "raw": f"{ln.get('a') or ''}{ln.get('hit') or ''}{ln.get('b') or ''}",
+                     "findingId": f.get("id")}
+                    for ln in (f.get("lines") or [])[:4]
+                )
+    names = ", ".join(hosts) if hosts else "n/a (no hostname on those lines)"
+    answer = (
+        f"Hosts communicating with {ip} in this run: {names}. "
+        f"{len(cites_src)} matching source line(s) cited. "
+        "Same-run telemetry only — I am not scanning a live network."
+    )
+    return answer, _citations_from_events(cites_src[:_MAX_CITATIONS])
+
+
+def _alert_report(f, events, extras=None):
+    """Ajay's AI investigation pass — report only, no SOAR execution."""
+    extras = extras or {}
+    raw_bits = [_blob(f)]
+    for ln in f.get("lines") or []:
+        raw_bits.append(f"{ln.get('a') or ''}{ln.get('hit') or ''}{ln.get('b') or ''}")
+    blob = " ".join(raw_bits)
+    ips = list(dict.fromkeys(_IPV4.findall(blob)))
+    users = list(dict.fromkeys(_users_in(blob)))
+    host = f.get("host") or f.get("scope") or "n/a"
+    fid = f.get("id")
+    related = [e for e in events if e.get("findingId") == fid]
+    if not related:
+        needles = ips or users or ([host] if host not in ("n/a", "", "—") else [])
+        related = _search_events(events, [str(n).lower() for n in needles]) if needles else []
+    ti_hits = []
+    for ind in ((extras.get("ti") or {}).get("indicators") or [])[:40]:
+        pat = f"{ind.get('pattern') or ''} {ind.get('name') or ''}"
+        for ip in ips:
+            if ip and ip in pat:
+                ti_hits.append(f"{ip} → {ind.get('name') or ind.get('id')}")
+    mitre = f.get("mitre") or []
+    parts = [
+        f"Investigation report for [{_sev(f)}] {f.get('title')} "
+        f"(advisory — I am not opening a case or executing a runbook).",
+        f"User: {', '.join(users) if users else 'n/a'}",
+        f"Endpoint/host: {host}",
+        f"Source IP: {', '.join(ips) if ips else 'n/a'}",
+        f"Related events in this run: {len(related)}",
+        "MITRE: " + (
+            ", ".join(f"{t.get('id')} {t.get('name')}" for t in mitre)
+            if mitre else "none mapped"
+        ),
+        "IOC: " + (", ".join(ti_hits) if ti_hits else "no offline-indicator hit"),
+    ]
+    tl = f.get("timeline") or []
+    if tl:
+        parts.append("Timeline:")
+        for row in tl[:8]:
+            parts.append(f"- {row.get('t') or row.get('ts') or ''} {row.get('label') or row.get('message') or ''}")
+    why = f.get("ruleWhy") or f.get("rationale")
+    if why:
+        parts.append(f"Why the rule fired: {why}")
+    incidents = (extras.get("incidents") or [])
+    mine = [i for i in incidents if fid in (i.get("findingIds") or [])]
+    if mine:
+        parts.append(
+            "Derived incident: " +
+            ", ".join(f"{i.get('id')} ({i.get('severity')} {i.get('entity')})" for i in mine[:3])
+            + " — clustering only, not a new verdict."
+        )
+    cites = _citations_from_finding(f)
+    if related:
+        extra = _citations_from_events(related, fid)
+        seen = {c.get("n") for c in cites}
+        for c in extra:
+            if c.get("n") not in seen:
+                cites.append(c)
+                seen.add(c.get("n"))
+        cites = cites[:_MAX_CITATIONS]
+    return "\n".join(parts), cites
+
+
 def investigate(question, state, extras=None):
     """Deterministic investigation. Never a new verdict."""
     empty = {
@@ -506,6 +727,111 @@ def investigate(question, state, extras=None):
             "followups": _followups(findings, top),
             "facts": facts,
             "angles": angles,
+            "source": "rules",
+        }
+
+    # Ajay chat examples — same-run telemetry, never a new verdict.
+    if ("mitre" in ql or "att&ck" in ql or "attck" in ql
+            or ("technique" in ql and "involved" in ql)):
+        answer, cites = _mitre_answer(findings, extras)
+        return {
+            "answer": answer,
+            "citations": cites,
+            "followups": _followups(findings),
+            "facts": facts,
+            "source": "rules",
+        }
+
+    if any(w in ql for w in (
+        "failed login", "failed administrator", "failed admin",
+        "auth failed", "failed password", "administrator login",
+    )):
+        want_admin = "admin" in ql or "root" in ql
+        hits = _failed_login_hits(events, want_admin=want_admin)
+        if not hits:
+            hits = _failed_login_hits(events, want_admin=False)
+            note = (
+                "No administrator-principal failures in this file. "
+                if want_admin else ""
+            )
+        else:
+            note = ""
+        if "24" in ql or "hour" in ql:
+            note += (
+                "This file is the time window I have — I am not querying a 24h data lake. "
+            )
+        if not hits:
+            answer = (
+                note +
+                "No failed-login lines in this run's parsed events. "
+                "That is not an all-clear on other findings."
+            )
+            cites = []
+        else:
+            answer = (
+                note +
+                f"{len(hits)} failed-login line(s) in this run"
+                + (" (admin/root principals)." if want_admin else ".")
+                + " Cited verbatim below."
+            )
+            cites = _citations_from_events(hits)
+        return {
+            "answer": answer,
+            "citations": cites,
+            "followups": _followups(findings),
+            "facts": facts,
+            "source": "rules",
+        }
+
+    ip_q = _IPV4.search(q)
+    if ip_q and any(w in ql for w in ("host", "communicat", "talk", "connect")):
+        answer, cites = _hosts_for_ip(ip_q.group(0), events, findings)
+        return {
+            "answer": answer,
+            "citations": cites,
+            "followups": _followups(findings),
+            "facts": facts,
+            "source": "rules",
+        }
+
+    if (("classif" in ql or "why was this" in ql or "why is this" in ql)
+            and any(w in ql for w in ("high", "critical", "risk", "severity"))):
+        top = _ranked(findings)[0] if findings else None
+        if not top:
+            answer, cites = "No findings to explain.", []
+        else:
+            answer, cites = _why_classified(top)
+        return {
+            "answer": answer,
+            "citations": cites,
+            "followups": _followups(findings, top),
+            "facts": facts,
+            "source": "rules",
+        }
+
+    if ql.startswith("investigate") or "investigate this alert" in ql \
+            or "investigate this case" in ql:
+        target = None
+        for f in findings:
+            if str(f.get("id") or "") and str(f.get("id")) in q:
+                target = f
+                break
+        if target is None:
+            target = _ranked(findings)[0] if findings else None
+        if not target:
+            return {
+                "answer": "No finding on this run to investigate.",
+                "citations": [],
+                "followups": suggested_questions(state),
+                "facts": facts,
+                "source": "rules",
+            }
+        answer, cites = _alert_report(target, events, extras)
+        return {
+            "answer": answer,
+            "citations": cites,
+            "followups": _followups(findings, target),
+            "facts": facts,
             "source": "rules",
         }
 
