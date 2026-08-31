@@ -4986,6 +4986,41 @@ def check_copilot_investigate():
     check("runbook scan never claims an action was executed",
           "Nothing is executed" in (scan.get("note") or ""),
           scan.get("note"))
+    fc = copilot.forecast_view(state)
+    check("CBS forecast does not invent an ATT&CK next-attack picture",
+          fc["phases"] and not any(p.get("observed") for p in fc["phases"])
+          and "will not draw" in fc["note"].lower(),
+          fc.get("note"))
+    bf = {
+        "idle": False, "runId": "auth-1",
+        "findings": [{
+            "id": "detector-0", "sev": "CRITICAL",
+            "type": "auth_bruteforce_success",
+            "title": "Brute-force then SUCCESSFUL login",
+            "occurrences": 1,
+            "mitre": [{"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"}],
+        }],
+    }
+    fc2 = copilot.forecast_view(bf, [{"runId": "b", "findingCount": 3},
+                                     {"runId": "a", "findingCount": 1}])
+    seen = {p["name"]: p for p in fc2["phases"]}
+    check("brute-force forecast marks Credential Access as seen Spreading Inside",
+          seen["Spreading Inside"]["observed"] is True
+          and seen["Damaging / Stealing"]["watch"] is True
+          and seen["Damaging / Stealing"]["observed"] is False,
+          str(fc2["phases"]))
+    check("history sparkline points are oldest-first real card counts",
+          [h["findingCount"] for h in fc2["history"]] == [1, 3],
+          str(fc2["history"]))
+    pb = copilot.draft_playbook(state, scan)
+    check("playbook is advisory and not executable",
+          pb.get("advisory") is True and pb.get("executable") is False
+          and "ADVISORY" in pb.get("markdown", ""),
+          pb.get("note"))
+    check("playbook names the ineligible shipped book instead of inventing a fireable one",
+          "not eligible" in pb.get("markdown", "").lower()
+          and "executable: false" in pb.get("markdown", ""),
+          pb.get("markdown", "")[:400])
     return 0 if all(results) else 1
 
 

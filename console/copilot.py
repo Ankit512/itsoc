@@ -517,3 +517,221 @@ def prompt_facts(inv):
         "Cite {n} when you quote a line."
     )
     return "\n".join(lines)
+
+
+# Kill-chain phases — same grouping as tactic_phase_map.py. Display only;
+# never a new verdict. Later unobserved phases are a watch list, not detections.
+_PHASES = (
+    "Planning / Probing",
+    "Breaking In",
+    "Spreading Inside",
+    "Damaging / Stealing",
+)
+_TACTIC_PHASE = {
+    "Reconnaissance": "Planning / Probing",
+    "Resource Development": "Planning / Probing",
+    "Initial Access": "Breaking In",
+    "Execution": "Breaking In",
+    "Persistence": "Spreading Inside",
+    "Privilege Escalation": "Spreading Inside",
+    "Defense Evasion": "Spreading Inside",
+    "Credential Access": "Spreading Inside",
+    "Discovery": "Spreading Inside",
+    "Lateral Movement": "Spreading Inside",
+    "Collection": "Spreading Inside",
+    "Command and Control": "Damaging / Stealing",
+    "Exfiltration": "Damaging / Stealing",
+    "Impact": "Damaging / Stealing",
+}
+
+
+def forecast_view(state, history=None):
+    """This-run kill chain + saved-run volume. Never invents an attack."""
+    idle = not state or state.get("idle")
+    findings = _findings(state) if not idle else []
+    techniques, seen = [], set()
+    for f in findings:
+        for t in f.get("mitre") or []:
+            tid = t.get("id")
+            if not tid or tid in seen:
+                continue
+            seen.add(tid)
+            techniques.append({
+                "id": tid,
+                "name": t.get("name") or tid,
+                "tactic": t.get("tactic") or "",
+            })
+    observed = set()
+    for t in techniques:
+        ph = _TACTIC_PHASE.get(t["tactic"])
+        if ph:
+            observed.add(ph)
+    deepest = None
+    for p in _PHASES:
+        if p in observed:
+            deepest = p
+    phases = []
+    for p in _PHASES:
+        later = deepest is not None and _PHASES.index(p) > _PHASES.index(deepest)
+        phases.append({
+            "name": p,
+            "observed": p in observed,
+            "watch": later and p not in observed,
+            "tactics": sorted({t["tactic"] for t in techniques
+                               if _TACTIC_PHASE.get(t["tactic"]) == p}),
+        })
+    hist = []
+    for r in (history or [])[:12]:
+        if not isinstance(r, dict) or r.get("unreadable"):
+            continue
+        try:
+            n = int(r.get("findingCount") if r.get("findingCount") is not None
+                    else r.get("findings") or 0)
+        except (TypeError, ValueError):
+            n = 0
+        hist.append({
+            "runId": r.get("runId") or r.get("label") or r.get("file") or "run",
+            "findingCount": n,
+        })
+    hist.reverse()  # oldest first for a left-to-right sparkline
+    matching = sum(_occ(f) for f in findings)
+    top = _ranked(findings)[0] if findings else None
+    if idle:
+        note = "No run loaded — nothing to forecast."
+    elif not findings:
+        note = "No findings on this run. I will not invent a next attack."
+    elif not observed:
+        note = (
+            "No ATT&CK mapping on this run. I will not draw a next-attack "
+            "picture — volume below is operational, not an intrusion forecast."
+        )
+    else:
+        watch = [p["name"] for p in phases if p["watch"]]
+        note = (
+            f"Observed up to {deepest}. "
+            + (
+                "Later phases were not in this log — shown as watch, not detections."
+                if watch else
+                "Deepest kill-chain phase in this log is the last one; nothing later to watch."
+            )
+        )
+    return {
+        "thisRun": {
+            "runId": (state or {}).get("runId"),
+            "findings": len(findings),
+            "matchingLines": matching,
+            "topTitle": (top.get("title") if top else None),
+            "topSev": (_sev(top) if top else None),
+        },
+        "techniques": techniques,
+        "phases": phases,
+        "history": hist,
+        "note": note,
+        "source": "rules",
+    }
+
+
+def draft_playbook(state, scan=None):
+    """Advisory playbook for THIS run. Not executable; not a new verdict."""
+    run_id = str((state or {}).get("runId") or "run")
+    empty = {
+        "advisory": True,
+        "executable": False,
+        "source": "rules",
+        "title": f"Playbook · {run_id}",
+        "filename": f"playbook-{run_id}.md",
+        "markdown": "",
+        "note": "",
+    }
+    if not state or state.get("idle"):
+        empty["markdown"] = "# Playbook\n\nNo run loaded. Analyze a log first.\n"
+        empty["note"] = "No run loaded."
+        return empty
+    if state.get("unrecognized") or state.get("emptyInput"):
+        empty["markdown"] = (
+            f"# Playbook · {run_id}\n\n"
+            "This run was not recognized / nothing was parsed. "
+            "That is NOT an all-clear. No playbook steps to generate.\n"
+        )
+        empty["note"] = "Unrecognized run — no playbook steps."
+        return empty
+
+    fc = forecast_view(state)
+    findings = _findings(state)
+    top = _ranked(findings)[0] if findings else None
+    lines = [
+        f"# Playbook · {run_id}",
+        "",
+        "> ADVISORY DRAFT. Rules own severity. This document does not execute "
+        "anything and does not change a verdict.",
+        "",
+        "## What this file showed",
+        fc["note"],
+        f"- {fc['thisRun']['findings']} finding(s), "
+        f"{fc['thisRun']['matchingLines']} matching line(s).",
+    ]
+    if top:
+        lines.append(
+            f"- Highest: [{_sev(top)}] {top.get('title')} "
+            f"(rule `{top.get('type')}`)."
+        )
+    if fc["techniques"]:
+        lines.append("- Mapped techniques: " + ", ".join(
+            f"{t['id']} {t['name']}" for t in fc["techniques"][:8]))
+    else:
+        lines.append("- No ATT&CK mapping — do not treat this as an intrusion playbook.")
+    lines += ["", "## What to do next (human)"]
+    lines.append("1. Open the highest finding and read the cited source lines.")
+    if top and _occ(top) > 1:
+        lines.append(
+            f"2. The top card collapses {_occ(top)} matching lines — "
+            "confirm they share one signature, not mixed events."
+        )
+        n = 3
+    else:
+        n = 2
+    watch = [p["name"] for p in fc["phases"] if p.get("watch")]
+    if watch:
+        lines.append(
+            f"{n}. This log did **not** show: {', '.join(watch)}. "
+            "If an attack continued it would typically look like activity in "
+            "those phases. That is a watch list, not a detection in this file."
+        )
+        n += 1
+    else:
+        lines.append(
+            f"{n}. No later kill-chain phase to watch from this file's mappings."
+        )
+        n += 1
+    lines += ["", "## Shipped runbooks (eligibility only)"]
+    books = (scan or {}).get("runbooks") or []
+    if not books:
+        lines.append("No shipped runbook definitions on this scan.")
+    for rb in books:
+        flag = "ELIGIBLE" if rb.get("eligible") else "not eligible"
+        miss = (rb.get("missing") or ["n/a"])[0]
+        lines.append(f"- **{rb.get('name') or rb.get('id')}** — {flag}.")
+        if not rb.get("eligible"):
+            lines.append(f"  - Why: {miss}")
+        else:
+            lines.append(
+                "  - If you approve, use the shipped book on Approvals. "
+                "This draft does not fire it."
+            )
+    lines += [
+        "",
+        "## Inert YAML (not loaded, not executable)",
+        "",
+        "```yaml",
+        f"id: draft-{run_id}",
+        f"name: Generated playbook for {run_id}",
+        "origin: generated",
+        "advisory: true",
+        "executable: false",
+        "note: Copy is inert. Promoting it to console/runbooks/ is a human action.",
+        "```",
+        "",
+    ]
+    empty["markdown"] = "\n".join(lines) + "\n"
+    empty["note"] = "Advisory draft — not executed."
+    return empty

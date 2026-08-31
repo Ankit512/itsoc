@@ -71,6 +71,35 @@ export interface CopilotRunbookScan {
   incidentCount?: number;
   note?: string | null;
 }
+export interface CopilotForecastPhase {
+  name: string;
+  observed: boolean;
+  watch: boolean;
+  tactics?: string[];
+}
+export interface CopilotForecast {
+  thisRun?: {
+    runId?: string | null;
+    findings?: number;
+    matchingLines?: number;
+    topTitle?: string | null;
+    topSev?: string | null;
+  };
+  techniques?: { id: string; name: string; tactic: string }[];
+  phases?: CopilotForecastPhase[];
+  history?: { runId: string; findingCount: number }[];
+  note?: string;
+  source?: string;
+}
+export interface CopilotPlaybook {
+  advisory?: boolean;
+  executable?: boolean;
+  source?: string;
+  title?: string;
+  filename?: string;
+  markdown?: string;
+  note?: string;
+}
 
 export interface OverviewData {
   generatedAt: string;
@@ -839,6 +868,26 @@ export const api = {
       return body.view ?? null;
     } catch {
       return null;
+    }
+  },
+
+  copilotForecast: async (): Promise<CopilotForecast> => {
+    try {
+      const res = await fetch("/api/copilot/forecast");
+      if (!res.ok) return { phases: [], history: [], note: "forecast unavailable" };
+      return (await res.json().catch(() => ({}))) as CopilotForecast;
+    } catch {
+      return { phases: [], history: [], note: "forecast unavailable" };
+    }
+  },
+
+  copilotPlaybook: async (): Promise<CopilotPlaybook> => {
+    try {
+      const res = await fetch("/api/copilot/playbook");
+      if (!res.ok) return { markdown: "", note: "playbook unavailable", advisory: true, executable: false };
+      return (await res.json().catch(() => ({}))) as CopilotPlaybook;
+    } catch {
+      return { markdown: "", note: "playbook unavailable", advisory: true, executable: false };
     }
   },
 
