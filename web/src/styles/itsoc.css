@@ -326,19 +326,39 @@
 .is-donut-center{ font-size:22px; font-weight:700; }
 
 /* ---- 15. COMMAND PALETTE (⌘K) ------------------------------------------ */
-.is-palette-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:grid; place-items:start center; padding-top:12vh; z-index:80; }
-.is-palette{ width:540px; max-width:92vw; background:var(--pan); border:1px solid var(--bd2); border-radius:10px; box-shadow:var(--shadow); overflow:hidden; }
-.is-palette__in{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--bd); }
+.is-palette-overlay{
+  position:fixed; inset:0; z-index:80;
+  display:flex; justify-content:center; align-items:flex-start;
+  padding:12vh 32px 32px;
+  background:color-mix(in srgb, var(--bg) 40%, rgba(0,0,0,.58));
+}
+.is-palette{
+  display:flex; flex-direction:column;
+  width:min(540px, calc(100vw - 64px));
+  max-height:min(72vh, 580px);
+  background:var(--pan); border:1px solid var(--bd2); border-radius:12px;
+  box-shadow:var(--shadow); overflow:hidden;
+}
+.is-palette__in{ display:flex; align-items:center; gap:12px; flex:none; padding:16px 18px; border-bottom:1px solid var(--bd); }
+.is-palette__in .ic{ color:var(--mut); flex:none; }
 .is-palette__in input{ flex:1; background:transparent; border:0; color:var(--ink); font-size:14px; outline:none; text-align:left; }
-.is-palette__in kbd{ font-family:var(--mono); font-size:10px; border:1px solid var(--bd); border-radius:5px; padding:2px 6px; color:var(--mut); }
-.is-palette__list{ max-height:52vh; overflow:auto; padding:4px; }
-.is-palette__item{ display:flex; align-items:center; justify-content:flex-start; text-align:left; width:100%; gap:10px; padding:8px 10px; border:0; background:transparent; border-radius:var(--radius-sm); color:var(--ink); cursor:pointer; font-size:13px; font-family:inherit; }
+.is-palette__in kbd{ font-family:var(--mono); font-size:10px; border:1px solid var(--bd); border-radius:5px; padding:3px 7px; color:var(--mut); flex:none; }
+.is-palette__list{
+  flex:1; min-height:0; overflow:auto; margin:0;
+  list-style:none; display:flex; flex-direction:column; gap:2px;
+  padding:10px 10px 12px;
+  scrollbar-width:thin; scrollbar-color:var(--bd2) transparent;
+}
+.is-palette__list::-webkit-scrollbar{ width:8px; }
+.is-palette__list::-webkit-scrollbar-track{ background:transparent; margin:6px 0; }
+.is-palette__list::-webkit-scrollbar-thumb{ background:var(--bd2); border-radius:8px; border:2px solid var(--pan); }
+.is-palette__item{ display:flex; align-items:center; justify-content:flex-start; text-align:left; width:100%; gap:12px; padding:10px 12px; border:0; background:transparent; border-radius:8px; color:var(--ink); cursor:pointer; font-size:13px; font-family:inherit; }
 .is-palette__item .ic{ color:var(--mut); flex:none; }
 .is-palette__item .lbl{ flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .is-palette__item.active{ background:var(--pan2); color:var(--ink); }
 .is-palette__item.active .ic{ color:var(--ink); }
 .is-palette__item .enter{ margin-left:auto; color:var(--mut); flex:none; }
-.is-palette__foot{ display:flex; justify-content:space-between; padding:8px 14px; border-top:1px solid var(--bd); color:var(--mut); font-size:10.5px; }
+.is-palette__foot{ display:flex; justify-content:space-between; gap:12px; flex:none; padding:12px 18px; border-top:1px solid var(--bd); color:var(--mut); font-size:10.5px; }
 
 /* ---- 16. RUN SWITCHER (dropdown) --------------------------------------- */
 .is-popover{ z-index:70; }
@@ -486,7 +506,7 @@
 .is-analyst__foot{ font-size:10px; color:var(--mut2); line-height:1.5; }
 
 /* Command palette — grouped section headings (Screens / Actions / Ask itsoc) */
-.is-palette__group{ padding:8px 12px 4px; font-size:10px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--mut2); }
+.is-palette__group{ padding:10px 12px 6px; font-size:10px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--mut2); }
 
 /* ---- v3 pages-B (Jim) — additions used by Track B page interiors ---------- */
 /* Segmented Dark | Light control on Settings › Appearance (v3 dc): a recessed

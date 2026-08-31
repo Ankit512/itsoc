@@ -63,6 +63,9 @@ describe("itsoc. Phase 1 App Shell", () => {
     const overview = screen.getByRole("button", { name: /^overview$/i });
     expect(overview).toHaveClass("is-palette__item");
     expect(overview.querySelector(".lbl")).toHaveTextContent("Overview");
+    const dialog = screen.getByRole("dialog", { name: "Command Palette" });
+    expect(dialog).toHaveClass("is-palette");
+    expect(dialog.parentElement).toHaveClass("is-palette-overlay");
   });
 
   it("an unknown route renders the honest placeholder inside the same shell", async () => {
