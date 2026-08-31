@@ -253,7 +253,17 @@ def _hidden_lines(findings, events):
             "the source log. Cited below from the parsed event store (verbatim)."
         )
         fid = top.get("id")
-        mine = [e for e in events if e.get("findingId") == fid][:_MAX_CITATIONS]
+        mine = [e for e in events if e.get("findingId") == fid]
+        sig = str((top.get("entities") or {}).get("hresult_name")
+                  or (top.get("entities") or {}).get("signature")
+                  or "")
+        if sig:
+            seen = {e.get("n") for e in mine}
+            for e in _search_events(events, [sig.lower()]):
+                if e.get("n") not in seen:
+                    mine.append(e)
+                    seen.add(e.get("n"))
+        mine = mine[:_MAX_CITATIONS]
         cites = _citations_from_events(mine, fid) or _citations_from_finding(top)
         parts.append(
             f"Largest card: [{_sev(top)}] {top.get('title')} — "
