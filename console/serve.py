@@ -1549,6 +1549,10 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json({"questions": copilot.suggested_questions(STATE)})
         elif path == "/api/copilot/runbooks":
             self._json(soc.copilot_runbook_scan(STATE))
+        elif path == "/api/copilot/forecast":
+            self._json(copilot.forecast_view(STATE, runs_summary().get("runs")))
+        elif path == "/api/copilot/playbook":
+            self._json(copilot.draft_playbook(STATE, soc.copilot_runbook_scan(STATE)))
         # --- detector efficacy (D2). Pass-through of the harness JSON; serve.py
         # computes no precision/recall/F1 of its own and imports no detector.
         elif path == "/api/efficacy":

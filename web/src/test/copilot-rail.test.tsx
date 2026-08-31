@@ -51,6 +51,31 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
         incidentCount: 1,
         note: "2 of 2 shipped runbook(s) eligible on this run. Eligibility is rule-owned. Nothing is executed from here.",
       },
+      "/api/copilot/forecast": {
+        thisRun: { runId: "test-run", findings: 2, matchingLines: 2, topTitle: "Brute-force then SUCCESSFUL login for 'admin'", topSev: "CRITICAL" },
+        techniques: [{ id: "T1110", name: "Brute Force", tactic: "Credential Access" }],
+        phases: [
+          { name: "Planning / Probing", observed: false, watch: false, tactics: [] },
+          { name: "Breaking In", observed: false, watch: false, tactics: [] },
+          { name: "Spreading Inside", observed: true, watch: false, tactics: ["Credential Access"] },
+          { name: "Damaging / Stealing", observed: false, watch: true, tactics: [] },
+        ],
+        history: [
+          { runId: "run-1", findingCount: 2 },
+          { runId: "run-2", findingCount: 4 },
+          { runId: "run-3", findingCount: 3 },
+        ],
+        note: "Observed up to Spreading Inside. Later phases were not in this log — shown as watch, not detections.",
+        source: "rules",
+      },
+      "/api/copilot/playbook": {
+        advisory: true,
+        executable: false,
+        title: "Playbook · test-run",
+        filename: "playbook-test-run.md",
+        markdown: "# Playbook · test-run\n\n> ADVISORY DRAFT. Rules own severity.\n",
+        note: "Advisory draft — not executed.",
+      },
       "/api/runs-summary": {
         totals: {
           runCount: 3,
@@ -251,6 +276,9 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(forecastCard).toHaveTextContent(/Extrapolating historical velocity from 3 recorded runs/i);
     expect(forecastCard).toHaveTextContent(/Expected next run:/i);
     expect(forecastCard).toHaveTextContent(/findings/i);
+    expect(await screen.findByTestId("copilot-killchain")).toHaveTextContent(/Spreading Inside/i);
+    expect(screen.getByTestId("copilot-killchain")).toHaveTextContent(/watch — not in log/i);
+    expect(screen.getByTestId("copilot-forecast-spark")).toBeInTheDocument();
   });
 
   it("Role 3 (thin history): honestly displays 'not enough runs' when < 3 runs", async () => {
@@ -302,6 +330,9 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(card).toHaveTextContent(/eligible/i);
     expect(card).toHaveTextContent(/Nothing is executed from here/i);
     expect(within(card).queryByRole("button", { name: /approve|execute|block/i })).toBeNull();
+    await userEvent.click(within(card).getByRole("button", { name: /draft playbook for this run/i }));
+    expect(await screen.findByTestId("copilot-playbook")).toHaveTextContent(/ADVISORY DRAFT/i);
+    expect(screen.getByTestId("copilot-playbook").textContent || "").not.toMatch(/executable:\s*true/i);
   });
 
   it("Role 5 (no match): shows shipped runbooks as not eligible with a reason", async () => {

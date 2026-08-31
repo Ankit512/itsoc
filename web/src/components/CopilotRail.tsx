@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Bot, Send, Square, X, Compass, TrendingUp, Sparkles, BookOpen,
-  ChevronRight, Activity, ShieldCheck
+  ChevronRight, Activity, ShieldCheck, Download
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotCitation } from "@/lib/api";
+import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotCitation, CopilotForecastPhase, CopilotPlaybook } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { sevVar } from "@/lib/severity";
 
@@ -163,6 +163,69 @@ function RunBriefing({ state, loading }: { state?: ConsoleState; loading?: boole
   );
 }
 
+function KillChain({ phases }: { phases: CopilotForecastPhase[] }) {
+  if (!phases.length) {
+    return <p className="text-[11px] text-muted-foreground">No kill-chain phases to draw.</p>;
+  }
+  return (
+    <div data-testid="copilot-killchain" className="grid grid-cols-4 gap-1">
+      {phases.map((p) => (
+        <div
+          key={p.name}
+          className={cn(
+            "rounded border px-1 py-1.5 text-center text-[10px] leading-tight",
+            p.observed && "border-primary bg-primary/10 font-semibold text-foreground",
+            p.watch && "border-dashed border-primary/50 text-muted-foreground",
+            !p.observed && !p.watch && "text-muted-foreground opacity-50",
+          )}
+        >
+          <div>{p.name}</div>
+          <div className="mt-0.5 font-mono text-[9px]">
+            {p.observed ? "seen in this file" : p.watch ? "watch — not in log" : "not in log"}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FindingSparkline({ history }: { history: { runId: string; findingCount: number }[] }) {
+  if (history.length < 2) {
+    return (
+      <p className="text-[11px] text-muted-foreground">
+        Need ≥2 saved runs for a volume sparkline.
+      </p>
+    );
+  }
+  const w = 280;
+  const h = 56;
+  const pad = 4;
+  const vals = history.map((p) => p.findingCount);
+  const max = Math.max(...vals, 1);
+  const min = Math.min(...vals, 0);
+  const span = max - min || 1;
+  const n = history.length;
+  const x = (i: number) => pad + (i / (n - 1)) * (w - 2 * pad);
+  const y = (v: number) => h - pad - ((v - min) / span) * (h - 2 * pad);
+  const line = history.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(p.findingCount).toFixed(1)}`).join(" ");
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className="w-full text-primary"
+      data-testid="copilot-forecast-spark"
+      role="img"
+      aria-label="finding card counts across saved runs"
+    >
+      <path d={line} fill="none" stroke="currentColor" strokeWidth="1.6" />
+      {history.map((p, i) => (
+        <circle key={`${p.runId}-${i}`} cx={x(i)} cy={y(p.findingCount)} r="2.4" fill="currentColor">
+          <title>{`${p.runId}: ${p.findingCount} findings`}</title>
+        </circle>
+      ))}
+    </svg>
+  );
+}
+
 function CitationsPanel({ citations }: { citations: CopilotCitation[] }) {
   const [open, setOpen] = useState(false);
   const extra = citations.length > 2;
@@ -236,6 +299,13 @@ export function CopilotRail({
     queryFn: api.copilotRunbooks,
     enabled: !!state && !state.idle,
   });
+  const { data: forecast } = useQuery({
+    queryKey: ["copilot-forecast", state?.runId],
+    queryFn: api.copilotForecast,
+    enabled: !!state && !state.idle && activeTab === "forecast",
+  });
+  const [playbook, setPlaybook] = useState<CopilotPlaybook | null>(null);
+  const [playbookBusy, setPlaybookBusy] = useState(false);
   const { data: runsSummary } = useQuery({ queryKey: ["runs-summary"], queryFn: api.runsSummary });
   const selectedIncidentId = pathname === "/incidents" ? new URLSearchParams(search).get("sel") : null;
   const { data: selectedRca } = useQuery({
@@ -266,6 +336,7 @@ export function CopilotRail({
   // thread so the pane cannot keep answering a log that is no longer current.
   useEffect(() => {
     setLog([]);
+    setPlaybook(null);
     abortRef.current?.abort();
   }, [runId]);
   const topCriticalFinding = findings.find((f) => f.sev?.toUpperCase() === "CRITICAL" || f.ruleSev?.toUpperCase() === "CRITICAL")
@@ -823,11 +894,21 @@ export function CopilotRail({
                 {matchingLines > findings.length ? ` · ${matchingLines.toLocaleString()} matching lines` : ""}
                 {priorityFinding ? ` · highest ${priorityFinding.sev || priorityFinding.ruleSev}: ${priorityFinding.title}` : " · no findings"}
               </p>
-              {(runsSummary?.totals?.mitreFrequency?.length ?? 0) === 0 && (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  ATT&amp;CK is empty on this history — no attack-pattern forecast.
-                </p>
-              )}
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                What a continuation would look like
+              </div>
+              <KillChain phases={forecast?.phases ?? []} />
+              <p className="text-[11px] text-muted-foreground">{forecast?.note}</p>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Card count across saved runs
+              </div>
+              <FindingSparkline history={forecast?.history ?? []} />
             </div>
 
             {hasMultipleRuns && runs[0] && runs[1] && (
@@ -931,6 +1012,54 @@ export function CopilotRail({
                   </li>
                 ))}
               </ul>
+            )}
+          </div>
+          <div className="rounded-lg border bg-background p-3 space-y-2">
+            <div className="text-xs font-bold text-foreground">Draft a playbook</div>
+            <p className="text-[11px] text-muted-foreground">
+              Generates an advisory markdown playbook for this file — what fired, what to watch, which shipped books apply. It is not executed and is not saved into the executable runbook folder.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                disabled={playbookBusy || !!state?.idle}
+                onClick={async () => {
+                  setPlaybookBusy(true);
+                  try {
+                    setPlaybook(await api.copilotPlaybook());
+                  } finally {
+                    setPlaybookBusy(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-[11.5px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {playbookBusy ? "Drafting…" : "Draft playbook for this run"}
+              </button>
+              {playbook?.markdown && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const blob = new Blob([playbook.markdown || ""], { type: "text/markdown" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = playbook.filename || "playbook.md";
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="inline-flex items-center gap-1 rounded border px-2.5 py-1 text-[11.5px] font-medium hover:bg-accent"
+                >
+                  <Download className="h-3 w-3" aria-hidden /> Download .md
+                </button>
+              )}
+            </div>
+            {playbook?.markdown && (
+              <pre
+                data-testid="copilot-playbook"
+                className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-card p-2 text-[11px] leading-relaxed text-foreground"
+              >
+                {playbook.markdown}
+              </pre>
             )}
           </div>
           <p className="text-[10.5px] text-muted-foreground">
