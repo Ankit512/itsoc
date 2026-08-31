@@ -191,17 +191,19 @@ def _citations_from_finding(f):
 
 
 def _followups(findings, current=None):
-    qs = []
+    qs, seen = [], set()
     for f in _ranked(findings):
         if current is not None and f.get("id") == current.get("id"):
             continue
         title = (f.get("title") or f.get("type") or "").split(" ×")[0]
         if not title:
             continue
-        if _occ(f) > 1:
-            qs.append(f"Show matching lines for {f.get('type') or title}")
-        else:
-            qs.append(f"Walk the evidence for {title}")
+        q = (f"Show matching lines for {title}" if _occ(f) > 1
+             else f"Walk the evidence for {title}")
+        if q in seen:
+            continue
+        seen.add(q)
+        qs.append(q)
         if len(qs) >= 3:
             break
     return qs
@@ -432,19 +434,21 @@ def investigate(question, state):
 
     if matched_finding:
         cites = _citations_from_finding(matched_finding)
-        if not cites and hits:
-            cites = _citations_from_events(hits, matched_finding.get("id"))
-        elif hits:
-            # Prefer event hits that actually sit on this finding.
-            fid = matched_finding.get("id")
-            mine = [e for e in hits if e.get("findingId") == fid] or hits
-            extra = _citations_from_events(mine, fid)
+        fid = matched_finding.get("id")
+        if hits:
+            # Prefer lines tagged on this finding, then other needle hits
+            # (matching lines Overview never put on the card).
+            tagged = [e for e in hits if e.get("findingId") == fid]
+            rest = [e for e in hits if e.get("findingId") != fid]
+            extra = _citations_from_events((tagged + rest)[:_MAX_CITATIONS], fid)
             seen = {c.get("n") for c in cites}
             for c in extra:
                 if c.get("n") not in seen:
                     cites.append(c)
                     seen.add(c.get("n"))
             cites = cites[:_MAX_CITATIONS]
+        elif not cites:
+            cites = _citations_from_events(hits, fid)
         occ = _occ(matched_finding)
         shown = len(cites)
         answer = (

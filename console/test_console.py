@@ -4910,7 +4910,10 @@ def check_copilot_investigate():
             "lines": [{"n": 11, "a": "2016-09-28 04:30:31, Info  CBS  Failed [HRESULT = 0x800f080d - CBS_E_MANIFEST_INVALID_ITEM]",
                        "hit": "", "b": ""}],
         }, {
-            "id": "detector-1", "sev": "LOW", "type": "windows_cbs_warning",
+            "id": "detector-1", "sev": "HIGH", "type": "windows_cbs_hresult",
+            "title": "CBS HRESULT CBS_E_INVALID_PACKAGE ×18", "occurrences": 18, "mitre": [],
+        }, {
+            "id": "detector-2", "sev": "LOW", "type": "windows_cbs_warning",
             "title": "CBS warning ×280", "occurrences": 280, "mitre": [],
         }],
         "events": [
@@ -4939,6 +4942,14 @@ def check_copilot_investigate():
           and "448 matching" in inv3["answer"]
           and "Failed" in (inv3["citations"][0].get("raw") or ""),
           str(inv3["citations"][:1]))
+    check("walkthrough cites more than the one card-tagged line when events match",
+          len(inv3["citations"]) >= 2, str(inv3["citations"]))
+    check("follow-ups are unique (not the same type chip repeated)",
+          len(inv3["followups"]) == len(set(inv3["followups"])),
+          str(inv3["followups"]))
+    check("follow-ups name the other HRESULT card, not a repeated type",
+          any("INVALID_PACKAGE" in q for q in inv3["followups"]),
+          str(inv3["followups"]))
     check("investigation never invents a severity other than the finding's HIGH",
           "[HIGH]" in inv3["answer"] and "CRITICAL" not in inv3["answer"])
     hidden = copilot.investigate(
