@@ -5,16 +5,13 @@ import { useUi } from "@/store/ui";
 import { TOUR_STEPS, type TourStep } from "@/lib/tour";
 import { cn } from "@/lib/utils";
 
-/** Fallback when a spotlight target isn't found — center the card instead of
- *  pretending to highlight something that doesn't exist (honest surface). */
-const CENTERED_FALLBACK = true;
+/** No fallback needed — sidebar nav links are always present. */
 
 interface Rect {
   top: number; left: number; width: number; height: number;
 }
 
-/** Wait for a selector to appear in the DOM (route renders async), with a
- *  bounded retry so we never hang on a step whose target was removed. */
+/** Wait for a selector to appear in the DOM with a bounded retry. */
 function waitForSelector(selector: string, timeoutMs = 2500): Promise<Element | null> {
   return new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs;
@@ -36,10 +33,11 @@ export function SpotlightTour() {
   const [stepIdx, setStepIdx] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
   const [targetFound, setTargetFound] = useState(false);
+  const [navigating, setNavigating] = useState(false);
 
-  // Reset the tour when it opens. Always begin at step 1 (Overview) so a
-  // first-time walkthrough is predictable — never jumps to wherever you are.
+  // Reset the tour when it opens. Always begin at step 1 (Overview).
   useEffect(() => {
+    if (!tourOpen) return;
     setStepIdx(0);
     setTargetFound(false);
     setRect(null);
@@ -47,14 +45,19 @@ export function SpotlightTour() {
 
   const step: TourStep = TOUR_STEPS[Math.min(stepIdx, TOUR_STEPS.length - 1)];
 
-  // Navigate + spotlight on each step change.
+  // Navigate to the step's route, then find the sidebar nav link and ring it.
   useEffect(() => {
     if (!tourOpen) return;
-    if (step.route !== pathname) {
-      navigate(step.route);
-    }
-    let alive = true;
-    waitForSelector(step.selector).then((el) => {
+
+    const go = async () => {
+      setNavigating(true);
+      if (step.route !== pathname) {
+        navigate(step.route);
+        // Give the route a moment to render before we look for the selector.
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      let alive = true;
+      const el = await waitForSelector(step.selector);
       if (!alive) return;
       if (el) {
         const r = el.getBoundingClientRect();
@@ -64,12 +67,13 @@ export function SpotlightTour() {
         setTargetFound(false);
         setRect(null);
       }
-    });
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tourOpen, stepIdx, step.route]);
+      setNavigating(false);
+    };
+    go();
+    return () => { /* alive flag handled by waitForSelector */ };
+  }, [tourOpen, stepIdx, step.route, pathname, navigate]);
 
-  // Recompute on scroll/resize so the spotlight tracks the element.
+  // Recompute on scroll/resize so the ring tracks the element.
   const recompute = useCallback(() => {
     if (!tourOpen || !step) return;
     const el = document.querySelector(step.selector);
@@ -101,8 +105,7 @@ export function SpotlightTour() {
 
   return (
     <div data-testid="spotlight-tour" className="itsoc is-tour-root" role="dialog" aria-modal="true" aria-label="Guided tour">
-      {/* Light scrim so the page stays readable while the target is ringed */}
-      <div className="is-tour-backdrop" onClick={stopTour} aria-hidden />
+      {/* No scrim — the page stays fully visible. Only the accent ring marks the target. */}
       {targetFound && rect && (
         <div
           className="is-tour-spotlight"
@@ -114,9 +117,9 @@ export function SpotlightTour() {
         </div>
       )}
 
-      {/* Step card */}
+      {/* Step card at bottom center */}
       <div
-        className={cn("is-tour-card", !targetFound && CENTERED_FALLBACK && "is-tour-card--center")}
+        className="is-tour-card"
         data-testid="spotlight-tour-card"
       >
         <div className="is-tour-card__head">
@@ -131,6 +134,7 @@ export function SpotlightTour() {
             <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
+        {navigating && <div className="is-tour-card__nav">Loading {step.title}…</div>}
         <h3 className="is-tour-card__title">{step.title}</h3>
         <p className="is-tour-card__body">{step.body}</p>
         <div className="is-tour-card__actions">
@@ -138,7 +142,7 @@ export function SpotlightTour() {
           <div className="ml-auto flex items-center gap-1.5">
             <button
               onClick={goPrev}
-              disabled={isFirst}
+              disabled={isFirst || navigating}
               className="is-tour-btn"
               aria-label="Previous step"
             >
@@ -146,6 +150,7 @@ export function SpotlightTour() {
             </button>
             <button
               onClick={goNext}
+              disabled={navigating}
               data-testid="tour-next"
               className={cn("is-tour-btn", isLast && "is-tour-btn--primary")}
             >

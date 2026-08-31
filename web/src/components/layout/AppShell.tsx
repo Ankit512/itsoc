@@ -13,7 +13,6 @@ import { RunSwitcher } from "@/components/RunSwitcher";
 import { CommandPalette } from "@/components/CommandPalette";
 import { CopilotRail } from "@/components/CopilotRail";
 import { SpotlightTour } from "@/components/SpotlightTour";
-import { AskAiBot } from "@/components/AskAiBot";
 import { IngestNotifier } from "@/components/IngestNotifier";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useJobs } from "@/store/jobs";
@@ -414,7 +413,6 @@ export function AppShell() {
       <CommandPalette onUploadClick={() => setUploadOpen(true)} />
       <IngestNotifier />
       <SpotlightTour />
-      {pathname !== "/logout" && <AskAiBot />}
     </div>
   );
 }
