@@ -4973,6 +4973,19 @@ def check_copilot_investigate():
     idle = copilot.investigate("anything", {"idle": True})
     check("idle investigate is honest — no run, no invented facts",
           "No run" in idle["answer"] and idle["citations"] == [])
+
+    import soc as soc_mod
+    scan = soc_mod.copilot_runbook_scan(state)
+    check("runbook scan lists shipped books against this run (not a blank 'select an incident')",
+          any(r.get("id") == "rb-block-ip" for r in scan.get("runbooks") or []),
+          str(scan)[:240])
+    check("CBS servicing run does not make rb-block-ip eligible (rules own the gate)",
+          all((not r.get("eligible")) for r in scan.get("runbooks") or []
+              if r.get("id") == "rb-block-ip"),
+          str(scan.get("runbooks")))
+    check("runbook scan never claims an action was executed",
+          "Nothing is executed" in (scan.get("note") or ""),
+          scan.get("note"))
     return 0 if all(results) else 1
 
 

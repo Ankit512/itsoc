@@ -57,6 +57,20 @@ export interface CopilotInvestigation {
   facts?: Record<string, unknown>;
   source?: string;
 }
+export interface CopilotRunbookRow {
+  id: string;
+  name?: string | null;
+  severityFloor?: string | null;
+  triggerRules?: string[];
+  eligible: boolean;
+  missing?: string[];
+  incidentId?: string | null;
+}
+export interface CopilotRunbookScan {
+  runbooks: CopilotRunbookRow[];
+  incidentCount?: number;
+  note?: string | null;
+}
 
 export interface OverviewData {
   generatedAt: string;
@@ -825,6 +839,21 @@ export const api = {
       return body.view ?? null;
     } catch {
       return null;
+    }
+  },
+
+  copilotRunbooks: async (): Promise<CopilotRunbookScan> => {
+    try {
+      const res = await fetch("/api/copilot/runbooks");
+      if (!res.ok) return { runbooks: [], incidentCount: 0, note: "runbook scan unavailable" };
+      const body = (await res.json().catch(() => ({}))) as CopilotRunbookScan;
+      return {
+        runbooks: Array.isArray(body.runbooks) ? body.runbooks : [],
+        incidentCount: typeof body.incidentCount === "number" ? body.incidentCount : 0,
+        note: typeof body.note === "string" ? body.note : null,
+      };
+    } catch {
+      return { runbooks: [], incidentCount: 0, note: "runbook scan unavailable" };
     }
   },
 
