@@ -112,6 +112,9 @@ def _match_token(actual, expected, modifier):
     if modifier == "endswith":
         return a_l.endswith(e_l)
     if modifier in ("contains", "", None):
+        # Digit-only needles (EventID 4625) must not match inside HDFS blk_…4625…
+        if e.isdigit():
+            return re.search(r"(?<!\d)" + re.escape(e) + r"(?!\d)", a) is not None
         return e_l in a_l
     return a_l == e_l
 

@@ -5890,6 +5890,23 @@ def check_sigma_ingest_triage():
     check("HDFS block-id lines are not a firewall deny (action is not in the blob)",
           "itsoc-firewall-block" not in sigma_match.match_records([rec_hdfs], gap_fill=True),
           str(list(sigma_match.match_records([rec_hdfs], gap_fill=True))))
+    rec_blk_id = {
+        "n": 4, "ts": "", "level": "INFO", "host": "10.251.199.159",
+        "msg": "BLOCK* NameSystem.delete: blk_8350646254685996250 is added to invalidSet",
+        "raw": "BLOCK* NameSystem.delete: blk_8350646254685996250 is added to invalidSet of 10.251.199.159:50010",
+        "isFinding": False,
+    }
+    check("EventID 4625 does not match the digits inside an HDFS block id",
+          "itsoc-failed-logon" not in sigma_match.match_records([rec_blk_id], gap_fill=True),
+          str(list(sigma_match.match_records([rec_blk_id], gap_fill=True))))
+    rec_4625 = {
+        "n": 5, "ts": "", "level": "INFO", "host": "dc1",
+        "msg": "An account failed to log on 4625",
+        "raw": "EventID 4625 An account failed to log on",
+        "isFinding": False,
+    }
+    check("standalone EventID 4625 still matches failed-logon",
+          "itsoc-failed-logon" in sigma_match.match_records([rec_4625], gap_fill=True))
     already = dict(rec_fail, isFinding=True)
     check("gap-fill skips events the detector already flagged",
           sigma_match.match_records([already], gap_fill=True) == {})
