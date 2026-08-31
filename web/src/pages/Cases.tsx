@@ -10,12 +10,16 @@ import { api, CASE_STATUSES, type Case, type CaseStatus } from "@/lib/api";
  *  an honest empty state. */
 
 const STATUS_COLOR: Record<CaseStatus, string> = {
-  open: "var(--acc)",
-  investigating: "var(--med)",
+  new: "var(--acc)",
+  triaged: "var(--med)",
+  investigating: "var(--high)",
+  escalated: "var(--crit)",
+  resolved: "var(--low)",
   closed: "var(--mut)",
 };
 const STATUS_LABEL: Record<CaseStatus, string> = {
-  open: "Open", investigating: "Investigating", closed: "Closed",
+  new: "New", triaged: "Triaged", investigating: "Investigating",
+  escalated: "Escalated", resolved: "Resolved", closed: "Closed",
 };
 
 function StatusPill({ status }: { status: CaseStatus }) {
@@ -75,7 +79,7 @@ function CreateCase() {
           <button className="is-btn is-btn--primary" type="submit" disabled={!title.trim() || create.isPending}>
             {create.isPending ? "Creating…" : "Create case"}
           </button>
-          <span className="is-mut" style={{ fontSize: 11 }}>Status starts as “open”.</span>
+          <span className="is-mut" style={{ fontSize: 11 }}>Status starts as NEW.</span>
         </div>
       </form>
     </div>
@@ -112,15 +116,22 @@ function CaseRow({ c }: { c: Case }) {
           )}
           <div className="is-mono" style={{ marginTop: 2, fontSize: 10.5, color: "var(--mut)" }}>{c.id}</div>
         </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="is-visually-hidden">Status of {c.id}</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <StatusPill status={c.status} />
-          <select className="is-select" style={{ width: "auto", padding: "6px 8px" }}
-                  aria-label={`Status of ${c.id}`} value={c.status} disabled={patch.isPending}
-                  onChange={(e) => patch.mutate({ status: e.target.value as CaseStatus })}>
-            {CASE_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-          </select>
-        </label>
+          <div className="is-lifecycle" data-testid={`case-lifecycle-${c.id}`} style={{ margin: 0 }}>
+            <div className="steps">
+              {CASE_STATUSES.map((s) => (
+                <button key={s} type="button" className={s === c.status ? "step on" : "step"}
+                        style={{ textTransform: "capitalize" }}
+                        aria-label={`Status of ${c.id}: ${s}`}
+                        disabled={s === c.status || patch.isPending}
+                        onClick={() => patch.mutate({ status: s })}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
         {!editing && (
           <button className="is-icobtn" style={{ width: 28, height: 28 }} onClick={() => setEditing(true)} aria-label={`Edit ${c.id}`}><Pencil size={13} aria-hidden /></button>
         )}
@@ -174,7 +185,7 @@ export function Cases() {
     <>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
         <div className="is-note" style={{ flex: 1, minWidth: 260 }}>
-          <b>Analyst-entered, stored locally, not derived — no sample cases invented.</b> Investigation
+          <b>Analyst-entered CASE lifecycle NEW → CLOSED — no sample cases invented.</b> Investigation
           cases you create live in <span className="is-mono" style={{ color: "var(--ink)" }}>cases.json</span>.
         </div>
         <CreateCase />

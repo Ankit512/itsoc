@@ -61,7 +61,11 @@ import efficacy_api  # noqa: E402  # /api/efficacy state (D2) — harness pass-t
 import evtx_ingest  # noqa: E402  # Windows .evtx ingest -> store (socf-evtx-history)
 import export  # noqa: E402
 import copilot  # noqa: E402  # run-bound analyst investigation — digs hidden events, never a verdict
+import enrich  # noqa: E402  # Sigma gap-fill + advisory AI triage (never writes sev)
+import ingest  # noqa: E402  # webhook / EDR / firewall / cloud collectors
 import investigate  # noqa: E402  # deterministic investigation engine (C2) — never waits on the LLM
+import sigma_match  # noqa: E402
+import triage  # noqa: E402
 import org_context  # noqa: E402
 import redact  # noqa: E402
 import soc  # noqa: E402
@@ -697,6 +701,9 @@ def _copilot_extras(state):
         "metrics": soc.metrics(state, labels),
         "runbooks": soc.copilot_runbook_scan(state),
         "forecast": copilot.forecast_view(state, runs_summary().get("runs")),
+        "cases": soc.list_cases(),
+        "sigmaHits": state.get("sigmaHits") or [],
+        "triage": triage.triage_state(state),
     }
 
 
@@ -1242,7 +1249,7 @@ def analyze(source, value, compare, filename=None, data=None, threat_intel=None)
         # not the previous run: detach first, or a mark made while explanations are
         # still arriving would be written into the run before it.
         CURRENT_RUN_FILE = None
-        state = adapter.adapt(report_json, None)
+        state = enrich.enrich_console_state(adapter.adapt(report_json, None))
         # A reviewer can mark a finding while explanations are still arriving; the
         # rules-only publish and the final one are the same run, so those marks follow.
         state["marks"] = carry_marks(
@@ -1575,6 +1582,17 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json(copilot.draft_playbook(STATE, soc.copilot_runbook_scan(STATE)))
         elif path == "/api/copilot/angles":
             self._json(copilot.collect_angles(STATE, _copilot_extras(STATE)))
+        elif path == "/api/copilot/triage":
+            self._json(triage.triage_state(STATE))
+        elif path == "/api/sigma/rules":
+            self._json({"rules": sigma_match.list_rules()})
+        elif path == "/api/sigma/hits":
+            self._json({
+                "hits": STATE.get("sigmaHits") or [],
+                "note": "Sigma rule-owned matches on this run. Not an AI verdict.",
+            })
+        elif path == "/api/ingest/status":
+            self._json(ingest.status())
         # --- detector efficacy (D2). Pass-through of the harness JSON; serve.py
         # computes no precision/recall/F1 of its own and imports no detector.
         elif path == "/api/efficacy":
@@ -1747,6 +1765,8 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         # --- Windows EVTX ingest (socf-evtx-history) -----------------------
         elif path == "/api/evtx/ingest":
             self._evtx_ingest()
+        elif path == "/api/ingest/webhook":
+            self._ingest_webhook()
         # --- Auth endpoints (Phase 6: demo polish + swap seam) --------------
         elif path == "/api/auth/signup":
             self._auth_signup()
@@ -2037,6 +2057,19 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         result["file"] = Path(filename).name
         print(f"  evtx ingest {result['file']}: {result}", flush=True)
         return self._json(result)
+
+    def _ingest_webhook(self):
+        """EDR / firewall / cloud / generic webhook JSON → store + Sigma."""
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        try:
+            result = ingest.ingest_payload(payload)
+        except ValueError as e:
+            return self._json({"error": str(e)}, 400)
+        print(f"  ingest/{result.get('source')}: stored={result.get('stored')} "
+              f"sigma={len(result.get('sigmaHits') or [])}", flush=True)
+        return self._json(result, 201 if result.get("stored") else 200)
 
     do_PUT = do_DELETE = lambda self: self.send_error(405, "read-only")
 
@@ -2358,16 +2391,20 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         try:
             name = json.loads(self.rfile.read(length) or b"{}").get("file")
-            state = load_run(name)
+            loaded = load_run(name)
         except (ValueError, json.JSONDecodeError):
             return self._json({"error": "no such run"}, 404)
         global CURRENT_RUN_FILE
-        STATE = state
-        # Marks and on-demand explanations made from here on belong to THIS file.
+        # Enrich in memory only. persist_state() would write Sigma gap-fill
+        # findings back into history and change stored findingCount.
+        STATE = enrich.enrich_console_state(loaded)
         CURRENT_RUN_FILE = name
-        persist_state()
-        print(f"  reopened run: {state.get('runId')}", flush=True)
-        return self._json(state)
+        try:
+            STATE_FILE.write_text(json.dumps(STATE, indent=2))
+        except OSError:
+            pass
+        print(f"  reopened run: {STATE.get('runId')}", flush=True)
+        return self._json(STATE)
 
     def _explain(self):
         """Explain ONE finding on demand.
@@ -2757,7 +2794,7 @@ def main():
                 report = json.loads(Path(args.report).read_text())
                 threat = (json.loads(Path(args.threat_intel).read_text())
                           if args.threat_intel else None)
-                STATE = adapter.adapt(report, threat)
+                STATE = enrich.enrich_console_state(adapter.adapt(report, threat))
                 STATE["idle"] = False
                 STATE["sourceKind"] = "report"
                 STATE["sourceLabel"] = args.report
@@ -2770,7 +2807,7 @@ def main():
                 report = json.loads(report_path.read_text())
                 threat = (json.loads(Path(args.threat_intel).read_text())
                           if args.threat_intel else None)
-                STATE = adapter.adapt(report, threat)
+                STATE = enrich.enrich_console_state(adapter.adapt(report, threat))
                 STATE["idle"] = False
                 STATE["sourceKind"] = "cli"
                 STATE["sourceLabel"] = args.input
@@ -2790,7 +2827,7 @@ def main():
             recent = list_runs()
             if recent:
                 try:
-                    STATE = load_run(recent[0]["file"])
+                    STATE = enrich.enrich_console_state(load_run(recent[0]["file"]))
                     CURRENT_RUN_FILE = recent[0]["file"]
                     print(f"  restored the last run: {STATE.get('runId')} "
                           f"({len(recent)} saved run(s) available)")

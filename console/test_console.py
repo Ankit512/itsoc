@@ -2274,15 +2274,25 @@ def check_soc_subsystems():
                 # --- incident lifecycle ----------------------------------------
                 iid = pair[0]["id"]
                 _, inc = req("POST", f"/api/incidents/{iid}/state",
-                             {"state": "acknowledged"})
-                check("acknowledge stamps acknowledgedAt",
-                      inc["state"] == "acknowledged" and inc["acknowledgedAt"])
+                             {"state": "triaged"})
+                check("triage stamps acknowledgedAt",
+                      inc["state"] == "triaged" and inc["acknowledgedAt"])
+                _, alias = req("POST", f"/api/incidents/{iid}/state",
+                               {"state": "acknowledged"})
+                check("acknowledged is an alias of triaged",
+                      alias["state"] == "triaged")
                 _, inc = req("POST", f"/api/incidents/{iid}/state", {"state": "resolved"})
                 check("resolve stamps resolvedAt", inc["resolvedAt"] is not None)
                 _, inc = req("POST", f"/api/incidents/{iid}/state",
                              {"state": "investigating"})
                 check("reopening clears resolvedAt but keeps acknowledgedAt",
                       inc["resolvedAt"] is None and inc["acknowledgedAt"])
+                _, inc = req("POST", f"/api/incidents/{iid}/state", {"state": "closed"})
+                check("closed is terminal and stamps resolvedAt",
+                      inc["state"] == "closed" and inc["resolvedAt"] is not None)
+                _, inc = req("POST", f"/api/incidents/{iid}/state",
+                             {"state": "investigating"})
+                check("leaving closed clears resolvedAt", inc["resolvedAt"] is None)
                 status, _ = req("POST", f"/api/incidents/{iid}/state", {"state": "bogus"})
                 check("invalid transition -> 400", status == 400)
                 status, _ = req("POST", "/api/incidents/inc-nope/state", {"state": "new"})
@@ -2321,9 +2331,9 @@ def check_soc_subsystems():
                 status, case = req("POST", "/api/cases",
                                    {"title": "Investigate 203.0.113.44",
                                     "links": {"incidents": [iid]}})
-                check("case created (201, open, linked)",
+                check("case created (201, new, linked)",
                       status == 201 and case["id"] == "case-1"
-                      and case["status"] == "open"
+                      and case["status"] == "new"
                       and case["links"]["incidents"] == [iid])
                 status, case = req("PATCH", f"/api/cases/{case['id']}",
                                    {"notes": "checked the firewall",
@@ -2331,6 +2341,15 @@ def check_soc_subsystems():
                 check("case PATCH round-trips fields",
                       status == 200 and case["notes"] == "checked the firewall"
                       and case["status"] == "investigating")
+                status, case = req("PATCH", "/api/cases/case-1", {"status": "escalated"})
+                check("case escalated", status == 200 and case["status"] == "escalated")
+                status, case = req("PATCH", "/api/cases/case-1", {"status": "open"})
+                check("case status alias open -> new",
+                      status == 200 and case["status"] == "new")
+                status, case = req("PATCH", "/api/cases/case-1", {"status": "closed"})
+                check("case closed is a real terminal status",
+                      status == 200 and case["status"] == "closed")
+                req("PATCH", "/api/cases/case-1", {"status": "investigating"})
                 _, got = req("GET", "/api/cases/case-1")
                 check("case persists across requests",
                       got["notes"] == "checked the firewall")
@@ -5821,6 +5840,142 @@ def check_org_context():
     return 0 if all(results) else 1
 
 
+def check_sigma_ingest_triage():
+    """Sigma sibling matcher, webhook/EDR/firewall/cloud ingest, advisory AI
+    triage (never writes sev), and the CASE NEW→CLOSED machine."""
+    sys.path.insert(0, str(HERE))
+    sys.path.insert(0, str(HERE / "formats"))
+    sys.path.insert(0, str(HERE.parent))
+    import ingest
+    import sigma_match
+    import store
+    import triage
+    import soc
+    import collectors as coll
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}"
+              + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nSigma + collectors + advisory triage + CASE lifecycle:")
+
+    rec_fail = {
+        "n": 1, "ts": "2026-08-31T12:00:00+00:00", "level": "INFO",
+        "host": "gw", "msg": "Failed password for admin from 203.0.113.9",
+        "raw": "Aug 31 12:00:00 gw sshd: Failed password for admin from 203.0.113.9",
+        "isFinding": False,
+    }
+    rec_cbs = {
+        "n": 2, "ts": "2026-08-31T12:00:01+00:00", "level": "INFO",
+        "host": "", "msg": "Failed [HRESULT: CBS_E_MANIFEST_INVALID_ITEM]",
+        "raw": "2026-08-31 12:00:01, Info  CBS  Failed [HRESULT: CBS_E_MANIFEST_INVALID_ITEM]",
+        "isFinding": False,
+    }
+    grouped = sigma_match.match_records([rec_fail], gap_fill=True)
+    check("Sigma failed-logon fires on SSH auth failure",
+          "itsoc-failed-logon" in grouped, str(list(grouped)))
+    grouped_cbs = sigma_match.match_records([rec_cbs], gap_fill=True)
+    check("Sigma does not treat CBS HRESULT as a failed logon or malware",
+          "itsoc-failed-logon" not in grouped_cbs
+          and "itsoc-edr-malware" not in grouped_cbs, str(list(grouped_cbs)))
+    already = dict(rec_fail, isFinding=True)
+    check("gap-fill skips events the detector already flagged",
+          sigma_match.match_records([already], gap_fill=True) == {})
+
+    edr = coll.parse_edr({
+        "DetectName": "Malware.Generic", "ComputerName": "ws-9",
+        "Severity": "critical", "timestamp": "2026-08-31T12:00:00Z",
+    })
+    check("EDR parser keeps DetectName as msg and raw is real JSON",
+          "Malware.Generic" in edr["msg"] and "Malware.Generic" in edr["raw"]
+          and edr["host"] == "ws-9" and edr["level"] == "CRITICAL")
+    fw = coll.parse_firewall({
+        "action": "deny", "src": "198.51.100.7", "dst": "10.0.0.5",
+        "host": "fw-1", "message": "blocked connection",
+    })
+    check("firewall parser is source-reported action, raw verbatim JSON",
+          fw["action"] == "deny" and "blocked connection" in fw["raw"]
+          and fw["src_ip"] == "198.51.100.7")
+    cloud = coll.parse_cloud({
+        "eventName": "ConsoleLogin", "eventSource": "signin.amazonaws.com",
+        "userIdentity": {"userName": "alice"},
+        "sourceIPAddress": "203.0.113.10",
+        "eventTime": "2026-08-31T12:00:00Z",
+    })
+    check("cloud parser keeps ConsoleLogin and nested username",
+          cloud["event_name"] == "ConsoleLogin" and cloud["user"] == "alice"
+          and "ConsoleLogin" in cloud["raw"])
+
+    finding = {
+        "id": "detector-0", "sev": "HIGH", "ruleSev": "HIGH",
+        "title": "Brute-force burst ×40", "type": "auth_bruteforce",
+        "occurrences": 40, "ruleWhy": "failures then silence",
+        "mitre": [{"id": "T1110"}],
+    }
+    rec = triage.recommend(finding)
+    attached = triage.attach(finding)
+    check("AI triage is advisory and labelled as such",
+          rec["advisory"] is True and "analyst decides" in rec["note"].lower())
+    check("AI may recommend a different band but MUST NOT write sev",
+          rec["aiSeverity"] == "CRITICAL" and attached["sev"] == "HIGH"
+          and finding["sev"] == "HIGH",
+          f"ai={rec['aiSeverity']} sev={attached['sev']}")
+    check("ruleSeverity on the triage object is the original verdict",
+          rec["ruleSeverity"] == "HIGH")
+
+    real_soc = soc.SOC_DIR
+    real_store = (store.SOC_DIR, store.DB_PATH)
+    try:
+        with tempfile.TemporaryDirectory(prefix="ingest-test-") as tmp:
+            tmp = Path(tmp)
+            store.SOC_DIR = tmp
+            store.DB_PATH = tmp / "soc_history.db"
+            store.init_db()
+            out = ingest.ingest_payload({
+                "source": "edr",
+                "event": {
+                    "DetectName": "Malware.Generic",
+                    "ComputerName": "ws-9",
+                    "Severity": "critical",
+                    "timestamp": "2026-08-31T12:00:00Z",
+                },
+            })
+            check("webhook ingest stores the event with source-reported severity",
+                  out["stored"] == 1 and out["unparsed"] == 0, str(out))
+            check("Sigma hits EDR malware on the ingested event (rule-owned)",
+                  any(h.get("id") == "itsoc-edr-malware" for h in out["sigmaHits"]),
+                  str(out.get("sigmaHits")))
+            page = store.query("events", filters={"source_type": "edr"}, limit=5)
+            check("stored raw is the real JSON, never fabricated",
+                  page["total"] == 1
+                  and "Malware.Generic" in (page["items"][0].get("raw") or ""),
+                  str(page["items"][:1]))
+
+            soc.SOC_DIR = tmp / ".soc"
+            soc.SOC_DIR.mkdir(parents=True, exist_ok=True)
+            case = soc.create_case({"title": "Follow the malware alert"})
+            check("new case starts at NEW", case["status"] == "new")
+            for st in ("triaged", "investigating", "escalated", "resolved", "closed"):
+                case = soc.patch_case(case["id"], {"status": st})
+                check(f"case → {st}", case and case["status"] == st)
+            check("CASE history records the full machine",
+                  [h["status"] for h in case["history"]]
+                  == ["new", "triaged", "investigating", "escalated", "resolved", "closed"],
+                  str(case.get("history")))
+            check("INCIDENT_STATES is the 6-state machine",
+                  soc.INCIDENT_STATES == (
+                      "new", "triaged", "investigating", "escalated", "resolved", "closed"))
+            check("CASE_STATUSES is the 6-state machine",
+                  soc.CASE_STATUSES == soc.INCIDENT_STATES)
+    finally:
+        soc.SOC_DIR = real_soc
+        store.SOC_DIR, store.DB_PATH = real_store
+
+    return 0 if all(results) else 1
+
 
 def main():
     node = shutil.which("node")
@@ -5895,12 +6050,13 @@ def main():
     advisory_ = check_parallel_advisory()
     orgctx_ = check_org_context()
     actions_ = check_action_layer_and_firewall()
+    sigma_ = check_sigma_ingest_triage()
     if (result.returncode or routing or log360 or logcat_ or loghub_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
             or askview_ or copilotinv_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
-            or investigate_ or advisory_ or orgctx_ or actions_):
+            or investigate_ or advisory_ or orgctx_ or actions_ or sigma_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + loghub-formats + remote-compute + dashboard-data "
@@ -5909,7 +6065,7 @@ def main():
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
           "+ ask-view + copilot-investigate + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
           "+ inc-4a7f-scenario + investigation-engine + parallel-advisory + org-context-priority "
-          "+ action-layer-ssh-firewall checks green")
+          "+ action-layer-ssh-firewall + sigma-ingest-triage-case-lifecycle checks green")
     return 0
 
 
@@ -6181,7 +6337,7 @@ def check_inc4a7f_scenario():
             upd = soc.set_incident_state("INC-4a7f", "acknowledged")
             check("lifecycle transition works through the alias",
                   upd is not None and upd.get("id") == derived_id
-                  and upd.get("state") == "acknowledged")
+                  and upd.get("state") == "triaged")
             rca = soc.derive_rca("INC-4a7f", state)
             check("RCA resolves through the alias to the real incident",
                   rca is not None and rca.get("incidentId") == derived_id, str(bool(rca)))

@@ -74,6 +74,7 @@ RULE_OWNED_FINDING_KEYS = frozenset({
 ADVISORY_KEYS = frozenset({
     "llmSev", "llmWhy", "explanation", "hypothesis", "narrative", "rca",
     "advisory", "modelFindings", "summary", "prose", "llm",
+    "aiTriage", "aiSeverity", "aiConfidence",
 })
 
 _ADVISORY_WORD_RE = re.compile(

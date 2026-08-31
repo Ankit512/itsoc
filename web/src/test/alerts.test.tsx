@@ -42,6 +42,7 @@ describe("Alerts page", () => {
     renderApp(<App />, { route: "/alerts?sel=detector-1" });
 
     expect(await screen.findByText("Rule verdict · authoritative")).toBeInTheDocument();
+    expect(screen.queryByTestId("ai-triage")).not.toBeInTheDocument();
     expect(screen.getByText(/verbatim from the source log/)).toBeInTheDocument();
     expect(screen.getByText("203.0.113.44")).toBeInTheDocument();
     expect(screen.getByText("failures_from(ip) >= 5")).toBeInTheDocument();
@@ -56,6 +57,31 @@ describe("Alerts page", () => {
     renderApp(<App />, { route: "/alerts?sel=detector-0" });
     expect(await screen.findByTestId("finding-occurrences")).toHaveTextContent("448 matching lines");
     expect(screen.getByText("×448")).toBeInTheDocument();
+  });
+
+  it("shows AI recommended severity as advisory and does not replace the rule verdict", async () => {
+    mockFetch({
+      "/console_state.json": consoleState([
+        finding(0, {
+          sev: "HIGH",
+          ruleSev: "HIGH",
+          aiTriage: {
+            advisory: true,
+            ruleSeverity: "HIGH",
+            aiSeverity: "CRITICAL",
+            confidence: "medium",
+            agrees: false,
+            cause: "Many auth failures",
+            note: "AI recommends — analyst decides. This does not change the rule verdict.",
+          },
+        }),
+      ]),
+    });
+    renderApp(<App />, { route: "/alerts?sel=detector-0" });
+    expect(await screen.findByTestId("ai-triage")).toHaveTextContent("CRITICAL");
+    expect(screen.getByText("AI recommended severity · advisory")).toBeInTheDocument();
+    expect(screen.getByText("Rule verdict · authoritative")).toBeInTheDocument();
+    expect(screen.getByText(/does not change the rule verdict/i)).toBeInTheDocument();
   });
 
   it("unrecognized run keeps the honest banner", async () => {

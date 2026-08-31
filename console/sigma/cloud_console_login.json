@@ -1,0 +1,16 @@
+{
+  "title": "Cloud console login without MFA",
+  "id": "itsoc-cloud-console-login",
+  "status": "stable",
+  "level": "medium",
+  "logsource": {"category": "cloud"},
+  "detection": {
+    "selection": {
+      "msg|contains": ["ConsoleLogin", "console login", "signin.microsoft"]
+    },
+    "filter_mfa": {
+      "msg|contains": ["MFA", "mfaAuthenticated"]
+    },
+    "condition": "selection and not filter_mfa"
+  }
+}

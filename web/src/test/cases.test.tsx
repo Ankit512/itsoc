@@ -1,11 +1,12 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { vi } from "vitest";
 import App from "@/App";
 import { renderApp, mockFetch, OVERVIEW, METRICS } from "./helpers";
 
 const CASE = {
   id: "case-1", title: "Investigate 203.0.113.44", notes: "brute-force source",
-  assignee: "sam", status: "open",
+  assignee: "sam", status: "new",
   links: { findings: ["detector-0"], incidents: [] },
   createdAt: "2026-08-19T09:00:00Z", updatedAt: "2026-08-19T09:00:00Z",
 };
@@ -18,7 +19,8 @@ describe("Cases page (CRUD)", () => {
 
     expect(await screen.findByText("Investigate 203.0.113.44")).toBeInTheDocument();
     expect(screen.getByText("case-1")).toBeInTheDocument();
-    expect((screen.getByLabelText("Status of case-1") as HTMLSelectElement).value).toBe("open");
+    expect(screen.getByRole("button", { name: "Status of case-1: new" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Status of case-1: closed" })).toBeEnabled();
     expect(screen.getByText("detector-0")).toBeInTheDocument();
   });
 
@@ -51,5 +53,26 @@ describe("Cases page (CRUD)", () => {
     await userEvent.click(screen.getByRole("button", { name: /create case/i }));
 
     await waitFor(() => expect(postBody).toMatchObject({ title: "Follow up on root logins" }));
+  });
+
+  it("the CASE stepper posts NEW→CLOSED states", async () => {
+    let patched: unknown = null;
+    mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS,
+                "/api/cases": { cases: [CASE] } });
+    const realFetch = globalThis.fetch as unknown as (u: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+    vi.stubGlobal("fetch", vi.fn((u: RequestInfo | URL, init?: RequestInit) => {
+      if (String(u).includes("/api/cases/case-1") && init?.method === "PATCH") {
+        patched = JSON.parse(String(init.body));
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: async () => ({ ...CASE, status: "escalated" }),
+        } as Response);
+      }
+      return realFetch(u, init);
+    }));
+    renderApp(<App />, { route: "/cases" });
+    await screen.findByText("Investigate 203.0.113.44");
+    await userEvent.click(screen.getByRole("button", { name: "Status of case-1: escalated" }));
+    await waitFor(() => expect(patched).toEqual({ status: "escalated" }));
   });
 });

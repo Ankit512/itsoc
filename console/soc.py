@@ -45,9 +45,26 @@ from tactic_phase_map import phase_for_tactics  # noqa: E402
 
 SOC_DIR = HERE / ".soc"                       # monkeypatched to a tmp dir in tests
 
-INCIDENT_STATES = ("new", "acknowledged", "investigating", "resolved")
-CASE_STATUSES = ("open", "investigating", "closed")
+# Analyst lifecycle — full CASE/incident machine:
+#   NEW → TRIAGED → INVESTIGATING → ESCALATED → RESOLVED → CLOSED
+# Aliases keep previously stored values and older API clients working.
+# `acknowledged` is the old name for TRIAGED; `open` is the old case NEW.
+INCIDENT_STATES = ("new", "triaged", "investigating", "escalated", "resolved", "closed")
+INCIDENT_STATE_ALIASES = {"acknowledged": "triaged"}
+INCIDENT_TERMINAL = ("resolved", "closed")
+CASE_STATUSES = ("new", "triaged", "investigating", "escalated", "resolved", "closed")
+CASE_STATUS_ALIASES = {"open": "new"}
 CLUSTER_GAP_SECONDS = 30 * 60                 # the documented correlation window
+
+
+def normalize_incident_state(value):
+    s = str(value or "").strip().lower()
+    return INCIDENT_STATE_ALIASES.get(s, s)
+
+
+def normalize_case_status(value):
+    s = str(value or "").strip().lower()
+    return CASE_STATUS_ALIASES.get(s, s)
 
 SEV_RANK = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
 
@@ -258,8 +275,21 @@ def list_incidents(state=None, state_filter=None):
             seen.add(inc["id"])
             deduped.append(inc)
     if state_filter:
-        deduped = [i for i in deduped if i.get("state") == state_filter]
-    return deduped
+        wanted = normalize_incident_state(state_filter)
+        deduped = [i for i in deduped
+                   if normalize_incident_state(i.get("state")) == wanted]
+    return [_public_incident(i) for i in deduped]
+
+
+def _public_incident(inc):
+    """Project stored lifecycle aliases onto the current 6-state machine."""
+    if not inc:
+        return inc
+    out = dict(inc)
+    st = normalize_incident_state(out.get("state"))
+    if st in INCIDENT_STATES:
+        out["state"] = st
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -315,14 +345,16 @@ def get_incident(iid):
     inc = store.get(real_id)
     if inc is not None and real_id != iid:
         inc = {**inc, "alias": iid}
-    return inc
+    return _public_incident(inc)
 
 
 def set_incident_state(iid, new_state):
     """Analyst lifecycle transition. Timestamps record what actually happened:
-    acknowledgedAt on the first move out of 'new', resolvedAt on entering
-    'resolved' (cleared when a mistaken resolve is reopened). Returns the
-    updated incident, or None for an unknown id; ValueError on a bad state."""
+    acknowledgedAt on the first move out of 'new' (including TRIAGED),
+    resolvedAt on entering RESOLVED or CLOSED (cleared when reopened).
+    Aliases: acknowledged → triaged. Returns the updated incident, or None
+    for an unknown id; ValueError on a bad state."""
+    new_state = normalize_incident_state(new_state)
     if new_state not in INCIDENT_STATES:
         raise ValueError(f"state must be one of {INCIDENT_STATES}")
     store = _load("incidents.json")
@@ -332,13 +364,13 @@ def set_incident_state(iid, new_state):
         return None
     if new_state != "new" and not inc.get("acknowledgedAt"):
         inc["acknowledgedAt"] = _now()
-    if new_state == "resolved" and not inc.get("resolvedAt"):
+    if new_state in INCIDENT_TERMINAL and not inc.get("resolvedAt"):
         inc["resolvedAt"] = _now()
-    if new_state != "resolved":
+    if new_state not in INCIDENT_TERMINAL:
         inc["resolvedAt"] = None
     inc["state"] = new_state
     _save("incidents.json", store)
-    return inc
+    return _public_incident(inc)
 
 
 # ---------------------------------------------------------------------------
@@ -723,13 +755,24 @@ def derive_users(state):
 # Cases — analyst-entered, so storing them IS the honest source
 # ---------------------------------------------------------------------------
 
+def _public_case(case):
+    if not case:
+        return case
+    out = dict(case)
+    st = normalize_case_status(out.get("status"))
+    if st in CASE_STATUSES:
+        out["status"] = st
+    return out
+
+
 def list_cases():
     store = _load("cases.json")
-    return sorted(store.values(), key=lambda c: c.get("createdAt") or "", reverse=True)
+    return sorted((_public_case(c) for c in store.values()),
+                  key=lambda c: c.get("createdAt") or "", reverse=True)
 
 
 def get_case(cid):
-    return _load("cases.json").get(cid)
+    return _public_case(_load("cases.json").get(cid))
 
 
 def create_case(payload):
@@ -743,7 +786,8 @@ def create_case(payload):
         "title": title[:200],
         "notes": str(payload.get("notes") or "")[:10000],
         "assignee": str(payload.get("assignee") or "")[:100],
-        "status": "open",
+        "status": "new",
+        "history": [{"status": "new", "at": _now()}],
         "links": {
             "findings": [str(x) for x in (payload.get("links") or {}).get("findings", [])],
             "incidents": [str(x) for x in (payload.get("links") or {}).get("incidents", [])],
@@ -754,7 +798,7 @@ def create_case(payload):
     store[cid] = case
     _save("cases.json", store)
     _try_absorb_cases()                        # keep incidents in sync (C1-T1)
-    return case
+    return _public_case(case)
 
 
 def patch_case(cid, payload):
@@ -765,9 +809,14 @@ def patch_case(cid, payload):
     if not case:
         return None
     if "status" in payload:
-        if payload["status"] not in CASE_STATUSES:
+        status = normalize_case_status(payload["status"])
+        if status not in CASE_STATUSES:
             raise ValueError(f"status must be one of {CASE_STATUSES}")
-        case["status"] = payload["status"]
+        if case.get("status") != status:
+            hist = list(case.get("history") or [])
+            hist.append({"status": status, "at": _now()})
+            case["history"] = hist
+        case["status"] = status
     if "title" in payload:
         title = str(payload["title"] or "").strip()
         if not title:
@@ -786,7 +835,7 @@ def patch_case(cid, payload):
     case["updatedAt"] = _now()
     _save("cases.json", store)
     _try_absorb_cases()                        # keep incidents in sync (C1-T1)
-    return case
+    return _public_case(case)
 
 
 # ---------------------------------------------------------------------------
@@ -817,9 +866,13 @@ def patch_case(cid, payload):
 # an incident 'closed' state would require editing metrics(), which carries a
 # foreign uncommitted change. Reported to god as a precedence note.
 CASE_STATUS_TO_INCIDENT_STATE = {
-    "open": "new",
+    "new": "new",
+    "open": "new",                 # alias of NEW
+    "triaged": "triaged",
     "investigating": "investigating",
-    "closed": "resolved",
+    "escalated": "escalated",
+    "resolved": "resolved",
+    "closed": "closed",
 }
 MANUAL_INCIDENT_BADGE = "MANUAL — analyst-created, no rule verdict"
 
@@ -836,7 +889,7 @@ def _embed_case(case):
         "title": case.get("title", ""),
         "notes": case.get("notes", ""),
         "assignee": case.get("assignee", ""),
-        "caseStatus": case.get("status", "open"),
+        "caseStatus": normalize_case_status(case.get("status") or "new"),
         "caseCreatedAt": case.get("createdAt"),
         "caseUpdatedAt": case.get("updatedAt"),
         "linkedFindings": [str(x) for x in (links.get("findings") or [])],
@@ -854,7 +907,8 @@ def _manual_incident_from_case(case, prev=None):
     cid = case.get("id") or "case"
     inc_id = "inc-manual-" + hashlib.sha1(str(cid).encode()).hexdigest()[:10]
     analyst_sev = case.get("severity")         # cases carry none today -> None
-    mapped = CASE_STATUS_TO_INCIDENT_STATE.get(case.get("status", "open"), "new")
+    mapped = CASE_STATUS_TO_INCIDENT_STATE.get(
+        normalize_case_status(case.get("status") or "new"), "new")
     return {
         "id": inc_id,
         "runId": "",
@@ -1020,11 +1074,14 @@ def metrics(state, run_labels=()):
         (i.get("createdAt"), i.get("acknowledgedAt")) for i in incidents)
     mttr, mttr_basis = _mean_seconds(
         (i.get("createdAt"), i.get("resolvedAt"))
-        for i in incidents if i.get("state") == "resolved")
+        for i in incidents
+        if normalize_incident_state(i.get("state")) in INCIDENT_TERMINAL)
 
     idle = not state or state.get("idle")
     return {
-        "openIncidents": sum(1 for i in incidents if i.get("state") != "resolved"),
+        "openIncidents": sum(
+            1 for i in incidents
+            if normalize_incident_state(i.get("state")) not in INCIDENT_TERMINAL),
         "mttaSeconds": mtta, "mttaBasis": mtta_basis,
         "mttrSeconds": mttr, "mttrBasis": mttr_basis,
         # HIGH+ risk only — counting all atRisk dilutes the signal when most

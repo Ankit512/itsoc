@@ -30,7 +30,8 @@ function StateChip({ state }: { state: IncidentState }) {
 
 const MANUAL_BADGE_FALLBACK = "MANUAL — analyst-created, no rule verdict";
 const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
-  open: "Open", investigating: "Investigating", closed: "Closed",
+  new: "New", triaged: "Triaged", investigating: "Investigating",
+  escalated: "Escalated", resolved: "Resolved", closed: "Closed",
 };
 
 /** A manual incident (origin "manual") is an analyst-created case with no rule
@@ -273,11 +274,8 @@ function ManualIncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => vo
   );
 }
 
-/** The analyst-owned lifecycle stepper. Renders only the states that exist in
- *  the backend lifecycle (INCIDENT_STATES) — the three deferred states
- *  (pending-approval / contained / closed) are intentionally NOT introduced;
- *  they land in C3/C4. Shared by rule and manual incidents so the template is
- *  consistent. */
+/** The analyst-owned lifecycle stepper. NEW → TRIAGED → INVESTIGATING →
+ *  ESCALATED → RESOLVED → CLOSED. Shared by rule and manual incidents. */
 function LifecycleStepper({ inc }: { inc: Incident }) {
   const qc = useQueryClient();
   const mutation = useMutation({

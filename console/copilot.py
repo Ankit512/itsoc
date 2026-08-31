@@ -394,11 +394,21 @@ def collect_angles(state, extras=None):
             "eligible": [{"id": b.get("id"), "name": b.get("name")} for b in eligible],
             "notEligible": max(0, len(books) - len(eligible)),
         },
+        "sigma": {
+            "hits": len(extras.get("sigmaHits") or (state or {}).get("sigmaHits") or []),
+        },
+        "triage": extras.get("triage") if isinstance(extras.get("triage"), dict) else {
+            "advisory": True, "disagreements": 0, "count": 0,
+        },
+        "cases": {
+            "count": len(extras.get("cases") or []),
+        },
         "links": [
             {"label": "Findings", "href": "/alerts", "count": len(findings)},
             {"label": "Incidents", "href": "/incidents", "count": len(incidents)},
             {"label": "Assets", "href": "/assets", "count": len(assets)},
             {"label": "Intel", "href": "/intel", "count": len(indicators)},
+            {"label": "Cases", "href": "/cases", "count": len(extras.get("cases") or [])},
         ],
     }
 
@@ -414,6 +424,9 @@ def render_angles(angles):
     mit = angles.get("mitre") or {}
     intel = angles.get("intel") or {}
     rb = angles.get("runbooks") or {}
+    sig = angles.get("sigma") or {}
+    tri = angles.get("triage") or {}
+    cases = angles.get("cases") or {}
     lines = [
         f"This run ({angles.get('runId')}) from every connected module. "
         "Advisory — rules still own severity; I am not opening a case.",
@@ -465,6 +478,17 @@ def render_angles(angles):
         lines.append(
             f"Runbooks: 0 eligible, {rb.get('notEligible', 0)} shipped book(s) did not match."
         )
+    lines.append(
+        f"Sigma: {sig.get('hits', 0)} gap-fill hit(s) on events the detector did not already flag."
+    )
+    disagrees = (tri.get("disagreements") if isinstance(tri, dict) else 0) or 0
+    lines.append(
+        f"AI triage: {disagrees} finding(s) where the advisory severity differs from the "
+        "rule verdict — AI recommends, analyst decides, not a new verdict."
+    )
+    lines.append(
+        f"Cases: {cases.get('count', 0)} analyst-owned (NEW→CLOSED). Chat does not open one."
+    )
     lines.append("Open the same run in Findings, Incidents, Assets, or Intel — same data.")
     return "\n".join(lines)
 

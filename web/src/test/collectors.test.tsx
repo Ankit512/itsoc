@@ -117,4 +117,34 @@ describe("Collectors — syslog control panel", () => {
     // Framed as source-reported, not a verdict.
     expect(screen.getByText(/source-reported/i)).toBeInTheDocument();
   });
+
+  it("webhook ingest posts JSON to /api/ingest/webhook", async () => {
+    let postBody: unknown = null;
+    const reply = (body: unknown, status = 200) =>
+      Promise.resolve({ ok: status < 400, status, json: async () => body } as Response);
+    vi.stubGlobal("fetch", vi.fn((u: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(u);
+      if (url.includes("/api/auth/me")) return reply({ user: { username: "analyst", role: "analyst" } });
+      if (url.includes("/api/auth/status")) return reply({ hasProfile: true, authType: "local_demo", provider: "LocalDemoAuth" });
+      if (url.includes("/api/ingest/webhook") && init?.method === "POST") {
+        postBody = JSON.parse(String(init.body));
+        return reply({
+          ok: true, accepted: 1, stored: 1, duplicates: 0, unparsed: 0,
+          sigmaHits: [{ id: "itsoc-edr-malware", title: "EDR malware", level: "CRITICAL", count: 1 }],
+          note: "Stored severity is source-reported.",
+        }, 201);
+      }
+      if (url.includes("/api/store/events")) return reply(EMPTY_EVENTS);
+      if (url.includes("/api/syslog/status")) return reply(STOPPED);
+      if (url.includes("/api/runs")) return reply({ runs: [], current: null });
+      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) } as Response);
+    }));
+    renderApp(<App />, { route: "/collectors" });
+    expect(await screen.findByTestId("webhook-ingest")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Ingest source"), "edr");
+    await userEvent.click(screen.getByRole("button", { name: /POST to \/api\/ingest\/webhook/i }));
+    await waitFor(() => expect(postBody).toMatchObject({ source: "edr" }));
+    expect(await screen.findByTestId("ingest-result")).toHaveTextContent(/stored 1/);
+    expect(screen.getByTestId("ingest-result")).toHaveTextContent(/itsoc-edr-malware/);
+  });
 });

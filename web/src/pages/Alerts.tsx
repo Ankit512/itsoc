@@ -164,6 +164,16 @@ function FindingDetail({ f }: { f: Finding }) {
             {f.explanation || "Explanation pending — the deterministic verdict above is already final."}
           </p>
         </div>
+        {f.aiTriage && (
+          <div className="is-block" data-testid="ai-triage">
+            <div className="cap">AI recommended severity · advisory</div>
+            <div className="verdict" style={{ opacity: 0.85 }}>{f.aiTriage.aiSeverity}</div>
+            <p className="is-mut">
+              {f.aiTriage.note} Rule verdict ({f.aiTriage.ruleSeverity}) is unchanged.
+              {f.aiTriage.falsePositiveHint ? ` ${f.aiTriage.falsePositiveHint}` : ""}
+            </p>
+          </div>
+        )}
       </div>
 
       {f.lines.length > 0 && (
