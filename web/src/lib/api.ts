@@ -871,6 +871,17 @@ export const api = {
     }
   },
 
+  copilotAngles: async (): Promise<Record<string, unknown>> => {
+    try {
+      const res = await fetch("/api/copilot/angles");
+      if (!res.ok) return {};
+      const body = await res.json().catch(() => ({}));
+      return (body && typeof body === "object") ? body as Record<string, unknown> : {};
+    } catch {
+      return {};
+    }
+  },
+
   copilotForecast: async (): Promise<CopilotForecast> => {
     try {
       const res = await fetch("/api/copilot/forecast");

@@ -97,6 +97,7 @@ def suggested_questions(state):
         qs.append("Walk the brute-force timeline with evidence line citations")
     if any(_occ(f) > 1 for f in findings):
         qs.append("What did Overview group, and which matching lines are hidden?")
+    qs.insert(0, "Walk this run from every connected module")
 
     mitre = [f for f in findings if f.get("mitre")]
     if not mitre and findings:
@@ -284,7 +285,175 @@ def _sample_non_finding(events):
     return answer, _citations_from_events(sample)
 
 
-def investigate(question, state):
+_ANGLE_WORDS = (
+    "every angle", "every connected", "all modules", "thorough",
+    "full picture", "connected module", "walk this run from every",
+    "investigate this run", "all angles", "every module",
+)
+
+
+def collect_angles(state, extras=None):
+    """One compact view of every module on THIS run. Display facts, not verdicts."""
+    extras = extras or {}
+    idle = not state or state.get("idle")
+    findings = _findings(state) if not idle else []
+    events = _events(state) if not idle else []
+    matching = sum(_occ(f) for f in findings)
+    top = _ranked(findings)[:3]
+    incidents = list(extras.get("incidents") or [])
+    assets = list(extras.get("assets") or [])
+    users = list(extras.get("users") or [])
+    ti = extras.get("ti") if isinstance(extras.get("ti"), dict) else {}
+    scan = extras.get("runbooks") if isinstance(extras.get("runbooks"), dict) else {}
+    forecast = extras.get("forecast") if isinstance(extras.get("forecast"), dict) else {}
+    books = list(scan.get("runbooks") or [])
+    eligible = [b for b in books if b.get("eligible")]
+    indicators = list(ti.get("indicators") or [])
+    ioc_hits = []
+    tokens = []
+    for f in findings:
+        for c in f.get("chips") or []:
+            t = str(c.get("text") or "")
+            if len(t) >= 7:
+                tokens.append(t)
+        title = str(f.get("title") or "")
+        for tok in re.findall(r"\d{1,3}(?:\.\d{1,3}){3}", title):
+            tokens.append(tok)
+    for ind in indicators[:40]:
+        blob = f"{ind.get('pattern') or ''} {ind.get('name') or ''}"
+        for t in tokens:
+            if t and t in blob:
+                ioc_hits.append({"token": t, "indicator": ind.get("name") or ind.get("id")})
+                break
+    techniques = []
+    seen = set()
+    for f in findings:
+        for t in f.get("mitre") or []:
+            tid = t.get("id")
+            if tid and tid not in seen:
+                seen.add(tid)
+                techniques.append({"id": tid, "name": t.get("name") or tid,
+                                   "tactic": t.get("tactic") or ""})
+    at_risk = [a for a in assets if (a.get("maxSeverity") or "").upper() in ("CRITICAL", "HIGH")]
+    users_risk = [u for u in users if (u.get("maxSeverity") or "").upper() in ("CRITICAL", "HIGH")]
+    phases = list((forecast or {}).get("phases") or [])
+    watch = [p.get("name") for p in phases if p.get("watch")]
+    return {
+        "runId": None if idle else (state or {}).get("runId"),
+        "idle": bool(idle),
+        "detections": {
+            "findings": len(findings),
+            "matchingLines": matching,
+            "events": len(events),
+            "top": [{"id": f.get("id"), "sev": _sev(f), "title": f.get("title"),
+                     "type": f.get("type")} for f in top],
+        },
+        "incidents": {
+            "count": len(incidents),
+            "top": [{"id": i.get("id"), "severity": i.get("severity"),
+                     "entity": i.get("entity"), "title": i.get("title")}
+                    for i in incidents[:4]],
+        },
+        "assets": {
+            "count": len(assets),
+            "atRiskHigh": len(at_risk),
+            "names": [a.get("name") for a in assets[:6] if a.get("name")],
+        },
+        "users": {
+            "count": len(users),
+            "atRiskHigh": len(users_risk),
+            "names": [u.get("name") for u in users[:6] if u.get("name")],
+        },
+        "mitre": {
+            "techniques": techniques[:8],
+            "watch": watch,
+            "note": (forecast or {}).get("note"),
+        },
+        "intel": {
+            "indicators": len(indicators),
+            "source": ti.get("indicatorSource") or "n/a",
+            "hits": ioc_hits[:6],
+        },
+        "runbooks": {
+            "eligible": [{"id": b.get("id"), "name": b.get("name")} for b in eligible],
+            "notEligible": max(0, len(books) - len(eligible)),
+        },
+        "links": [
+            {"label": "Findings", "href": "/alerts", "count": len(findings)},
+            {"label": "Incidents", "href": "/incidents", "count": len(incidents)},
+            {"label": "Assets", "href": "/assets", "count": len(assets)},
+            {"label": "Intel", "href": "/intel", "count": len(indicators)},
+        ],
+    }
+
+
+def render_angles(angles):
+    """Plain-language brief across modules. Advisory only."""
+    if not angles or angles.get("idle"):
+        return "No run loaded. Analyze a log first — I only read modules for the current run."
+    d = angles.get("detections") or {}
+    inc = angles.get("incidents") or {}
+    ast = angles.get("assets") or {}
+    usr = angles.get("users") or {}
+    mit = angles.get("mitre") or {}
+    intel = angles.get("intel") or {}
+    rb = angles.get("runbooks") or {}
+    lines = [
+        f"This run ({angles.get('runId')}) from every connected module. "
+        "Advisory — rules still own severity; I am not opening a case.",
+        f"Detections: {d.get('findings', 0)} card(s), "
+        f"{d.get('matchingLines', 0)} matching line(s), "
+        f"{d.get('events', 0)} parsed event(s).",
+    ]
+    for t in d.get("top") or []:
+        lines.append(f"- [{t.get('sev')}] {t.get('title')}")
+    lines.append(
+        f"Incidents: {inc.get('count', 0)} derived cluster(s) "
+        "(same findings, grouped — not a new verdict)."
+    )
+    for i in inc.get("top") or []:
+        lines.append(f"- {i.get('severity')} {i.get('entity') or i.get('id')}: {i.get('title') or ''}")
+    names = ", ".join(ast.get("names") or []) or "n/a"
+    lines.append(
+        f"Assets: {ast.get('count', 0)} observed, "
+        f"{ast.get('atRiskHigh', 0)} at HIGH/CRITICAL. Names: {names}."
+    )
+    unames = ", ".join(usr.get("names") or []) or "n/a"
+    lines.append(
+        f"Users: {usr.get('count', 0)} extracted from the log, "
+        f"{usr.get('atRiskHigh', 0)} at HIGH/CRITICAL. Names: {unames}."
+    )
+    techs = mit.get("techniques") or []
+    if techs:
+        lines.append("MITRE: " + ", ".join(f"{t.get('id')} {t.get('name')}" for t in techs) + ".")
+        if mit.get("watch"):
+            lines.append(
+                "Watch (not in this log): " + ", ".join(mit["watch"]) +
+                " — a continuation picture, not a detection."
+            )
+    else:
+        lines.append("MITRE: empty on this run — I will not invent an attack chain.")
+    hits = intel.get("hits") or []
+    lines.append(
+        f"Intel: {intel.get('indicators', 0)} offline indicator(s); "
+        f"{len(hits)} token hit(s) in this run."
+        + ("" if not hits else " " + ", ".join(
+            f"{h.get('token')}→{h.get('indicator')}" for h in hits[:4]))
+    )
+    elig = rb.get("eligible") or []
+    if elig:
+        lines.append("Runbooks eligible: " + ", ".join(
+            b.get("name") or b.get("id") for b in elig) +
+            " — not executed from chat.")
+    else:
+        lines.append(
+            f"Runbooks: 0 eligible, {rb.get('notEligible', 0)} shipped book(s) did not match."
+        )
+    lines.append("Open the same run in Findings, Incidents, Assets, or Intel — same data.")
+    return "\n".join(lines)
+
+
+def investigate(question, state, extras=None):
     """Deterministic investigation. Never a new verdict."""
     empty = {
         "answer": "",
@@ -310,10 +479,17 @@ def investigate(question, state):
     events = _events(state)
     q = str(question or "").strip()
     ql = q.lower()
+    angles = collect_angles(state, extras)
     facts = {
         "findings": len(findings),
         "events": len(events),
         "matchingLines": sum(_occ(f) for f in findings),
+        "modules": {
+            "incidents": (angles.get("incidents") or {}).get("count"),
+            "assets": (angles.get("assets") or {}).get("count"),
+            "users": (angles.get("users") or {}).get("count"),
+            "intelHits": len((angles.get("intel") or {}).get("hits") or []),
+        },
     }
 
     if not q:
@@ -321,6 +497,17 @@ def investigate(question, state):
         empty["facts"] = facts
         empty["followups"] = suggested_questions(state)
         return empty
+
+    if any(w in ql for w in _ANGLE_WORDS):
+        top = _ranked(findings)[0] if findings else None
+        return {
+            "answer": render_angles(angles),
+            "citations": _citations_from_finding(top) if top else [],
+            "followups": _followups(findings, top),
+            "facts": facts,
+            "angles": angles,
+            "source": "rules",
+        }
 
     # --- honest empty bands / not-an-attack -------------------------------
     crit = [f for f in findings if _sev(f) == "CRITICAL"]
@@ -512,6 +699,10 @@ def prompt_facts(inv):
         raw = (c.get("raw") or "").replace("\n", " ")
         cite = f"{{{n}}}" if n not in (None, "") else "{n/a}"
         lines.append(f"  {cite} {raw[:200]}")
+    ang = inv.get("angles")
+    if ang and not ang.get("idle"):
+        lines.append("Connected modules (same run — display facts, not verdicts):")
+        lines.append(render_angles(ang))
     lines.append(
         "Use these facts. Do not invent additional alerts or change severity. "
         "Cite {n} when you quote a line."
