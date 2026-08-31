@@ -1,0 +1,13 @@
+Received: from mail.example.test (mail.example.test [192.0.2.10])
+        by mx.lab.example with ESMTPS id LAB001
+        for <analyst@lab.example>; Mon, 31 Aug 2026 09:14:00 +0000
+From: "DHL Lab" <service@dhl.example.test>
+To: analyst@lab.example
+Reply-To: service@dhl.cupcake.example.test
+Subject: LAB DEMO — Your package is ready, needs to be released from customs
+Date: Mon, 31 Aug 2026 09:14:00 +0000
+Message-ID: <lab-demo-001@example.test>
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+Authentication-Results: mx.lab.example; spf=pass smtp.mailfrom=dhl.example.test; dmarc=pass
+X-Itsoc-Note: Documentation/lab addresses only (RFC 2606 / 5737). Not a live phishing event.
