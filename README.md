@@ -1,4 +1,4 @@
-# itsoc, — Local AI-Assisted SOC Console
+# itsoc. — Local AI-Assisted SOC Console
 
 A **local, rules-first security operations console**. Deterministic rules detect anomalies and
 **own every severity verdict**; a local LLM (via Ollama) only **explains** findings in plain
