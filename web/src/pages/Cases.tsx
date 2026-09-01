@@ -24,10 +24,18 @@ function CreateCase() {
 
 function CaseCard({ item }: { item: Case }) {
   const navigate = useNavigate(); const qc = useQueryClient(); const update = useMutation({ mutationFn: (status: CaseStatus) => api.patchCase(item.id, { status }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) });
-  return <article className="is-case-card" onClick={() => navigate(`/cases?sel=${encodeURIComponent(item.id)}`)}><button className="is-case-card__title">{item.title}</button><div className="is-mono is-mut" style={{ fontSize: 9.5, marginTop: 4 }}>{item.id}</div><div className="is-case-card__meta"><span>{item.assignee || "Unassigned"}</span><span>{item.category || "Uncategorized"}</span>{item.links.findings.map((id) => <span key={id} className="is-mono">{id}</span>)}</div><div className="is-case-card__foot"><StatusPill status={item.status} /><div className="is-case-card__steps" aria-label={`Move ${item.id}`} onClick={(e) => e.stopPropagation()}>{CASE_STATUSES.map((status) => <button key={status} type="button" aria-label={`Status of ${item.id}: ${status}`} disabled={status === item.status || update.isPending} onClick={() => update.mutate(status)}>{LABEL[status]}</button>)}</div></div></article>;
+  const visibleFindings = item.links.findings.slice(0, 2);
+  const remainingFindings = item.links.findings.length - visibleFindings.length;
+  return <article className="is-case-card" onClick={() => navigate(`/cases?sel=${encodeURIComponent(item.id)}`)}><button className="is-case-card__title">{item.title}</button><div className="is-case-card__meta"><span className="is-mono">{item.id}</span><span>{item.assignee || "Unassigned"} · {item.category || "Uncategorized"}</span>{visibleFindings.length > 0 && <span className="is-case-card__findings">{visibleFindings.map((id) => <code key={id}>{id}</code>)}{remainingFindings > 0 && <span>+{remainingFindings} more</span>}</span>}</div><div className="is-case-card__foot"><StatusPill status={item.status} /><div className="is-case-card__steps" aria-label={`Move ${item.id}`} onClick={(e) => e.stopPropagation()}>{CASE_STATUSES.map((status) => <button key={status} type="button" aria-label={`Status of ${item.id}: ${status}`} disabled={status === item.status || update.isPending} onClick={() => update.mutate(status)}>{LABEL[status]}</button>)}</div></div></article>;
 }
 
-function Board({ cases }: { cases: Case[] }) { return <div className="is-case-board" aria-label="Case board">{CASE_STATUSES.map((status) => { const items = cases.filter((item) => item.status === status); return <section key={status} className="is-case-column" aria-label={LABEL[status]}><header><span>{LABEL[status]}</span><span className="is-mono">{items.length}</span></header><div className="is-case-column__cards">{items.length ? items.map((item) => <CaseCard key={item.id} item={item} />) : <p className="is-case-empty">No cases in {LABEL[status].toLowerCase()}.</p>}</div></section>; })}</div>; }
+function Board({ cases }: { cases: Case[] }) {
+  if (!cases.length) return null;
+  return <div className="is-case-board is-case-board--bounded" aria-label="Case board">{CASE_STATUSES.map((status) => {
+    const items = cases.filter((item) => item.status === status).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return <section key={status} className="is-case-column" aria-label={LABEL[status]}><header><span>{LABEL[status]}</span><span className="is-mono" title={`${items.length} case${items.length === 1 ? "" : "s"}`}>{items.length}</span></header><div className="is-case-column__cards is-case-column__cards--scrollable">{items.length ? items.map((item) => <CaseCard key={item.id} item={item} />) : <p className="is-case-empty">No cases</p>}</div></section>;
+  })}</div>;
+}
 
 function Activity({ item }: { item: Case }) { const activity = item.activity ?? []; if (!activity.length) return <p className="is-case-empty">No human or system actions have been recorded.</p>; return <ol className="is-case-activity">{activity.slice().reverse().map((entry, index) => <li key={`${entry.at}-${index}`}><span className="is-mono">{entry.at.slice(0, 16).replace("T", " ")}</span><b>{entry.actor}</b><span className="is-chip">{entry.kind}</span><p>{entry.text}</p></li>)}</ol>; }
 
@@ -216,8 +224,41 @@ function Runbooks({ item }: { item: Case }) {
   </section>;
 }
 
+const PHISHING_STEPS = [
+  ["Find", "Preserve the reported message, then capture sender, reply-to, subject, URLs, attachment names, and message headers as case observables."],
+  ["Scout", "Search for the sender, domain, URLs, and hashes across approved sources. Record confirmed recipients and related findings; do not infer scope from one message."],
+  ["Resolve", "Document the evidence and recommended remediation. Request an approval for any external response; this workflow never deletes mail, blocks an indicator, or contacts a user."],
+] as const;
+
+function PhishingWorkflow({ item }: { item: Case }) {
+  const qc = useQueryClient();
+  const [owner, setOwner] = useState(item.assignee || "");
+  const [notice, setNotice] = useState("");
+  const apply = useMutation({
+    mutationFn: () => api.patchCase(item.id, {
+      category: "email phishing",
+      assignee: owner.trim(),
+      notes: `${item.notes ? `${item.notes.trim()}\n\n` : ""}Email phishing workflow\n\n${PHISHING_STEPS.map(([name, detail], index) => `${index + 1}. ${name} — ${detail}`).join("\n")}`,
+    }),
+    onSuccess: (out) => {
+      if (!out.ok) return setNotice(out.error ?? "Could not apply the workflow.");
+      setNotice("Email phishing workflow added to this ticket. No response action was executed.");
+      qc.invalidateQueries({ queryKey: ["cases"] });
+    },
+  });
+  return <section className="is-phishing-workflow" data-testid="phishing-workflow">
+    <div><span>Template</span><h3>Email phishing response</h3><p>Guided evidence collection and remediation planning for a reported phishing message.</p></div>
+    <ol>{PHISHING_STEPS.map(([name, detail]) => <li key={name}><b>{name}</b><span>{detail}</span></li>)}</ol>
+    <div className="is-phishing-workflow__actions">
+      <label className="is-field"><span>Responsible analyst</span><input className="is-input" aria-label="Responsible analyst" value={owner} onChange={(event) => setOwner(event.target.value)} placeholder="Assign a person" /></label>
+      <button type="button" className="is-btn is-btn--primary" disabled={apply.isPending} onClick={() => apply.mutate()}>{apply.isPending ? "Adding…" : "Add workflow to ticket"}</button>
+    </div>
+    {notice && <p className="is-mut">{notice}</p>}
+  </section>;
+}
+
 function Detail({ item, cases }: { item: Case; cases: Case[] }) {
-  const [tab, setTab] = useState<DetailTab>("Overview"); const navigate = useNavigate(); const qc = useQueryClient(); const update = useMutation({ mutationFn: (status: CaseStatus) => api.patchCase(item.id, { status }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) });
+  const [tab, setTab] = useState<DetailTab>("Overview"); const [responsible, setResponsible] = useState(item.assignee || ""); const navigate = useNavigate(); const qc = useQueryClient(); const update = useMutation({ mutationFn: (status: CaseStatus) => api.patchCase(item.id, { status }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) }); const assign = useMutation({ mutationFn: () => api.patchCase(item.id, { assignee: responsible.trim() }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) });
   const regen = useMutation({ mutationFn: () => api.regenerateCaseSummary(item.id), onSuccess: () => qc.invalidateQueries({ queryKey: ["cases"] }) });
   
   const overview = <>
@@ -230,6 +271,7 @@ function Detail({ item, cases }: { item: Case; cases: Case[] }) {
       {!item.summary?.what && !item.summary?.impact && !item.summary?.when && <p className="is-case-empty">No case summary has been recorded.</p>}
     </div>
     <Runbooks item={item} />
+    <PhishingWorkflow item={item} />
   </>;
   
   const contents: Record<DetailTab, ReactNode> = {
@@ -255,9 +297,7 @@ function Detail({ item, cases }: { item: Case; cases: Case[] }) {
           <span>{item.assignee || "Unassigned"}</span>
         </div>
       </div>
-      <select className="is-select is-case-status-select" aria-label="Case status" value={item.status} disabled={update.isPending} onChange={(e) => update.mutate(e.target.value as CaseStatus)}>
-        {CASE_STATUSES.map((status) => <option key={status} value={status}>{LABEL[status]}</option>)}
-      </select>
+      <div className="is-case-file__controls"><label className="is-field"><span>Responsible person</span><input className="is-input" aria-label="Responsible person" value={responsible} onChange={(event) => setResponsible(event.target.value)} placeholder="Unassigned" /></label><button type="button" className="is-btn" disabled={assign.isPending || responsible.trim() === (item.assignee || "")} onClick={() => assign.mutate()}>{assign.isPending ? "Saving…" : "Assign"}</button><select className="is-select is-case-status-select" aria-label="Case status" value={item.status} disabled={update.isPending} onChange={(e) => update.mutate(e.target.value as CaseStatus)}>{CASE_STATUSES.map((status) => <option key={status} value={status}>{LABEL[status]}</option>)}</select></div>
     </header>
 
     {/* Quick Action Ribbon */}

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Antenna, Bell, Cable, Database, FileText, FolderKanban, House, Link as LinkIcon, LogOut, Monitor,
-  Plug, Radar, RefreshCw, Search, Settings, Shield, ShieldCheck, Sparkles, TriangleAlert, Upload, X,
+  BrainCircuit, Plug, Radar, RefreshCw, Search, Settings, Shield, ShieldCheck, TriangleAlert, Upload, X,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -97,9 +97,9 @@ function Sidebar() {
   return (
     <aside className="is-side">
       {/* Brand wordmark: 'itsoc.' with the dot in --acc (DESIGN_HANDOFF §1) */}
-      <div className="is-brand">
+      <NavLink to="/" end className="is-brand" aria-label="Return to Overview">
         <span data-testid="wordmark">itsoc<span className="dot">.</span></span>
-      </div>
+      </NavLink>
 
       {/* ⌘K search pill — dc order: icon · label · shortcut */}
       <button
@@ -393,8 +393,7 @@ export function AppShell() {
           >
             <CopilotRail docked />
           </aside>
-          {/* dc launcher: a 42px round button — sparkle when closed, X when
-              open. The label lives in the panel header, not on the button. */}
+          {/* The analyst mark is distinct from generic AI sparkle affordances. */}
           <button
             className={cn("is-cop-fab", railOpen && "open")}
             data-testid="copilot-fab"
@@ -404,7 +403,7 @@ export function AppShell() {
           >
             {railOpen
               ? <X size={14} strokeWidth={1.7} aria-hidden />
-              : <Sparkles size={16} strokeWidth={1.7} aria-hidden />}
+              : <BrainCircuit size={18} strokeWidth={1.8} aria-hidden />}
           </button>
         </>
       )}

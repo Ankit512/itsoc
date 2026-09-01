@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Antenna } from "lucide-react";
+import { Antenna, Radio } from "lucide-react";
 import { api, type SyslogStatus } from "@/lib/api";
 
 type IngestSource = "edr" | "firewall" | "cloud" | "webhook";
@@ -291,6 +291,49 @@ function WebhookIngest() {
   );
 }
 
+/** Splunk has no push tail endpoint in the local console. This connector polls
+ * Splunk's export endpoint on a short, explicit interval and stores only real
+ * returned events. Tokens are write-only and never come back to the browser. */
+function SplunkLive() {
+  const queryClient = useQueryClient();
+  const [baseUrl, setBaseUrl] = useState("");
+  const [token, setToken] = useState("");
+  const [query, setQuery] = useState("search index=* earliest=-2m | head 200");
+  const [notice, setNotice] = useState("");
+  const { data } = useQuery({ queryKey: ["oem", "connectors"], queryFn: api.oemConnectors, refetchInterval: 5000 });
+  const connector = data?.connectors.find((item) => item.name === "splunk-live");
+  const start = useMutation({
+    mutationFn: async () => {
+      const out = await api.oemCreateConnector({
+        name: "splunk-live", enabled: true, interval: 15, token,
+        config: { vendor: "splunk", baseUrl, eventsPath: "/services/search/jobs/export", query },
+      });
+      if (!out.ok) throw new Error(out.error ?? "Could not save the Splunk connector.");
+      return api.oemPoll("splunk-live");
+    },
+    onSuccess: (out) => {
+      setToken("");
+      setNotice(out.ok ? `Connected — ${out.stored} event(s) stored from the live poll.` : out.error || "Connector saved; the first poll did not complete.");
+      queryClient.invalidateQueries({ queryKey: ["oem"] });
+      queryClient.invalidateQueries({ queryKey: ["syslog", "events"] });
+    },
+    onError: (error) => setNotice((error as Error).message),
+  });
+  const poll = useMutation({ mutationFn: () => api.oemPoll("splunk-live"), onSuccess: (out) => setNotice(out.ok ? `Live poll stored ${out.stored} event(s).` : out.error || "Poll returned no event."), onError: (error) => setNotice((error as Error).message) });
+
+  return <section className="is-panel" data-testid="splunk-live-collector">
+    <div className="is-panel__h"><h3 style={{ display: "flex", alignItems: "center", gap: 7 }}><Radio size={15} aria-hidden /> Splunk live analysis</h3>{connector?.enabled && <span className="is-chip is-chip--ok">polling every {connector.interval ?? 15}s</span>}</div>
+    <p className="is-mut" style={{ fontSize: 12, lineHeight: 1.5, margin: "0 0 8px" }}>Runs your SPL against Splunk&apos;s export endpoint and stores only returned events for rule analysis. This is outbound access to the Splunk endpoint; enable the console with <code>ITSOC_OEM=1</code> before starting it.</p>
+    <div className="is-grid-2">
+      <label className="is-field"><span>Splunk base URL</span><input className="is-input" aria-label="Splunk base URL" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://splunk.company.internal:8089" /></label>
+      <label className="is-field"><span>API token</span><input className="is-input" aria-label="Splunk API token" type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder={connector?.hasToken ? "Token saved — enter a new value to replace" : "Write-only token"} /></label>
+    </div>
+    <label className="is-field" style={{ marginTop: 8 }}><span>SPL query</span><textarea className="is-input is-mono" aria-label="Splunk query" rows={2} value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}><button type="button" className="is-btn is-btn--primary" disabled={start.isPending || !baseUrl.trim() || (!token.trim() && !connector?.hasToken)} onClick={() => start.mutate()}>{start.isPending ? "Connecting…" : connector?.enabled ? "Update live poll" : "Connect live poll"}</button><button type="button" className="is-btn" disabled={poll.isPending || !connector?.enabled} onClick={() => poll.mutate()}>{poll.isPending ? "Polling…" : "Poll now"}</button>{connector?.lastError && <span style={{ color: "var(--crit)", fontSize: 11.5 }}>{connector.lastError}</span>}</div>
+    {notice && <p className="is-mut" style={{ fontSize: 11.5, margin: "9px 0 0" }}>{notice}</p>}
+  </section>;
+}
+
 export function Collectors() {
   const { data: status, error } = useQuery({
     queryKey: ["syslog", "status"], queryFn: api.syslogStatus, refetchInterval: 3000,
@@ -311,6 +354,7 @@ export function Collectors() {
         <Controls status={status} />
         <LiveStatus status={status} />
       </div>
+      <SplunkLive />
       <WebhookIngest />
       <RecentEvents running={!!status?.running} />
     </>

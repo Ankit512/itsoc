@@ -40,7 +40,7 @@ describe("AI Analyst streaming", () => {
 
     renderApp(<AiAnalyst model="llama3.1:8b" />);
     await userEvent.click(screen.getByRole("button", { name: "Open AI Analyst" }));
-    await userEvent.click(screen.getByText("Are these findings a security incident or operational noise?"));
+    await userEvent.click(screen.getByText("Walk me through the highest-severity finding with source lines"));
 
     // While in flight: a Stop control and the elapsed/streaming line.
     expect(await screen.findByRole("button", { name: /stop/i })).toBeInTheDocument();

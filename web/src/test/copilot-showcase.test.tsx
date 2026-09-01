@@ -51,11 +51,17 @@ const INCIDENTS_VIEW = {
 describe("AI copilot Showcase (design-v2 §4)", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  async function askForView(question: string) {
+    const composer = await screen.findByLabelText("Ask the AI analyst");
+    await userEvent.type(composer, question);
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+  }
+
   it("renders a real is-* result card with advisory chip, cited count, and deep-link", async () => {
     stubAsk(INCIDENTS_VIEW);
     renderApp(<CopilotRail docked />);
 
-    await userEvent.click(await screen.findByRole("button", { name: /show me the critical incidents/i }));
+    await askForView("Show me the critical incidents");
 
     const card = await screen.findByTestId("copilot-showcase-card");
     // Title + advisory chip (never a verdict).
@@ -74,7 +80,7 @@ describe("AI copilot Showcase (design-v2 §4)", () => {
     stubAsk({ type: "findings", title: "Top Medium findings", filter: "MEDIUM", items: [], deeplink: "/findings", citedFindings: 0 });
     renderApp(<CopilotRail docked />);
 
-    await userEvent.click(await screen.findByRole("button", { name: /top 5 findings/i }));
+    await askForView("Show me the top 5 findings");
 
     const card = await screen.findByTestId("copilot-showcase-card");
     expect(within(card).getByText(/nothing matches/i)).toBeInTheDocument();
@@ -86,7 +92,7 @@ describe("AI copilot Showcase (design-v2 §4)", () => {
     stubAsk(null);
     renderApp(<CopilotRail docked />);
 
-    await userEvent.click(await screen.findByRole("button", { name: /summarize the dashboard/i }));
+    await askForView("Summarize the dashboard");
     await waitFor(() => expect(screen.getByText(/Advisory summary\./)).toBeInTheDocument());
     expect(screen.queryByTestId("copilot-showcase-card")).not.toBeInTheDocument();
   });

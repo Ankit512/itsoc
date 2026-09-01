@@ -648,6 +648,8 @@ ASK_SYSTEM = (
     "the same run's incidents, assets, users, MITRE, intel, and runbooks. "
     "Say plainly when a requested band (e.g. critical) has zero findings. "
     "Use the investigation facts and findings summary provided. "
+    "When asked about a screen, dashboard, cards, reports, or next steps, explain the supplied workspace facts first, then give a short evidence-first plan. "
+    "Recommendations are suggestions only: never claim to assign a person, open a ticket, approve a response, or execute a runbook. "
     "Severities and verdicts were assigned by deterministic rules and are final: "
     "you explain and advise, you never change, suppress, or escalate them. "
     "Do not invent attacks, ATT&CK techniques, or extra alerts. "
@@ -663,6 +665,8 @@ ASK_SYSTEM_STREAM = (
     "Investigate the CURRENT run: walk grouped findings, cite hidden matching "
     "source lines by {n}, and be honest when a requested band has zero findings. "
     "Use the investigation facts and findings summary provided. "
+    "When asked about a screen, dashboard, cards, reports, or next steps, explain the supplied workspace facts first, then give a short evidence-first plan. "
+    "Recommendations are suggestions only: never claim to assign a person, open a ticket, approve a response, or execute a runbook. "
     "Severities and verdicts were assigned by deterministic rules and are final: "
     "you explain and advise, you never change, suppress, or escalate them. "
     "Do not invent attacks, ATT&CK techniques, or extra alerts. "
@@ -671,7 +675,7 @@ ASK_SYSTEM_STREAM = (
 )
 
 
-def ask_analyst(question, state=None, compute=None):
+def ask_analyst(question, state=None, compute=None, context=None):
     """One advisory answer about the CURRENT findings. Read-only by design.
 
     The prompt carries a findings SUMMARY (severity, rule, title, host, time),
@@ -680,7 +684,7 @@ def ask_analyst(question, state=None, compute=None):
     explanations — before leaving. The reply is prose for a human; nothing
     here writes to STATE, severities, or verdicts.
     """
-    base, key, model, user, _inv = _ask_prompt(question, state, compute)
+    base, key, model, user, _inv = _ask_prompt(question, state, compute, context=context)
     reply = la.strip_fences(la.chat_completion(base, key, model, ASK_SYSTEM, user))
     try:                       # chat_completion asks for a JSON object reply
         answer = json.loads(reply).get("answer")
@@ -708,7 +712,7 @@ def _copilot_extras(state):
     }
 
 
-def _ask_prompt(question, state=None, compute=None):
+def _ask_prompt(question, state=None, compute=None, context=None):
     """Build the (base, key, model, user) for one analyst question.
 
     Includes a findings summary plus deterministic investigation facts
@@ -721,7 +725,7 @@ def _ask_prompt(question, state=None, compute=None):
 
     findings = state.get("findings", [])
     extras = _copilot_extras(state)
-    inv = copilot.investigate(question, state, extras=extras)
+    inv = copilot.investigate(question, state, extras=extras, context=context)
     if not inv.get("angles"):
         inv["angles"] = copilot.collect_angles(state, extras)
     parts = [f"Run {state.get('runId', '?')} — {state.get('sourceLabel') or state.get('runHosts') or 'current log'} — "
@@ -759,11 +763,11 @@ def _ask_prompt(question, state=None, compute=None):
     return base, key, model, user, inv
 
 
-def ask_analyst_stream(question, state=None, compute=None):
+def ask_analyst_stream(question, state=None, compute=None, context=None):
     """Yield the analyst reply as prose chunks (advisory, read-only). Same
     summary/redaction as ask_analyst; only the delivery differs."""
     compute = COMPUTE if compute is None else compute
-    base, key, model, user, inv = _ask_prompt(question, state, compute)
+    base, key, model, user, inv = _ask_prompt(question, state, compute, context=context)
     if compute.get("mode") != "remote" and not llm_reachable():
         text = (inv or {}).get("answer") or (
             "The model is offline. Deterministic investigation found no "
@@ -2384,15 +2388,23 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         # backend-selected data — the AI chooses WHAT to surface, never a
         # verdict. No model call, so it is fast and works even when the LLM is
         # offline. `view` is null when the question is not a showcase request.
+        context_raw = payload.get("context")
+        context = context_raw if isinstance(context_raw, dict) else {}
+        context = {
+            "route": str(context.get("route") or "")[:160],
+            "screen": str(context.get("screen") or "")[:80],
+            "selectedFindingId": str(context.get("selectedFindingId") or "")[:160],
+            "selectedIncidentId": str(context.get("selectedIncidentId") or "")[:160],
+        }
         if payload.get("view"):
-            return self._json({"view": soc.build_view(question, STATE)})
+            return self._json({"view": soc.build_view(question, STATE, context=context)})
         extras = _copilot_extras(STATE)
         if payload.get("investigate"):
-            inv = copilot.investigate(question, STATE, extras=extras, case=case)
-            return self._json({"investigation": inv, "view": soc.build_view(question, STATE)})
+            inv = copilot.investigate(question, STATE, extras=extras, case=case, context=context)
+            return self._json({"investigation": inv, "view": soc.build_view(question, STATE, context=context)})
         if payload.get("stream"):
-            return self._ask_stream(question, case=case)
-        inv = copilot.investigate(question, STATE, extras=extras, case=case)
+            return self._ask_stream(question, case=case, context=context)
+        inv = copilot.investigate(question, STATE, extras=extras, case=case, context=context)
         if inv.get("source") == "case" and inv.get("answer"):
             return self._json({
                 "answer": inv["answer"],
@@ -2400,7 +2412,7 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
                 "source": "case",
             })
         try:
-            answer = ask_analyst(question)
+            answer = ask_analyst(question, context=context)
             source = "llm"
         except Exception as e:
             # Model down: still return the deterministic investigation, never
@@ -2409,7 +2421,7 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
                 print(f"  analyst asked (rules-only): {question[:60]!r}", flush=True)
                 return self._json({
                     "answer": inv["answer"],
-                    "view": soc.build_view(question, STATE),
+                    "view": soc.build_view(question, STATE, context=context),
                     "investigation": inv,
                     "source": "rules",
                     "note": f"the analyst model is not reachable: {e}",
@@ -2418,7 +2430,7 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         print(f"  analyst asked: {question[:60]!r}", flush=True)
         return self._json({
             "answer": answer,
-            "view": soc.build_view(question, STATE),
+            "view": soc.build_view(question, STATE, context=context),
             "investigation": inv,
             "source": source,
         })
@@ -2480,7 +2492,7 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         finally:
             stop.set()
 
-    def _ask_stream(self, question, case=None):
+    def _ask_stream(self, question, case=None, context=None):
         """Stream the analyst reply as Server-Sent Events: one `{"delta": ...}`
         per token, a final `{"done": true}`, or `{"error": ...}` if the model
         is unreachable. The client can cancel by dropping the connection — the
@@ -2498,7 +2510,7 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.flush()
 
         extras = _copilot_extras(STATE)
-        inv = copilot.investigate(question, STATE, extras=extras, case=case)
+        inv = copilot.investigate(question, STATE, extras=extras, case=case, context=context)
         try:
             send({"investigation": {
                 "answer": inv.get("answer") or "",
@@ -2506,17 +2518,13 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
                 "followups": inv.get("followups") or [],
                 "source": inv.get("source") or "rules",
                 "facts": inv.get("facts") or {},
+                "actions": inv.get("actions") or [],
             }})
-            # Investigation-first (HyperSOC-style): stream the cited run
-            # facts immediately. Waiting on the model is what made the rail
-            # look like a generic chatbot. LLM narration stays on the
-            # non-stream /api/ask path.
-            if inv.get("answer"):
-                send({"delta": inv["answer"]})
-                send({"done": True})
-                return
+            # The deterministic investigation is delivered first as grounding,
+            # then the model may synthesize it. Previously this returned here,
+            # making every useful question look like a canned response.
             any_token = False
-            for chunk in ask_analyst_stream(question):
+            for chunk in ask_analyst_stream(question, context=context):
                 any_token = True
                 send({"delta": chunk})
             if not any_token:

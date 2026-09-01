@@ -15,6 +15,16 @@ describe("itsoc. Phase 1 App Shell", () => {
     expect(wordmark).toHaveTextContent("itsoc.");
   });
 
+  it("returns to the Overview workspace when the itsoc. brand is clicked", async () => {
+    const user = userEvent.setup();
+    renderApp(<App />, { route: "/incidents?sel=inc-1" });
+    const wordmark = await screen.findByTestId("wordmark");
+
+    await user.click(wordmark);
+
+    expect(await screen.findByRole("heading", { name: "Overview" })).toBeInTheDocument();
+  });
+
   it("renders core nav items (Overview · Findings · Incidents · Sources · Settings) + Log out", async () => {
     renderApp(<App />);
     await screen.findByTestId("wordmark");

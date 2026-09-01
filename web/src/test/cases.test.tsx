@@ -50,6 +50,17 @@ describe("Cases page (CRUD)", () => {
     expect(screen.getByText("detector-0")).toBeInTheDocument();
   });
 
+  it("keeps a busy case board within its lanes instead of extending every card down the page", async () => {
+    mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS,
+                "/api/cases": { cases: [CASE] } });
+    renderApp(<App />, { route: "/cases" });
+
+    const board = await screen.findByLabelText("Case board");
+    expect(board).toHaveClass("is-case-board--bounded");
+    expect(board.querySelectorAll(".is-case-column")).toHaveLength(6);
+    expect(board.querySelector(".is-case-column__cards")).toHaveClass("is-case-column__cards--scrollable");
+  });
+
   it("shows an honest empty state when there are no cases", async () => {
     mockFetch({ "/api/overview": OVERVIEW, "/api/metrics": METRICS,
                 "/api/cases": { cases: [] } });
@@ -109,6 +120,11 @@ describe("Cases page (CRUD)", () => {
     renderApp(<App />, { route: "/cases?sel=case-1" });
     expect(await screen.findByRole("heading", { name: "Investigate 203.0.113.44" })).toBeInTheDocument();
     expect(screen.getByTestId("copilot-case-overlay")).toBeInTheDocument();
+    expect(screen.getByLabelText("Responsible person")).toHaveValue("sam");
+    expect(screen.getByTestId("phishing-workflow")).toHaveTextContent("Email phishing response");
+    expect(screen.getByTestId("phishing-workflow")).toHaveTextContent("Find");
+    expect(screen.getByTestId("phishing-workflow")).toHaveTextContent("Scout");
+    expect(screen.getByTestId("phishing-workflow")).toHaveTextContent("Resolve");
     expect(screen.getByText(/advisory summary from objects on this file/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Events" }));

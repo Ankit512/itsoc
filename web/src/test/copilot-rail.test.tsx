@@ -4,6 +4,11 @@ import { CopilotRail } from "@/components/CopilotRail";
 import { api } from "@/lib/api";
 import { renderApp, mockFetch, consoleState, finding, OVERVIEW } from "./helpers";
 
+async function openAnalysisTool(name: RegExp) {
+  await userEvent.click(await screen.findByRole("button", { name: /explore analysis/i }));
+  await userEvent.click(await screen.findByRole("tab", { name }));
+}
+
 /** Redesign Phase 3 tests: AI Copilot Right-Rail per ITSOC_REDESIGN_SPEC.md §3 & §4.
  *  Asserts the 5 grounded advisory roles:
  *  (1) Interpret current view on prompt,
@@ -126,7 +131,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
   it("renders the copilot drawer with advisory badge and verbatim footer", async () => {
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
 
-    expect(await screen.findByText(/itsoc analyst/i)).toBeInTheDocument();
+    expect(await screen.findByText("itsoc Analyst")).toBeInTheDocument();
     expect(screen.getByTestId("copilot-advisory-chip")).toHaveTextContent(/advisory/i);
 
     // Verbatim footer requirement:
@@ -134,11 +139,12 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(footer).toHaveTextContent("Rules set severity. I interpret & explain — I don't decide.");
 
     // Advisory disclaimer text:
-    expect(screen.getByText(/never changed here/i)).toBeInTheDocument();
+    expect(screen.getByText(/rules own severity/i)).toBeInTheDocument();
   });
 
   it("shows a run briefing for the current console-state (not a stale cache)", async () => {
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
+    await userEvent.click(await screen.findByRole("button", { name: /run context/i }));
     expect(await screen.findByText("test-run")).toBeInTheDocument();
     const brief = screen.getByTestId("copilot-run-brief");
     expect(brief).toHaveTextContent("2 finding(s)");
@@ -153,11 +159,28 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(angles).toHaveTextContent(/Incidents/);
   });
 
+  it("keeps a separate, inspectable analysis plan instead of exposing hidden reasoning", async () => {
+    renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
+
+    await openAnalysisTool(/^plan$/i);
+
+    const plan = await screen.findByTestId("copilot-plan-card");
+    expect(plan).toHaveTextContent("Analysis plan");
+    expect(plan).toHaveTextContent("Verify evidence");
+    expect(plan).toHaveTextContent("Brute-force then SUCCESSFUL login");
+    expect(screen.getByRole("link", { name: /open priority evidence/i })).toHaveAttribute("href", "/alerts?sel=detector-0");
+  });
+
   it("greets the user with quick-start chips and a tour + explain-this-page tie-in when a run is loaded", async () => {
-    const streamSpy = vi.spyOn(api, "askStream").mockResolvedValue(undefined);
+    const streamSpy = vi.spyOn(api, "askStream").mockImplementation(async (_q, _onDelta, _signal, onInvestigation) => {
+      onInvestigation?.({
+        answer: "What the dashboard says — Overview",
+        actions: [{ label: "Review the strongest evidence", detail: "Open source evidence first.", href: "/alerts?sel=detector-0", kind: "evidence" }],
+      });
+    });
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
     const greeting = await screen.findByTestId("copilot-greeting");
-    expect(greeting).toHaveTextContent(/advisory analyst/i);
+    expect(greeting).toHaveTextContent(/start with this/i);
 
     expect(screen.getByTestId("copilot-start-tour")).toBeInTheDocument();
     expect(screen.getByTestId("copilot-explain-page")).toBeInTheDocument();
@@ -165,6 +188,10 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     // "Explain this page" asks the copilot about the current screen.
     await userEvent.click(screen.getByTestId("copilot-explain-page"));
     expect(streamSpy).toHaveBeenCalled();
+    expect(await screen.findByTestId("copilot-next-actions")).toHaveTextContent("Review the strongest evidence");
+    expect(screen.getByTestId("copilot-next-actions").querySelector("a"))
+      .toHaveAttribute("href", "/alerts?sel=detector-0");
+    expect(streamSpy.mock.calls[0][5]).toMatchObject({ route: "/", screen: "Overview" });
   });
 
   it("renders a typewriter cursor on assistant answers and completes the text", async () => {
@@ -204,7 +231,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(text.toLowerCase()).not.toMatch(/summarize today's threats/);
   });
 
-  it("showcase chips drop 'critical incidents' when the run has 0 CRITICAL findings", async () => {
+  it("keeps the starting surface focused when the run has 0 CRITICAL findings", async () => {
     mockFetch({
       "/api/overview": OVERVIEW,
       "/api/copilot/suggest": {
@@ -227,11 +254,9 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     });
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
     expect(await screen.findByText(/Walk me through CBS HRESULT/i)).toBeInTheDocument();
-    await waitFor(() => {
-      const showcase = screen.getByTestId("copilot-showcase-chips");
-      expect(showcase.textContent?.toLowerCase() || "").not.toMatch(/critical incidents/);
-    });
+    expect(screen.queryByTestId("copilot-showcase-chips")).toBeNull();
     const suggested = (await screen.findAllByTestId("copilot-suggested-q")).map((el) => el.textContent || "").join(" | ");
+    expect((await screen.findAllByTestId("copilot-suggested-q"))).toHaveLength(2);
     expect(suggested.toLowerCase()).not.toMatch(/top 5 critical/);
     expect(suggested.toLowerCase()).not.toMatch(/attack patterns/);
   });
@@ -277,8 +302,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
   it("Role 2: Trend Digest shows what is rising across multiple saved runs", async () => {
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
 
-    const trendTab = await screen.findByRole("tab", { name: /trend/i });
-    await userEvent.click(trendTab);
+    await openAnalysisTool(/trend/i);
 
     const trendCard = await screen.findByTestId("copilot-trend-card");
     expect(trendCard).toHaveTextContent("3 saved run(s)");
@@ -298,8 +322,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     });
 
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
-    const trendTab = await screen.findByRole("tab", { name: /trend/i });
-    await userEvent.click(trendTab);
+    await openAnalysisTool(/trend/i);
 
     expect(await screen.findByText(/requires ≥2 saved runs/i)).toBeInTheDocument();
   });
@@ -307,8 +330,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
   it("Role 3: Honest Forecast computes extrapolation with label 'forecast · based on N runs'", async () => {
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
 
-    const forecastTab = await screen.findByRole("tab", { name: /forecast/i });
-    await userEvent.click(forecastTab);
+    await openAnalysisTool(/forecast/i);
 
     const badge = await screen.findByTestId("copilot-forecast-badge");
     expect(badge).toHaveTextContent("forecast · based on 3 runs");
@@ -336,8 +358,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     });
 
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
-    const forecastTab = await screen.findByRole("tab", { name: /forecast/i });
-    await userEvent.click(forecastTab);
+    await openAnalysisTool(/forecast/i);
 
     const badge = await screen.findByTestId("copilot-forecast-badge");
     expect(badge).toHaveTextContent("forecast · not enough runs");
@@ -347,8 +368,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
   it("Role 4: Prioritize (Start here) surfaces critical compromise chain with citation", async () => {
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
 
-    const prioritizeTab = await screen.findByRole("tab", { name: /start here/i });
-    await userEvent.click(prioritizeTab);
+    await openAnalysisTool(/start here/i);
 
     const card = await screen.findByTestId("copilot-prioritize-card");
     expect(card).toHaveTextContent("Start here");
@@ -363,8 +383,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
   it("Role 5: lists shipped runbooks against THIS run without requiring an incident URL", async () => {
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
 
-    const resTab = await screen.findByRole("tab", { name: /runbook/i });
-    await userEvent.click(resTab);
+    await openAnalysisTool(/runbook/i);
 
     const card = await screen.findByTestId("copilot-resolution-card");
     expect(card).toHaveTextContent(/Block source IP at the perimeter/i);
@@ -397,8 +416,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     });
 
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
-    const resTab = await screen.findByRole("tab", { name: /runbook/i });
-    await userEvent.click(resTab);
+    await openAnalysisTool(/runbook/i);
 
     const card = await screen.findByTestId("copilot-resolution-card");
     expect(card).toHaveTextContent(/Block source IP at the perimeter/i);
@@ -406,7 +424,7 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
     expect(card).toHaveTextContent(/no derived incident on this run/i);
   });
 
-  it("surfaces pending approvals as read-only cards with an 'Open in Approvals →' link and ZERO approve controls (C4-F3)", async () => {
+  it("surfaces pending approvals as a focused read-only link with ZERO approve controls (C4-F3)", async () => {
     mockFetch({
       "/api/overview": OVERVIEW,
       "/api/approvals?state=pending": {
@@ -438,14 +456,11 @@ describe("AI Copilot Right-Rail (Phase 3)", () => {
 
     renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
 
-    // Assert read-only card renders:
+    // Assert the focused read-only approval link renders:
     const card = await screen.findByTestId("copilot-pending-approvals-card");
     expect(card).toBeInTheDocument();
-    expect(card).toHaveTextContent("1 pending approval");
-    expect(card).toHaveTextContent("auth_bruteforce.md · inc-abc123");
-
-    const link = within(card).getByRole("link", { name: "Open in Approvals →" });
-    expect(link).toHaveAttribute("href", "/approvals");
+    expect(card).toHaveTextContent("1 response approval need review");
+    expect(card).toHaveAttribute("href", "/approvals");
 
     // INVARIANT ASSERTION: ZERO approve/execute controls render in the rail
     expect(screen.queryByRole("button", { name: /approve/i })).toBeNull();

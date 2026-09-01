@@ -35,6 +35,8 @@ describe("Collectors — syslog control panel", () => {
     expect(screen.getByLabelText("Listen port")).toHaveValue("1514");
     // Honest empty state for received events.
     expect(screen.getByText(/No events received yet — the listener reports real traffic only/)).toBeInTheDocument();
+    expect(screen.getByTestId("splunk-live-collector")).toHaveTextContent("Splunk live analysis");
+    expect(screen.getByLabelText("Splunk API token")).toHaveAttribute("type", "password");
   });
 
   it("warns before binding 0.0.0.0 (network exposure)", async () => {

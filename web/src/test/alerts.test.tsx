@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "@/App";
 import { renderApp, mockFetch, consoleState, finding } from "./helpers";
@@ -8,7 +8,7 @@ describe("Alerts page", () => {
     mockFetch({ "/console_state.json": consoleState([finding(0), finding(1), finding(2)]) });
     renderApp(<App />, { route: "/alerts" });
 
-    expect(await screen.findByText(/Brute-force burst #0/)).toBeInTheDocument();
+    await screen.findByText(/3 of 3 finding\(s\)/);
     expect(screen.getAllByTestId("alert-row").length).toBe(3);
     expect(screen.getAllByText("HIGH").length).toBeGreaterThanOrEqual(3);
     expect(screen.getAllByText("T1110").length).toBe(3);
@@ -18,11 +18,12 @@ describe("Alerts page", () => {
   it("filters findings", async () => {
     mockFetch({ "/console_state.json": consoleState([finding(0), finding(1)]) });
     renderApp(<App />, { route: "/alerts" });
-    await screen.findByText(/Brute-force burst #0/);
+    await screen.findByText(/2 of 2 finding\(s\)/);
 
     await userEvent.type(screen.getByLabelText("Filter findings"), "burst #1");
-    expect(screen.getAllByTestId("alert-row").length).toBe(1);
-    expect(screen.queryByText(/Brute-force burst #0/)).not.toBeInTheDocument();
+    const [row] = screen.getAllByTestId("alert-row");
+    expect(row).toHaveTextContent("server-1");
+    expect(within(row).queryByText("server-0")).toBeNull();
   });
 
   it("virtualizes large runs: only a window of rows is in the DOM", async () => {

@@ -95,7 +95,7 @@ def suggested_questions(state, case=None):
             ]
         return ["Nothing was parsed. What does that mean for this file?"]
 
-    qs = []
+    qs = ["Explain the current dashboard and recommend the next best actions"]
     top = _ranked(findings)[0]
     title = (top.get("title") or top.get("type") or "the top finding").strip()
     if _occ(top) > 1:
@@ -742,13 +742,169 @@ def _case_description(case):
     return "\n".join(lines) or "No analyst notes, observables, attachments, or activity have been recorded for this case."
 
 
-def investigate(question, state, extras=None, case=None):
+def _screen_label(context):
+    """The route label supplied by the client, never inferred from model text."""
+    context = context if isinstance(context, dict) else {}
+    screen = str(context.get("screen") or "").strip()
+    route = str(context.get("route") or "").strip()
+    route_label = {
+        "/": "Overview", "/alerts": "Findings", "/incidents": "Incidents",
+        "/cases": "Cases", "/reports": "Reports", "/sources": "Sources",
+        "/integrations": "Integrations",
+    }.get(route)
+    return route_label or screen or "current workspace"
+
+
+def _next_actions(findings, extras, screen):
+    """Safe, evidence-first navigation recommendations.
+
+    These are suggestions and deep links, never ticket mutations, severity
+    changes, runbook execution, or automatic assignment.
+    """
+    extras = extras or {}
+    actions = []
+    top = _ranked(findings)[0] if findings else None
+    incidents = list(extras.get("incidents") or [])
+    cases = list(extras.get("cases") or [])
+    runbooks = list((extras.get("runbooks") or {}).get("runbooks") or [])
+    if top:
+        actions.append({
+            "label": "Review the strongest evidence",
+            "detail": f"Open the rule-owned {_sev(top)} finding before deciding on containment.",
+            "href": f"/alerts?sel={top.get('id')}",
+            "kind": "evidence",
+        })
+        incident = next((i for i in incidents if top.get("id") in (i.get("findingIds") or [])), None)
+        if incident:
+            actions.append({
+                "label": "Review the correlated incident",
+                "detail": f"{incident.get('id')} groups existing findings; it is not a new verdict.",
+                "href": f"/incidents?sel={incident.get('id')}",
+                "kind": "incident",
+            })
+    eligible = [r for r in runbooks if r.get("eligible")]
+    if eligible:
+        actions.append({
+            "label": "Review an eligible response runbook",
+            "detail": f"{eligible[0].get('name') or eligible[0].get('id')} is eligible; review/approval remains human-controlled.",
+            "href": "/incidents",
+            "kind": "runbook",
+        })
+    ownerless = [c for c in cases if not str(c.get("assignee") or "").strip()]
+    if ownerless:
+        actions.append({
+            "label": "Assign a responsible person",
+            "detail": f"{len(ownerless)} case(s) have no recorded owner. Confirm accountability on the case file.",
+            "href": f"/cases?sel={ownerless[0].get('id')}",
+            "kind": "ownership",
+        })
+    elif cases:
+        actions.append({
+            "label": "Check ticket ownership",
+            "detail": f"{len(cases)} case(s) exist; verify the recorded owner and status before escalating.",
+            "href": "/cases",
+            "kind": "ownership",
+        })
+    if screen != "Reports":
+        actions.append({
+            "label": "Open the evidence report",
+            "detail": "Use reporting to preserve the current run's facts and analyst decisions.",
+            "href": "/reports",
+            "kind": "report",
+        })
+    return actions[:4]
+
+
+def _workspace_brief(findings, events, extras, context, facts):
+    """Explain a visible workspace using the current run, not canned copy."""
+    screen = _screen_label(context)
+    angles = collect_angles({"idle": False, "findings": findings, "events": events,
+                             "runId": (context or {}).get("runId")}, extras)
+    matching = sum(_occ(f) for f in findings)
+    top = _ranked(findings)[0] if findings else None
+    if screen == "Findings":
+        surface = (
+            f"Findings is the evidence workspace: {len(findings)} rule-owned card(s) represent "
+            f"{matching} matching line(s). Select a row to inspect the rule rationale, timeline, and cited source lines."
+        )
+    elif screen == "Incidents":
+        surface = (
+            f"Incidents groups related findings into {len(extras.get('incidents') or [])} correlation cluster(s). "
+            "It helps sequence review; it does not replace a finding's rule-owned severity."
+        )
+    elif screen == "Cases":
+        surface = (
+            f"Cases is the analyst-owned work queue with {len(extras.get('cases') or [])} stored ticket(s). "
+            "Use its responsible-person field and workflow templates to make ownership explicit."
+        )
+    elif screen == "Reports":
+        surface = (
+            "Reports turns the current run's evidence, analyst notes, and approved response history into a reviewable record. "
+            "It does not create findings or actions."
+        )
+    elif screen == "Sources":
+        surface = (
+            "Sources is the ingestion control point. Its live collectors show real transport status; a connected Splunk poll only analyses events returned by that configured source."
+        )
+    else:
+        surface = (
+            f"Overview is a current-run briefing: {len(findings)} rule-owned finding card(s), {matching} matching line(s), "
+            f"and {len(events)} parsed event(s). The cards summarize evidence rather than inventing a narrative."
+        )
+    lines = [
+        f"What the dashboard says — {screen}",
+        surface,
+    ]
+    if top:
+        lines.append(
+            f"Priority evidence: [{_sev(top)}] {top.get('title')} on {top.get('host') or 'an unrecorded host'} "
+            f"({ _occ(top) } matching line(s), rule `{top.get('type')}`)."
+        )
+    inc_count = len(extras.get("incidents") or [])
+    asset_count = len(extras.get("assets") or [])
+    user_count = len(extras.get("users") or [])
+    lines.append(
+        f"Connected context: {inc_count} incident cluster(s), {asset_count} observed asset(s), and {user_count} observed user(s). "
+        "These are linked views over the same run, not independent detections."
+    )
+    actions = _next_actions(findings, extras, screen)
+    lines.append("Next best actions:")
+    lines.extend(f"- {item['label']}: {item['detail']}" for item in actions)
+    ownerless = [c for c in (extras.get("cases") or []) if not str(c.get("assignee") or "").strip()]
+    lines.append(
+        "Ticket routing: " + (
+            f"{len(ownerless)} case(s) are unassigned; Copilot recommends review but never assigns people automatically."
+            if ownerless else
+            "review the recorded owner and status on the case board; Copilot never changes ticket responsibility itself."
+        )
+    )
+    lines.append(
+        "Reporting: open Reports to capture the current evidence and analyst decisions. Any forecast is a watchlist, not a detection."
+    )
+    cites = _citations_from_finding(top) if top else []
+    return "\n".join(lines), cites, actions, angles
+
+
+def _workspace_followups(findings, extras):
+    """Questions that route back into specific investigation intents."""
+    top = _ranked(findings)[0] if findings else None
+    out = []
+    if top:
+        out.append(f"Investigate {top.get('id') or top.get('title')}")
+        out.append(f"Why was this alert classified as {_sev(top)} risk?")
+    if any(not str(c.get("assignee") or "").strip() for c in (extras.get("cases") or [])):
+        out.append("Which tickets need a responsible person?")
+    return out[:3]
+
+
+def investigate(question, state, extras=None, case=None, context=None):
     """Deterministic investigation. Never a new verdict."""
     empty = {
         "answer": "",
         "citations": [],
         "followups": [],
         "facts": {},
+        "actions": [],
         "source": "rules",
     }
     q = str(question or "").strip()
@@ -880,6 +1036,49 @@ def investigate(question, state, extras=None, case=None):
             "intelHits": len((angles.get("intel") or {}).get("hits") or []),
         },
     }
+
+    wants_workspace = (
+        ("explain" in ql and any(w in ql for w in ("screen", "page", "dashboard", "card", "workspace")))
+        or any(w in ql for w in ("what should i do next", "next best", "next step", "best suggestion"))
+    )
+    if wants_workspace:
+        answer, cites, actions, workspace = _workspace_brief(findings, events, extras or {}, context or {}, facts)
+        return {
+            "answer": answer,
+            "citations": cites,
+            "followups": _workspace_followups(findings, extras or {}),
+            "facts": {**facts, "workspace": workspace},
+            "actions": actions,
+            "source": "rules",
+        }
+
+    wants_ownership = any(w in ql for w in ("ticket", "case", "assignee", "responsible person", "responsible analyst")) \
+        and any(w in ql for w in ("assign", "owner", "responsible", "need", "unassigned", "route"))
+    if wants_ownership:
+        cases = list((extras or {}).get("cases") or [])
+        ownerless = [c for c in cases if not str(c.get("assignee") or "").strip()]
+        actions = _next_actions(findings, extras or {}, _screen_label(context))
+        if ownerless:
+            names = ", ".join(str(c.get("id") or c.get("title") or "untitled case") for c in ownerless[:6])
+            answer = (
+                f"Ticket routing: {len(ownerless)} of {len(cases)} case(s) have no responsible person recorded. "
+                f"Review these first: {names}. Copilot can recommend the evidence and workflow, but a human must choose and save the owner."
+            )
+        elif cases:
+            answer = (
+                f"Ticket routing: all {len(cases)} stored case(s) have a recorded responsible person. "
+                "Review status and evidence before changing ownership; Copilot did not modify any ticket."
+            )
+        else:
+            answer = "Ticket routing: no analyst-created cases exist for this run. Copilot did not create or assign a ticket."
+        return {
+            "answer": answer,
+            "citations": _citations_from_finding(_ranked(findings)[0]) if findings else [],
+            "followups": _workspace_followups(findings, extras or {}),
+            "facts": facts,
+            "actions": actions,
+            "source": "rules",
+        }
 
     if not q:
         empty["answer"] = "Ask about a finding, a HRESULT, a host, or a matching line."

@@ -15,7 +15,10 @@ import "./styles/itsoc.css";
 applyThemeClass(useUi.getState().theme);
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  // Keep recently visited workspace data warm during navigation. Mutations and
+  // the explicit Refresh control still invalidate immediately; this avoids a
+  // page feeling like it has to cold-load every time a user changes section.
+  defaultOptions: { queries: { retry: 1, staleTime: 10_000, refetchOnWindowFocus: false, refetchOnReconnect: false } },
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

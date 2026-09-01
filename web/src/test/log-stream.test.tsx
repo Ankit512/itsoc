@@ -145,7 +145,7 @@ describe("Alerts live stream (/api/stream SSE)", () => {
     expect(screen.getByTestId("stream-status"))
       .toHaveTextContent("stream disconnected — 5s polling fallback active");
     // The polled findings table is still there — the page never went blank.
-    expect(screen.getByText(/Brute-force burst #0/)).toBeInTheDocument();
+    expect(screen.getAllByTestId("alert-row")).toHaveLength(1);
   });
 
   it("without EventSource support the panel is honest and polling stands alone", async () => {
@@ -156,6 +156,6 @@ describe("Alerts live stream (/api/stream SSE)", () => {
     await screen.findByText("Live tail");
     expect(screen.getByTestId("stream-status"))
       .toHaveTextContent("streaming unavailable in this browser — 5s polling fallback active");
-    expect(screen.getByText(/Brute-force burst #0/)).toBeInTheDocument();
+    expect(screen.getAllByTestId("alert-row")).toHaveLength(1);
   });
 });

@@ -284,7 +284,7 @@ export function Integrations() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="is-integrations-toolbar">
         <div className="flex flex-wrap gap-1.5" role="tablist">
           {CATEGORIES.map((cat) => (
             <button
@@ -303,10 +303,10 @@ export function Integrations() {
           ))}
         </div>
 
-        <div className="relative w-full sm:w-64">
+        <div className="relative is-integrations-toolbar__search">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
-            className="is-input w-full pl-8 py-1 text-xs"
+            className="is-input w-full pl-9 py-1 text-xs"
             placeholder="Search connectors…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

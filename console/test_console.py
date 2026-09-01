@@ -5470,7 +5470,7 @@ def check_ask_view():
     check("/api/ask serves the {view} directive via soc.build_view",
           'payload.get("view")' in src and "soc.build_view" in src)
     check("view mode is model-free (no ask_analyst call in the view branch)",
-          src.index('soc.build_view(question, STATE)') < src.index("ask_analyst("))
+          src.index('soc.build_view(question, STATE, context=context)') < src.index("ask_analyst("))
     post_src = inspect.getsource(serve.ConsoleHandler.do_POST)
     check("/api/ask stays behind the fail-closed auth gate",
           "_api_authorized" in post_src)

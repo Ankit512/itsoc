@@ -95,6 +95,15 @@ describe("Integrations Page (Sovereign Connectors Gallery)", () => {
     expect(screen.queryByText("AlienVault OTX Pulse Feeds")).not.toBeInTheDocument();
   });
 
+  it("keeps category filters and connector search together in a responsive toolbar", async () => {
+    renderApp(<App />, { route: "/integrations" });
+    const search = await screen.findByLabelText("Search integrations");
+    const toolbar = search.closest(".is-integrations-toolbar");
+    expect(toolbar).toBeTruthy();
+    expect(toolbar?.querySelector("[role=tablist]")).toBeInTheDocument();
+    expect(toolbar?.querySelector(".is-integrations-toolbar__search")).toContainElement(search);
+  });
+
   it("opens configuration modal and runs test connection", async () => {
     renderApp(<App />, { route: "/integrations" });
     await screen.findByTestId("integrations-page");

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  Bot, Send, Square, X, Compass, TrendingUp, Sparkles, BookOpen,
-  ChevronRight, Activity, ShieldCheck, Download, Search, ShieldAlert, Mail, Link2, FileCode
+  BrainCircuit, Send, Square, X, Compass, TrendingUp, Sparkles, BookOpen,
+  ChevronRight, Activity, ShieldCheck, Download, Search, ShieldAlert, Mail, Link2, FileCode, SlidersHorizontal
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotCitation, CopilotForecastPhase, CopilotPlaybook, type Case } from "@/lib/api";
+import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotAction, CopilotCitation, CopilotForecastPhase, CopilotPlaybook, type Case } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { sevVar } from "@/lib/severity";
 import { useUi } from "@/store/ui";
@@ -18,7 +18,18 @@ interface Msg {
   view?: AskView | null;
   citations?: CopilotCitation[];
   followups?: string[];
+  actions?: CopilotAction[];
 }
+
+const WORKSPACE_SCREEN: Record<string, string> = {
+  "/": "Overview",
+  "/alerts": "Findings",
+  "/incidents": "Incidents",
+  "/cases": "Cases",
+  "/reports": "Reports",
+  "/sources": "Sources",
+  "/integrations": "Integrations",
+};
 
 /** Typewriter reveal for assistant answers. Drives toward the latest `text`
  *  without resetting as a stream appends, so a live answer types out and a
@@ -31,9 +42,11 @@ function TypeText({ text }: { text: string }) {
     const id = setInterval(() => {
       setShown((s) => {
         if (s >= text.length) return s;
-        return s + 1;
+        // Bound animation work and time-to-readable-answer. One render per
+        // character made longer evidence reports feel artificially sluggish.
+        return Math.min(text.length, s + Math.max(1, Math.ceil(text.length / 24)));
       });
-    }, 5);
+    }, 16);
     return () => clearInterval(id);
   }, [text, shown]);
   const animating = shown < text.length;
@@ -42,6 +55,20 @@ function TypeText({ text }: { text: string }) {
       {text.slice(0, shown)}
       {animating && <span className="animate-pulse">▍</span>}
     </span>
+  );
+}
+
+function NextActions({ actions }: { actions: CopilotAction[] }) {
+  if (!actions.length) return null;
+  return (
+    <div className="is-copilot-next-actions" data-testid="copilot-next-actions">
+      <span>Recommended next steps</span>
+      {actions.map((action) => (
+        <Link key={`${action.href}-${action.label}`} to={action.href} title={action.detail}>
+          {action.label}<ChevronRight size={12} aria-hidden />
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -134,18 +161,6 @@ const DEFAULT_EXAMPLES = [
 /** Showcase triggers (design-v2 §4): each pulls a REAL is-* result card into
  *  the rail (incidents / dashboard / findings). Kept as the idle/empty fallback
  *  so showcase tests still have a stable click target. */
-const SHOWCASE_CHIPS = [
-  "Show me the critical incidents",
-  "Summarize the dashboard",
-  "Top 5 findings",
-];
-
-const SHOWCASE_NO_CRIT = [
-  "What did Overview group, and which matching lines are hidden?",
-  "Summarize the dashboard",
-  "Top 5 findings",
-];
-
 function countSev(findings: Finding[], band: string): number {
   const want = band.toUpperCase();
   return findings.filter((f) => (f.sev || f.ruleSev || "").toUpperCase() === want).length;
@@ -334,7 +349,7 @@ function extractContextualChips(text: string, caseItem?: Case): string[] {
 
 const FIRST_TOKEN_TIMEOUT_MS = 90_000;
 
-export type CopilotTab = "ask" | "prioritize" | "trend" | "forecast" | "resolution";
+export type CopilotTab = "ask" | "plan" | "prioritize" | "trend" | "forecast" | "resolution";
 
 export interface CopilotRailProps {
   model?: string;
@@ -355,6 +370,8 @@ export function CopilotRail({
   const { startTour } = useUi();
   const [open, setOpen] = useState(defaultOpen);
   const [activeTab, setActiveTab] = useState<CopilotTab>("ask");
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
   const [log, setLog] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -426,6 +443,7 @@ export function CopilotRail({
   useEffect(() => {
     setLog([]);
     setPlaybook(null);
+    setContextOpen(false);
     abortRef.current?.abort();
   }, [runId, selectedCaseId]);
   const topCriticalFinding = findings.find((f) => f.sev?.toUpperCase() === "CRITICAL" || f.ruleSev?.toUpperCase() === "CRITICAL")
@@ -494,6 +512,12 @@ export function CopilotRail({
     setLog((l) => [...l, { who: "q", text: question }, { who: "a", text: "" }]);
     const answerIndex = log.length + 1;
     const requestQuestion = question;
+    const workspace = {
+      route: pathname,
+      screen: WORKSPACE_SCREEN[pathname] ?? stepForRoute(pathname)?.title ?? "Current workspace",
+      selectedFindingId: selectedFinding?.id ?? null,
+      selectedIncidentId,
+    };
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -506,7 +530,7 @@ export function CopilotRail({
     // deterministic + model-free, so the card appears even if the LLM is slow
     // or offline. Attaching it to the answer message renders an is-* card.
     // A null view (not a showcase question) simply leaves prose-only.
-    api.askView(requestQuestion).then((view) => {
+    api.askView(requestQuestion, workspace).then((view) => {
       if (!view) return;
       setLog((l) => {
         const next = [...l];
@@ -552,9 +576,14 @@ export function CopilotRail({
             if (cur && cur.who === "a") {
               next[answerIndex] = {
                 ...cur,
-                text: inv.answer || cur.text,
+                // Keep grounding metadata separate from the streamed answer.
+                // A reachable analyst model can now turn the supplied workspace
+                // context into an explanation instead of having its response
+                // appended after a pre-rendered fallback.
+                text: cur.text,
                 citations: inv.citations,
                 followups: inv.followups,
+                actions: inv.actions,
                 source: inv.source,
               };
             }
@@ -562,6 +591,7 @@ export function CopilotRail({
           });
         },
         selectedCaseId ?? undefined,
+        workspace,
       );
     } catch (e) {
       const aborted = controller.signal.aborted;
@@ -594,15 +624,12 @@ export function CopilotRail({
   const runPrompts = caseScoped
     ? ((suggested && suggested.length > 0) ? suggested : casePrompts)
     : (suggested && suggested.length > 0) ? suggested : DEFAULT_EXAMPLES;
-  const critOnRun = countSev(findings, "CRITICAL");
-  const showcaseChips = caseScoped ? casePrompts : runReady && findings.length > 0 && critOnRun === 0
-    ? SHOWCASE_NO_CRIT
-    : SHOWCASE_CHIPS;
+  const compactPrompts = runPrompts.slice(0, 2);
 
   const composer = (
     <form
       data-testid="copilot-composer"
-      className="flex shrink-0 items-end gap-1.5 border-t pt-2"
+      className="is-copilot-composer flex shrink-0 items-end gap-1.5 border-t pt-2"
       onSubmit={(e) => { e.preventDefault(); ask(draft); }}
     >
       <textarea
@@ -636,19 +663,17 @@ export function CopilotRail({
       aria-label="AI Analyst"
       data-testid={embedded ? "copilot-case-overlay" : "copilot-rail"}
       className={cn(
-        "flex min-h-0 flex-col gap-2 overflow-hidden bg-card p-3 text-[13px]",
+        "is-copilot-shell flex min-h-0 flex-col gap-2 overflow-hidden bg-card p-3 text-[13px]",
         docked ? "h-full w-full" : "max-h-[min(680px,calc(100vh-100px))] w-[380px] rounded-lg border shadow-[var(--shadow-pop)]",
         embedded && "is-case-copilot max-h-[min(48vh,420px)] w-full rounded-lg border",
         className,
       )}
     >
       {/* Copilot Header */}
-      <div className="flex shrink-0 items-center justify-between">
+      <div className="is-copilot-head flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-primary" strokeWidth={2} aria-hidden />
-          <span className="font-bold tracking-tight text-foreground">
-            itsoc analyst
-          </span>
+          <span className="is-copilot-mark"><BrainCircuit size={16} strokeWidth={1.9} aria-hidden /></span>
+          <span className="font-bold tracking-tight text-foreground">itsoc Analyst</span>
           <span
             data-testid="copilot-advisory-chip"
             title={effectiveModel}
@@ -667,12 +692,20 @@ export function CopilotRail({
           </button>
         )}
       </div>
-      <p className="shrink-0 text-[10.5px] leading-snug text-muted-foreground">
-        Advisory only — severities come from rules and are never changed here.
-      </p>
+      <p className="is-copilot-subtitle shrink-0 text-[10.5px] leading-snug text-muted-foreground">Grounded in this workspace · rules own severity</p>
 
-      {/* 5 Grounded Roles Tabs — single row so they never eat the composer */}
-      {!embedded && <div className="flex shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md bg-background p-1 text-[11px] font-medium" role="tablist">
+      {/* Secondary capabilities stay available without competing with the next action. */}
+      {!embedded && <div className="is-copilot-tools">
+        <button
+          type="button"
+          onClick={() => setToolsOpen((value) => !value)}
+          aria-expanded={toolsOpen}
+          className="is-copilot-tools__trigger"
+        >
+          <SlidersHorizontal size={13} aria-hidden /> Explore analysis
+          <ChevronRight size={13} className={cn(toolsOpen && "rotate-90")} aria-hidden />
+        </button>
+        {toolsOpen && <div className="is-copilot-tools__tabs" role="tablist" aria-label="Analysis tools">
         <button
           role="tab"
           aria-selected={activeTab === "ask"}
@@ -684,6 +717,18 @@ export function CopilotRail({
         >
           <Compass className="h-3 w-3" />
           Interpret
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === "plan"}
+          onClick={() => setActiveTab("plan")}
+          className={cn(
+            "flex items-center gap-1 rounded px-2 py-1 transition-colors",
+            activeTab === "plan" ? "bg-card font-semibold text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <BrainCircuit className="h-3 w-3" />
+          Plan
         </button>
         <button
           role="tab"
@@ -733,67 +778,38 @@ export function CopilotRail({
           <BookOpen className="h-3 w-3" />
           Runbook
         </button>
+        </div>}
       </div>}
-
-      {/* Pending approvals read-only card (C4-F3) */}
-      {pendingApprovals.length > 0 && (
-        <div
-          data-testid="copilot-pending-approvals-card"
-          className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 space-y-1.5"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" aria-hidden />
-              {pendingApprovals.length} pending approval{pendingApprovals.length > 1 ? "s" : ""}
-            </span>
-            <Link
-              to="/approvals"
-              className="text-[11px] font-medium text-primary hover:underline"
-            >
-              Open in Approvals →
-            </Link>
-          </div>
-          <div className="space-y-1">
-            {pendingApprovals.slice(0, 3).map((a) => (
-              <div key={a.id} className="flex items-center justify-between text-[11px] bg-background/80 rounded px-2 py-1 border">
-                <span className="font-mono">{a.runbookId} · {a.incidentId}</span>
-                <Link
-                  to={`/approvals?sel=${encodeURIComponent(a.id)}`}
-                  className="text-primary hover:underline font-mono text-[10.5px]"
-                >
-                  review →
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Role 1 & Q&A View: Interpret & Chat */}
       {activeTab === "ask" && (
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden" data-testid="copilot-chat">
-          {caseScoped ? <div className="text-[11px] text-muted-foreground space-y-1" data-testid="copilot-case-brief"><p>Case <span className="is-mono">{selectedCase?.id}</span> — {selectedCase?.notes || "no notes yet"}. Advisory only; Copilot cannot change a verdict.</p>{selectedCase?.activity?.length ? <p>Last action: {selectedCase.activity[selectedCase.activity.length - 1].kind} — {selectedCase.activity[selectedCase.activity.length - 1].text}</p> : null}</div> : <RunBriefing state={state} loading={stateLoading} />}
-          {!!angles && !state?.idle && Array.isArray((angles as { links?: unknown }).links) && (
-            <div data-testid="copilot-angles" className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10.5px] text-muted-foreground">
-              {((angles as { links: { label: string; href: string; count?: number }[] }).links).map((l) => (
-                <Link key={l.href} to={l.href} className="hover:text-primary">
-                  {l.label} {typeof l.count === "number" ? l.count : ""}
-                </Link>
-              ))}
-            </div>
-          )}
           <div aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 text-[12px]">
             {log.length === 0 && (
-              <div className="flex flex-col gap-1.5">
-                {runReady && !caseScoped && (
-                  <div className="flex flex-col gap-1.5" data-testid="copilot-greeting">
-                    <p className="text-[12px] font-medium text-foreground">
-                      Hi — I&apos;m itsoc&apos;s advisory analyst.
-                    </p>
-                    <p className="text-[11.5px] leading-snug text-muted-foreground">
-                      Rules set severity; I interpret and explain. New here? Take a 60-second tour or ask me what&apos;s on screen.
-                    </p>
+              <div className="flex flex-col gap-2">
+                {caseScoped ? (
+                  <div className="is-copilot-focus" data-testid="copilot-case-brief">
+                    <span className="is-copilot-focus__eyebrow">Current case</span>
+                    <p><b>{selectedCase?.id}</b> — {selectedCase?.notes || "No notes yet."}</p>
+                    {selectedCase?.activity?.length ? <small>Latest activity: {selectedCase.activity[selectedCase.activity.length - 1].text}</small> : null}
                   </div>
+                ) : runReady && priorityFinding ? (
+                  <div className="is-copilot-focus" data-testid="copilot-greeting">
+                    <span className="is-copilot-focus__eyebrow">Start with this</span>
+                    <h2>{priorityFinding.title || priorityRule || "Highest-priority finding"}</h2>
+                    <p>{priorityEntity}{priorityFinding.host && priorityFinding.host !== priorityEntity ? ` on ${priorityFinding.host}` : ""} · <SevTag sev={priorityFinding.sev || priorityFinding.ruleSev} /></p>
+                    <div className="is-copilot-focus__actions">
+                      <Link to={`/alerts?sel=${encodeURIComponent(priorityFinding.id)}`}>Review evidence <ChevronRight size={13} aria-hidden /></Link>
+                      <button onClick={() => ask(`Explain why ${priorityRule || priorityFinding.title} should be investigated first, using the cited evidence.`)}>Why this matters</button>
+                    </div>
+                  </div>
+                ) : (
+                  <RunBriefing state={state} loading={stateLoading} />
+                )}
+                {pendingApprovals.length > 0 && (
+                  <Link data-testid="copilot-pending-approvals-card" className="is-copilot-focus__approval" to="/approvals">
+                    <ShieldCheck size={13} aria-hidden /> {pendingApprovals.length} response approval{pendingApprovals.length > 1 ? "s" : ""} need review
+                  </Link>
                 )}
                 <div className="flex flex-wrap gap-1" data-testid="copilot-quickstart">
                   {!caseScoped && runReady && (
@@ -803,7 +819,7 @@ export function CopilotRail({
                         data-testid="copilot-start-tour"
                         className="inline-flex items-center gap-1.5 rounded-full border border-primary/50 bg-background px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-accent"
                       >
-                        <BookOpen className="h-3 w-3" aria-hidden /> Take the tour
+                        <BookOpen className="h-3 w-3" aria-hidden /> Learn the workspace
                       </button>
                       <button
                         onClick={() => ask(`Explain what is on this screen (${stepForRoute(pathname)?.title ?? "this page"}) and how to use it.`)}
@@ -815,10 +831,8 @@ export function CopilotRail({
                     </>
                   )}
                 </div>
-                <p className="text-[12px] text-muted-foreground">
-                  {caseScoped ? "Ask anything about this case. Type below or tap a starter." : "Ask anything about this run. Type below or tap a starter."}
-                </p>
-                {runPrompts.slice(0, 4).map((q) => (
+                <p className="text-[11px] text-muted-foreground">Ask a focused question, or start with one of these.</p>
+                {compactPrompts.map((q) => (
                   <button
                     key={q}
                     onClick={() => ask(q)}
@@ -828,6 +842,23 @@ export function CopilotRail({
                     {q}
                   </button>
                 ))}
+                {!caseScoped && runReady && (
+                  <div className="is-copilot-context">
+                    <button type="button" onClick={() => setContextOpen((value) => !value)} aria-expanded={contextOpen}>
+                      Run context <ChevronRight size={12} className={cn(contextOpen && "rotate-90")} aria-hidden />
+                    </button>
+                    {contextOpen && <div data-testid="copilot-angles">
+                      <RunBriefing state={state} loading={stateLoading} />
+                      {!!angles && Array.isArray((angles as { links?: unknown }).links) && (
+                        <div className="is-copilot-context__links">
+                          {((angles as { links: { label: string; href: string; count?: number }[] }).links).map((link) => (
+                            <Link key={link.href} to={link.href}>{link.label} {typeof link.count === "number" ? link.count : ""}</Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>}
+                  </div>
+                )}
               </div>
             )}
             {log.map((m, i) => {
@@ -861,6 +892,7 @@ export function CopilotRail({
                   {m.who === "a" && m.citations && m.citations.length > 0 && (
                     <CitationsPanel citations={m.citations} />
                   )}
+                  {m.who === "a" && m.actions && <NextActions actions={m.actions} />}
                   {m.who === "a" && !isStreamingAnswer && (() => {
                     const chips = (m.followups && m.followups.length > 0)
                       ? m.followups
@@ -887,19 +919,6 @@ export function CopilotRail({
             })}
           </div>
 
-          <div className="flex shrink-0 flex-wrap gap-1" data-testid="copilot-showcase-chips">
-            {showcaseChips.map((p) => (
-              <button
-                key={p}
-                onClick={() => ask(p)}
-                disabled={streaming}
-                className="rounded-full border border-primary/40 bg-background px-2 py-0.5 text-[10.5px] font-medium text-primary hover:bg-accent disabled:opacity-50"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-
           {streaming && (
             <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
               <span className="tabular-nums">{elapsed}s</span>
@@ -911,6 +930,24 @@ export function CopilotRail({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* A deliberate, inspectable plan is separate from the chat response.
+          It shows what will be considered, not hidden chain-of-thought. */}
+      {activeTab === "plan" && (
+        <div data-testid="copilot-plan-card" className="is-copilot-plan flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+          <div className="is-copilot-plan__head">
+            <BrainCircuit className="h-4 w-4" aria-hidden />
+            <div><b>Analysis plan</b><span>Inspectable, evidence-first reasoning</span></div>
+          </div>
+          <ol className="is-copilot-plan__steps">
+            <li><span>1</span><div><b>Scope</b><p>{selectedFinding ? `Review selected finding ${selectedFinding.id}.` : `Orient to ${WORKSPACE_SCREEN[pathname] ?? "the current workspace"}.`}</p></div></li>
+            <li><span>2</span><div><b>Verify evidence</b><p>{findings.length ? `${findings.length} rule-owned finding(s) and ${matchingLines.toLocaleString()} matching line(s) are available to cite.` : "No active run is loaded, so no evidence will be inferred."}</p></div></li>
+            <li><span>3</span><div><b>Prioritize</b><p>{priorityFinding ? `Start with ${priorityFinding.sev || priorityFinding.ruleSev || "the highest"} finding: ${priorityFinding.title || priorityFinding.id}.` : "Wait for a parsed run before ranking risk."}</p></div></li>
+            <li><span>4</span><div><b>Recommend</b><p>Offer reversible next steps and route any approval-required action to the approval workflow.</p></div></li>
+          </ol>
+          {priorityFinding && <Link className="is-copilot-plan__cta" to={`/alerts?sel=${encodeURIComponent(priorityFinding.id)}`}>Open priority evidence <ChevronRight size={13} aria-hidden /></Link>}
         </div>
       )}
 
@@ -1243,7 +1280,7 @@ export function CopilotRail({
         aria-label={open ? "Close AI Analyst" : "Open AI Analyst"}
         className="inline-flex items-center gap-[9px] rounded-full border border-primary bg-card px-[18px] py-3 text-[13.5px] font-semibold shadow-card hover:bg-accent"
       >
-        <Bot className="h-[17px] w-[17px] text-primary" strokeWidth={1.8} aria-hidden />
+        <BrainCircuit className="h-[17px] w-[17px] text-primary" strokeWidth={1.8} aria-hidden />
         AI Analyst
         <span className="text-[9.5px] font-medium uppercase tracking-[0.05em] text-muted-foreground">
           advisory

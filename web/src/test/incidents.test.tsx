@@ -31,6 +31,38 @@ describe("Incidents page", () => {
     expect(within(rows[0]).getByText("203.0.113.44")).toBeInTheDocument();
   });
 
+  it("keeps the filter, summary, search, and case actions in a responsive toolbar", async () => {
+    mockFetch({ "/api/incidents": { incidents: [incident()] } });
+    renderApp(<App />, { route: "/incidents" });
+
+    const search = await screen.findByLabelText("Search incidents");
+    const toolbar = search.closest(".is-incidents-toolbar");
+    expect(toolbar).toBeTruthy();
+    expect(toolbar?.querySelector(".is-incidents-toolbar__summary")).toHaveTextContent("1 incident(s)");
+    expect(toolbar?.querySelector(".is-incidents-toolbar__actions")).toContainElement(search);
+  });
+
+  it("paginates a large incident list and resets to the first page when searching", async () => {
+    const incidents = Array.from({ length: 13 }, (_, index) => incident({
+      id: `inc-${index + 1}`,
+      entity: `host-${index + 1}`,
+    }));
+    mockFetch({ "/api/incidents": { incidents } });
+    renderApp(<App />, { route: "/incidents" });
+
+    expect((await screen.findAllByTestId("incident-row")).length).toBe(12);
+    expect(screen.getByText("Showing 1–12 of 13")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect((await screen.findAllByTestId("incident-row")).length).toBe(1);
+    expect(screen.getByText("Showing 13–13 of 13")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Search incidents"), "host-1");
+    expect(screen.getByText("Showing 1–5 of 5")).toBeInTheDocument();
+    expect((await screen.findAllByTestId("incident-row")).length).toBe(5);
+  });
+
   it("shows an honest empty state when there are no incidents", async () => {
     mockFetch({ "/api/incidents": { incidents: [] } });
     renderApp(<App />, { route: "/incidents" });
@@ -526,4 +558,3 @@ describe("Priority chip presentation (C4-F3)", () => {
     expect(priChip).toHaveAttribute("title", "priority is rule-owned, weighted by asset criticality");
   });
 });
-

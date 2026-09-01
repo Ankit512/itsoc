@@ -72,7 +72,7 @@ describe("Overview page (v6)", () => {
     // it reads verdicts, never sets them, and says so in its footer verbatim.
     expect(screen.getByTestId("copilot-rail-drawer")).toBeInTheDocument();
     expect(screen.getByTestId("copilot-fab")).toBeInTheDocument();
-    expect(screen.getByText(/never changed here/)).toBeInTheDocument();
+    expect(screen.getByText(/rules own severity/i)).toBeInTheDocument();
     expect(screen.getByTestId("copilot-footer")).toHaveTextContent(
       "Rules set severity. I interpret & explain — I don't decide.",
     );

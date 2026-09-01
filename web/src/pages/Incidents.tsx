@@ -1429,6 +1429,10 @@ export function Incidents() {
   const [params, setParams] = useSearchParams();
   const [stateFilter, setStateFilter] = useState<IncidentState | "">("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  // Keeping the index to a viewport-sized slice avoids turning a large run into
+  // a long, repetitive scroll. The full filtered result remains reachable.
+  const pageSize = 12;
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["incidents", stateFilter],
     queryFn: () => api.incidents(stateFilter || undefined),
@@ -1450,6 +1454,10 @@ export function Incidents() {
       inc.findingIds.some((f) => f.toLowerCase().includes(s))
     );
   });
+  const pageCount = Math.max(1, Math.ceil(filteredIncidents.length / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageStart = currentPage * pageSize;
+  const visibleIncidents = filteredIncidents.slice(pageStart, pageStart + pageSize);
 
   if (isLoading) return <p className="is-mut">Loading incidents…</p>;
   if (isError) {
@@ -1497,31 +1505,37 @@ export function Incidents() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2">
+      <div className="is-incidents-toolbar">
+        <div className="is-incidents-toolbar__filters">
           <select
             className="is-select"
             style={{ maxWidth: 150 }}
             aria-label="Lifecycle filter"
             value={stateFilter}
-            onChange={(e) => setStateFilter(e.target.value as IncidentState | "")}
+            onChange={(e) => {
+              setStateFilter(e.target.value as IncidentState | "");
+              setPage(0);
+            }}
           >
             <option value="">All states</option>
             {INCIDENT_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <span className="is-panel__sub">
+          <span className="is-panel__sub is-incidents-toolbar__summary" title={`${incidents.length} incident(s)${stateFilter ? ` · ${stateFilter}` : ""} · rule-detected clusters + analyst-created cases`}>
             {incidents.length} incident(s){stateFilter && ` · ${stateFilter}`} · rule-detected clusters + analyst-created cases
           </span>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-56">
+        <div className="is-incidents-toolbar__actions">
+          <div className="relative is-incidents-toolbar__search">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               className="is-input pl-8 py-1 text-xs"
               placeholder="Search incidents…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
               aria-label="Search incidents"
             />
           </div>
@@ -1535,6 +1549,10 @@ export function Incidents() {
           {stateFilter
             ? `No incidents in the "${stateFilter}" state.`
             : "No incidents yet — an incident is a correlated cluster of the current run's findings, or an analyst-created case. Analyze a log with findings, or add a case, and they'll appear here."}
+        </div>
+      ) : filteredIncidents.length === 0 ? (
+        <div className="is-note">
+          No incidents match <b>{search}</b>{stateFilter && ` in the ${stateFilter} state`}.
         </div>
       ) : (
         <div className="is-md !grid-cols-1">
@@ -1550,7 +1568,7 @@ export function Incidents() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredIncidents.map((inc) => (
+                  {visibleIncidents.map((inc) => (
                     <tr
                       key={inc.id}
                       data-testid="incident-row"
@@ -1579,6 +1597,28 @@ export function Incidents() {
                 </tbody>
               </table>
             </div>
+            <nav className="is-incidents-pager" aria-label="Incident list pagination">
+              <span className="is-panel__sub is-incidents-pager__range">
+                Showing {pageStart + 1}–{Math.min(pageStart + pageSize, filteredIncidents.length)} of {filteredIncidents.length}
+              </span>
+              <div className="is-incidents-pager__controls">
+                <button
+                  className="is-btn"
+                  onClick={() => setPage((value) => Math.max(0, value - 1))}
+                  disabled={currentPage === 0}
+                >
+                  Previous
+                </button>
+                <span className="is-tnum is-mut" aria-live="polite">Page {currentPage + 1} of {pageCount}</span>
+                <button
+                  className="is-btn"
+                  onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
+                  disabled={currentPage === pageCount - 1}
+                >
+                  Next
+                </button>
+              </div>
+            </nav>
           </div>
         </div>
       )}

@@ -1729,7 +1729,7 @@ def _dashboard_view(state):
     }
 
 
-def build_view(question, state):
+def build_view(question, state, context=None):
     """Deterministic showcase selector. Returns a view directive dict, or None
     when the question is not a showcase request (prose-only). Never a verdict."""
     if not state or state.get("idle"):
@@ -1738,10 +1738,15 @@ def build_view(question, state):
     if not q:
         return None
     findings = state.get("findings") or []
+    context = context if isinstance(context, dict) else {}
+    screen = str(context.get("screen") or "").lower()
+    explain_workspace = "explain" in q and any(w in q for w in ("screen", "page", "dashboard", "card", "workspace"))
 
     entity = _match_entity(q, findings)
     if entity:
         return _entity_view(entity, findings)
+    if explain_workspace and screen in ("overview", "dashboard"):
+        return _dashboard_view(state)
     if any(w in q for w in ("dashboard", "summar", "overview", "posture", "big picture")):
         return _dashboard_view(state)
     if "incident" in q:

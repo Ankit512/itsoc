@@ -50,11 +50,24 @@ export interface CopilotCitation {
   raw?: string;
   findingId?: string | null;
 }
+export interface CopilotAction {
+  label: string;
+  detail: string;
+  href: string;
+  kind?: "evidence" | "incident" | "runbook" | "ownership" | "report" | string;
+}
+export interface CopilotContext {
+  route?: string;
+  screen?: string;
+  selectedFindingId?: string | null;
+  selectedIncidentId?: string | null;
+}
 export interface CopilotInvestigation {
   answer?: string;
   citations?: CopilotCitation[];
   followups?: string[];
   facts?: Record<string, unknown>;
+  actions?: CopilotAction[];
   source?: string;
 }
 export interface CopilotRunbookRow {
@@ -824,7 +837,7 @@ export interface OemConnector {
 }
 export interface OemConnectorInput {
   name: string;
-  config: { vendor?: string; baseUrl?: string; eventsPath?: string };
+  config: { vendor?: string; baseUrl?: string; eventsPath?: string; query?: string };
   enabled?: boolean;
   interval?: number;
   token?: string;
@@ -898,12 +911,12 @@ export const api = {
    *  works even when the LLM is offline. Returns null when the question is not
    *  a showcase request, or on any non-OK response (the rail then shows prose
    *  only — never an invented card). */
-  askView: async (question: string): Promise<AskView | null> => {
+  askView: async (question: string, context?: CopilotContext): Promise<AskView | null> => {
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, view: true }),
+        body: JSON.stringify({ question, view: true, context }),
       });
       if (!res.ok) return null;
       const body = (await res.json().catch(() => ({}))) as { view?: AskView | null };
@@ -971,12 +984,12 @@ export const api = {
     }
   },
 
-  investigate: async (question: string, caseId?: string): Promise<CopilotInvestigation | null> => {
+  investigate: async (question: string, caseId?: string, context?: CopilotContext): Promise<CopilotInvestigation | null> => {
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, investigate: true, caseId }),
+        body: JSON.stringify({ question, investigate: true, caseId, context }),
       });
       if (!res.ok) return null;
       const body = (await res.json().catch(() => ({}))) as { investigation?: CopilotInvestigation | null };
@@ -996,11 +1009,12 @@ export const api = {
     signal?: AbortSignal,
     onInvestigation?: (inv: CopilotInvestigation) => void,
     caseId?: string,
+    context?: CopilotContext,
   ): Promise<void> => {
     const res = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, stream: true, caseId }),
+      body: JSON.stringify({ question, stream: true, caseId, context }),
       signal,
     });
     if (!res.ok) {
