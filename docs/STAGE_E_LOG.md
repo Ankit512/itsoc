@@ -75,3 +75,14 @@ Reports: `docs/STAGE_E_REPORTS/E7a-worker.md` and `docs/STAGE_E_REPORTS/E7a-code
 - PyPI metadata confirms 1.7.2 is production-stable and supports Python 3.13. A newer release exists, but the accepted pin is the release actually reproduced by the implementation and independent training runs.
 - `graphify update .` completed after merge, with the known `Incidents.tsx` parser warning; the authoritative TypeScript build passed.
 - Codex test-only task `task_ad6e978dc5ba`, dispatch `ctx_9d10053d48fd`, branch `test/e7a-feature-contract`, exact base `8337490`. Only the new adversarial test file and its worker report are allowed.
+
+## E7a accepted — 2026-09-02
+
+Report: `docs/STAGE_E_REPORTS/E7a-accepted.md`.
+
+- Accepted implementation commit `fb24aef`, merged as `8337490`, plus independent Codex test commit `3b5ddf0`, merged as `f43d757`; no push.
+- Independent test card changed exactly its two allowed paths and added 10 adversarial contracts covering real generator batches, three labels, feature leakage, shared extraction, artifact failures, protected projections, byte-stable rule/case state, and non-persistence.
+- Coordinator gates after both merges: feature contract 10/10; Stage E wall 101/101; full console green; web 43/43 files and 278/278 tests; build green; eval 20/20 with F1 1.000; detector hash exact.
+- Fresh training remained under the ten-minute budget at 13.03 s for 434 labeled rows; five-fold macro-F1 mean 0.9568. The local 2,501-event store had zero dispositions, so it contributed provenance context but no invented labels.
+- `graphify update .` completed after the test merge: 3,742 nodes, 6,533 edges, 229 communities. The known `Incidents.tsx` partial-parse warning remains; TypeScript build is authoritative and passed.
+- E7a is closed. E8 is the next executable card and becomes frozen after acceptance.
