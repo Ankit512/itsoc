@@ -103,3 +103,27 @@ would optimise against.
 3. Record the criticality sensitivity and its direction as a known property of the model.
 4. Hold E7b round 1 until 1–3 land. E7b modifiers tuned against a metric that reports 1.000 where
    the finding-level number is 0.9444 would be optimising against a number that hides a dropped IOC.
+
+**Owner ruling, 2026-09-02:** clearance accepted and this methodology ratified. All four
+recommendations adopted. E7b round 1 is HELD pending the metrics amendment (card E8m); round 1 then
+dispatches against a named target — the crown-jewel IOC dismissals and the backwards criticality
+gradient.
+
+## 6. What this demonstrates architecturally
+
+The benchmark caught the advisory model confidently wrong on the highest-stakes case in the corpus.
+On the flagship attack scenario, on the crown-jewel host, the model labelled five threat-intel
+`ioc_observed` findings `benign-expected` with confidence up to 0.992 — and it was wrong. Those
+findings cite a real malicious line.
+
+Every rule verdict stood untouched. The detector fired, owned its severity, and reported the
+finding regardless of what the model thought of it; the frozen hash is unchanged and the rules
+numbers are byte-identical whether the model is loaded, wrong, or absent entirely. The model's
+error changed an advisory label and nothing else. No verdict moved, no severity shifted, no finding
+was suppressed from the record.
+
+This is the wall functioning exactly as designed, observed under adversarial measurement rather
+than asserted in a doc. It is also the argument for the wall: a model this confident and this wrong
+on the most security-salient case in the benchmark is not a component that should be permitted to
+decide anything. It advises, and it never decides — and the reason that separation is worth its
+cost is visible here in measured numbers rather than in principle.

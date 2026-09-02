@@ -64,6 +64,23 @@ run with the model present. The learned block reports `available: false` with a 
 
 ## Measured result
 
+**Amended 2026-09-02 after the leakage interrogation** (`E8-leakage-interrogation.md`). The
+paragraph below is true as measured and misleading as read; the doctrine is honest surfaces, not
+honest technicalities. Corrections, which card E8m makes first-class in the published metrics:
+
+- The false-positive total is **format-scoped**: 84 across all four formatters, of which the
+  canonical-only subset is the 21 quoted here. The learned system suppressed all 84.
+- Learned recall of 1.000 is **line-level**. **Finding-level learned recall is 0.9444 (85 of 90).**
+- The model **dropped five `ioc_observed` findings on the crown-jewel host in `INC-4a7f`**, labelling
+  them `benign-expected` at confidence up to 0.992. Line-level recall stayed 1.000 only because
+  their single cited malicious line is also covered by kept findings. "Matched every positive" does
+  not hold at finding level.
+- A second headline finding: `criticality_rank` carries 41.5% of model feature importance and its
+  direction runs backwards — raising a host to crown-jewel flips 28 of 85 true detections to
+  DROPPED. Counterfactual; the published numbers stand as measured.
+
+Rules numbers are unaffected. No verdict, severity, or rule finding moved.
+
 Rules score 1.000 precision/recall/F1 with 0 misses on all three positive scenarios and raise 21
 false positives across the three negative scenarios. The learned system matches every positive and
 suppresses all 21, also with 0 misses. Both systems pass through the identical `score()`/`diff()`
