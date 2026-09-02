@@ -65,3 +65,13 @@ Report: `docs/STAGE_E_REPORTS/E7a-dispatch.md`.
 - Task `task_64d5ccd160ec`, dispatch `ctx_c8ce5df92642`, Claude Code, branch `feat/e7a-model-v1`.
 - Exact accepted-main base `e7f6831`. One shared rule-owned feature extractor; seeded provenance; stratified CV; balanced weighting; learned advice only.
 - Missing dependency/model must remain an honest visible unavailable state. Mutation and kill-model evidence are mandatory. No push or worker merge.
+
+## E7a implementation merged; independent test card dispatched — 2026-09-02
+
+Reports: `docs/STAGE_E_REPORTS/E7a-worker.md` and `docs/STAGE_E_REPORTS/E7a-codex-dispatch.md`.
+
+- Claude implementation commit `fb24aef` independently audited and merged locally as `8337490`; no push.
+- Independent gates before merge: clean Python 3.13 venv installed pinned scikit-learn 1.7.2; 23/23 training tests; fresh 434-row train in 13.03 s with five-fold macro-F1 mean 0.9568; Stage E wall 101/101; full console green; web 43/43 files and 278/278 tests; production build green; eval 20/20 with F1 1.000; detector hash exact.
+- PyPI metadata confirms 1.7.2 is production-stable and supports Python 3.13. A newer release exists, but the accepted pin is the release actually reproduced by the implementation and independent training runs.
+- `graphify update .` completed after merge, with the known `Incidents.tsx` parser warning; the authoritative TypeScript build passed.
+- Codex test-only task `task_ad6e978dc5ba`, dispatch `ctx_9d10053d48fd`, branch `test/e7a-feature-contract`, exact base `8337490`. Only the new adversarial test file and its worker report are allowed.
