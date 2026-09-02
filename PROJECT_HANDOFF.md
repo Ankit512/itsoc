@@ -1,10 +1,10 @@
-# AI Log Analysis & Anomaly Detection — Project Handoff
+# itsoc — Project Handoff
 
 > Purpose: a self-contained summary so this work can be continued in a new session
 > without losing context. Covers the goal, what's been built, the architecture, how to
 > run it, known issues, and what's next.
 
-_Last updated: 2026-08-20 · Repo: `~/Projects/log-analyzer` · GitHub: `Ankit512/log-anomaly-detector` (public, CI green)_
+_Last updated: 2026-09-02 · Repo: `~/Projects/log-analyzer` · GitHub: `Ankit512/log-anomaly-detector` (public, `main` green)_
 
 ---
 
@@ -19,18 +19,20 @@ Agent → Agentic Skills → MCP → API/Security Gateway → Certificate/Token 
 with a mandatory security principle: **API-first + certificate/token auth, no
 username/password integration, human approval before any write action.**
 
-We started at the bottom-left — **log analysis** — and have now completed **anomaly
-detection** with real-format support and a regression test harness. On the **MCP** rung of
-that vision, a **read-only** MCP server (`itsoc_mcp/`) now exposes the local backend's existing
-analysis to MCP clients — it computes no verdicts and only relays them. The rest of Stage C
-(live input, RCA, and any MCP tool that *writes* / gated remediation) is not yet started.
+We started at the bottom-left — **log analysis** — and now have a working local SOC workspace.
+The React dashboard includes a guided tour, focused copilot with separate reasoning, incidents,
+assignable cases, a bounded kanban board, approval-gated runbook templates, live-source status,
+optional Splunk polling, threat-intel enrichment, and reports. A **read-only** MCP server
+(`itsoc_mcp/`) exposes the same backend to MCP clients; it computes no verdicts and only relays
+them.
 
 ### Hard requirements / decisions (unchanged)
 - **Open-source models only** (Llama / Mistral / Qwen); avoid Claude/Anthropic in the runtime.
-- **Run locally via Ollama** (`llama3.1:8b`) so log data never leaves the machine.
+- **Run locally via Ollama** (`qwen3:8b` by default; `llama3.1:8b` is supported) so log data never leaves the machine.
 - **No training / fine-tuning** — in-context reasoning + deterministic rules.
 - **Chunk logs** (~100 lines) rather than relying on a huge context window.
-- **Read-only.** No live system access, no remediation. Earn trust first.
+- **Human-gated actions only.** Analysis is read-only by default; connector writes require an
+  explicit approval and step-up verification. The copilot never executes them.
 
 ### Hardware
 MacBook Air M4, 16GB RAM. Target a 7B–8B model at Q4/Q5. Do not attempt 70B locally.
@@ -42,10 +44,10 @@ MacBook Air M4, 16GB RAM. Target a 7B–8B model at Q4/Q5. Do not attempt 70B lo
 | Stage | Description | Status |
 |-------|-------------|--------|
 | **A** | Log triage on a local open-source model | ✅ Done |
-| **B** | Anomaly detection (deterministic + LLM), real-format support, eval harness | ✅ Done & regression-guarded (17/17) |
-| **C** | Ops platform (live input, MCP tools, RCA, gated remediation) | 🟡 SOC subsystems (incidents/assets/cases/reports/intel/metrics) + threat-intel enrichment landed; a **read-only MCP server** (`itsoc_mcp/`) exposing the local backend to MCP clients has landed (computes no verdicts); live input, RCA, MCP *write* / gated remediation not started |
+| **B** | Anomaly detection (deterministic + LLM), real-format support, eval harness | ✅ Done & regression-guarded (20/20) |
+| **C** | Ops platform (live input, MCP tools, RCA, gated remediation) | ✅ SOC workspace, live collector surfaces, optional Splunk polling, cases/ownership, runbook templates, threat-intel enrichment, reports, and read-only MCP landed; unattended remediation and MCP writes remain out of scope |
 | **UI-1** | Local vanilla-JS review console + `serve.py`, log-source picker, run history, standalone export | ✅ Built, live, CI-tested |
-| **UI-2** | **React SOC platform** (`web/`, "itsoc-web"): Overview, Alerts, Incidents, Threat Intel, Assets, Reports, Cases, Settings | ✅ Built, live, vitest-tested |
+| **UI-2** | **React SOC workspace** (`web/`, "itsoc-web"): Overview, Findings, Incidents, Cases, Approvals, Intel, Network, Assets, Sources, Integrations, History, Reports, Settings | ✅ Built, live, vitest-tested |
 
 **What works today:** the full detect-and-explain loop runs locally on the canonical format,
 real RFC 3164 syslog (sshd/PAM), ManageEngine **Log360** exports (CSV + forwarded syslog), and
@@ -57,9 +59,9 @@ summary, and honest metrics — every value derived from real data or returned a
 Two front-ends read the same API: the vanilla-JS review console and a React SOC dashboard. A
 labeled evaluation corpus guards every fix against regression.
 
-**What's blocked:** real-world accuracy validation and environment-specific tuning both
-need production logs, which are not currently available. Live/continuous input, RCA, and
-(human-gated) remediation are the remaining Stage-C work.
+**Current boundaries:** production-log validation still needs representative customer data;
+live connectors are opt-in and only analyse events actually returned by the configured source;
+the copilot cannot change severity, assign a ticket, approve an action, or execute remediation.
 
 ---
 
@@ -109,7 +111,9 @@ verdicts.** It reads the current run's findings/events (and small analyst-owned 
 - **Assets & users** — only entities the parser actually observed (hosts from events, IPs from
   finding entities, usernames via the same patterns `console/redact.py` masks). No inventory is
   invented; idle → an honest error, not an empty list.
-- **Cases** — pure analyst-entered CRUD (that is what makes storing them honest).
+- **Cases** — analyst-entered CRUD with lifecycle, notes, observables, attachments, workflow
+  template links, and an explicit responsible-person field. The React board constrains scrolling
+  to the board region so tickets cannot overflow the page.
 - **Reports** — lists real files in `console/.soc/reports/`; generate renders the current run;
   export serializes it to CSV/XML/JSON/HTML/Markdown (`console/export.py`).
 - **Threat-intel summary & metrics** — surfaces the offline STIX bundle + each rule's MITRE
@@ -124,6 +128,8 @@ Contract: [`docs/soc_subsystems.md`](docs/soc_subsystems.md). `console/serve.py`
   served at `/`, no build step) and the **React SOC platform** (`web/`, Vite + React + TS +
   Tailwind + shadcn/Radix + TanStack Query/Table; a *pure consumer* that never computes a
   verdict). In dev, `web` runs on `:5173` and proxies `/api/*` to `serve.py` on `:8765`.
+- The React workspace keeps the tour overlay on top of a real route, and the copilot separates
+  concise answer, evidence, reasoning, and suggested next steps so dense dashboards remain usable.
 - **One egress choke point:** `console/redact.py`. When the console is pointed at a remote
   compute node, every outbound byte passes through `redact()` first — the raw log is never
   transmitted; only redacted finding-lines go out. Local mode is the default (no egress).
@@ -196,22 +202,22 @@ each subsystem shows real data or an honest empty/`n/a` state.
 | `rules_syslog.py` | Vocabulary canonicalization (sshd/PAM → frozen phrasing), `possible_break_in` sibling rule, `dedupe_auth_attempts()`. |
 | `rule_context.py` | Emits the readable rule predicate (from live detector constants) + event timeline per finding. Deterministic. |
 | `compare.py` | Opt-in `--compare` LLM-alone ablation → `llm_alone_severity`/`_delta` + `compare.underrated_count`. Additive; cache is gitignored. |
-| `console/serve.py` | Stdlib local server + JSON API: picker, run history, port reclaim, `/api/*` routes (analyze, overview, incidents, assets, users, cases, reports, export, metrics, threat-intel). Routing only — no verdict logic. |
+| `console/serve.py` | Stdlib local server + JSON API: picker, run history, port reclaim, `/api/*` routes (analysis, overview, incidents, assets, users, cases, reports, exports, metrics, threat-intel, live sources, integrations, and copilot). Routing only — no verdict logic. |
 | `console/adapter.py` | `report.json` → console state (findings, events, severity counts, MITRE frequency, integrity manifest). |
 | `console/soc.py` | Phase-B SOC subsystems: `derive_incidents`/`list_incidents`/`set_incident_state`, `derive_assets`/`derive_users`, cases CRUD, `list_reports`/`generate_report`, `threat_intel_summary`, `metrics`. Display aggregations; never a new verdict. Stores in `console/.soc/` (gitignored). |
 | `console/export.py` | Standalone HTML export **plus** CSV/XML/JSON/Markdown serializers (`serialize()` / `SERIALIZERS`) behind `/api/export`. |
 | `console/redact.py` | The single egress choke point — every byte leaving for a remote compute node passes through `redact()`. |
-| `console/formats/` | Sibling format parsers feeding the record dict: `log360.py` (Log360 CSV + forwarded syslog), `logcat.py` (Android logcat). Content-sniffed, strict. |
+| `console/formats/` | Sibling format parsers feeding the record dict: Log360, logcat, RFC 5424, JSON, Loghub, ISO-8601 syslog, and auth CSV. Content-sniffed, strict. |
 | `console/anomaly_console.html` | Vanilla-JS review console (served at `/`, no build step). |
 | `console/test_console.py` | Backend/render suite: routing, log360, logcat, remote-compute, dashboard-data, layout, all-runs, SOC overview, SOC subsystems, export. |
-| `web/` | React SOC platform ("itsoc-web", Vite + TS + Tailwind + shadcn/Radix + TanStack). `src/pages/` (Overview, Alerts, Incidents, ThreatIntel, Assets, Reports, Cases, Settings), `src/lib/api.ts` (typed client), `src/test/` (18 vitest suites). Pure API consumer. |
+| `web/` | React SOC workspace ("itsoc-web", Vite + TS + Tailwind + shadcn/Radix + TanStack). `src/pages/` covers Overview, Findings, Incidents, Cases, Approvals, Intel, Network, Assets, Sources, Integrations, History, Reports, and Settings; `src/lib/api.ts` is the typed client and `src/test/` contains the vitest suites. Pure API consumer. |
 | `docs/soc_subsystems.md` | The SOC data-model + API contract (incidents/assets/cases/reports/threat-intel/metrics). |
 | `RUNBOOK.md` / `.pdf` | Step-by-step guide for a first-time, non-technical user. Covers all use cases, troubleshooting, timings, limits. |
-| `tests/eval/` | Labeled corpus (`manifest.json` + `.log` fixtures) and `run_eval.py` scoring harness (17/17). |
-| `archive/` | `anomaly_detector_original.py` (pristine reference), `log_analyzer.py.anthropic.bak`. |
+| `tests/eval/` | Labeled corpus (`manifest.json` + `.log` fixtures) and `run_eval.py` scoring harness (20/20 current baseline). |
+| `archive/` | `anomaly_detector_original.py` (pristine detector reference). Obsolete model backups are intentionally not tracked. |
 | `samples/` | Real LogHub datasets: `Linux_2k.log`, `OpenSSH_2k.log`, `Android_2k.log`; plus `log360_export.csv` / `log360_syslog.log`. |
 | `sample-2.log` | 19-line synthetic baseline (canonical format, 3 planted issues). |
-| `threat_intel/` | Stage C (T9) prototype: `threat_detector.py` (match IOCs→MITRE ATT&CK), `taxii_client.py` (STIX/TAXII, import-guarded), `mitre_attack.py` (ATT&CK mapper), `export_iocs.py` (report.json→IOC list), `demo_threat_intel.json`, `test_threat_intel.py`, `requirements-taxii.txt` (live-mode deps only), `README.md`. Offline mode is stdlib-only. |
+| `threat_intel/` | Offline-first enrichment: `threat_detector.py` (match IOCs→MITRE ATT&CK), `taxii_client.py` (STIX/TAXII, import-guarded), `mitre_attack.py` (ATT&CK mapper), exporters, demo bundle, tests, and live-mode requirements. Offline mode is stdlib-only. |
 | `itsoc_mcp/` | Read-only MCP server (Stage C, read-only): `server.py` (MCP stdio wiring + tool registry, `main()` entry point), `tools.py` (the seven read-only tool implementations), `client.py` (stdlib urllib proxy to the local API), `redaction.py` (egress guard delegating to `console/redact.py`), `threat_intel_offline.py` (offline STIX→MITRE path reusing `threat_intel/`), `__main__.py` (`python -m itsoc_mcp`), `requirements-mcp.txt` (the `mcp` SDK only), `pyproject.toml` (packaging + `itsoc-mcp` console script), `test_mcp.py` (network-free, 81 assertions), `README.md` / `PUBLISHING.md`. Client of the backend; computes no verdicts. |
 | `LICENSE` | MIT license (top level). |
 | `.env.example`, `.gitignore`, `README.md` | Setup. Copy `.env.example` → `.env`; local Ollama needs no real key. |
@@ -241,7 +247,7 @@ python3 console/export.py report.json -o run.html      # or --latest
 #   or GET /api/export?format=csv|html|xml|json|md     # attachment, 409 when idle
 
 # Tests (all run headless, no network, no model — CI-guarded)
-python3 tests/eval/run_eval.py            # 17/17 expected
+python3 tests/eval/run_eval.py            # 20/20 expected
 python3 threat_intel/test_threat_intel.py
 python3 console/test_console.py           # backend + render + subsystems + export
 cd web && npm test                        # React dashboard (vitest, jsdom)
@@ -303,8 +309,9 @@ cd web && npm test                        # React dashboard (vitest, jsdom)
 
 **Presentation layer — BUILT (beyond the original A/B/C roadmap)**
 - Two front-ends over one local API: the vanilla-JS review console **and** the React SOC
-  platform (`web/`, Overview / Alerts / Incidents / Threat Intel / Assets / Reports / Cases /
-  Settings). Both are fully local; `--compare` shows the RULE-vs-LLM-alone contrast. CI runs
+  workspace (`web/`, Overview / Findings / Incidents / Cases / Approvals / Intel / Network /
+  Assets / Sources / Integrations / History / Reports / Settings). Both are fully local;
+  `--compare` shows the RULE-vs-LLM-alone contrast. CI runs
   the eval, threat-intel, console/backend, and dashboard (vitest) tests headless on every push.
 - The Phase-B **SOC subsystem layer** (`console/soc.py`) + its contract (`docs/soc_subsystems.md`)
   are in: incidents with an analyst lifecycle, observed assets/users, cases, generated + saved
@@ -315,17 +322,15 @@ cd web && npm test                        # React dashboard (vitest, jsdom)
   `var(--space-5)` typo (an undefined token zeroes the declaration) that `test_console.py` now
   guards for every stylesheet variable.
 
-**Finish Stage B (demand-driven)**
+**Demand-driven follow-ups**
 - **Real-log validation** on production logs for true FP/FN — blocked on data availability.
-- **Remaining formats:** RFC 5424, JSON logs, more vendor exports, multi-line stack traces;
-  plus a structured line-range field so detector context can be scoped per chunk on large
-  multi-chunk logs. (Done so far: canonical, RFC 3164, **Log360** CSV+syslog, **Android
-  logcat** — each a sibling module, detector untouched.) A macOS unified log still reports
-  "format not recognized" — correctly, but it is an obvious next parser.
+- **Remaining formats:** more vendor exports and multi-line stack traces; each new parser must be
+  a sibling module with the fixed record shape. Existing support includes canonical, RFC 3164,
+  RFC 5424, JSON, **Log360** CSV/syslog, **Android logcat**, Loghub, auth CSV, and EVTX history.
 - **Deferred T4 tuning:** thresholds + `SUSPICIOUS_PORTS` to the real environment; the disk
   severity decision; optional LLM explanation second pass.
 
-**Stage C (only once there's a real environment / need)**
+**Safety-boundary follow-ups (only when a real environment / need exists)**
 - **MCP enrichment — DONE (read-only).** A read-only MCP server (`itsoc_mcp/`) exposes the
   local backend's existing analysis to MCP clients over stdio: `analyze_log`, `list_runs`,
   `get_findings`, `get_evidence`, `explain_finding`, `export_run`, `threat_intel_lookup`. It is a
@@ -333,17 +338,13 @@ cd web && npm test                        # React dashboard (vitest, jsdom)
   `console/redact.py`; every response carries a provenance block with the detector sha256.
   **Remaining:** any MCP tool that *writes* (analyst actions) and gated remediation stay out of
   scope until the security-gateway path exists (see T11).
-- **T7 Live input** — tailed file / stream / SIEM API pull for continuous operation.
+- **T7 Continuous input** — broaden the existing collector and optional Splunk polling to more
+  SIEM sources, with explicit back-pressure and connector health.
 - **T8 Analyst feedback loop** — capture true/false-positive marks; refine rules + few-shot.
-- **T9 Read-only enrichment** — threat-intel matching + MITRE ATT&CK prototype is IN
-  (`threat_intel/`, offline-first). Remaining: fix `severity_for()` (flattens every match
-  to CRITICAL); wire live TAXII **and** replace its `--taxii-password` with certificate/token
-  auth before enabling it (current CLI-password path violates the security principle); add
-  CMDB asset-criticality and past-incident-history sources; tighten the permissive `DOMAIN_RE`;
-  make the ATT&CK cache auto-refresh. Offline stays the default (no log egress).
-- **T10 RCA + incident records** — the correlation primitive is IN (`soc.derive_incidents`
-  clusters findings by entity + time into incidents with a lifecycle); remaining is the
-  root-cause *narrative* on top of those clusters.
+- **T9 Read-only enrichment** — offline threat-intel matching + MITRE ATT&CK is shipped. Live
+  TAXII remains opt-in and certificate/token-only; offline stays the default (no log egress).
+- **T10 RCA narratives** — incident correlation, evidence timelines, and copilot investigation
+  guidance are shipped; richer root-cause narratives can be added without changing verdicts.
 - **T11 Gated remediation (last)** — human-approved actions above a severity threshold, with
   a mandatory verify step; certificate/token via the API/security gateway, never
   username/password.
@@ -352,22 +353,20 @@ cd web && npm test                        # React dashboard (vitest, jsdom)
 
 ## 8. Design constraints (held throughout)
 
-Data stays local (Ollama) · no model training · read-only, no automated actions · human
-approval before any future write · certificate/token auth only · secrets never in prompts,
-code, `.env`, or logs sent to any model.
+Data stays local (Ollama) · no model training · advisory AI · approval before every write or
+connector action · certificate/token auth only · secrets never in prompts, code, `.env`, or logs
+sent to any model.
 
 ---
 
 ## 9. Quick prompt to resume
 
-> "Continuing my local AI log-analysis project (`~/Projects/log-analyzer`). Read
-> PROJECT_HANDOFF.md. Stage A + B are done and Stage C is underway: the detect-and-explain loop
-> runs locally via Ollama on canonical / RFC 3164 / Log360 / Android-logcat logs, with correct
-> de-duplicated severities and a `tests/eval/` regression harness (17/17). On top sits the SOC
-> subsystem layer (`console/soc.py`: incidents, assets/users, cases, reports, threat-intel,
-> metrics) and two front-ends — the vanilla-JS review console and the React SOC platform
-> (`web/`). The detector is frozen at the pivot baseline (sha256 `364577c5…a4a876`, after
-> two owner-authorized edits — sliding-window, then defensive hardening);
-> pristine copy in `archive/`. Next I want to [e.g. add RFC 5424/JSON parsing / live tail input
-> / RCA narratives / validate on my real logs]. No Claude in the runtime, no training,
-> read-only; rules own severity, the LLM only explains."
+> "Continuing itsoc in `~/Projects/log-analyzer`. Read PROJECT_HANDOFF.md. The local
+> detect-and-explain loop runs via Ollama on canonical, RFC 3164, RFC 5424, JSON, Log360,
+> Android-logcat, and other sibling formats, with a 20/20 regression harness. The SOC workspace
+> includes the guided tour, focused copilot with separate reasoning, incidents, assignable cases,
+> bounded kanban, approval-gated runbook templates, live collectors, optional Splunk polling,
+> threat intel, reports, and a read-only MCP server. The detector is frozen at SHA-256
+> `364577c5…a4a876`; rules own severity. The copilot is advisory and cannot assign, approve, or
+> execute actions. Keep data local, require human approval for writes, and treat unavailable
+> connectors as unavailable rather than inventing results."
