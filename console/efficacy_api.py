@@ -16,6 +16,20 @@ against the model's provenance sidecar, and every metric. A run whose learned
 half is unavailable arrives here already carrying its reason, and is passed on
 unchanged rather than being filled in.
 
+E8m amends what that run PUBLISHES, and this module's job is unchanged: it
+still passes every field through untouched. The run body now also carries, all
+of it computed by the referee and none of it by the console:
+
+* ``finding_level_recall`` and ``line_level_recall_denominator`` — the two
+  recalls, each labelled with the denominator it is over, for BOTH systems,
+  plus ``learned_dropped_true_findings``: the verbatim list of findings the
+  learned system dropped WHILE they cited malicious lines;
+* ``false_positive_totals`` — the headline total scoped to every format the run
+  measured, with each single format as an explicitly labelled subset. The
+  console must never render a false-positive count without that scope;
+* ``criticality_sensitivity`` — the ``criticality_rank`` counterfactual, marked
+  ``kind: "counterfactual"``, published as a first-class finding.
+
 Honest states, in the shape the two D2 cards consume:
 
 * ``idle``    — no harness run has been stored yet; ``run`` is ``None``.

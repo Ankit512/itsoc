@@ -7,6 +7,7 @@ corpus's subject, it is not part of the corpus.
 from __future__ import annotations
 
 import ast
+import copy
 import json
 import tempfile
 import unittest
@@ -670,6 +671,312 @@ class HonestUnavailableTests(unittest.TestCase):
         self.assertEqual(summary["advisory"], harness.ADVISORY_SENTENCE)
         for entry in summary["scenarios"]:
             self.assertEqual(entry["run_id"], summary["run_id"])
+
+
+# ---------------------------------------------------------------------------
+# E8m — the additive amendment
+# ---------------------------------------------------------------------------
+
+class FindingLevelRecallTests(unittest.TestCase):
+    """Recall has two denominators. Both are published, both are labelled."""
+
+    MANIFEST = {
+        "scenario": "unit",
+        "format": "canonical",
+        "line_count": 3,
+        "malicious_count": 1,
+        "malicious_lines": [{"line": 2, "raw": "line two raw", "why": "the only one"}],
+    }
+    # Two findings cite the SAME single malicious line. Dropping one of them
+    # costs NOTHING at line level and half the findings at finding level — the
+    # exact absorption E8m exists to make visible.
+    FINDINGS = [
+        {"rule_id": "keeper", "timeline": [{"line": 2}], "evidence": "", "summary": "kept"},
+        {"rule_id": "ioc_observed", "severity": "MEDIUM", "timeline": [{"line": 2}],
+         "evidence": "", "summary": "the absorbed one"},
+    ]
+
+    def test_finding_level_recall_names_its_denominator(self) -> None:
+        result = harness.finding_level_recall(85, 90)
+        self.assertEqual(result["recall"], 0.9444)
+        self.assertEqual(result["true_findings_kept"], 85)
+        self.assertEqual(result["true_findings_total"], 90)
+        self.assertTrue(result["recall_defined"])
+        self.assertEqual(result["denominator"],
+                         "findings that cite at least one malicious line")
+
+    def test_an_absent_denominator_is_undefined_not_a_measured_zero(self) -> None:
+        result = harness.finding_level_recall(0, 0)
+        self.assertEqual(result["recall"], 0.0)
+        self.assertFalse(result["recall_defined"])
+
+    def test_a_dropped_finding_costs_finding_recall_but_not_line_recall(self) -> None:
+        """The defect, reproduced in the small."""
+        model = _stub_model("confirmed")
+        model.opinion = (                                    # type: ignore[method-assign]
+            lambda finding, manifest, org=None: {
+                "rule_id": finding.get("rule_id"),
+                "rule_severity": finding.get("severity"),
+                "label": "confirmed" if finding["rule_id"] == "keeper"
+                         else "benign-expected",
+                "confidence": 0.992,
+                "model_positive": finding["rule_id"] == "keeper",
+                "advisory_severity": None,
+                "agrees": None,
+            })
+        entry = harness.score_pair(
+            self.MANIFEST, {"findings": copy.deepcopy(self.FINDINGS)}, model)
+
+        learned = entry["learned"]
+        # line-level recall is untouched: the kept finding still covers line 2
+        self.assertEqual(learned["totals"]["recall"], 1.0)
+        self.assertEqual(learned["misses"], [])
+        # finding-level recall is not
+        self.assertEqual(learned["finding_recall"]["recall"], 0.5)
+        self.assertEqual(learned["finding_recall"]["true_findings_kept"], 1)
+        self.assertEqual(learned["finding_recall"]["true_findings_total"], 2)
+        # and the loss is listed VERBATIM, like a miss
+        dropped = learned["dropped_true_findings"]
+        self.assertEqual(len(dropped), 1)
+        self.assertEqual(dropped[0]["rule_id"], "ioc_observed")
+        self.assertEqual(dropped[0]["label"], "benign-expected")
+        self.assertEqual(dropped[0]["confidence"], 0.992)
+        self.assertEqual(dropped[0]["summary"], "the absorbed one")
+        self.assertEqual(dropped[0]["cited_malicious_lines"],
+                         [{"line": 2, "raw": "line two raw", "why": "the only one"}])
+
+    def test_the_rules_system_publishes_its_finding_recall_too(self) -> None:
+        entry = harness.score_pair(
+            self.MANIFEST, {"findings": copy.deepcopy(self.FINDINGS)}, None)
+        rules = entry["rules"]
+        self.assertEqual(rules["finding_recall"]["recall"], 1.0)
+        self.assertEqual(rules["finding_recall"]["true_findings_total"], 2)
+        self.assertEqual(rules["dropped_true_findings"], [])
+
+    def test_a_suppressed_false_positive_is_not_a_dropped_true_finding(self) -> None:
+        """Dropping a finding that cited nothing earns precision; it is not a loss."""
+        findings = [{"rule_id": "noise", "timeline": [{"line": 1}],
+                     "evidence": "", "summary": "quiet boot"}]
+        decisions = [{"rule_id": "noise", "label": "false-positive",
+                      "confidence": 0.9, "model_positive": False}]
+        self.assertEqual(
+            harness.dropped_true_findings(
+                findings, decisions, self.MANIFEST["malicious_lines"]),
+            [])
+
+    def test_both_recalls_are_labelled_wherever_either_is_rendered(self) -> None:
+        model = _stub_model("confirmed")
+        with tempfile.TemporaryDirectory(prefix="efficacy-labels-") as tmp:
+            summary = harness.evaluate(
+                ["INC-4a7f"], ["canonical"], Path(tmp),
+                seeds=[harness.BENCHMARK_SEEDS[0]],
+                model_dir=Path(tmp) / "no-model")
+        self.assertEqual(summary["line_level_recall_denominator"],
+                         "manifest malicious lines")
+        self.assertEqual(summary["finding_level_recall"]["denominator"],
+                         "findings that cite at least one malicious line")
+        self.assertIn("malicious LINES", summary["recall_note"])
+        self.assertIn("cite at least one malicious line", summary["recall_note"])
+        text = harness.render(summary)
+        self.assertIn("recall(lines)=", text)
+        self.assertIn("recall(findings)=", text)
+        self.assertIn("Line-level recall is over manifest malicious lines", text)
+        del model
+
+
+class FormatScopeTests(unittest.TestCase):
+    """A false-positive count with no format scope is not a publishable number."""
+
+    def test_the_total_is_scoped_and_every_format_is_a_labelled_subset(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="efficacy-scope-") as tmp:
+            summary = harness.evaluate(
+                ["near-miss-auth"], ["canonical", "rfc3164"], Path(tmp),
+                seeds=[harness.BENCHMARK_SEEDS[0]],
+                model_dir=Path(tmp) / "no-model")
+        totals = summary["false_positive_totals"]
+        self.assertEqual(totals["formats"], ["canonical", "rfc3164"])
+        self.assertIn("canonical", totals["scope"])
+        self.assertIn("rfc3164", totals["scope"])
+        self.assertEqual(set(totals["by_format"]), {"canonical", "rfc3164"})
+        self.assertEqual(
+            totals["rules"],
+            sum(bucket["rules"] for bucket in totals["by_format"].values()))
+        # the headline still equals the legacy total: no measured value moved
+        self.assertEqual(totals["rules"], summary["total_false_positives"])
+
+    def test_no_false_positive_total_is_rendered_bare(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="efficacy-bare-") as tmp:
+            summary = harness.evaluate(
+                ["near-miss-auth"], ["canonical"], Path(tmp),
+                seeds=[harness.BENCHMARK_SEEDS[0]],
+                model_dir=Path(tmp) / "no-model")
+        text = harness.render(summary)
+        for line in text.splitlines():
+            if "false positive finding(s)" in line and line.startswith(
+                    ("Rules totals:", "Learned totals:")):
+                self.assertIn("all formats measured in this run", line)
+        self.assertIn("subset `canonical` only", text)
+
+
+class CriticalitySensitivityTests(unittest.TestCase):
+    """The counterfactual is a first-class published finding, and says so."""
+
+    def test_forcing_criticality_needs_no_edit_outside_the_harness(self) -> None:
+        forced = harness._ForcedCriticality("crown-jewel")
+        self.assertEqual(forced.get_criticality("anything-at-all"), "crown-jewel")
+        self.assertEqual(forced.get_criticality(None), "crown-jewel")
+
+    def test_the_whole_real_domain_is_forced(self) -> None:
+        self.assertEqual(harness.CRITICALITY_DOMAIN,
+                         ("low", "standard", "crown-jewel"))
+
+    def test_a_model_whose_decision_follows_criticality_is_reported_as_flipping(self) -> None:
+        """A stub whose opinion depends ONLY on criticality, so the count is
+        provably the counterfactual and not an artefact of the real model."""
+        manifest = FindingLevelRecallTests.MANIFEST
+        findings = [
+            {"rule_id": "ioc_observed", "timeline": [{"line": 2}],
+             "evidence": "", "summary": "cites the malicious line"},
+            {"rule_id": "noise", "timeline": [{"line": 1}],
+             "evidence": "", "summary": "cites nothing"},
+        ]
+        model = _stub_model("confirmed")
+
+        def opinion(finding, mani, org=None):
+            crit = org.get_criticality("host") if org is not None else "standard"
+            keeps = finding["rule_id"] == "ioc_observed"
+            if crit == "crown-jewel":
+                keeps = not keeps          # the whole decision inverts
+            return {"rule_id": finding["rule_id"], "rule_severity": None,
+                    "label": "confirmed" if keeps else "benign-expected",
+                    "confidence": 1.0, "model_positive": keeps,
+                    "advisory_severity": None, "agrees": None}
+
+        model.opinion = opinion            # type: ignore[method-assign]
+        report = {"findings": copy.deepcopy(findings)}
+        entry = harness.score_pair(manifest, report, model)
+        sens = harness.criticality_sensitivity(
+            [(manifest, report)], [entry], model)
+
+        self.assertTrue(sens["available"])
+        self.assertEqual(sens["kind"], "counterfactual")
+        self.assertEqual(sens["feature"], "criticality_rank")
+        detections = sens["populations"]["true_detections"]
+        suppressions = sens["populations"]["suppressions"]
+        self.assertEqual(detections["total"], 1)
+        self.assertEqual(detections["flipping"], 1)
+        self.assertEqual(detections["robust"], 0)
+        # direction, read straight off the bands
+        self.assertEqual(detections["kept_at"],
+                         {"low": 1, "standard": 1, "crown-jewel": 0})
+        self.assertEqual(suppressions["total"], 1)
+        self.assertEqual(suppressions["flipping"], 1)
+        self.assertEqual(suppressions["kept_at"],
+                         {"low": 0, "standard": 0, "crown-jewel": 1})
+
+    def test_the_counterfactual_does_not_move_the_measured_run(self) -> None:
+        """Re-scoring must not write back into anything published."""
+        manifest = FindingLevelRecallTests.MANIFEST
+        report = {"findings": copy.deepcopy(FindingLevelRecallTests.FINDINGS)}
+        model = _stub_model("confirmed")
+        entry = harness.score_pair(manifest, report, model)
+        before = json.dumps(entry, sort_keys=True)
+        before_report = json.dumps(report, sort_keys=True)
+        harness.criticality_sensitivity([(manifest, report)], [entry], model)
+        self.assertEqual(json.dumps(entry, sort_keys=True), before)
+        self.assertEqual(json.dumps(report, sort_keys=True), before_report)
+
+    def test_it_is_published_as_a_counterfactual_never_as_a_measurement(self) -> None:
+        self.assertIn("COUNTERFACTUAL", harness.CRITICALITY_SENSITIVITY_NOTE)
+        self.assertIn("stands exactly as measured",
+                      harness.CRITICALITY_SENSITIVITY_NOTE)
+        self.assertIn("MORE willing to dismiss",
+                      harness.CRITICALITY_SENSITIVITY_NOTE)
+
+    def test_no_model_publishes_an_honest_gap_not_a_zero(self) -> None:
+        sens = harness.criticality_sensitivity([], [], None, "sklearn is absent")
+        self.assertFalse(sens["available"])
+        self.assertEqual(sens["reason"], "sklearn is absent")
+        self.assertIsNone(sens["populations"])
+        self.assertIsNone(sens["feature_importance"])
+        with tempfile.TemporaryDirectory(prefix="efficacy-sens-gap-") as tmp:
+            summary = harness.evaluate(
+                ["INC-4a7f"], ["canonical"], Path(tmp),
+                seeds=[harness.BENCHMARK_SEEDS[0]],
+                model_dir=Path(tmp) / "no-model")
+        self.assertFalse(summary["criticality_sensitivity"]["available"])
+        self.assertIsNone(summary["learned_total_dropped_true_findings"])
+        self.assertIsNone(summary["finding_level_recall"]["learned"])
+        self.assertIn("Criticality sensitivity: UNAVAILABLE",
+                      harness.render(summary))
+
+    def test_feature_importance_is_read_off_the_artefact_or_declared_absent(self) -> None:
+        model = _stub_model("confirmed")      # no feature_importances_
+        importance = harness.feature_importance(model)
+        self.assertFalse(importance["available"])
+        self.assertIsNone(importance["criticality_rank"])
+        self.assertTrue(importance["reason"])
+
+
+class AmendmentIsAdditiveTests(unittest.TestCase):
+    """E8m may publish more. It may not move anything E8 published."""
+
+    def test_the_frozen_referee_constants_are_unmoved(self) -> None:
+        self.assertEqual(harness.BENCHMARK_SEEDS, (20270302, 20270303, 20270304))
+        self.assertEqual(harness.E7A_TRAINING_SEEDS, tuple(range(20260902, 20260916)))
+        self.assertEqual(harness.MODEL_POSITIVE_LABELS, ("confirmed",))
+        self.assertEqual(harness.MODEL_NEGATIVE_LABELS,
+                         ("false-positive", "benign-expected"))
+        self.assertEqual(harness.ASSERTED_ENTITY_KINDS,
+                         ("ip", "user", "host", "port", "change_window"))
+
+    def test_still_exactly_one_metric_implementation(self) -> None:
+        source = (REPO_ROOT / "tools" / "efficacy_harness.py").read_text(encoding="utf-8")
+        self.assertEqual(source.count("def score("), 1)
+        self.assertEqual(source.count("def _ratio("), 1)
+        self.assertEqual(source.count("def diff("), 1)
+        self.assertEqual(source.count("2 * precision * recall"), 1)
+
+    def test_score_still_returns_exactly_the_frozen_keys(self) -> None:
+        self.assertEqual(
+            sorted(harness.score(3, 1, 5, 6)),
+            sorted(["true_positive_findings", "false_positive_findings",
+                    "malicious_lines", "malicious_lines_detected",
+                    "precision", "recall", "f1",
+                    "precision_defined", "recall_defined"]))
+        self.assertEqual(harness.score(3, 1, 5, 6)["precision"], 0.75)
+        self.assertEqual(harness.score(3, 1, 5, 6)["recall"], 0.8333)
+
+    def test_the_standing_sentences_are_intact(self) -> None:
+        self.assertEqual(
+            harness.SCOPE_SENTENCE,
+            "measured against synthetic ground-truth scenarios; "
+            "not a claim about production traffic.")
+        self.assertIn("regression proof", harness.CEILING_SENTENCE)
+        self.assertEqual(harness.ADVISORY_SENTENCE,
+                         "the learned model is advisory; these numbers are why.")
+
+    def test_the_amendment_adds_keys_and_moves_no_existing_value(self) -> None:
+        """Score one run twice and compare against the pre-amendment key set."""
+        with tempfile.TemporaryDirectory(prefix="efficacy-additive-") as tmp:
+            summary = harness.evaluate(
+                ["INC-4a7f"], ["canonical"], Path(tmp),
+                seeds=[harness.BENCHMARK_SEEDS[0]],
+                model_dir=Path(tmp) / "no-model")
+        for key in ("run_id", "run_date", "scope", "ceiling", "advisory",
+                    "pipeline", "systems", "interpretation", "metric_note",
+                    "provenance", "benchmark", "freshness", "model",
+                    "scenarios", "total_misses", "total_false_positives",
+                    "learned_total_misses", "learned_total_false_positives"):
+            self.assertIn(key, summary, f"E8 published `{key}`; it must survive")
+        entry = summary["scenarios"][0]
+        for key in ("scenario", "format", "line_count", "totals", "per_rule",
+                    "misses", "false_positives", "scope", "rules", "learned"):
+            self.assertIn(key, entry)
+        # the rules half is still perfect on the frozen seed, unchanged by E8m
+        self.assertEqual(entry["rules"]["totals"]["recall"], 1.0)
+        self.assertEqual(entry["rules"]["totals"]["precision"], 1.0)
+        self.assertEqual(summary["total_misses"], 0)
 
 
 if __name__ == "__main__":
