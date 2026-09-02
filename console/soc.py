@@ -39,6 +39,7 @@ sys.path.insert(0, str(ROOT / "threat_intel"))
 import explanation_guard  # noqa: E402
 import export  # noqa: E402
 import org_context  # noqa: E402
+import precedent  # noqa: E402
 import redact  # noqa: E402
 from rule_mitre_map import RULE_TECHNIQUES  # noqa: E402
 from tactic_phase_map import phase_for_tactics  # noqa: E402
@@ -155,6 +156,32 @@ def _primary_entity(finding):
     return finding.get("type") or "finding", "rule"
 
 
+def _observed_entity_values(entity, members):
+    """Every host / user / IP value this cluster's findings ACTUALLY carried.
+
+    Three sources, all observed rather than inferred: the IP chips the adapter
+    built from parsed entities, the host when the parser really derived one
+    (`hostDerived`), and the usernames the redaction vocabulary finds in the
+    finding titles — the same patterns redact.py masks with, so precedent and
+    redaction agree on what a username is. The cluster's primary entity is
+    always included. Sorted and de-duplicated, so the list is deterministic.
+    """
+    values = {str(entity)} if entity not in (None, "", "—") else set()
+    for f in members:
+        for chip in f.get("chips") or []:
+            text = str(chip.get("text", "")).strip()
+            if redact.IPV4_RE.fullmatch(text):
+                values.add(text)
+        if f.get("hostDerived") and f.get("host") not in (None, "", "—"):
+            values.add(str(f["host"]))
+        for pat in redact.USER_PATTERNS:
+            for m in pat.finditer(str(f.get("title") or "")):
+                name = m.group("u").strip()
+                if name:
+                    values.add(name)
+    return sorted(values)
+
+
 def derive_incidents(state):
     """Cluster the run's findings by shared entity + ≤30-minute chain gaps.
 
@@ -245,6 +272,15 @@ def derive_incidents(state):
                 members=members,
             )
 
+            # E1 precedent facts. Both are DERIVED from the cluster's own real
+            # findings — the rule ids that actually fired, and the host / user /
+            # IP values the parser actually observed. Nothing is invented and
+            # nothing new is decided: they are the same facts already on the
+            # findings, hoisted onto the incident so a stored incident can still
+            # answer "what was this about?" after its run's findings are gone.
+            rule_ids = sorted({str(f.get("type")) for f in members if f.get("type")})
+            entity_values = _observed_entity_values(entity, members)
+
             incidents.append({
                 "id": inc_id,
                 "runId": state.get("runId", ""),
@@ -264,6 +300,9 @@ def derive_incidents(state):
                 "lastSeen": stamps[-1] if stamps else None,
                 "timeUncertain": bool(unstamped),
                 "isRollup": bool(is_rollup),
+                # --- E1: rule-owned precedent facts (derived, additive) ------
+                "ruleIds": rule_ids,
+                "entityValues": entity_values,
             })
     return incidents
 
@@ -499,6 +538,58 @@ def set_incident_state(iid, new_state, disposition=None, reason=None):
         })
     _save("incidents.json", store)
     return _public_incident(inc)
+
+
+# ---------------------------------------------------------------------------
+# E1 — precedent index: "have we seen this before?"
+# ---------------------------------------------------------------------------
+# A pure RECALL surface over the incident store. It answers with prior incidents
+# that share rule-owned facts (rule ids, observed host/user/IP values, ATT&CK
+# technique ids, asset criticality), ranked by overlap, each carrying the facts
+# that produced it and — when the analyst recorded one — that precedent's stored
+# E0 disposition, verbatim.
+#
+# Fence, structural rather than promised (see console/precedent.py and the
+# Stage E wall): the ranker's whole input is one projection through
+# RULE_OWNED_PRECEDENT_KEYS, which contains no advisory key and no disposition
+# key. Precedent therefore cannot change a severity, a priority, an eligibility
+# or an execution, and a precedent's recorded outcome cannot feed back into
+# which precedents surface. This module makes no model call and opens no socket.
+
+PRECEDENT_LIMIT = 10
+
+
+def incident_precedents(iid, limit=PRECEDENT_LIMIT):
+    """Ranked precedents for one stored incident, or None for an unknown id.
+
+    The queried incident is excluded from its own results and zero-overlap
+    incidents are omitted, so an incident with nothing comparable in the store
+    gets an honest empty `precedents` list — never a nearest-anything filler.
+    A canonical alias (INCIDENT_ALIASES) resolves the same way it does for
+    get_incident().
+    """
+    store = _load("incidents.json")
+    real_id = _resolve_alias_id(iid, store)
+    if not real_id or real_id not in store:
+        return None
+    target = store[real_id]
+    candidates = [inc for rid, inc in store.items() if rid != real_id]
+    out = precedent.query(target, candidates, limit=limit)
+    out["incidentId"] = real_id
+    if real_id != iid:
+        out["alias"] = iid
+    return out
+
+
+def precedent_index(store=None):
+    """A reusable precedent.Index over the whole incident store.
+
+    Exposed so a caller that queries repeatedly (and the performance proof in
+    console/test_console.py) builds the postings once. Building it reads only
+    rule-owned facts.
+    """
+    store = _load("incidents.json") if store is None else store
+    return precedent.Index(list(store.values()))
 
 
 # ---------------------------------------------------------------------------

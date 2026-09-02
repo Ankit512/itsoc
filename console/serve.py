@@ -1538,6 +1538,14 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             # serve.py just parses the id, calls, and emits (status, body).
             status, body = soc.recommend_for_incident(path.split("/")[3], STATE)
             self._json(body, status)
+        elif path.startswith("/api/incidents/") and path.endswith("/precedents"):
+            # E1 precedent index — pure deterministic recall over the stored
+            # incidents. No model is called and no network is touched on this
+            # path; the ranker's input is a rule-owned projection that carries
+            # neither an advisory field nor a disposition (console/precedent.py).
+            prec = soc.incident_precedents(
+                urllib.parse.unquote(path.split("/")[3]))
+            self._json(prec) if prec else self._json({"error": "no such incident"}, 404)
         elif path.startswith("/api/incidents/") and path.endswith("/bruteforce"):
             iid = path.split("/")[3]
             inc = next((i for i in soc.list_incidents(STATE)

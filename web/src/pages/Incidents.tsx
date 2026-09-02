@@ -2,7 +2,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Check, Sparkles, Pencil, X, Shield, ShieldCheck, FolderKanban, Search } from "lucide-react";
-import { api, INCIDENT_STATES, CASE_STATUSES, INCIDENT_DISPOSITIONS, DISPOSITION_LABELS, type IncidentDisposition, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport } from "@/lib/api";
+import { api, INCIDENT_STATES, CASE_STATUSES, INCIDENT_DISPOSITIONS, DISPOSITION_LABELS, type IncidentDisposition, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport, type PrecedentMatch } from "@/lib/api";
 import { RunbookCard, type RunbookCardData } from "@/components/RunbookCard";
 import { cn } from "@/lib/utils";
 
@@ -884,6 +884,111 @@ export function ResponsePanel({ inc }: { inc: Incident }) {
   );
 }
 
+/** Precedents panel (E1): the prior incidents that share rule-owned facts with
+ *  this one — same rules, same observed host/user/IP, same ATT&CK technique,
+ *  same asset criticality — ranked by how much they share.
+ *
+ *  RECALL, not advice. Every row states the facts that matched, and those facts
+ *  are the whole reason it is here: the backend's `explanation` is a pure
+ *  function of `matched`, so nothing on this card is unsourced. Where the
+ *  analyst dispositioned that prior incident we show the disposition verbatim
+ *  and labelled as analyst state; where they did not, we say so rather than
+ *  guessing. Nothing here changes this incident's severity, priority or
+ *  runbook eligibility — a precedent is a memory, not a verdict. */
+function PrecedentRow({ p }: { p: PrecedentMatch }) {
+  return (
+    <li className="is-panel" data-testid="precedent-row" style={{ padding: 8, gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <Link
+          to={`/incidents?sel=${encodeURIComponent(p.id)}`}
+          className="is-mono is-response-link"
+          data-testid="precedent-link"
+        >
+          {p.id}
+        </Link>
+        {p.severity && <SevTag sev={p.severity} />}
+        {p.state && <StateChip state={p.state} />}
+        <span className="is-chip is-tnum" data-testid="precedent-overlap"
+              title="Count of shared rule-owned fact values — the rank key">
+          {p.overlap} shared fact{p.overlap === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {p.title && <div className="is-mut" style={{ fontSize: 11.5 }}>{p.title}</div>}
+
+      {/* The matched facts themselves — the explanation is derived from these. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }} data-testid="precedent-because">
+        {p.because.map((clause) => (
+          <span key={clause} className="is-tag is-tag--info" style={{ fontSize: 11 }}>{clause}</span>
+        ))}
+      </div>
+
+      {p.dispositionRecorded && p.disposition ? (
+        <div className="is-mut" style={{ fontSize: 11.5 }} data-testid="precedent-disposition">
+          <span>Analyst disposition: </span>
+          <strong>{DISPOSITION_LABELS[p.disposition]}</strong>
+          <span className="is-mut2"> · analyst-captured · not a rule verdict</span>
+          {p.dispositionReason && <span> — {p.dispositionReason}</span>}
+        </div>
+      ) : (
+        <div className="is-mut2" style={{ fontSize: 11 }} data-testid="precedent-no-disposition">
+          No disposition recorded on this incident.
+        </div>
+      )}
+    </li>
+  );
+}
+
+export function PrecedentsPanel({ inc }: { inc: Incident }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["precedents", inc.id],
+    queryFn: () => api.incidentPrecedents(inc.id),
+  });
+  const report = data && !("error" in data) ? data : null;
+  const precedents = report?.precedents ?? [];
+
+  return (
+    <section className="is-panel" data-testid="precedents-panel">
+      <div className="is-panel__h" style={{ justifyContent: "space-between" }}>
+        <h3>Precedents</h3>
+        <span className="is-chip" title="Deterministic overlap of rule-owned facts — no model, no network">
+          deterministic · rule-owned facts
+        </span>
+      </div>
+
+      {isLoading ? (
+        <p className="is-mut" style={{ fontSize: 11.5, margin: 0 }}>Searching stored incidents…</p>
+      ) : isError || !report ? (
+        <p className="is-mut" data-testid="precedents-error" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          The precedent index is unreachable — no precedents shown. Nothing is invented.
+        </p>
+      ) : precedents.length === 0 ? (
+        // No precedent is a normal, informative answer — never an error, and
+        // never padded out with a nearest-anything match.
+        <p className="is-mut" data-testid="precedents-empty" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          No stored incident shares a rule, an entity, an ATT&CK technique or an asset criticality
+          with this one. There is no precedent to show — this is information, not a failure.
+        </p>
+      ) : (
+        <>
+          <p className="is-mut" data-testid="precedents-summary" style={{ fontSize: 11, margin: 0 }}>
+            Showing {precedents.length} of {report.matchCount} prior incident(s) that share facts with
+            this one, out of {report.candidatesStored} stored. Ranked by shared-fact count.
+          </p>
+          <ul style={{ display: "flex", flexDirection: "column", gap: 6, listStyle: "none",
+                       margin: 0, padding: 0 }}>
+            {precedents.map((p) => <PrecedentRow key={p.id} p={p} />)}
+          </ul>
+          <p className="is-mut2" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+            Recall only. Precedents never affect this incident&rsquo;s severity, priority or runbook
+            eligibility.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 /** Right rail for the selected incident: real Properties + the real cross-run
  *  brute-force sparkline + the inline itsoc-analyst card (v3 renders). */
 function IncidentRail({ inc }: { inc: Incident }) {
@@ -1401,6 +1506,9 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
 
         {/* Verbatim evidence */}
         <EvidenceCard inc={inc} />
+
+        {/* Precedents (E1) — deterministic recall over the stored incidents */}
+        <PrecedentsPanel inc={inc} />
 
         {/* Correlated findings (rule-derived — kept SEPARATE from analyst-linked) */}
         <section className="is-panel">
