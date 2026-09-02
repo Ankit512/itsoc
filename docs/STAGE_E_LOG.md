@@ -86,3 +86,12 @@ Report: `docs/STAGE_E_REPORTS/E7a-accepted.md`.
 - Fresh training remained under the ten-minute budget at 13.03 s for 434 labeled rows; five-fold macro-F1 mean 0.9568. The local 2,501-event store had zero dispositions, so it contributed provenance context but no invented labels.
 - `graphify update .` completed after the test merge: 3,742 nodes, 6,533 edges, 229 communities. The known `Incidents.tsx` partial-parse warning remains; TypeScript build is authoritative and passed.
 - E7a is closed. E8 is the next executable card and becomes frozen after acceptance.
+
+## E8 dispatched — 2026-09-02
+
+Report: `docs/STAGE_E_REPORTS/E8-dispatch.md`.
+
+- Task `task_af321cc0bcc3`, dispatch `ctx_e58af9c7a6d8`, Claude Code, branch `feat/e8-frozen-referee`.
+- Exact accepted-main base `e46d974`. The card owns the paired-system metric path, fresh disjoint benchmark seeds/entities, provenance, Reports/battle-card publication, and referee tests.
+- A real clean-environment train and benchmark plus overlap/model-kill failure evidence are mandatory. No push or worker merge.
+- E7b remains gated until this card is independently accepted and its referee paths are frozen.
