@@ -281,6 +281,31 @@ export type IncidentState =
 export const INCIDENT_STATES: IncidentState[] =
   ["new", "triaged", "investigating", "escalated", "resolved", "closed"];
 
+/** E0 — the analyst's structured outcome verdict, captured when an incident is
+ *  CLOSED. It is analyst state only: it never feeds severity, priority, runbook
+ *  eligibility or execution, and no advisory path reads it. */
+export type IncidentDisposition = "confirmed" | "false-positive" | "benign-expected";
+export const INCIDENT_DISPOSITIONS: IncidentDisposition[] =
+  ["confirmed", "false-positive", "benign-expected"];
+export const DISPOSITION_LABELS: Record<IncidentDisposition, string> = {
+  "confirmed": "Confirmed",
+  "false-positive": "False positive",
+  "benign-expected": "Benign / expected",
+};
+
+/** One append-only entry in the incident's disposition audit trail. "set" is a
+ *  close that captured a disposition; "cleared" is a re-open, which drops the
+ *  current disposition (it describes a closed outcome) but never erases the
+ *  history. */
+export interface DispositionEvent {
+  action: "set" | "cleared";
+  disposition: IncidentDisposition;
+  reason: string | null;
+  at: string;
+  fromState: IncidentState;
+  toState: IncidentState;
+}
+
 export interface Incident {
   id: string;
   runId: string;
@@ -315,6 +340,16 @@ export interface Incident {
   /** Case records absorbed onto this incident (many-to-many is fine: a case
    *  can appear on several incidents). Empty/absent when no case links here. */
   cases?: EmbeddedCase[];
+  // --- E0: analyst disposition (all additive; null on a pre-E0 record) ------
+  /** The analyst's outcome verdict, set only on a close. null = none recorded
+   *  — an honest "not yet decided", never a default guess. */
+  disposition?: IncidentDisposition | null;
+  /** Optional free-text rationale the analyst typed with the disposition. */
+  dispositionReason?: string | null;
+  /** When the disposition was recorded. */
+  dispositionAt?: string | null;
+  /** Append-only audit trail of every disposition set/cleared. */
+  dispositionHistory?: DispositionEvent[];
 }
 
 /** A pre-merge Case projected onto an Incident (C1-T1). Loss-free: every case
@@ -1101,12 +1136,25 @@ export const api = {
   // --------------------------------------------------------------------------
 
   /** Analyst lifecycle transition (POST /api/incidents/<id>/state). Returns the
-   *  updated incident; 400 (bad state) / 404 (unknown id) reject honestly. */
-  setIncidentState: async (id: string, state: IncidentState): Promise<Incident> => {
+   *  updated incident; 400 (bad state) / 404 (unknown id) reject honestly.
+   *
+   *  E0: this is the ONLY way to record a disposition, and the backend refuses
+   *  one on any transition other than a close — so the client cannot set it
+   *  out-of-band either. `disposition` is omitted from the body entirely when
+   *  the caller does not supply one. */
+  setIncidentState: async (
+    id: string, state: IncidentState,
+    opts?: { disposition?: IncidentDisposition; dispositionReason?: string },
+  ): Promise<Incident> => {
     const res = await fetch(`/api/incidents/${id}/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ state }),
+      body: JSON.stringify({
+        state,
+        ...(opts?.disposition ? { disposition: opts.disposition } : {}),
+        ...(opts?.disposition && opts.dispositionReason
+          ? { dispositionReason: opts.dispositionReason } : {}),
+      }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);

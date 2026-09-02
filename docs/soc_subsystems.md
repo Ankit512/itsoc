@@ -69,7 +69,11 @@ endpoint returns one object; unknown id → 404):
   "firstSeen": "…", "lastSeen": "…",
   "acknowledgedAt": null,               // set by the analyst, else null
   "resolvedAt": null,
-  "timeUncertain": false                // true when a member had no timestamp
+  "timeUncertain": false,               // true when a member had no timestamp
+  "disposition": null,                  // E0 — analyst outcome, set only on close
+  "dispositionReason": null,            // optional free text (<= 500 chars)
+  "dispositionAt": null,
+  "dispositionHistory": []              // append-only set/cleared audit trail
 }
 ```
 
@@ -78,6 +82,66 @@ values above; the response is the updated incident. Moving backwards is
 allowed (a mistaken resolve can be reopened) but never erases a timestamp
 already earned; `resolvedAt` clears only when leaving `resolved` (documented
 so MTTR can't be gamed by accident).
+
+### 1a. Disposition (E0) — analyst-captured outcome on close
+
+An incident closed by an analyst can carry a **disposition**: one of
+`confirmed | false-positive | benign-expected`, plus an optional free-text
+`dispositionReason` (≤ 500 characters). It answers "how did this actually turn
+out?" — a question no rule can answer.
+
+**Where it can be set.** ONLY on the lifecycle transition:
+
+```
+POST /api/incidents/<id>/state
+{ "state": "closed", "disposition": "false-positive",
+  "dispositionReason": "known internal scanner" }
+```
+
+The handler reads exactly `state`, `disposition` and `dispositionReason`
+(`reason` is accepted as an alias) and ignores every other key, so a
+disposition cannot be smuggled in beside another field. There is no PATCH/PUT
+incident route, so this is the entire write surface. Rejected with **400**:
+
+- a disposition outside the vocabulary,
+- a disposition on any transition that is not a close,
+- a `dispositionReason` with no disposition (no orphan reasons),
+- a reason longer than 500 characters.
+
+Closing **without** a disposition stays legal — an analyst who has not decided
+is not made to invent one, and `null` reads as "none recorded".
+
+**Lifecycle.** `disposition` describes a *closed* outcome, so re-opening an
+incident clears it exactly as it clears `resolvedAt`. `dispositionHistory` is
+append-only: every `set` (on a close) and every `cleared` (on a re-open) is
+recorded with the analyst's reason, the from/to states and a timestamp, and is
+never rewritten or erased. That trail is what the Incident History & Audit Log
+panel renders, alongside the disposition chip.
+
+**Additive by construction.** A store written before E0 has none of these keys.
+It is never rewritten to gain them: `_public_incident` projects the neutral
+defaults on read, `sync_incidents` carries the stored values across every
+re-derivation (the same preserve block that protects absorbed case metadata),
+and the cases→incidents migration only ever `setdefault`s them. `derive_incidents`
+never produces a disposition, and `_strip_disposition` removes one from a
+derived dict before it can reach the store — the transition is the only writer.
+
+**Fence.** Disposition is analyst-captured *structured state*, never a control
+signal. It does not affect detector severity, incident priority, runbook
+eligibility, runbook execution, or any advisory/learned path. This is
+structural, not a promise: `runbooks.eligible()` has a closed three-parameter
+signature and projects its incident through `RULE_OWNED_INCIDENT_KEYS`, which
+contains no disposition key — so eligibility cannot receive the field at all
+and returns identical answers for every disposition value (asserted in
+`console/test_console.py::check_incident_disposition`). `runbooks.py` does not
+contain the word.
+
+**Reports.** `soc.generate_report()` passes the dispositioned incidents to
+`export.build(state, incidents=…)`, which appends an "Analyst dispositions"
+section (id `analyst-dispositions`) listing incident, entity, state,
+disposition, reason and timestamp — every field HTML-escaped, and an honest
+"No incident has been dispositioned yet." when there are none. The plain
+`/api/export` HTML path passes no incidents and is byte-for-byte unchanged.
 
 ## 2. Assets & users — `GET /api/assets`, `GET /api/users`
 

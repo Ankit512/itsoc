@@ -6288,6 +6288,312 @@ def check_sigma_ingest_triage():
     return 0 if all(results) else 1
 
 
+def check_incident_disposition():
+    """E0 — analyst DISPOSITION captured on close.
+
+    Proves the whole contract in one place: the vocabulary and its rejections;
+    that the ONLY writer is the lifecycle transition (a disposition on a
+    non-close, or smuggled in beside a state on any other route, is refused);
+    that it survives a re-derivation and lands additively on a pre-E0 store and
+    on the cases->incidents migration; that a generated report carries it; and —
+    the guardrail check — that runbooks.eligible() cannot even receive it and
+    answers identically for every disposition value.
+
+    Runs against a COPY of .soc/ in a tempdir; the live store is never touched.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import http.server
+    import inspect
+    import threading
+    import urllib.error
+    import urllib.request
+    import runbooks
+    import serve
+    import soc
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nE0 incident disposition (analyst-captured on close):")
+
+    real = (soc.SOC_DIR, serve.STATE)
+    try:
+        with tempfile.TemporaryDirectory(prefix="e0-disposition-") as tmp:
+            tmp = Path(tmp)
+            soc.SOC_DIR = tmp / ".soc"
+
+            state = {"runId": "e0-run", "findings": [
+                {"id": "f1", "stamp": "2026-09-01T10:00:00+00:00", "sev": "HIGH",
+                 "type": "auth_bruteforce", "chips": [{"text": "203.0.113.44"}],
+                 "mitre": [{"id": "T1110", "name": "Brute Force",
+                            "tactic": "Credential Access"}]}]}
+            store = soc.sync_incidents(state)
+            iid = next(iter(store))
+
+            # --- vocabulary + defaults -----------------------------------
+            check("the vocabulary is exactly confirmed | false-positive | benign-expected",
+                  soc.INCIDENT_DISPOSITIONS
+                  == ("confirmed", "false-positive", "benign-expected"),
+                  str(soc.INCIDENT_DISPOSITIONS))
+            fresh = soc.get_incident(iid)
+            check("a freshly derived incident carries NO disposition (honest 'not decided')",
+                  fresh["disposition"] is None and fresh["dispositionReason"] is None
+                  and fresh["dispositionAt"] is None and fresh["dispositionHistory"] == [],
+                  str({k: fresh.get(k) for k in soc.DISPOSITION_FIELDS}))
+
+            # --- the transition is the only setter ------------------------
+            inc = soc.set_incident_state(iid, "closed", "false_positive", "known scanner")
+            check("closing with a disposition records it, normalized, with the reason",
+                  inc["disposition"] == "false-positive"
+                  and inc["dispositionReason"] == "known scanner"
+                  and inc["dispositionAt"],
+                  str({k: inc.get(k) for k in soc.DISPOSITION_FIELDS}))
+            check("the set action + reason land in the incident audit/history trail",
+                  len(inc["dispositionHistory"]) == 1
+                  and inc["dispositionHistory"][0]["action"] == "set"
+                  and inc["dispositionHistory"][0]["disposition"] == "false-positive"
+                  and inc["dispositionHistory"][0]["reason"] == "known scanner"
+                  and inc["dispositionHistory"][0]["toState"] == "closed",
+                  str(inc.get("dispositionHistory")))
+
+            for label, args in (
+                    ("an unknown disposition", ("closed", "probably-bad", None)),
+                    ("a disposition on a NON-close transition", ("investigating", "confirmed", None)),
+                    ("a reason with no disposition", ("closed", None, "orphan reason")),
+                    ("an over-long reason", ("closed", "confirmed", "x" * 501))):
+                try:
+                    soc.set_incident_state(iid, *args)
+                    check(f"rejects {label}", False, "it was accepted")
+                except ValueError:
+                    check(f"rejects {label}", True)
+            still = soc.get_incident(iid)
+            check("a rejected transition changes nothing on the stored incident",
+                  still["disposition"] == "false-positive"
+                  and still["state"] == "closed"
+                  and len(still["dispositionHistory"]) == 1,
+                  str({k: still.get(k) for k in soc.DISPOSITION_FIELDS}))
+
+            check("closing WITHOUT a disposition stays legal (nothing is invented)",
+                  soc.set_incident_state(iid, "resolved") is not None)
+            reopened = soc.set_incident_state(iid, "investigating")
+            check("re-opening clears the disposition (it describes a CLOSED outcome)",
+                  reopened["disposition"] is None and reopened["dispositionAt"] is None)
+            check("...but the audit trail is append-only and keeps the cleared entry",
+                  len(reopened["dispositionHistory"]) == 2
+                  and reopened["dispositionHistory"][0]["action"] == "set"
+                  and reopened["dispositionHistory"][1]["action"] == "cleared"
+                  and reopened["dispositionHistory"][1]["disposition"] == "false-positive",
+                  str(reopened.get("dispositionHistory")))
+
+            # --- survives a re-derivation ---------------------------------
+            soc.set_incident_state(iid, "closed", "confirmed", "real intrusion")
+            resynced = soc.sync_incidents(state)[iid]
+            check("disposition survives sync_incidents (re-derivation never erases it)",
+                  resynced["disposition"] == "confirmed"
+                  and resynced["dispositionReason"] == "real intrusion"
+                  and len(resynced["dispositionHistory"]) == 3,
+                  str({k: resynced.get(k) for k in soc.DISPOSITION_FIELDS}))
+
+            # A crafted derivation must never be able to mint a disposition.
+            forged = dict(resynced, disposition="confirmed")
+            check("_strip_disposition removes every disposition key from a derived dict",
+                  not any(k in soc._strip_disposition(dict(forged))
+                          for k in soc.DISPOSITION_FIELDS))
+
+            # --- additive on a pre-E0 store -------------------------------
+            legacy_dir = tmp / ".soc-legacy"
+            legacy_dir.mkdir(parents=True, exist_ok=True)
+            legacy = {
+                "inc-legacy": {"id": "inc-legacy", "runId": "old-run",
+                               "entity": "198.51.100.7", "entityKind": "ip",
+                               "title": "old incident", "severity": "MEDIUM",
+                               "state": "closed", "findingIds": [], "findingCount": 0,
+                               "createdAt": "2026-07-01T00:00:00+00:00"},
+            }
+            (legacy_dir / "incidents.json").write_text(json.dumps(legacy))
+            (legacy_dir / "cases.json").write_text(json.dumps({
+                "case-1": {"id": "case-1", "title": "orphan case", "status": "new",
+                           "links": {"incidents": [], "findings": []}},
+                "case-2": {"id": "case-2", "title": "linked case", "status": "triaged",
+                           "links": {"incidents": ["inc-legacy"], "findings": []}},
+            }))
+            before = json.loads((legacy_dir / "incidents.json").read_text())
+            soc.SOC_DIR = legacy_dir
+            old_public = soc.get_incident("inc-legacy")
+            check("a pre-E0 incident READS as 'no disposition' without being rewritten",
+                  old_public["disposition"] is None
+                  and old_public["dispositionHistory"] == []
+                  and json.loads((legacy_dir / "incidents.json").read_text()) == before)
+            summary = soc.migrate_cases_to_incidents(legacy_dir)
+            after = json.loads((legacy_dir / "incidents.json").read_text())
+            check("the cases->incidents migration still runs on a pre-E0 store",
+                  summary["attachedLinks"] == 1 and summary["manualIncidents"] == 1,
+                  str(summary))
+            check("migration backfills the disposition keys ADDITIVELY (neutral, not invented)",
+                  all(after["inc-legacy"].get(k) in (None, []) for k in soc.DISPOSITION_FIELDS)
+                  and all(k in after["inc-legacy"] for k in soc.DISPOSITION_FIELDS),
+                  str({k: after["inc-legacy"].get(k) for k in soc.DISPOSITION_FIELDS}))
+            check("migration preserves every pre-E0 field byte-for-byte",
+                  all(after["inc-legacy"][k] == v for k, v in before["inc-legacy"].items()),
+                  str(after["inc-legacy"]))
+            manual_id = next(i for i in after if i.startswith("inc-manual-"))
+            soc.set_incident_state(manual_id, "closed", "benign-expected", "expected maintenance")
+            re_migrated = soc.migrate_cases_to_incidents(legacy_dir)
+            after2 = json.loads((legacy_dir / "incidents.json").read_text())
+            check("a re-run of the migration preserves a captured disposition",
+                  after2[manual_id]["disposition"] == "benign-expected"
+                  and after2[manual_id]["dispositionReason"] == "expected maintenance"
+                  and len(after2[manual_id]["dispositionHistory"]) == 1,
+                  str(re_migrated))
+
+            # --- report export --------------------------------------------
+            soc.SOC_DIR = tmp / ".soc"
+            report = soc.generate_report(dict(state, generatedAt="2026-09-01T12:00:00+00:00"))
+            html = (soc.SOC_DIR / "reports" / report["name"]).read_text()
+            check("the generated report carries an analyst-disposition section",
+                  'data-export="dispositions"' in html and "Analyst dispositions" in html)
+            check("the report states the real disposition, reason and incident id",
+                  "Confirmed" in html and "real intrusion" in html and iid in html)
+            check("the report labels it as analyst state, not a rule verdict",
+                  "never changed a rule severity" in html)
+            plain = export_module().build(state)
+            check("the plain (non-report) export is unchanged — no disposition section",
+                  'data-export="dispositions"' not in plain)
+            empty = export_module().build_disposition_section([])
+            check("an empty disposition set renders an honest empty, not a placeholder row",
+                  "No incident has been dispositioned yet." in empty)
+
+            # --- API: the lifecycle route is the only mutation surface -----
+            serve.STATE = {"idle": True}
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+            def req(method, path, obj=None):
+                data = json.dumps(obj).encode() if obj is not None else None
+                r = urllib.request.Request(f"http://127.0.0.1:{port}{path}",
+                                           data=data, method=method,
+                                           headers={"Content-Type": "application/json"})
+                try:
+                    with urllib.request.urlopen(r) as resp:
+                        return resp.status, json.loads(resp.read())
+                except urllib.error.HTTPError as e:
+                    raw = e.read() or b"{}"
+                    try:
+                        return e.code, json.loads(raw)
+                    except json.JSONDecodeError:
+                        # 405 "read-only" is served as plain text, not JSON.
+                        return e.code, {"error": raw.decode("utf-8", "replace")}
+
+            try:
+                soc.set_incident_state(iid, "investigating")     # reset for the API leg
+                code, body = req("POST", f"/api/incidents/{iid}/state",
+                                 {"state": "closed", "disposition": "false-positive",
+                                  "dispositionReason": "scanner traffic"})
+                check("POST /state closes WITH a disposition (200)",
+                      code == 200 and body.get("disposition") == "false-positive"
+                      and body.get("dispositionReason") == "scanner traffic",
+                      f"{code} {body}")
+                code, body = req("POST", f"/api/incidents/{iid}/state",
+                                 {"state": "investigating", "disposition": "confirmed"})
+                check("POST /state refuses a disposition on a non-close (400)",
+                      code == 400 and "closed" in body.get("error", ""), f"{code} {body}")
+                code, body = req("POST", f"/api/incidents/{iid}/state",
+                                 {"state": "closed", "disposition": "totally-made-up"})
+                check("POST /state refuses an unknown disposition (400)",
+                      code == 400 and "disposition must be one of" in body.get("error", ""),
+                      f"{code} {body}")
+                # Smuggling: sibling/aliased keys must not become a disposition.
+                code, body = req("POST", f"/api/incidents/{iid}/state",
+                                 {"state": "escalated", "Disposition": "confirmed",
+                                  "dispositionHistory": [{"action": "set"}],
+                                  "dispositionAt": "2000-01-01T00:00:00+00:00",
+                                  "severity": "CRITICAL", "state_": "closed"})
+                current = soc.get_incident(iid)
+                check("smuggled disposition keys on /state are ignored, not applied",
+                      code == 200 and current["disposition"] is None
+                      and current["dispositionAt"] is None
+                      and current["severity"] == "HIGH", f"{code} {current}")
+                check("the history was not rewritten by the smuggle attempt",
+                      all(isinstance(e.get("at"), str) and e["at"] > "2020"
+                          for e in current["dispositionHistory"]),
+                      str(current["dispositionHistory"]))
+                # There is no second write surface: no PATCH/PUT incident route.
+                for method in ("PATCH", "PUT", "DELETE"):
+                    code, _ = req(method, f"/api/incidents/{iid}", {"disposition": "confirmed"})
+                    check(f"{method} /api/incidents/<id> is not a mutation surface",
+                          code >= 400, str(code))
+                code, _ = req("POST", f"/api/incidents/{iid}/case", None)
+                check("opening a case from an incident does not touch its disposition",
+                      soc.get_incident(iid)["disposition"] is None)
+            finally:
+                srv.shutdown()
+
+            # --- guardrail: eligibility can neither admit nor read it ------
+            sig = inspect.signature(runbooks.eligible)
+            params = list(sig.parameters.values())
+            check("runbooks.eligible has exactly three closed params — no *args/**kwargs",
+                  [p.name for p in params] == ["runbook", "incident", "findings"]
+                  and not any(p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD) for p in params),
+                  str(sig))
+            check("no disposition key is in the rule-owned incident projection",
+                  not any(k in runbooks.RULE_OWNED_INCIDENT_KEYS
+                          for k in soc.DISPOSITION_FIELDS),
+                  str(sorted(runbooks.RULE_OWNED_INCIDENT_KEYS)))
+            books = runbooks.load_runbooks()
+            base_inc = {"id": iid, "entity": "203.0.113.44", "entityKind": "ip",
+                        "severity": "CRITICAL", "findingIds": ["f1"],
+                        "firstSeen": "2026-09-01T10:00:00+00:00",
+                        "lastSeen": "2026-09-01T10:05:00+00:00"}
+            members = [{"id": "f1", "type": "auth_bruteforce", "sev": "CRITICAL",
+                        "host": "server-01", "occurrences": 12,
+                        "chips": [{"text": "203.0.113.44"}],
+                        "lines": [{"n": 42, "hit": "203.0.113.44"}]}]
+            answers = {}
+            for disp in (None,) + soc.INCIDENT_DISPOSITIONS:
+                inc_variant = dict(base_inc)
+                if disp:
+                    inc_variant.update({
+                        "disposition": disp,
+                        "dispositionReason": f"reason for {disp}",
+                        "dispositionAt": "2026-09-01T10:00:00+00:00",
+                        "dispositionHistory": [{"action": "set", "disposition": disp}],
+                    })
+                answers[disp] = json.dumps(
+                    {rid: runbooks.eligible(rb, inc_variant, members)
+                     for rid, rb in sorted(books.items())}, sort_keys=True)
+            check("runbooks.eligible yields IDENTICAL answers across every disposition value",
+                  len(set(answers.values())) == 1,
+                  " | ".join(f"{k}:{v[:60]}" for k, v in answers.items()))
+            check("...and the eligible set is non-empty, so the check is not vacuous",
+                  any(json.loads(answers[None])[rid]["eligible"] for rid in json.loads(answers[None])),
+                  answers[None][:200])
+            # soc.eligible_runbooks is the API-level wrapper over the same engine.
+            elig = {disp: json.dumps(soc.eligible_runbooks(
+                dict(base_inc, disposition=disp) if disp else dict(base_inc), None),
+                sort_keys=True) for disp in (None,) + soc.INCIDENT_DISPOSITIONS}
+            check("soc.eligible_runbooks is likewise disposition-blind",
+                  len(set(elig.values())) == 1)
+            src = (HERE / "runbooks.py").read_text()
+            check("runbooks.py never mentions disposition at all",
+                  "disposition" not in src.lower())
+    finally:
+        soc.SOC_DIR, serve.STATE = real
+
+    return 0 if all(results) else 1
+
+
+def export_module():
+    sys.path.insert(0, str(HERE))
+    import export
+    return export
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -6364,12 +6670,13 @@ def main():
     orgctx_ = check_org_context()
     actions_ = check_action_layer_and_firewall()
     sigma_ = check_sigma_ingest_triage()
+    disposition_ = check_incident_disposition()
     if (result.returncode or routing or log360 or logcat_ or iso8601_ or authcsv_ or loghub_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
             or askview_ or copilotinv_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
-            or investigate_ or advisory_ or orgctx_ or actions_ or sigma_):
+            or investigate_ or advisory_ or orgctx_ or actions_ or sigma_ or disposition_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + iso8601-syslog + auth-csv + loghub-formats + remote-compute + dashboard-data "
@@ -6378,7 +6685,8 @@ def main():
           "+ rules-parity + explain-stream + structured-output + redesign-phase4 + auth "
           "+ ask-view + copilot-investigate + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
           "+ inc-4a7f-scenario + investigation-engine + parallel-advisory + org-context-priority "
-          "+ action-layer-ssh-firewall + sigma-ingest-triage-case-lifecycle checks green")
+          "+ action-layer-ssh-firewall + sigma-ingest-triage-case-lifecycle "
+          "+ e0-incident-disposition checks green")
     return 0
 
 

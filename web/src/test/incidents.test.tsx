@@ -557,4 +557,95 @@ describe("Priority chip presentation (C4-F3)", () => {
     expect(priChip.className).toMatch(/\bis-chip--p2\b/);
     expect(priChip).toHaveAttribute("title", "priority is rule-owned, weighted by asset criticality");
   });
+  // --- E0: analyst disposition captured on close --------------------------
+
+  it("captures a disposition on close and posts it on the lifecycle transition", async () => {
+    const bodies: string[] = [];
+    mockFetch({ "/api/incidents/inc-abc123/state": { incidents: [] }, "/api/incidents": { incidents: [incident()] } });
+    const base = globalThis.fetch as unknown as typeof fetch;
+    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).includes("/state") && init?.method === "POST") {
+        bodies.push(String(init.body));
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: async () => incident({ state: "closed", disposition: "false-positive", dispositionReason: "known scanner" }),
+        } as Response);
+      }
+      return (base as (u: RequestInfo | URL, i?: RequestInit) => Promise<Response>)(url, init);
+    }));
+
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    // "closed" opens the disposition form instead of posting straight away —
+    // capture happens on the transition, and nowhere else.
+    await userEvent.click(await screen.findByRole("button", { name: "closed" }));
+    expect(await screen.findByTestId("disposition-form")).toBeInTheDocument();
+    expect(bodies.length).toBe(0);
+
+    // The reason is inert until a disposition is chosen: no orphan reasons.
+    expect(screen.getByLabelText("Reason (optional)")).toBeDisabled();
+    await userEvent.selectOptions(screen.getByLabelText("Disposition"), "false-positive");
+    await userEvent.type(screen.getByLabelText("Reason (optional)"), "known scanner");
+    await userEvent.click(screen.getByRole("button", { name: "Close incident" }));
+
+    expect(bodies.length).toBe(1);
+    expect(JSON.parse(bodies[0])).toEqual({
+      state: "closed", disposition: "false-positive", dispositionReason: "known scanner",
+    });
+  });
+
+  it("never sends a disposition on a transition that is not a close", async () => {
+    const bodies: string[] = [];
+    mockFetch({ "/api/incidents/inc-abc123/state": { incidents: [] }, "/api/incidents": { incidents: [incident()] } });
+    const base = globalThis.fetch as unknown as typeof fetch;
+    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).includes("/state") && init?.method === "POST") {
+        bodies.push(String(init.body));
+        return Promise.resolve({ ok: true, status: 200, json: async () => incident({ state: "investigating" }) } as Response);
+      }
+      return (base as (u: RequestInfo | URL, i?: RequestInit) => Promise<Response>)(url, init);
+    }));
+
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+    await userEvent.click(await screen.findByRole("button", { name: "investigating" }));
+
+    expect(bodies.length).toBe(1);
+    expect(JSON.parse(bodies[0])).toEqual({ state: "investigating" });
+    expect(screen.queryByTestId("disposition-form")).toBeNull();
+  });
+
+  it("shows the disposition chip and audit trail in Incident History", async () => {
+    mockFetch({ "/api/incidents": { incidents: [incident({
+      state: "closed",
+      disposition: "benign-expected",
+      dispositionReason: "scheduled vulnerability scan",
+      dispositionAt: "2026-09-01T10:00:00+00:00",
+      dispositionHistory: [{
+        action: "set", disposition: "benign-expected", reason: "scheduled vulnerability scan",
+        at: "2026-09-01T10:00:00+00:00", fromState: "investigating", toState: "closed",
+      }],
+    }) ] } });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    const audit = await screen.findByTestId("incident-audit");
+    const chip = within(audit).getByTestId("disposition-chip");
+    expect(chip).toHaveTextContent("Disposition: Benign / expected");
+    // The chip must read as analyst state, never as a rule verdict.
+    expect(chip).toHaveTextContent("analyst-captured · not a rule verdict");
+    expect(chip).toHaveTextContent("scheduled vulnerability scan");
+
+    const entries = within(audit).getAllByTestId("disposition-audit-entry");
+    expect(entries.length).toBe(1);
+    expect(entries[0]).toHaveTextContent("Disposition Recorded");
+    expect(entries[0]).toHaveTextContent("investigating → closed");
+  });
+
+  it("shows no disposition chip when none was recorded — an honest absence", async () => {
+    mockFetch({ "/api/incidents": { incidents: [incident({ state: "closed", disposition: null })] } });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    const audit = await screen.findByTestId("incident-audit");
+    expect(within(audit).queryByTestId("disposition-chip")).toBeNull();
+    expect(within(audit).queryAllByTestId("disposition-audit-entry").length).toBe(0);
+  });
 });
