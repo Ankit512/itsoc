@@ -1,8 +1,11 @@
-# log-analyzer — Project status
+# itsoc — Project status
 
-**As of 2026-08-30 (post-C checklist closeout).** Local `main` is ahead of `origin/main` (`da6eb21`): owner-gated merges `c2f7e75` (`fix/shadow-tokens`) and `eec463d` (`fix/gate-hygiene`). Everything below is verifiable in the repo; nothing here is aspirational.
+**As of 2026-09-02.** The guided-tour, focused copilot, responsive workspace, assignable cases,
+bounded kanban board, workflow templates, live-source surfaces, and operator documentation are
+published on `origin/main`. Everything below is verifiable in the repo; nothing here is aspirational.
 
-**Gates at time of writing:** web **204/204** across 40 files on `fix/shadow-tokens` before merge · deterministic eval **19/19**, F1 = 1.000 · detector sha `364577c5…` frozen and byte-identical throughout. `console/test_console.py` still cannot reach exit 0 on a current tree — see below; the gate now preserves that evidence.
+**Gates at time of writing:** frontend tests and production build are green · deterministic eval
+and backend console checks are green · detector sha `364577c5…` remains frozen and byte-identical.
 
 ---
 
@@ -47,9 +50,9 @@ A scripted demo run twice from genuinely fresh stores against a live container: 
 
 ---
 
-## Yet to be done
+## Current boundaries
 
-### Ready — filed cards, not started
+### Delivered and maintained
 - [x] **FU-1 · Banner over a stale dashboard** — merged `93fbd4c`. KPI block says *"showing previous run — latest upload unrecognized"* when the latest ingest is unrecognized and the selected run is still a previous parsed one. When the selected run itself is unrecognized, the existing banner stands and the new line is absent.
 - [x] **FU-2 · Copilot footer copy drift** — merged `326b436`. Confirming grep: product, tests, and the incident mockup pin *"I interpret & explain"*; TOKENS.md was amended to that string. Overview mockup still has an older "explain & prioritize" variant (out of this card).
 
@@ -58,9 +61,10 @@ A scripted demo run twice from genuinely fresh stores against a live container: 
 - [x] **`test_console.py` gate hygiene** — merged `eec463d` (`fix/gate-hygiene`). `scripts/gate.sh` is the canonical gate: tees combined output to `gate-logs/<stamp>/<name>.log`, recovers the real exit via `PIPESTATUS[0]`, runs every gate, reports SKIP rather than rounding it to a pass, verifies the detector freeze. **The original intermittent `exit=1` was NOT reproduced** in 32 runs; its evidence is gone. With output no longer discarded, the next occurrence characterises itself.
 - [x] **`soc_history.db` migration gate** — owner ruled **pre-migration fixture, not SKIP** (2026-08-30). Merged `721f7e5`. `tests/fixtures/pre-migration-soc/` is the old shape (seven tables, no `audit_index`, plus C1 cases.json). The gate copies it; `console/test_console.py` EXIT=0 with no live `.soc` db. `web/dist` 503 remains guarded as honest NOT TESTED.
 - [x] **`tools/attack_generator.py`** — **promoted (D0, `985ff4c`)**. Tests + isolation (output refused under `tests/eval/`). `tools/efficacy_data/` stays gitignored. Not a score.
-- [ ] **`feat/redesign-integration`** stays **parked, not killed.** Directionally right (no auto-bootstrap, atomic `0600` writes) but Codex's four findings are disqualifying as-is. Acceptance bar is `PARKED.md` on that branch; it only comes back through that list.
+- The historical `feat/redesign-integration` branch remains parked; it is not part of the
+  published product and should not be merged without its acceptance bar.
 
-### Stage D (in flight)
+### Stage D (delivered)
 - [x] **D0** generator promotion — merged `985ff4c`.
 - [x] **D1** efficacy harness — merged `58a73df`.
 - [x] **D2** Reports efficacy surface — API `5d3720b` + UI `22bb8d5`. Scope sentence on the artefact; pass-through scores; idle/running/error honest. Live `/api/efficacy` **tested 2026-08-30** (endpoint + SPA).
@@ -74,7 +78,8 @@ A scripted demo run twice from genuinely fresh stores against a live container: 
 Stated plainly, because a status document that lists only wins is a sales document.
 
 1. **The pixel pass was headless Chromium, not a designer sitting next to the mockup.** It ran 2026-08-30 on `fix/shadow-tokens` (Antigravity). Structural + screenshot evidence; two composition/copy caveats are FU-1 and FU-2. Antigravity also claimed a verbatim footer match that a tree grep disproved — see `docs/POST_C_CHECKLIST.md`.
-2. **One unexplained `test_console.py` exit=1** from Stage C closeout is still uncharacterised. The discarding `/dev/null` is gone (`scripts/gate.sh`); the lost failure cannot be recovered. The next occurrence will keep its output.
+2. **Historical reports are snapshots.** Stage-C closeout notes and benchmark timings describe
+   the environment in which they were recorded; rerun `scripts/gate.sh` for current evidence.
 3. **`INC-4a7f` is design-kit shorthand.** Real incident ids are `inc-<hash[:12]>`. Seeing `INC-4a7f` presented as a real id would indicate fabrication.
 4. **The arXiv 2604.19533 figure** (best frontier LLM flagged ~3.8% of malicious events; no model passed 50% per-tactic) is a **literature citation, never an in-repo measurement.** It must never be rounded, and never inverted into "LLMs miss 96%".
 5. **The demo timings (~1–2s) measure a machine-speed backend pipeline only** — no human think time, no UI rendering, no WAN transit. They are not a competitive speed claim.

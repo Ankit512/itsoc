@@ -91,18 +91,18 @@ Three deliberate choices shape the whole project, and they are all about trust a
 
 ## Where the project stands today
 
-The work is planned in three phases. The first two are complete, and the third is well underway:
+The work is planned in three phases. The first two are complete, and the third now has a usable
+analyst workspace:
 
 - **Phase 1** — reading a log and summarizing it with the local AI. Done.
 - **Phase 2** — spotting anomalies with the rules-plus-AI approach above. Done, and working
   on real-world logs (not just neat test samples), with an automated test suite that guards
   every future change against accidental breakage.
-- **Phase 3** — a fuller operations platform. Well underway: there is now a proper
-  **security dashboard** you open in a browser (details below), it reads several real-world
-  log styles (ordinary system logs, secure-shell logs, a popular security-product export, and
-  Android phone logs), and an optional step recognizes known-bad addresses and maps them to
-  known attacker techniques. The rest (running continuously and — only with human approval —
-  helping fix problems) is still planned.
+- **Phase 3** — a fuller operations platform. The browser workspace now includes a guided tour,
+  incidents and assignable cases, a contained kanban board, approval-gated runbook templates,
+  live collector status, optional Splunk polling, and a copilot that can explain any visible
+  card or dashboard and show its reasoning separately. Continuous ingestion and remediation
+  remain opt-in and human-approved.
 
 There are two ways to look at the results, both on your own machine, nothing uploaded:
 
@@ -114,8 +114,10 @@ There are two ways to look at the results, both on your own machine, nothing upl
   (every finding), **Incidents** (related findings grouped into one event you can walk through
   its lifecycle — new, acknowledged, investigating, resolved), **Assets** (which machines and
   user accounts actually showed up, and which are at risk), **Threat Intel** (known-bad
-  addresses and attacker techniques), and **Reports** (save or download the whole run as a
-  file — a spreadsheet, a web page, or a data file — to share or archive).
+  addresses and attacker techniques), **Cases** (assign a responsible person and move tickets
+  through a bounded board), **Sources/Integrations** (collector and Splunk connection state),
+  and **Reports** (save or download the whole run as a file — a spreadsheet, a web page, or a
+  data file — to share or archive).
 
 Every panel follows one rule: show real information drawn from the log, or honestly say there
 is nothing yet — it never invents a number to fill a space.

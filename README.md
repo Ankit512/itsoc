@@ -1,9 +1,9 @@
-# itsoc. — Local AI-Assisted SOC Console
+# itsoc. — Local-first AI-assisted security operations
 
-A **local, rules-first security operations console**. Deterministic rules detect anomalies and
-**own every severity verdict**; a local LLM (via Ollama) only **explains** findings in plain
-language — it can never set, change, or escalate a verdict. Everything runs on your machine;
-no logs leave it by default.
+A local-first SOC workspace for turning raw logs into explainable, assignable work. The
+deterministic detector owns every severity verdict; the AI copilot reasons over the evidence,
+explains the dashboard, recommends next steps, and drafts work without changing a verdict or
+executing an action. The default deployment keeps logs on your machine.
 
 > **Design principle — honesty by construction.** Every number shown is derived from real data
 > or reported as `n/a`. Severity comes only from the rules. MITRE tags are *derived context, not
@@ -24,7 +24,15 @@ no logs leave it by default.
   assets/users, a **Cases** board and case file (activity, observables, real attachments,
   eligible runbooks → pending approval only), generated/exported reports, offline STIX plus
   optional OEM IP lookup (`ITSOC_OEM=1`), and honest metrics.
-- **Live ingestion** — a UDP/TCP syslog collector streams real events into a persistent store.
+- **Live ingestion** — a UDP syslog collector streams real events into a persistent store and
+  surfaces dropped/lagging counts honestly.
+- **Analyst workspace** — guided tour, focused copilot with separate reasoning, responsive
+  dashboard cards, incident ownership, and a bounded kanban board for cases.
+- **Response workflows** — reusable, approval-gated runbooks for investigations such as phishing
+  triage and IP containment. Templates create a plan; a human still approves execution.
+- **Live log analysis** — collector status and optional Splunk polling surface only events actually
+  returned by an authorised connector; unavailable streams are shown as unavailable, never as fake
+  live data.
 - **Enrichment & connectors** — offline MITRE ATT&CK mapping; optional threat-intel provider
   lookups and vendor (OEM) API connectors, all with user-supplied, write-only credentials.
 - **MCP server** — a read-only Model Context Protocol server exposes the analysis to MCP clients

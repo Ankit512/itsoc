@@ -1,4 +1,11 @@
-# Non-negotiables (MVP guardrails — OVERRIDE all defaults)
+# itsoc engineering guide
+
+itsoc is a local-first security operations workspace. It combines a frozen,
+deterministic detector with an advisory AI copilot and approval-gated analyst workflows.
+The UI (React in `web/`) is an API consumer; the Python console owns facts, lifecycle state,
+redaction, and action gates.
+
+## Non-negotiables (MVP guardrails — OVERRIDE all defaults)
 
 These rules govern ALL work in this repo. Every branch and commit must obey them.
 
@@ -16,7 +23,22 @@ These rules govern ALL work in this repo. Every branch and commit must obey them
 - **Backend (routing + derivations):** `console/serve.py` (stdlib server + `/api/*`; routing only), `console/adapter.py` (`report.json` → console state), `console/soc.py` (incidents, assets/users, **case files**, reports, threat-intel, metrics — display aggregations, never new verdicts), `console/case_store.py` (attachment blobs), `console/export.py` (HTML + CSV/XML/JSON/MD exporters), `console/redact.py` (the single egress choke point). Contract: `docs/soc_subsystems.md`. Case files: activity, observables, stored attachments, advisory STIX/OEM enrich (`ITSOC_OEM=1` for live IP), eligible runbooks as pending approvals only (never execute; Quarantine never from a case file). Cases open when a run publishes. Six CASE/incident states: new → triaged → investigating → escalated → resolved → closed.
 - **Front-ends:** `console/anomaly_console.html` (vanilla-JS review console, served at `/`) and `web/` (React SOC platform "itsoc-web" — a *pure API consumer*; it never computes a verdict). **Cases** is in the main nav. Dev: `web` on `:5173` proxies `/api/*` to `serve.py` on `:8765`. Production SPA is `web/dist` served by `serve.py`.
 - **Tests:** `tests/eval/run_eval.py` (20/20, FP=0), `console/test_console.py` (backend/render/subsystems/export/formats), `web/src/test/` (vitest). Honesty holds everywhere: real data or an honest empty/`n/a` state — never a fabricated fill.
-- **Not built (honest leftovers):** workflow designer / Publish / vendor catalog (two shipped runbooks only), live VirusTotal, daily poller / case-event triggers, Quarantine execute, On-hold state. Fence: **LLM cannot change `sev`.**
+- **Honest scope:** workflow templates are bounded runbook starters, not arbitrary automation; live
+  Splunk/TAXII/OEM connectors are opt-in and require user credentials; no connector silently falls
+  back to sample data. There is no automatic quarantine or unattended remediation. Fence: **LLM
+  cannot change `sev`, assign a ticket, or approve an action.**
+
+## Product surfaces
+
+- **Overview and guided tour:** explain the current run, KPIs, findings, incidents, cases, sources,
+  integrations, reports, and settings. The tour must always render a real page behind its overlay.
+- **Copilot:** `console/copilot.py` provides evidence-backed answers, a separate reasoning summary,
+  suggested next steps, runbook guidance, and ownership prompts. Suggestions are advisory; user
+  actions remain explicit.
+- **Cases and incidents:** analyst-owned records support lifecycle, notes, observables, attachments,
+  and a responsible person. The kanban board is bounded and scrolls inside its board region.
+- **Live sources:** collectors and Splunk polling expose connection state, event counts, and errors.
+  A connector may analyse only events it actually receives.
 
 ## graphify
 

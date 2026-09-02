@@ -151,7 +151,3 @@ Standalone means *no repo checkout is needed for the MCP package* — the backen
 ## License
 
 MIT — see the repository's top-level [`LICENSE`](../LICENSE).
-
-## License
-
-MIT — see the repository's top-level [`LICENSE`](../LICENSE).

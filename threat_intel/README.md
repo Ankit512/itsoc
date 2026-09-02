@@ -1,14 +1,15 @@
-# Threat-intel enrichment (Stage C prototype)
+# Threat-intel enrichment (offline-first)
 
 A **downstream, opt-in** step that takes the analyzer's flagged IPs, matches them
 against threat-intel indicators, and resolves each match to a MITRE ATT&CK
 technique. It turns *"outbound connection to 45.153.160.2:4444 blocked"* into
 *"T1071 Application Layer Protocol — Command and Control, known C2 IP."*
 
-**Nothing here is wired into the core pipeline.** `log_analyzer.py` and
-`anomaly_detector.py` are untouched and stay read-only and fully local; this step
-reads their output afterwards. Offline mode is the default and needs no packages
-beyond the Python standard library.
+This is an optional enrichment surface used by the SOC workspace and command-line
+tools. It remains downstream of detection: `log_analyzer.py` and
+`anomaly_detector.py` stay read-only and local, and threat-intel data can never
+raise a rule verdict. Offline mode is the default and needs only Python's standard
+library.
 
 ## The demo, end to end
 
