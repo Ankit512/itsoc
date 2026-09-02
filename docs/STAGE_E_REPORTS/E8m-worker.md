@@ -201,9 +201,16 @@ macro-F1 mean **0.9568**, artifact sha256
 `0eb19182b45abbf434daa196b3d30dbb3de99c83e15694254af5440103837765` — **bit-identical to
 the E8 acceptance model**, so every number here is directly comparable to E8's.
 
-* default `canonical` run: run id `efficacy-3c3262b2e643`, run date `2026-09-02T21:52:14+00:00`.
-* all-format headline run: run id `efficacy-7588b98a963f`, run date `2026-09-02T21:52:16+00:00`.
-* commit `3960f32197aae12348194f50fdb39e57e7597c94`, tree `7480eb11f42a55bc6d6f09c0234ee8dc4d0e4dae`, worktree clean.
+* default `canonical` run: run id `efficacy-123b72051d07`, run date `2026-09-02T21:54:33+00:00`.
+* all-format headline run: run id `efficacy-dc1c67b07dde`, run date `2026-09-02T21:54:36+00:00`.
+* commit `c4ac20d775b35e48a684b4b84baebb2015608b08`, tree
+  `ea43605c28469094759b76fa19d22b2c21d3cc79`, **worktree clean**.
+
+`c4ac20d` is the amendment commit itself; this report's recorded run ids are landed by the
+follow-up docs commit on top of it, the same two-commit pattern E8 used. Re-running
+`python3 tools/efficacy_harness.py` at `c4ac20d` reproduces run
+`efficacy-123b72051d07` byte-for-byte apart from the run id/date, which are derived from
+the wall clock.
 
 ### Allowlist audit
 

@@ -176,7 +176,7 @@ Reproduce the all-format headline with:
 python3 tools/efficacy_harness.py --format canonical --format rfc3164 --format rfc5424 --format jsonlog
 ```
 
-Run id: `efficacy-7588b98a963f`; run date: `2026-09-02T21:52:16+00:00`; audited commit `3960f32197aae12348194f50fdb39e57e7597c94` (tree `7480eb11f42a55bc6d6f09c0234ee8dc4d0e4dae`, clean); benchmark seeds `20270302, 20270303, 20270304`; formats `canonical, rfc3164, rfc5424, jsonlog`. Model: `sklearn.ensemble.GradientBoostingClassifier`, sha256 `0eb19182b45abbf434daa196b3d30dbb3de99c83e15694254af5440103837765` — bit-identical to the model behind §3.1a, so every number here is directly comparable to it. Registered as C-2a in `docs/research/CITATIONS.md`.
+Run id: `efficacy-dc1c67b07dde`; run date: `2026-09-02T21:54:36+00:00`; audited commit `c4ac20d775b35e48a684b4b84baebb2015608b08` (tree `ea43605c28469094759b76fa19d22b2c21d3cc79`, clean); benchmark seeds `20270302, 20270303, 20270304`; formats `canonical, rfc3164, rfc5424, jsonlog`. Model: `sklearn.ensemble.GradientBoostingClassifier`, sha256 `0eb19182b45abbf434daa196b3d30dbb3de99c83e15694254af5440103837765` — bit-identical to the model behind §3.1a, so every number here is directly comparable to it. Registered as C-2a in `docs/research/CITATIONS.md`.
 
 Rules still own severity and correlation; the model never writes one. Where scikit-learn or the model artifact is absent, every number in this section is an honest "unavailable" with its reason — never a zero.
 
