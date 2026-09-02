@@ -2,7 +2,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Check, Sparkles, Pencil, X, Shield, ShieldCheck, FolderKanban, Search } from "lucide-react";
-import { api, INCIDENT_STATES, CASE_STATUSES, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport } from "@/lib/api";
+import { api, INCIDENT_STATES, CASE_STATUSES, INCIDENT_DISPOSITIONS, DISPOSITION_LABELS, type IncidentDisposition, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport } from "@/lib/api";
 import { RunbookCard, type RunbookCardData } from "@/components/RunbookCard";
 import { cn } from "@/lib/utils";
 
@@ -288,9 +288,20 @@ function ManualIncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => vo
  *  ESCALATED → RESOLVED → CLOSED. Shared by rule and manual incidents. */
 function LifecycleStepper({ inc }: { inc: Incident }) {
   const qc = useQueryClient();
+  // E0: closing is the only transition that can carry a disposition, so it is
+  // the only one that opens a form. Every other step still posts immediately.
+  const [closing, setClosing] = useState(false);
+  const [disposition, setDisposition] = useState<IncidentDisposition | "">("");
+  const [reason, setReason] = useState("");
   const mutation = useMutation({
-    mutationFn: (state: IncidentState) => api.setIncidentState(inc.id, state),
+    mutationFn: (vars: { state: IncidentState; disposition?: IncidentDisposition; reason?: string }) =>
+      api.setIncidentState(inc.id, vars.state, vars.disposition
+        ? { disposition: vars.disposition, dispositionReason: vars.reason }
+        : undefined),
     onSuccess: () => {
+      setClosing(false);
+      setDisposition("");
+      setReason("");
       qc.invalidateQueries({ queryKey: ["incidents"] });
       qc.invalidateQueries({ queryKey: ["metrics"] });
     },
@@ -303,12 +314,46 @@ function LifecycleStepper({ inc }: { inc: Incident }) {
           <button key={s} className={cn("step", s === inc.state && "on")}
                   style={{ textTransform: "capitalize" }}
                   disabled={s === inc.state || mutation.isPending}
-                  onClick={() => mutation.mutate(s)}
+                  onClick={() => (s === "closed" ? setClosing(true) : mutation.mutate({ state: s }))}
                   title={s === inc.state ? "Current state" : `Move to ${s}`}>
             {s}
           </button>
         ))}
       </div>
+      {closing && (
+        <div className="is-note" data-testid="disposition-form" style={{ marginTop: 10 }}>
+          <div className="cap">Disposition · optional, analyst-captured</div>
+          <p className="is-mut" style={{ fontSize: 11, margin: "4px 0 8px" }}>
+            Records how this incident actually turned out. It never changes the rule
+            severity, the priority, or which runbooks are eligible.
+          </p>
+          <label htmlFor="disposition-select" className="is-mut" style={{ fontSize: 11 }}>Disposition</label>
+          <select id="disposition-select" className="is-input" value={disposition}
+                  style={{ display: "block", marginBottom: 8 }}
+                  onChange={(e) => setDisposition(e.target.value as IncidentDisposition | "")}>
+            <option value="">— none recorded —</option>
+            {INCIDENT_DISPOSITIONS.map((d) => (
+              <option key={d} value={d}>{DISPOSITION_LABELS[d]}</option>
+            ))}
+          </select>
+          <label htmlFor="disposition-reason" className="is-mut" style={{ fontSize: 11 }}>Reason (optional)</label>
+          <input id="disposition-reason" className="is-input" value={reason} maxLength={500}
+                 style={{ display: "block", marginBottom: 8 }}
+                 disabled={!disposition}
+                 placeholder={disposition ? "Why this disposition?" : "Pick a disposition first"}
+                 onChange={(e) => setReason(e.target.value)} />
+          <button className="is-btn" type="button" disabled={mutation.isPending}
+                  onClick={() => mutation.mutate({
+                    state: "closed",
+                    disposition: disposition || undefined,
+                    reason: reason.trim() || undefined,
+                  })}>
+            {mutation.isPending ? "Closing…" : "Close incident"}
+          </button>
+          <button className="is-btn is-btn--ghost" type="button" style={{ marginLeft: 6 }}
+                  onClick={() => setClosing(false)}>Cancel</button>
+        </div>
+      )}
       {mutation.isError && (
         <p style={{ marginTop: 8, fontSize: "11.5px", color: "var(--crit)" }}>{(mutation.error as Error).message}</p>
       )}
@@ -1382,6 +1427,20 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
             <h3>Incident History & Audit Log</h3>
             <span className="is-mut text-[11px]">Tamper-evident system log</span>
           </div>
+          {/* E0 — the analyst disposition chip. Rendered ONLY when a disposition
+              was actually captured on a close; nothing is shown otherwise (an
+              absent disposition is an honest "not decided", not a default). */}
+          {inc.disposition && (
+            <div className="mb-2 flex flex-wrap items-center gap-2" data-testid="disposition-chip">
+              <span className="is-chip" style={{ textTransform: "none" }}>
+                Disposition: {DISPOSITION_LABELS[inc.disposition] ?? inc.disposition}
+              </span>
+              <span className="is-mut text-[11px]">analyst-captured · not a rule verdict</span>
+              {inc.dispositionReason && (
+                <span className="text-[11px] text-muted-foreground">— {inc.dispositionReason}</span>
+              )}
+            </div>
+          )}
           <div className="space-y-2 text-xs">
             <div className="flex items-start justify-between border-b border-border/40 pb-2">
               <div>
@@ -1416,6 +1475,28 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
                 {inc.acknowledgedAt ? inc.acknowledgedAt.slice(0, 19).replace("T", " ") : "Active"}
               </span>
             </div>
+            {/* Append-only disposition trail: every set (on close) and every
+                clear (on re-open), with the reason the analyst gave. */}
+            {(inc.dispositionHistory ?? []).map((ev, i) => (
+              <div key={`${ev.at}-${i}`} className="flex items-start justify-between border-t border-border/40 pt-2"
+                   data-testid="disposition-audit-entry">
+                <div>
+                  <span className="font-semibold text-foreground">
+                    {ev.action === "set" ? "Disposition Recorded" : "Disposition Cleared"}
+                    : <span className="font-bold">{DISPOSITION_LABELS[ev.disposition] ?? ev.disposition}</span>
+                  </span>
+                  <p className="text-muted-foreground text-[11px] mt-0.5">
+                    {ev.action === "set"
+                      ? `Set by the analyst on ${ev.fromState} → ${ev.toState}.`
+                      : `Cleared when the incident moved ${ev.fromState} → ${ev.toState}.`}
+                    {ev.reason ? ` Reason: ${ev.reason}` : ""}
+                  </p>
+                </div>
+                <span className="is-mono text-muted-foreground text-[11px] whitespace-nowrap">
+                  {ev.at ? ev.at.slice(0, 19).replace("T", " ") : "—"}
+                </span>
+              </div>
+            ))}
           </div>
         </section>
       </div>

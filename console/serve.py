@@ -2139,16 +2139,31 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         return self._json(case)
 
     def _incident_state(self, iid):
-        """Analyst lifecycle transition on one incident."""
+        """Analyst lifecycle transition on one incident — the ONLY write path
+        for the E0 disposition.
+
+        Exactly three keys are read off the body: `state`, `disposition` and
+        `dispositionReason` (`reason` accepted as its alias). Any other key an
+        client sends is ignored, so disposition cannot be smuggled in through a
+        sibling field, and soc.set_incident_state() rejects a disposition on a
+        transition that is not a close. There is no PATCH/PUT incident route, so
+        this is the whole surface."""
         length = int(self.headers.get("Content-Length") or 0)
         try:
             payload = json.loads(self.rfile.read(length) or b"{}")
-            inc = soc.set_incident_state(iid, payload.get("state"))
+            if not isinstance(payload, dict):
+                raise ValueError("body must be a JSON object")
+            inc = soc.set_incident_state(
+                iid, payload.get("state"),
+                disposition=payload.get("disposition"),
+                reason=payload.get("dispositionReason", payload.get("reason")))
         except (ValueError, json.JSONDecodeError) as e:
             return self._json({"error": str(e)}, 400)
         if not inc:
             return self._json({"error": "no such incident"}, 404)
-        print(f"  incident {iid}: -> {inc['state']}", flush=True)
+        disp = inc.get("disposition")
+        print(f"  incident {iid}: -> {inc['state']}"
+              + (f" (disposition: {disp})" if disp else ""), flush=True)
         return self._json(inc)
 
     def _open_incident_case(self, iid):

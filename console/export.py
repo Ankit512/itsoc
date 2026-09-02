@@ -34,8 +34,58 @@ CONSOLE_HTML = HERE / "anomaly_console.html"
 RUNS_DIR = HERE / ".runs"
 
 
-def build(state):
-    """Inline a run's state into the console template."""
+# E0 — the analyst disposition section appended to an exported report.
+# It reports ONLY dispositions an analyst actually recorded through the
+# lifecycle transition; an empty list renders the honest "none recorded" note
+# rather than a placeholder row. Every value is escaped: the reason is analyst
+# free text and must never be able to inject markup into the export.
+DISPOSITION_LABELS = {
+    "confirmed": "Confirmed",
+    "false-positive": "False positive",
+    "benign-expected": "Benign / expected",
+}
+
+
+def build_disposition_section(incidents):
+    """The <section> of analyst dispositions for a generated report."""
+    rows = []
+    for inc in incidents or []:
+        disp = str(inc.get("disposition") or "")
+        if not disp:
+            continue                       # never invent a disposition
+        rows.append(
+            "      <tr>"
+            f"<td>{escape(str(inc.get('id') or ''))}</td>"
+            f"<td>{escape(str(inc.get('entity') or ''))}</td>"
+            f"<td>{escape(str(inc.get('state') or ''))}</td>"
+            f"<td>{escape(DISPOSITION_LABELS.get(disp, disp))}</td>"
+            f"<td>{escape(str(inc.get('dispositionReason') or '—'))}</td>"
+            f"<td>{escape(str(inc.get('dispositionAt') or '—'))}</td>"
+            "</tr>")
+    body = ("\n".join(rows) if rows else
+            '      <tr><td colspan="6">No incident has been dispositioned yet.'
+            "</td></tr>")
+    return (
+        '<section id="analyst-dispositions" data-export="dispositions">\n'
+        "  <h2>Analyst dispositions</h2>\n"
+        "  <p>Analyst-captured outcome recorded when an incident was closed. "
+        "Structured analyst state only — it never changed a rule severity, a "
+        "priority, or runbook eligibility.</p>\n"
+        "  <table>\n"
+        "    <thead><tr><th>Incident</th><th>Entity</th><th>State</th>"
+        "<th>Disposition</th><th>Reason</th><th>Recorded at</th></tr></thead>\n"
+        "    <tbody>\n" + body + "\n    </tbody>\n"
+        "  </table>\n"
+        "</section>\n")
+
+
+def build(state, incidents=None):
+    """Inline a run's state into the console template.
+
+    `incidents` (optional) are the stored incidents carrying an analyst
+    disposition; when supplied, an "Analyst dispositions" section is appended to
+    the exported page. Omitted (the plain /api/export path) the output is
+    byte-for-byte what it was before E0."""
     template = CONSOLE_HTML.read_text()
 
     # `</script>` inside JSON would close the tag early and break the page; the
@@ -55,7 +105,12 @@ def build(state):
     marker = '<script>\n"use strict";'
     if marker not in template:
         raise RuntimeError("console template changed shape; cannot find the script marker")
-    return template.replace(marker, inject + marker, 1)
+    html = template.replace(marker, inject + marker, 1)
+    if incidents is None:
+        return html
+    section = build_disposition_section(incidents)
+    return (html.replace("</body>", section + "</body>", 1)
+            if "</body>" in html else html + section)
 
 
 # ---------------------------------------------------------------------------

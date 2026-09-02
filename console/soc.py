@@ -60,10 +60,39 @@ CASE_OBSERVABLE_TYPES = ("url", "ip", "hash", "domain", "email")
 CASE_ATTACHMENT_KINDS = ("note", "json", "html", "image", "other")
 CLUSTER_GAP_SECONDS = 30 * 60                 # the documented correlation window
 
+# E0 — analyst DISPOSITION captured on close.
+#
+# What it is: the analyst's structured verdict on the *outcome* of a closed
+# incident. What it is NOT: anything the engine reads. Disposition is written
+# ONLY by set_incident_state() on a transition to CLOSED, is never derived, and
+# is never an input to severity, priority, runbook eligibility/execution, or any
+# advisory/learned path. Nothing in this module (or runbooks.py) reads it back.
+INCIDENT_DISPOSITIONS = ("confirmed", "false-positive", "benign-expected")
+# Old/undecided stores and every transition that is not a close carry None.
+INCIDENT_DISPOSITION_ALIASES = {
+    "false_positive": "false-positive", "falsepositive": "false-positive",
+    "fp": "false-positive",
+    "benign_expected": "benign-expected", "benignexpected": "benign-expected",
+    "benign": "benign-expected",
+}
+DISPOSITION_REASON_MAX = 500                  # free text, bounded — never unbounded
+# The four store keys disposition owns. Everything else on an incident is either
+# derived (rebuilt each sync) or pre-existing analyst lifecycle.
+DISPOSITION_FIELDS = ("disposition", "dispositionReason", "dispositionAt",
+                      "dispositionHistory")
+
 
 def normalize_incident_state(value):
     s = str(value or "").strip().lower()
     return INCIDENT_STATE_ALIASES.get(s, s)
+
+
+def normalize_disposition(value):
+    """Canonical disposition token, or "" for absent. Unknown values are
+    returned as-is (lower-cased) so the caller can reject them honestly rather
+    than silently coercing an unrecognized word into a valid one."""
+    s = str(value or "").strip().lower()
+    return INCIDENT_DISPOSITION_ALIASES.get(s, s)
 
 
 def normalize_case_status(value):
@@ -239,6 +268,36 @@ def derive_incidents(state):
     return incidents
 
 
+def _disposition_defaults(prev=None):
+    """The four disposition keys carried across a re-derivation / migration.
+
+    ADDITIVE by construction: a store written before E0 has none of these keys,
+    so every one resolves to its neutral default (no disposition, empty history)
+    and nothing about that incident changes except the presence of the keys.
+    """
+    prev = prev or {}
+    hist = prev.get("dispositionHistory")
+    return {
+        "disposition": prev.get("disposition") or None,
+        "dispositionReason": prev.get("dispositionReason") or None,
+        "dispositionAt": prev.get("dispositionAt") or None,
+        "dispositionHistory": list(hist) if isinstance(hist, list) else [],
+    }
+
+
+def _strip_disposition(inc):
+    """Drop any disposition key from a DERIVED incident dict.
+
+    derive_incidents() builds its dicts from findings alone and must never carry
+    disposition. This is the tripwire that keeps it that way: if a future
+    derivation (or a crafted finding payload) ever grew one, it is removed here
+    rather than being written to the store as if an analyst had set it. The only
+    writer of disposition is set_incident_state()."""
+    for key in DISPOSITION_FIELDS:
+        inc.pop(key, None)
+    return inc
+
+
 def sync_incidents(state):
     """Upsert derived incidents into the store, preserving analyst lifecycle.
 
@@ -259,6 +318,11 @@ def sync_incidents(state):
         # to_incidents(). Defaults keep pre-migration incidents unchanged.
         inc["origin"] = prev.get("origin", "rule")
         inc["cases"] = prev.get("cases", [])
+        # E0: disposition is analyst-captured, never derived. Strip whatever the
+        # derivation produced, then carry the stored value forward. An incident
+        # from a pre-E0 store simply gains the neutral defaults — additive.
+        _strip_disposition(inc)
+        inc.update(_disposition_defaults(prev))
         store[inc["id"]] = inc
     _save("incidents.json", store)
     return store
@@ -293,6 +357,10 @@ def _public_incident(inc):
     st = normalize_incident_state(out.get("state"))
     if st in INCIDENT_STATES:
         out["state"] = st
+    # E0: an incident stored before disposition existed still answers the
+    # disposition question honestly — "none recorded", never a fabricated value.
+    for key, default in _disposition_defaults(out).items():
+        out[key] = default
     return out
 
 
@@ -352,15 +420,47 @@ def get_incident(iid):
     return _public_incident(inc)
 
 
-def set_incident_state(iid, new_state):
-    """Analyst lifecycle transition. Timestamps record what actually happened:
-    acknowledgedAt on the first move out of 'new' (including TRIAGED),
-    resolvedAt on entering RESOLVED or CLOSED (cleared when reopened).
-    Aliases: acknowledged → triaged. Returns the updated incident, or None
-    for an unknown id; ValueError on a bad state."""
+def set_incident_state(iid, new_state, disposition=None, reason=None):
+    """Analyst lifecycle transition — the ONLY path that writes disposition.
+
+    Timestamps record what actually happened: acknowledgedAt on the first move
+    out of 'new' (including TRIAGED), resolvedAt on entering RESOLVED or CLOSED
+    (cleared when reopened). Aliases: acknowledged → triaged.
+
+    E0 disposition. `disposition` is the analyst's structured outcome verdict
+    and may be supplied ONLY on a transition to CLOSED — that is what "captured
+    on close" means, and it is why there is no other setter. `reason` is
+    optional bounded free text and is meaningless without a disposition, so it
+    is rejected on its own rather than stored orphaned. Closing WITHOUT a
+    disposition stays legal (the field is additive; an analyst who has not
+    decided must not be forced to invent one). Re-opening a closed incident
+    clears the current disposition exactly as it clears resolvedAt — a
+    disposition describes a closed outcome, and leaving a stale one on an
+    investigating incident would be dishonest — but the audit trail in
+    dispositionHistory is append-only and is never rewritten or erased.
+
+    Returns the updated incident, or None for an unknown id; ValueError on a bad
+    state, a bad disposition, a disposition on a non-close transition, or a
+    reason with no disposition.
+    """
     new_state = normalize_incident_state(new_state)
     if new_state not in INCIDENT_STATES:
         raise ValueError(f"state must be one of {INCIDENT_STATES}")
+
+    disposition = normalize_disposition(disposition)
+    reason = str(reason or "").strip()
+    if disposition and disposition not in INCIDENT_DISPOSITIONS:
+        raise ValueError(
+            f"disposition must be one of {INCIDENT_DISPOSITIONS}")
+    if disposition and new_state != "closed":
+        raise ValueError(
+            "disposition can only be set on a transition to 'closed'")
+    if reason and not disposition:
+        raise ValueError("dispositionReason requires a disposition")
+    if len(reason) > DISPOSITION_REASON_MAX:
+        raise ValueError(
+            f"dispositionReason must be at most {DISPOSITION_REASON_MAX} characters")
+
     store = _load("incidents.json")
     real_id = _resolve_alias_id(iid, store)      # INC-4a7f -> real derived id
     inc = store.get(real_id) if real_id else None
@@ -372,7 +472,31 @@ def set_incident_state(iid, new_state):
         inc["resolvedAt"] = _now()
     if new_state not in INCIDENT_TERMINAL:
         inc["resolvedAt"] = None
+    prev_state = normalize_incident_state(inc.get("state")) or "new"
     inc["state"] = new_state
+
+    # Normalize the disposition block first, so a pre-E0 record gains the keys
+    # here rather than half-existing.
+    inc.update(_disposition_defaults(inc))
+    history = inc["dispositionHistory"]
+    if disposition:
+        inc["disposition"] = disposition
+        inc["dispositionReason"] = reason or None
+        inc["dispositionAt"] = _now()
+        history.append({
+            "action": "set", "disposition": disposition,
+            "reason": reason or None, "at": inc["dispositionAt"],
+            "fromState": prev_state, "toState": new_state,
+        })
+    elif new_state not in INCIDENT_TERMINAL and inc["disposition"]:
+        cleared = inc["disposition"]
+        inc["disposition"] = None
+        inc["dispositionReason"] = None
+        inc["dispositionAt"] = None
+        history.append({
+            "action": "cleared", "disposition": cleared, "reason": None,
+            "at": _now(), "fromState": prev_state, "toState": new_state,
+        })
     _save("incidents.json", store)
     return _public_incident(inc)
 
@@ -1442,6 +1566,9 @@ def _manual_incident_from_case(case, prev=None):
         "state": prev.get("state", mapped),
         "acknowledgedAt": prev.get("acknowledgedAt"),
         "resolvedAt": prev.get("resolvedAt"),
+        # E0: a manual incident carries analyst disposition like any other, and
+        # a re-run of the migration preserves whatever was already captured.
+        **_disposition_defaults(prev),
         "cases": [_embed_case(case)],
     }
 
@@ -1474,6 +1601,11 @@ def migrate_cases_to_incidents(soc_dir=None):
                     bucket[:] = [c for c in bucket if c.get("caseId") != case.get("id")]
                     bucket.append(embedded)
                     inc.setdefault("origin", "rule")
+                    # E0: additive backfill only — an incident that already
+                    # carries a disposition keeps it byte-for-byte; a pre-E0
+                    # one gains the neutral defaults. Never overwritten here.
+                    for key, default in _disposition_defaults(inc).items():
+                        inc.setdefault(key, default)
                     attached += 1
             else:
                 # No resolvable incident link -> host it as a manual incident so
@@ -1523,12 +1655,28 @@ def list_reports():
     return out
 
 
+def dispositioned_incidents():
+    """Stored incidents that carry an analyst disposition, newest first.
+
+    Read-only: it does NOT sync/derive, so generating a report never mutates the
+    incident store. Returns [] when nothing has been dispositioned — an honest
+    empty, never a placeholder row.
+    """
+    out = [_public_incident(i) for i in _load("incidents.json").values()]
+    out = [i for i in out if i.get("disposition")]
+    return sorted(out, key=lambda i: i.get("dispositionAt") or "", reverse=True)
+
+
 def generate_report(state):
-    """Render the current run through the existing standalone exporter."""
+    """Render the current run through the existing standalone exporter.
+
+    E0: the analyst dispositions recorded on this store travel with the report,
+    so an exported report says how closed incidents were actually dispositioned
+    instead of losing that judgment at the export boundary."""
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     safe_run = re.sub(r"[^A-Za-z0-9._-]", "_", state.get("runId") or "run")
     path = _reports_dir() / f"{safe_run}-{stamp}.html"
-    path.write_text(export.build(state))
+    path.write_text(export.build(state, incidents=dispositioned_incidents()))
     st = path.stat()
     return {"name": path.name, "bytes": st.st_size,
             "createdAt": datetime.fromtimestamp(
