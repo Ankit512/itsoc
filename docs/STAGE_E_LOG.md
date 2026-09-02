@@ -38,3 +38,11 @@ Reports: `docs/STAGE_E_REPORTS/E0-accepted.md` and `docs/STAGE_E_REPORTS/F0-acce
 - F0 evidence: runbook and theme coverage green, full console suite, eval 20/20 with F1 1.000, build green, frozen detector hash exact.
 - A parallel acceptance run timed out in the same untouched Integrations test on both branches under resource contention; its isolated rerun passed 9/9. The combined-main sequential suite then passed 43/43 files and 266/266 tests.
 - `graphify update .` succeeded after both merges.
+
+## E1 dispatched — 2026-09-02
+
+Report: `docs/STAGE_E_REPORTS/E1-dispatch.md`.
+
+- Task `task_4a6f228d1ce6`, dispatch `ctx_c8fdfcc07fbf`, Claude Code.
+- Branch `feat/e1-precedent-index` in its own worktree, exact accepted-main base `7bd6796`.
+- Contract retains the E6 rank signature and advisory wall; E1 is deterministic recall only. No push or worker merge.
