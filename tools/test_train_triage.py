@@ -247,8 +247,16 @@ class SharedFeatureTests(unittest.TestCase):
             vector = triage_model.feature_vector(record)
             self.assertEqual(len(vector), len(triage_model.FEATURE_KEYS))
             self.assertTrue(all(isinstance(v, float) for v in vector))
+        # E7b: `criticality_rank` is gone from the schema. The incident shape
+        # is still asserted to score its OBSERVED facts, and criticality is
+        # asserted INERT so the removed feature cannot creep back.
+        features = triage_model.features(incident)
+        self.assertNotIn("criticality_rank", features)
+        self.assertEqual(features["entity_ip_count"], 1.0)
+        self.assertEqual(features["entity_host_count"], 1.0)
         self.assertEqual(
-            triage_model.features(incident)["criticality_rank"], 2.0)
+            triage_model.feature_vector(incident),
+            triage_model.feature_vector(dict(incident, criticality="low")))
 
     def test_features_are_deterministic_and_clock_free(self) -> None:
         self.assertEqual(triage_model.features(self.RECORD),
