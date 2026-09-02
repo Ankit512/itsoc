@@ -46,3 +46,13 @@ Report: `docs/STAGE_E_REPORTS/E1-dispatch.md`.
 - Task `task_4a6f228d1ce6`, dispatch `ctx_c8fdfcc07fbf`, Claude Code.
 - Branch `feat/e1-precedent-index` in its own worktree, exact accepted-main base `7bd6796`.
 - Contract retains the E6 rank signature and advisory wall; E1 is deterministic recall only. No push or worker merge.
+
+## E1 accepted — 2026-09-02
+
+Report: `docs/STAGE_E_REPORTS/E1-accepted.md`.
+
+- Accepted worker commit `9f34421`; merged locally as `739683f`; no push.
+- Independent gates: Stage E wall 48/48, full console green, web 43/43 files and 271/271 tests, build green, eval 20/20 with F1 1.000, frozen detector hash exact.
+- 2,500-incident end-to-end query: best 18.1 ms, median 18.7 ms of 7, with a clock-free posting-cost assertion proving the query does not scan the whole store.
+- Disposition joins only after deterministic ranking; advisory/disposition poisoning cannot reorder results. Explanations are recomputable from each match's shared facts.
+- `graphify update .` completed. Graphify reported one TSX parser warning on `Incidents.tsx`; the authoritative TypeScript build passed.
