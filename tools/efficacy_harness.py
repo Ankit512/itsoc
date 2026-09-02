@@ -26,6 +26,22 @@ logic. It reads the model's provenance sidecar before it scores anything, and it
 fails hard — never quietly — if the benchmark and the training set share a seed
 or a high-cardinality entity.
 
+E8m is an owner-authorised, ADDITIVE amendment to that frozen referee. It moves
+no seed, no remap, no freshness assertion and no metric: `score()`, `_ratio()`
+and `diff()` are untouched and every number E8 published comes out
+byte-identical. What it adds is publication of three things that were always
+true and were never printed:
+
+* **finding-level recall** beside line-level recall, for BOTH systems, each
+  labelled with its denominator — and the verbatim list of findings a system
+  dropped *while they cited malicious lines*, which line-level recall absorbs
+  whenever a kept finding covers the same lines;
+* **false-positive totals scoped to their formats** — the headline is every
+  format the run measured, each single format published as a labelled subset,
+  because a bare count is not a publishable number;
+* the **criticality counterfactual** — `criticality_rank` re-forced across its
+  whole real domain, measured live, published as a first-class finding.
+
 Every number is scoped: it is measured against synthetic ground-truth scenarios;
 it is not a claim about production traffic.
 """
@@ -217,6 +233,94 @@ METRIC_DEFINEDNESS_NOTE = (
     "also carries `precision_defined` / `recall_defined`: where those are false "
     "the number is undefined, not a measured zero, and surfaces render n/a."
 )
+
+# --------------------------------------------------------------------------- #
+# E8m — the amendment: what the frozen metrics did NOT say out loud
+# --------------------------------------------------------------------------- #
+# Owner-authorised, additive publication only. Nothing below changes
+# BENCHMARK_SEEDS, the remap, the freshness assertion, `score()`, `_ratio()` or
+# `diff()`. Every number E8 published comes out of this file byte-identical; the
+# amendment publishes numbers that were always true and were never printed.
+
+# Recall has always had TWO denominators, and only one of them was published.
+# Both are now named wherever either is shown.
+RECALL_DENOMINATOR_NOTE = (
+    "Recall is published with its denominator, always. LINE-LEVEL recall is "
+    "over the manifest's malicious LINES: how much of the labelled ground "
+    "truth the system reached. FINDING-LEVEL recall is over the FINDINGS that "
+    "cite at least one malicious line: how many of those findings the system "
+    "still carries. They differ whenever a system drops a finding whose cited "
+    "malicious lines another kept finding also covers — the line stays "
+    "detected, the finding is gone, and line-level recall absorbs the loss. "
+    "Every such dropped finding is listed verbatim in "
+    "`dropped_true_findings`, exactly as a missed line is listed in `misses`."
+)
+
+# A false-positive count is meaningless without the formats it was measured
+# over: the same seeds raise 21 across `canonical` alone and 84 across all four
+# formatters. No count is ever printed here without its format scope.
+FORMAT_SCOPE_NOTE = (
+    "Every false-positive total is scoped to the formats it was measured over. "
+    "The headline total is the sum across ALL formats this run measured; each "
+    "single format is published beside it as an explicitly labelled subset. A "
+    "bare count with no format scope is not a publishable number."
+)
+
+# The criticality counterfactual. This is a FIRST-CLASS published finding, not a
+# footnote: `criticality_rank` is the model's single largest feature, and its
+# influence runs opposite to operational intuition.
+CRITICALITY_DOMAIN = ("low", "standard", "crown-jewel")
+CRITICALITY_SENSITIVITY_NOTE = (
+    "COUNTERFACTUAL, measured live on this run. Each finding is re-scored with "
+    "`criticality_rank` forced across its whole real domain "
+    "(low=0, standard=1, crown-jewel=2) and every other feature held exactly as "
+    "measured; only the org-config criticality of the finding's host is moved. "
+    "A finding is `flipping` when the model's keep/drop decision is not the "
+    "same at all three bands. Direction is published as `kept_at`, per band. "
+    "The model is MORE willing to dismiss a finding on a MORE critical asset: "
+    "raising a host to crown-jewel flips true detections from KEPT to DROPPED, "
+    "and lowering crown-jewel flips suppressions from DROPPED to KEPT. That is "
+    "driven by an org-config value, not by log evidence. These are "
+    "counterfactuals only — the benchmark hosts have fixed criticality and "
+    "every published number above stands exactly as measured."
+)
+
+
+class _ForcedCriticality:
+    """An org context that answers one criticality for every asset.
+
+    The counterfactual seam. It satisfies the only method
+    `train_triage.record_from_report_finding` calls on an org context
+    (`get_criticality`), so forcing the feature needs no edit to the trainer,
+    the model loader, `org_context`, or the shipped config — and the real org
+    context is never mutated.
+    """
+
+    def __init__(self, level: str):
+        self.level = level
+
+    def get_criticality(self, asset_name: str | None) -> str:   # noqa: ARG002
+        return self.level
+
+
+def finding_level_recall(kept_true: int, reference_true: int) -> dict[str, Any]:
+    """Recall over FINDINGS that cite malicious lines, with its denominator.
+
+    Deliberately NOT part of `score()`: the frozen scorer's numbers are
+    untouched. This reuses the one `_ratio()` in the file, so there is still a
+    single ratio implementation. The denominator is the reference collection —
+    every finding the analyzer produced that cited a malicious line — so a
+    system that drops one of them scores below 1.0 here even when line-level
+    recall stays 1.0.
+    """
+    return {
+        "true_findings_kept": kept_true,
+        "true_findings_total": reference_true,
+        "recall": _ratio(kept_true, reference_true),
+        "recall_defined": reference_true > 0,
+        "denominator": "findings that cite at least one malicious line",
+    }
+
 
 # Every entity kind `triage_model.features()` can count, and every one of them is
 # ASSERTED disjoint. Nothing is exempted: hosts and usernames are fixed
@@ -847,6 +951,155 @@ def learned_findings(
     return kept, decisions
 
 
+def dropped_true_findings(
+    findings: Sequence[dict[str, Any]],
+    decisions: Sequence[dict[str, Any]],
+    malicious: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Findings a system dropped that were citing real malicious lines.
+
+    This is the class of loss line-level recall absorbs: drop a finding whose
+    cited malicious lines another kept finding also covers, and the line is
+    still "detected" while the finding is gone. Each one is reported verbatim,
+    with the manifest's own `raw`/`why` for every line it cited, so it can never
+    again be invisible. Nothing is reconciled away.
+
+    `decisions` is positionally aligned with `findings` — that is the contract
+    :func:`learned_findings` produces, and it is what makes the drop
+    attributable to a specific advisory opinion.
+    """
+    out: list[dict[str, Any]] = []
+    by_line = {entry["line"]: entry for entry in malicious}
+    for finding, decision in zip(findings, decisions):
+        if decision.get("model_positive"):
+            continue
+        hits = sorted(finding_hits(finding, malicious))
+        if not hits:
+            continue                      # a suppressed false positive, not a loss
+        out.append({
+            "rule_id": decision.get("rule_id"),
+            "severity": finding.get("severity"),
+            "summary": finding.get("summary"),
+            "evidence": finding.get("evidence"),
+            "label": decision.get("label"),
+            "confidence": decision.get("confidence"),
+            "cited_malicious_lines": [
+                {"line": line,
+                 "raw": by_line[line]["raw"],
+                 "why": by_line[line]["why"]}
+                for line in hits
+            ],
+        })
+    return out
+
+
+def feature_importance(model: "LearnedSystem") -> dict[str, Any]:
+    """The loaded estimator's own feature importances, or an honest absence.
+
+    Read off the artefact that was actually scored — never asserted from a
+    document. A model whose estimator exposes no importances publishes
+    ``available: false`` and a reason, not a number.
+    """
+    keys = list(model.provenance.get("featureKeys") or [])
+    values = getattr(model.estimator, "feature_importances_", None)
+    if values is None or not keys or len(keys) != len(values):
+        return {
+            "available": False,
+            "reason": ("the loaded estimator exposes no feature_importances_ "
+                       "aligned with the sidecar's featureKeys"),
+            "by_feature": None,
+            "criticality_rank": None,
+        }
+    by_feature = {key: round(float(value), 4)
+                  for key, value in zip(keys, values)}
+    return {
+        "available": True,
+        "reason": None,
+        "by_feature": dict(sorted(by_feature.items(),
+                                  key=lambda kv: (-kv[1], kv[0]))),
+        "criticality_rank": by_feature.get("criticality_rank"),
+    }
+
+
+def criticality_sensitivity(
+    pairs: Sequence[tuple[dict[str, Any], dict[str, Any]]],
+    results: Sequence[dict[str, Any]],
+    model: "LearnedSystem | None",
+    unavailable_reason: str | None = None,
+) -> dict[str, Any]:
+    """Re-score every finding with `criticality_rank` forced across its domain.
+
+    A named, first-class published finding — not a footnote. The measured run
+    above is untouched: this holds every other feature exactly as measured and
+    moves only the org-config criticality of the finding's host, through the
+    :class:`_ForcedCriticality` shim, which is the one method
+    ``record_from_report_finding`` asks an org context for. No trainer, model,
+    ``org_context`` or shipped config file is edited or read differently.
+
+    Two populations, both defined against the SAME run: `true_detections` are
+    the findings the model KEPT that cite malicious lines; `suppressions` are
+    the findings it DROPPED that cite none. `kept_at` publishes the direction
+    per band, so "more critical ⇒ more willing to dismiss" is readable off the
+    numbers rather than asserted.
+    """
+    if model is None:
+        return {
+            "available": False,
+            "reason": (unavailable_reason
+                       or "no learned model was loaded, so there is nothing to "
+                          "re-score"),
+            "kind": "counterfactual",
+            "note": CRITICALITY_SENSITIVITY_NOTE,
+            "feature": "criticality_rank",
+            "domain": list(CRITICALITY_DOMAIN),
+            "feature_importance": None,
+            "populations": None,
+        }
+
+    forced = {band: _ForcedCriticality(band) for band in CRITICALITY_DOMAIN}
+    populations = {
+        name: {"total": 0, "robust": 0, "flipping": 0,
+               "kept_at": {band: 0 for band in CRITICALITY_DOMAIN}}
+        for name in ("true_detections", "suppressions")
+    }
+
+    for (manifest, report), entry in zip(pairs, results):
+        decisions = (entry.get("learned") or {}).get("decisions") or []
+        malicious = list(manifest.get("malicious_lines") or [])
+        for finding, decision in zip(list(report.get("findings") or []), decisions):
+            hits = finding_hits(finding, malicious)
+            kept = bool(decision.get("model_positive"))
+            if hits and kept:
+                name = "true_detections"
+            elif not hits and not kept:
+                name = "suppressions"
+            else:
+                continue                  # a miss or a false positive, scored above
+            bucket = populations[name]
+            bucket["total"] += 1
+            outcomes = {}
+            for band, org in forced.items():
+                alt = model.opinion(copy.deepcopy(finding), manifest, org)
+                outcomes[band] = bool(alt["model_positive"])
+                if outcomes[band]:
+                    bucket["kept_at"][band] += 1
+            if len(set(outcomes.values())) > 1:
+                bucket["flipping"] += 1
+            else:
+                bucket["robust"] += 1
+
+    return {
+        "available": True,
+        "reason": None,
+        "kind": "counterfactual",
+        "note": CRITICALITY_SENSITIVITY_NOTE,
+        "feature": "criticality_rank",
+        "domain": list(CRITICALITY_DOMAIN),
+        "feature_importance": feature_importance(model),
+        "populations": populations,
+    }
+
+
 def score_pair(
     manifest: dict[str, Any],
     report: dict[str, Any],
@@ -860,7 +1113,13 @@ def score_pair(
     finding collection, and the rules system is scored from its own copy.
     """
     findings = list(report.get("findings") or [])
+    malicious = list(manifest.get("malicious_lines") or [])
     rules_entry = diff(manifest, {"findings": copy.deepcopy(findings)})
+    # The reference denominator for finding-level recall: every finding the
+    # analyzer produced that cited at least one malicious line. The rules system
+    # IS that collection, so it scores 1.0 here by construction; the learned
+    # system is scored against the same denominator, which is the whole point.
+    reference_true_findings = rules_entry["totals"]["true_positive_findings"]
     rules_system = {
         "system": "rules",
         "available": True,
@@ -870,6 +1129,12 @@ def score_pair(
         "per_rule": rules_entry["per_rule"],
         "misses": rules_entry["misses"],
         "false_positives": rules_entry["false_positives"],
+        # E8m: published beside line-level recall, for BOTH systems.
+        "finding_recall": finding_level_recall(
+            reference_true_findings, reference_true_findings),
+        # The rules system drops nothing, so this list is empty BY MEASUREMENT,
+        # not by omission — it is published either way.
+        "dropped_true_findings": [],
     }
 
     if model is None:
@@ -883,6 +1148,8 @@ def score_pair(
             "misses": None,
             "false_positives": None,
             "decisions": None,
+            "finding_recall": None,
+            "dropped_true_findings": None,
         }
     else:
         kept, decisions = learned_findings(findings, manifest, model, org)
@@ -897,6 +1164,15 @@ def score_pair(
             "misses": learned_entry["misses"],
             "false_positives": learned_entry["false_positives"],
             "decisions": decisions,
+            "finding_recall": finding_level_recall(
+                learned_entry["totals"]["true_positive_findings"],
+                reference_true_findings),
+            # A finding this system dropped WHILE it cited malicious lines. It
+            # costs finding-level recall and is invisible in line-level recall
+            # whenever a kept finding covers the same lines, so it is listed
+            # verbatim here exactly as a missed line is listed in `misses`.
+            "dropped_true_findings": dropped_true_findings(
+                findings, decisions, malicious),
         }
 
     entry = dict(rules_entry)          # legacy shape: top level IS the rules system
@@ -1025,6 +1301,33 @@ def evaluate(
         entry["log"] = log_name
 
     learned_available = model is not None
+
+    # --- E8m: the three additive publications --------------------------------
+    # (1) finding-level recall beside line-level, for BOTH systems, each with
+    #     its denominator named.
+    reference_true = sum(
+        entry["rules"]["totals"]["true_positive_findings"] for entry in results)
+    learned_true = (
+        sum(entry["learned"]["totals"]["true_positive_findings"]
+            for entry in results) if learned_available else None)
+    all_dropped = ([item for entry in results
+                    for item in entry["learned"]["dropped_true_findings"]]
+                   if learned_available else None)
+
+    # (2) false-positive totals, never bare: the headline is every format this
+    #     run measured, with each single format published as a labelled subset.
+    by_format: dict[str, dict[str, Any]] = {}
+    for entry in results:
+        bucket = by_format.setdefault(
+            entry["format"], {"rules": 0, "learned": 0 if learned_available else None})
+        bucket["rules"] += len(entry["rules"]["false_positives"])
+        if learned_available:
+            bucket["learned"] += len(entry["learned"]["false_positives"])
+
+    # (3) the criticality counterfactual, computed live on this run.
+    sensitivity = criticality_sensitivity(pairs, results, model,
+                                          unavailable_reason)
+
     return {
         "run_id": run_id,
         "run_date": run_date,
@@ -1060,6 +1363,32 @@ def evaluate(
         "learned_total_false_positives": (
             sum(len(entry["learned"]["false_positives"]) for entry in results)
             if learned_available else None),
+        # --- E8m, additive only. Nothing above changed. ----------------------
+        "recall_note": RECALL_DENOMINATOR_NOTE,
+        "format_scope_note": FORMAT_SCOPE_NOTE,
+        "finding_level_recall": {
+            "denominator": "findings that cite at least one malicious line",
+            "true_findings_total": reference_true,
+            "rules": finding_level_recall(reference_true, reference_true),
+            "learned": (finding_level_recall(learned_true, reference_true)
+                        if learned_available else None),
+            "learned_dropped_true_findings": all_dropped,
+        },
+        "line_level_recall_denominator": "manifest malicious lines",
+        "false_positive_totals": {
+            "formats": formats,
+            "scope": ("all formats measured in this run: "
+                      + ", ".join(formats)),
+            "rules": sum(len(entry["rules"]["false_positives"])
+                         for entry in results),
+            "learned": (sum(len(entry["learned"]["false_positives"])
+                            for entry in results)
+                        if learned_available else None),
+            "by_format": by_format,
+        },
+        "learned_total_dropped_true_findings": (
+            len(all_dropped) if learned_available else None),
+        "criticality_sensitivity": sensitivity,
     }
 
 
@@ -1075,10 +1404,16 @@ def _system_line(label: str, system: dict[str, Any]) -> str:
     recall = totals["recall"] if totals.get("recall_defined", True) else "n/a"
     f1 = (totals["f1"] if totals.get("precision_defined", True)
           and totals.get("recall_defined", True) else "n/a")
+    fr = system.get("finding_recall") or {}
+    finding_recall = (fr.get("recall") if fr.get("recall_defined") else "n/a") \
+        if fr else "n/a"
     return (f"    {label:<8} precision={precision} "
-            f"recall={recall} f1={f1} "
+            f"recall(lines)={recall} recall(findings)={finding_recall} f1={f1} "
             f"({totals['malicious_lines_detected']}/{totals['malicious_lines']} "
-            f"malicious lines, {totals['false_positive_findings']} false "
+            f"malicious lines, "
+            f"{fr.get('true_findings_kept')}/{fr.get('true_findings_total')} "
+            f"findings citing a malicious line, "
+            f"{totals['false_positive_findings']} false "
             f"positive finding(s), {totals['findings']} finding(s) scored)")
 
 
@@ -1092,6 +1427,29 @@ def _miss_lines(label: str, system: dict[str, Any]) -> list[str]:
     for miss in misses:
         out.append(f"        line {miss['line']}: {miss['raw']}")
         out.append(f"          why: {miss['why']}")
+    return out
+
+
+def _dropped_lines(label: str, system: dict[str, Any]) -> list[str]:
+    """Findings this system dropped while citing malicious lines, verbatim.
+
+    Printed with the same weight as a miss, because it is the same class of
+    loss: line-level recall absorbs it, finding-level recall does not.
+    """
+    if not system.get("available"):
+        return []
+    dropped = system.get("dropped_true_findings") or []
+    if not dropped:
+        return [f"      {label}: no findings dropped while citing a malicious line"]
+    out = [f"      {label}: DROPPED {len(dropped)} finding(s) that cited "
+           "malicious line(s):"]
+    for item in dropped:
+        out.append(f"        [{item['rule_id']}] severity={item['severity']} "
+                   f"model={item['label']} confidence={item['confidence']}")
+        out.append(f"          summary: {item['summary']}")
+        for cited in item["cited_malicious_lines"]:
+            out.append(f"          cited line {cited['line']}: {cited['raw']}")
+            out.append(f"            why: {cited['why']}")
     return out
 
 
@@ -1129,6 +1487,12 @@ def render(summary: dict[str, Any]) -> str:
     lines.append("")
     lines.append(f"Interpretation: {summary.get('interpretation')}")
     lines.append("")
+    if summary.get("recall_note"):
+        lines.append(f"Recall denominators: {summary['recall_note']}")
+        lines.append("")
+    if summary.get("format_scope_note"):
+        lines.append(f"Format scope: {summary['format_scope_note']}")
+        lines.append("")
 
     for entry in summary["scenarios"]:
         lines.append(f"[{entry['scenario']} / {entry['format']} / seed "
@@ -1138,21 +1502,81 @@ def render(summary: dict[str, Any]) -> str:
         lines.append(_system_line("LEARNED", entry["learned"]))
         lines.extend(_miss_lines("RULES", entry["rules"]))
         lines.extend(_miss_lines("LEARNED", entry["learned"]))
+        lines.extend(_dropped_lines("LEARNED", entry["learned"]))
         for false_positive in entry["rules"]["false_positives"]:
             lines.append(f"      RULES FALSE POSITIVE [{false_positive['rule_id']}] "
                          f"{false_positive['summary']}")
         lines.append("")
 
+    fps = summary.get("false_positive_totals") or {}
+    scope = fps.get("scope") or "format scope unrecorded"
     lines.append(f"Rules totals: {summary['total_misses']} missed malicious "
                  f"line(s), {summary['total_false_positives']} false positive "
-                 "finding(s).")
+                 f"finding(s) [{scope}].")
     if summary.get("learned_total_misses") is None:
         lines.append("Learned totals: UNAVAILABLE — no number is invented.")
     else:
         lines.append(f"Learned totals: {summary['learned_total_misses']} missed "
                      f"malicious line(s), "
                      f"{summary['learned_total_false_positives']} false positive "
-                     "finding(s).")
+                     f"finding(s) [{scope}].")
+
+    # E8m (b): the headline total is every format measured; each single format
+    # is printed as an explicitly labelled subset. Never a bare count.
+    for format_name, bucket in (fps.get("by_format") or {}).items():
+        lines.append(f"  false positives, subset `{format_name}` only: "
+                     f"rules {bucket['rules']}, learned "
+                     f"{'n/a' if bucket['learned'] is None else bucket['learned']}")
+
+    # E8m (a): the two recalls, each labelled with its denominator.
+    flr = summary.get("finding_level_recall") or {}
+    if flr:
+        rules_fr = flr.get("rules") or {}
+        learned_fr = flr.get("learned")
+        lines.append("")
+        lines.append(f"Line-level recall is over "
+                     f"{summary.get('line_level_recall_denominator')}; "
+                     f"finding-level recall is over {flr.get('denominator')} "
+                     f"({flr.get('true_findings_total')} of them).")
+        lines.append(f"  RULES    finding-level recall: "
+                     f"{rules_fr.get('recall') if rules_fr.get('recall_defined') else 'n/a'} "
+                     f"({rules_fr.get('true_findings_kept')}/"
+                     f"{rules_fr.get('true_findings_total')})")
+        if learned_fr is None:
+            lines.append("  LEARNED  finding-level recall: UNAVAILABLE — "
+                         "no number is invented.")
+        else:
+            lines.append(f"  LEARNED  finding-level recall: "
+                         f"{learned_fr.get('recall') if learned_fr.get('recall_defined') else 'n/a'} "
+                         f"({learned_fr.get('true_findings_kept')}/"
+                         f"{learned_fr.get('true_findings_total')}) — "
+                         f"{summary.get('learned_total_dropped_true_findings')} "
+                         "finding(s) dropped while citing a malicious line")
+
+    # E8m (c): the criticality counterfactual, first class.
+    sens = summary.get("criticality_sensitivity") or {}
+    lines.append("")
+    if not sens.get("available"):
+        lines.append(f"Criticality sensitivity: UNAVAILABLE — {sens.get('reason')}")
+    else:
+        importance = sens.get("feature_importance") or {}
+        rank = importance.get("criticality_rank")
+        lines.append(
+            "CRITICALITY SENSITIVITY (counterfactual — the published numbers "
+            "above stand as measured):")
+        feature_count = len(importance.get("by_feature") or {})
+        rank_text = "n/a" if rank is None else str(rank)
+        of_text = ("unavailable" if rank is None
+                   else f"the largest of {feature_count} features")
+        lines.append(f"  `criticality_rank` feature importance: "
+                     f"{rank_text} ({of_text})")
+        lines.append(f"  domain forced across {sens.get('domain')}")
+        for name, bucket in (sens.get("populations") or {}).items():
+            lines.append(f"  {name}: {bucket['total']} total — "
+                         f"{bucket['robust']} robust, {bucket['flipping']} flip "
+                         f"in at least one band")
+            lines.append(f"    kept at each band: {bucket['kept_at']}")
+        lines.append(f"  {CRITICALITY_SENSITIVITY_NOTE}")
     return "\n".join(lines)
 
 

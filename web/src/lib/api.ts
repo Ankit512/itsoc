@@ -1781,6 +1781,33 @@ export interface EfficacyTotals {
   findings?: number;
 }
 
+/** Recall over FINDINGS that cite at least one malicious line (E8m). Published
+ *  beside line-level recall — which is over manifest malicious LINES — and
+ *  always carrying the denominator it was measured against, so neither number
+ *  can be read as the other. */
+export interface EfficacyFindingRecall {
+  true_findings_kept: number;
+  true_findings_total: number;
+  recall: number;
+  /** False when there were no such findings at all — undefined, not a zero. */
+  recall_defined: boolean;
+  denominator: string;
+}
+
+/** A finding a system DROPPED while it was citing real malicious lines (E8m).
+ *  Line-level recall absorbs this whenever a kept finding covers the same
+ *  lines; it is listed verbatim here, exactly as a missed line is. */
+export interface EfficacyDroppedFinding {
+  rule_id: string;
+  severity?: string | null;
+  summary?: string | null;
+  evidence?: string | null;
+  /** The advisory opinion that dropped it. Advisory only — never a verdict. */
+  label?: string | null;
+  confidence?: number | null;
+  cited_malicious_lines: EfficacyMiss[];
+}
+
 /** One scored system (E8). `available: false` is the honest gap: no totals, no
  *  misses, and a real reason — never zeros standing in for a score. */
 export interface EfficacySystem {
@@ -1792,6 +1819,9 @@ export interface EfficacySystem {
   per_rule: Record<string, EfficacyRuleScore> | null;
   misses: EfficacyMiss[] | null;
   false_positives: EfficacyFalsePositive[] | null;
+  /** E8m — published for BOTH systems; null only when the system is unavailable. */
+  finding_recall?: EfficacyFindingRecall | null;
+  dropped_true_findings?: EfficacyDroppedFinding[] | null;
 }
 
 export interface EfficacyScenario {
@@ -1857,6 +1887,49 @@ export interface EfficacyFreshness {
   assertedEntityOverlap?: Record<string, string[]>;
 }
 
+/** Both recalls at run level (E8m), each with its denominator named. */
+export interface EfficacyRunFindingRecall {
+  denominator: string;
+  true_findings_total: number;
+  rules: EfficacyFindingRecall;
+  /** null when the learned model was unavailable — an honest gap, not a zero. */
+  learned: EfficacyFindingRecall | null;
+  learned_dropped_true_findings: EfficacyDroppedFinding[] | null;
+}
+
+/** False-positive totals, never bare (E8m): the headline is every format the
+ *  run measured, and each single format is an explicitly labelled subset. */
+export interface EfficacyFalsePositiveTotals {
+  formats: string[];
+  scope: string;
+  rules: number;
+  learned: number | null;
+  by_format: Record<string, { rules: number; learned: number | null }>;
+}
+
+/** The `criticality_rank` COUNTERFACTUAL (E8m) — a first-class published
+ *  finding, not a footnote. `kept_at` carries the direction per band: the model
+ *  is more willing to dismiss a finding on a more critical asset. The measured
+ *  numbers elsewhere in the run stand exactly as measured. */
+export interface EfficacyCriticalitySensitivity {
+  available: boolean;
+  reason: string | null;
+  kind: "counterfactual";
+  note: string;
+  feature: string;
+  domain: string[];
+  feature_importance: {
+    available: boolean;
+    reason: string | null;
+    by_feature: Record<string, number> | null;
+    criticality_rank: number | null;
+  } | null;
+  populations: Record<
+    "true_detections" | "suppressions",
+    { total: number; robust: number; flipping: number; kept_at: Record<string, number> }
+  > | null;
+}
+
 export interface EfficacyRun {
   run_id?: string;
   run_date: string;
@@ -1878,6 +1951,16 @@ export interface EfficacyRun {
   /** null when the learned model was unavailable — an honest gap, not a zero. */
   learned_total_misses?: number | null;
   learned_total_false_positives?: number | null;
+  // --- E8m: additive publication. Nothing above changed. ---
+  /** Names both recall denominators; travels with the numbers. */
+  recall_note?: string;
+  /** Says a false-positive count is unpublishable without its format scope. */
+  format_scope_note?: string;
+  line_level_recall_denominator?: string;
+  finding_level_recall?: EfficacyRunFindingRecall;
+  false_positive_totals?: EfficacyFalsePositiveTotals;
+  learned_total_dropped_true_findings?: number | null;
+  criticality_sensitivity?: EfficacyCriticalitySensitivity;
 }
 
 export interface EfficacyResponse {

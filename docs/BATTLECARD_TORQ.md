@@ -98,6 +98,88 @@ Run id: `efficacy-17286a594e96`; run date: `2026-09-02T10:25:18+00:00`; audited 
 
 This harness measurement is separate from the **Evaluation Detection Score** below, which remains the result of `tests/eval/run_eval.py` over its canned cases; the two F1 measurements must not be collapsed.
 
+> **Scope label (E8m).** The 21 false positives above are the **`canonical`-format** total for those 18 runs. Read §3.1b for the all-format headline. No false-positive count in this document appears without its format scope.
+
+---
+
+### 3.1b E8m amendment — what the E8 metrics did not say out loud
+
+**Scope:** measured against synthetic ground-truth scenarios; not a claim about production traffic.
+
+An owner-authorised, **additive** amendment. It moved no benchmark seed, no remap, no freshness assertion and no metric: every number in §3.1a is unchanged and was re-measured byte-identical before and after. What follows is published *beside* those numbers because it was always true of them and was never printed.
+
+#### (a) Finding-level recall, published beside line-level recall
+
+Recall has always had two denominators and only one was published:
+
+* **Line-level recall** is over the manifest's **malicious lines** — how much labelled ground truth the system reached.
+* **Finding-level recall** is over the **findings that cite at least one malicious line** — how many of those findings the system still carries.
+
+They diverge whenever a system drops a finding whose cited malicious lines a *kept* finding also covers: the line stays detected, the finding is gone, and line-level recall absorbs the loss silently.
+
+Measured on the frozen seeds across **all four formatters** (72 scenario runs):
+
+| System | Line-level recall (over malicious lines) | Finding-level recall (over findings citing a malicious line) |
+| :--- | ---: | ---: |
+| rules | **1.000** | **1.000** (90 / 90) |
+| learned | **1.000** | **0.9444** (85 / 90) |
+
+The learned system's line-level recall is a true 1.000 and its finding-level recall is **not**. It drops **5** findings that were citing real malicious lines — every one an **`ioc_observed`** finding on the **crown-jewel** host in the flagship `INC-4a7f` scenario, predicted `benign-expected` at confidence up to **0.992**. Line-level recall stays 1.000 only because all five cite malicious line 2, which kept findings also cover.
+
+| Scenario | Format | Seed | Rule | Advisory label | Confidence | Cited malicious line |
+| :--- | :--- | ---: | :--- | :--- | ---: | ---: |
+| `INC-4a7f` | `rfc3164` | 20270302 | `ioc_observed` | benign-expected | 0.992 | 2 |
+| `INC-4a7f` | `rfc5424` | 20270302 | `ioc_observed` | benign-expected | 0.9318 | 2 |
+| `INC-4a7f` | `rfc5424` | 20270303 | `ioc_observed` | benign-expected | 0.9318 | 2 |
+| `INC-4a7f` | `rfc3164` | 20270304 | `ioc_observed` | benign-expected | 0.7262 | 2 |
+| `INC-4a7f` | `rfc5424` | 20270304 | `ioc_observed` | benign-expected | 0.7262 | 2 |
+
+Every finding a system drops while it cites a malicious line is now listed **verbatim** — in the JSON (`dropped_true_findings`), in the harness's own output, and on the Reports surface — with exactly the weight a missed line already had. This class of absorption is never invisible again. On the `canonical`-only run of §3.1a nothing is dropped, and finding-level recall there is a measured **1.000 (21 / 21)** for both systems.
+
+*The advisory is still advisory.* A dropped opinion removes no rule finding and changes no verdict, severity or priority. What it changes is what a metric reports, which is why it is published.
+
+#### (b) False-positive totals, always labelled with their format scope
+
+| Format scope | Rule false-positive findings | Learned false-positive findings |
+| :--- | ---: | ---: |
+| **all four formatters (headline, 72 runs)** | **84** | **0** |
+| subset — `canonical` only (18 runs) | 21 | 0 |
+| subset — `rfc3164` only | 24 | 0 |
+| subset — `rfc5424` only | 18 | 0 |
+| subset — `jsonlog` only | 21 | 0 |
+
+The suppression claim is **stronger** than the one E8 published, not weaker: the model suppressed all **84**, not 21. The published 21 was simply single-format and was not labelled as such. A bare false-positive count with no format scope is not a publishable number in this repository.
+
+#### (c) The criticality sensitivity — a named finding, not a footnote
+
+`criticality_rank` — the asset-criticality band resolved from the **org config by host name** — carries **0.4146 (41.5%)** of the model's total feature importance, the largest of its 21 features by a wide margin. Forcing it across its whole real domain (`low` 0, `standard` 1, `crown-jewel` 2) while holding every other feature exactly as measured:
+
+| Population (all four formatters) | Total | Robust across all three bands | Flips in at least one | Kept at `low` / `standard` / `crown-jewel` |
+| :--- | ---: | ---: | ---: | ---: |
+| true detections (kept, citing malicious lines) | 85 | 57 | **28** | 85 / 85 / **57** |
+| suppressions (dropped, citing nothing) | 84 | 51 | **33** | 33 / 33 / **0** |
+
+**Direction, stated plainly: the model is *more* willing to dismiss a finding on a *more* critical asset.**
+
+* Raising a host from `standard` to `crown-jewel` flips **28 of 85** true detections from KEPT to DROPPED.
+* Lowering `crown-jewel` to `standard` or `low` flips **33 of 84** suppressions from DROPPED to KEPT — including all five dropped `INC-4a7f` IOC findings.
+
+That is the opposite of operational intuition, and it is driven by an **org-config value rather than by log evidence**.
+
+**These are counterfactuals.** The benchmark hosts have fixed criticality, so **every published number above stands exactly as measured** — nothing in §3.1a or §3.1b is a projection. The point is that a headline of "0 false positives, 0 line misses" rests substantially on one configuration value, and a buyer is entitled to know which.
+
+The counterfactual is computed **live on every run** (the harness re-scores each finding through the shipped model with the criticality feature forced) and is published marked `kind: "counterfactual"`, never as a measurement.
+
+Reproduce the all-format headline with:
+
+```
+python3 tools/efficacy_harness.py --format canonical --format rfc3164 --format rfc5424 --format jsonlog
+```
+
+Run id: `efficacy-7588b98a963f`; run date: `2026-09-02T21:52:16+00:00`; audited commit `3960f32197aae12348194f50fdb39e57e7597c94` (tree `7480eb11f42a55bc6d6f09c0234ee8dc4d0e4dae`, clean); benchmark seeds `20270302, 20270303, 20270304`; formats `canonical, rfc3164, rfc5424, jsonlog`. Model: `sklearn.ensemble.GradientBoostingClassifier`, sha256 `0eb19182b45abbf434daa196b3d30dbb3de99c83e15694254af5440103837765` — bit-identical to the model behind §3.1a, so every number here is directly comparable to it. Registered as C-2a in `docs/research/CITATIONS.md`.
+
+Rules still own severity and correlation; the model never writes one. Where scikit-learn or the model artifact is absent, every number in this section is an honest "unavailable" with its reason — never a zero.
+
 ---
 
 ### 3.2 In-Repo Verified Benchmarks & Guarantees

@@ -60,6 +60,26 @@ const LEARNED_MISS = {
   why: "credential-guessing failure from the scenario source",
 };
 
+/** E8m. The finding the learned system dropped WHILE it cited a malicious line —
+ *  the loss line-level recall absorbs whenever a kept finding covers the same
+ *  lines. Shaped after the real defect: an `ioc_observed` finding on the
+ *  crown-jewel host, labelled benign-expected at high confidence. */
+const DROPPED_TRUE_FINDING = {
+  rule_id: "ioc_observed",
+  severity: "MEDIUM",
+  summary: "Threat-intel IOC observed on bnch-server-01",
+  evidence: null,
+  label: "benign-expected",
+  confidence: 0.992,
+  cited_malicious_lines: [
+    {
+      line: 2,
+      raw: "2026-08-30T02:16:41Z WARN bnch-server-01 Connection to known-bad 198.18.36.96",
+      why: "threat-intel indicator from the scenario source",
+    },
+  ],
+};
+
 const RULE_MISS = {
   line: 42,
   raw: "GET /item.php?id=1%20UNION%20SELECT%20null,username,password%20FROM%20users HTTP/1.1",
@@ -97,6 +117,12 @@ const MOCK_DONE_RUN: EfficacyResponse = {
           per_rule: null,
           misses: [],
           false_positives: [],
+          finding_recall: {
+            true_findings_kept: 1, true_findings_total: 1, recall: 1.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          dropped_true_findings: [],
         },
         learned: {
           system: "learned",
@@ -107,6 +133,12 @@ const MOCK_DONE_RUN: EfficacyResponse = {
           per_rule: null,
           misses: [LEARNED_MISS],
           false_positives: [],
+          finding_recall: {
+            true_findings_kept: 0, true_findings_total: 1, recall: 0.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          dropped_true_findings: [DROPPED_TRUE_FINDING],
         },
         scope: SCOPE_SENTENCE,
       },
@@ -150,6 +182,12 @@ const MOCK_DONE_RUN: EfficacyResponse = {
           per_rule: null,
           misses: [RULE_MISS],
           false_positives: [],
+          finding_recall: {
+            true_findings_kept: 2, true_findings_total: 2, recall: 1.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          dropped_true_findings: [],
         },
         learned: {
           system: "learned",
@@ -172,6 +210,12 @@ const MOCK_DONE_RUN: EfficacyResponse = {
           per_rule: null,
           misses: [RULE_MISS],
           false_positives: [],
+          finding_recall: {
+            true_findings_kept: 2, true_findings_total: 2, recall: 1.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          dropped_true_findings: [],
         },
         scope: SCOPE_SENTENCE,
       },
@@ -180,6 +224,62 @@ const MOCK_DONE_RUN: EfficacyResponse = {
     total_false_positives: 1,
     learned_total_misses: 6,
     learned_total_false_positives: 0,
+    // --- E8m: additive publication ---
+    recall_note:
+      "Recall is published with its denominator, always. LINE-LEVEL recall is over the manifest's malicious LINES; FINDING-LEVEL recall is over the FINDINGS that cite at least one malicious line.",
+    format_scope_note:
+      "Every false-positive total is scoped to the formats it was measured over.",
+    line_level_recall_denominator: "manifest malicious lines",
+    finding_level_recall: {
+      denominator: "findings that cite at least one malicious line",
+      true_findings_total: 3,
+      rules: {
+        true_findings_kept: 3, true_findings_total: 3, recall: 1.0,
+        recall_defined: true,
+        denominator: "findings that cite at least one malicious line",
+      },
+      learned: {
+        true_findings_kept: 2, true_findings_total: 3, recall: 0.6667,
+        recall_defined: true,
+        denominator: "findings that cite at least one malicious line",
+      },
+      learned_dropped_true_findings: [DROPPED_TRUE_FINDING],
+    },
+    false_positive_totals: {
+      formats: ["canonical", "combined"],
+      scope: "all formats measured in this run: canonical, combined",
+      rules: 1,
+      learned: 0,
+      by_format: {
+        canonical: { rules: 0, learned: 0 },
+        combined: { rules: 1, learned: 0 },
+      },
+    },
+    learned_total_dropped_true_findings: 1,
+    criticality_sensitivity: {
+      available: true,
+      reason: null,
+      kind: "counterfactual",
+      note: "COUNTERFACTUAL, measured live on this run. The model is MORE willing to dismiss a finding on a MORE critical asset. These are counterfactuals only — every published number above stands exactly as measured.",
+      feature: "criticality_rank",
+      domain: ["low", "standard", "crown-jewel"],
+      feature_importance: {
+        available: true,
+        reason: null,
+        by_feature: { criticality_rank: 0.4146, rule_family_auth: 0.1476 },
+        criticality_rank: 0.4146,
+      },
+      populations: {
+        true_detections: {
+          total: 85, robust: 57, flipping: 28,
+          kept_at: { low: 85, standard: 85, "crown-jewel": 57 },
+        },
+        suppressions: {
+          total: 84, robust: 51, flipping: 33,
+          kept_at: { low: 33, standard: 33, "crown-jewel": 0 },
+        },
+      },
+    },
   },
   error: null,
 };
@@ -217,6 +317,12 @@ const MOCK_MODEL_UNAVAILABLE_RUN: EfficacyResponse = {
           per_rule: null,
           misses: [],
           false_positives: [],
+          finding_recall: {
+            true_findings_kept: 1, true_findings_total: 1, recall: 1.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          dropped_true_findings: [],
         },
         learned: {
           system: "learned",
@@ -235,6 +341,36 @@ const MOCK_MODEL_UNAVAILABLE_RUN: EfficacyResponse = {
     total_false_positives: 0,
     learned_total_misses: null,
     learned_total_false_positives: null,
+    line_level_recall_denominator: "manifest malicious lines",
+    finding_level_recall: {
+      denominator: "findings that cite at least one malicious line",
+      true_findings_total: 1,
+      rules: {
+        true_findings_kept: 1, true_findings_total: 1, recall: 1.0,
+        recall_defined: true,
+        denominator: "findings that cite at least one malicious line",
+      },
+      learned: null,
+      learned_dropped_true_findings: null,
+    },
+    false_positive_totals: {
+      formats: ["canonical"],
+      scope: "all formats measured in this run: canonical",
+      rules: 0,
+      learned: null,
+      by_format: { canonical: { rules: 0, learned: null } },
+    },
+    learned_total_dropped_true_findings: null,
+    criticality_sensitivity: {
+      available: false,
+      reason: "no learned model was loaded, so there is nothing to re-score",
+      kind: "counterfactual",
+      note: "COUNTERFACTUAL.",
+      feature: "criticality_rank",
+      domain: ["low", "standard", "crown-jewel"],
+      feature_importance: null,
+      populations: null,
+    },
   },
   error: null,
 };
@@ -381,16 +517,18 @@ describe("Efficacy surface on Reports", () => {
     const cells1 = rows[0].querySelectorAll("td");
     expect(Array.from(cells1).map((c) => c.textContent)).toEqual([
       "brute_force", "canonical", "20270302",
-      "1", "1", "1", "0",           // rules P / R / F1 / misses
-      "n/a", "0", "n/a", "5",       // learned P (undefined) / R / F1 / misses
+      // rules P / R(lines) / R(findings) / F1 / misses
+      "1", "1", "1", "1", "0",
+      // learned P (undefined) / R(lines) / R(findings) / F1 / misses / dropped
+      "n/a", "0", "0", "n/a", "5", "1",
     ]);
 
     // Second row: the learned model dropped a false positive and gained precision.
     const cells2 = rows[1].querySelectorAll("td");
     expect(Array.from(cells2).map((c) => c.textContent)).toEqual([
       "web_sqli", "combined", "20270303",
-      "0.6667", "0.75", "0.7059", "1",
-      "1", "0.75", "0.8571", "1",
+      "0.6667", "0.75", "1", "0.7059", "1",
+      "1", "0.75", "1", "0.8571", "1", "0",
     ]);
   });
 
@@ -469,7 +607,7 @@ describe("Efficacy surface on Reports", () => {
     // ...while the rules row is still fully scored
     const cells = screen.getAllByTestId("efficacy-row")[0].querySelectorAll("td");
     expect(Array.from(cells).map((c) => c.textContent)).toEqual([
-      "brute_force", "canonical", "20270302", "1", "1", "1", "0",
+      "brute_force", "canonical", "20270302", "1", "1", "1", "1", "0",
       "learned model unavailable — no score is shown",
     ]);
   });
@@ -523,5 +661,133 @@ describe("Efficacy surface on Reports", () => {
     fireEvent.click(btn);
 
     expect(await screen.findByTestId("efficacy-mutation-error")).toHaveTextContent("Not Found: /api/efficacy");
+  });
+
+  // --- E8m: the amendment's three publications -----------------------------
+
+  it("E8m: both recalls are published, each labelled with its own denominator", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_DONE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    const block = await screen.findByTestId("efficacy-recall-denominators");
+    expect(within(block).getByTestId("efficacy-line-recall-denominator")).toHaveTextContent(
+      "Line-level recall is over manifest malicious lines",
+    );
+    expect(within(block).getByTestId("efficacy-finding-recall-denominator")).toHaveTextContent(
+      "Finding-level recall is over findings that cite at least one malicious line",
+    );
+    // both systems, from the fixture verbatim — nothing recomputed here
+    expect(within(block).getByTestId("efficacy-finding-recall-rules")).toHaveTextContent("1 (3/3)");
+    expect(within(block).getByTestId("efficacy-finding-recall-learned")).toHaveTextContent("0.6667 (2/3)");
+    expect(screen.getByTestId("efficacy-recall-note")).toHaveTextContent("FINDING-LEVEL recall");
+  });
+
+  it("E8m: a finding dropped while citing a malicious line is listed VERBATIM, like a miss", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_DONE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    await screen.findByTestId("efficacy-misses-section");
+    const dropped = screen.getByTestId("learned-dropped-brute_force");
+    expect(dropped).toHaveTextContent("ioc_observed");
+    expect(dropped).toHaveTextContent("benign-expected");
+    expect(dropped).toHaveTextContent("0.992");
+    expect(dropped).toHaveTextContent(DROPPED_TRUE_FINDING.cited_malicious_lines[0].raw);
+    expect(dropped).toHaveTextContent(DROPPED_TRUE_FINDING.cited_malicious_lines[0].why);
+    // and it is counted on the run header and in its own table column
+    expect(screen.getByTestId("efficacy-learned-dropped-total")).toHaveTextContent("1");
+    expect(screen.getAllByTestId("efficacy-row-learned-dropped")[0]).toHaveTextContent("1");
+  });
+
+  it("E8m: a scenario that dropped nothing says so, rather than omitting the line", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_DONE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    await screen.findByTestId("efficacy-misses-section");
+    expect(screen.getByTestId("learned-dropped-web_sqli-none")).toHaveTextContent(
+      "no findings dropped while citing a malicious line",
+    );
+  });
+
+  it("E8m: no false-positive total is rendered without its format scope", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_DONE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    const totals = await screen.findByTestId("efficacy-fp-totals");
+    expect(totals).toHaveTextContent("all formats measured in this run: canonical, combined");
+    expect(within(totals).getByTestId("efficacy-fp-headline")).toHaveTextContent("rules 1");
+    // each single format is an EXPLICITLY LABELLED subset, never the headline
+    expect(within(totals).getByTestId("efficacy-fp-subset-canonical")).toHaveTextContent("subset");
+    expect(within(totals).getByTestId("efficacy-fp-subset-combined")).toHaveTextContent("subset");
+    // and the header count carries the scope too
+    expect(screen.getByTestId("efficacy-fp-scope")).toHaveTextContent(
+      "all formats measured in this run: canonical, combined",
+    );
+  });
+
+  it("E8m: the criticality sensitivity is a first-class finding, labelled a counterfactual", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_DONE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    const block = await screen.findByTestId("efficacy-criticality-sensitivity");
+    expect(within(block).getByTestId("efficacy-criticality-kind")).toHaveTextContent("counterfactual");
+    expect(within(block).getByTestId("efficacy-criticality-importance")).toHaveTextContent("0.4146");
+    // direction, read straight off the bands
+    expect(within(block).getByTestId("efficacy-criticality-true_detections")).toHaveTextContent(
+      "85 total — 57 robust, 28 flip",
+    );
+    expect(within(block).getByTestId("efficacy-criticality-true_detections")).toHaveTextContent(
+      "low 85 · standard 85 · crown-jewel 57",
+    );
+    expect(within(block).getByTestId("efficacy-criticality-suppressions")).toHaveTextContent(
+      "84 total — 51 robust, 33 flip",
+    );
+    expect(within(block).getByTestId("efficacy-criticality-note")).toHaveTextContent(
+      "stands exactly as measured",
+    );
+  });
+
+  it("E8m: with no model, the amendment renders honest gaps and never a zero", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_MODEL_UNAVAILABLE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    await screen.findByTestId("efficacy-table");
+    expect(screen.getByTestId("efficacy-finding-recall-learned")).toHaveTextContent(
+      "unavailable — no number is invented",
+    );
+    expect(screen.getByTestId("efficacy-learned-dropped-total")).toHaveTextContent("n/a");
+    expect(screen.getByTestId("efficacy-criticality-unavailable")).toHaveTextContent(
+      "no learned model was loaded",
+    );
+    expect(screen.queryByTestId("efficacy-criticality-sensitivity")).not.toBeInTheDocument();
+  });
+
+  it("E8m: a run body with no finding-level recall renders n/a, never a fabricated 1.0", async () => {
+    const legacy = JSON.parse(JSON.stringify(MOCK_DONE_RUN));
+    delete legacy.run.finding_level_recall;
+    delete legacy.run.false_positive_totals;
+    delete legacy.run.criticality_sensitivity;
+    for (const sc of legacy.run.scenarios) {
+      delete sc.rules.finding_recall;
+      delete sc.learned.finding_recall;
+    }
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": legacy });
+    renderApp(<App />, { route: "/reports" });
+
+    await screen.findByTestId("efficacy-table");
+    expect(screen.getAllByTestId("efficacy-row-rule-finding-recall")[0]).toHaveTextContent("n/a");
+    expect(screen.getAllByTestId("efficacy-row-learned-finding-recall")[0]).toHaveTextContent("n/a");
+    expect(screen.queryByTestId("efficacy-recall-denominators")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("efficacy-fp-totals")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("efficacy-criticality-sensitivity")).not.toBeInTheDocument();
+  });
+
+  it("E8m: the client still computes nothing — the amendment added no arithmetic", () => {
+    const reportsPath = path.resolve(__dirname, "../pages/Reports.tsx");
+    const reportsContent = fs.readFileSync(reportsPath, "utf-8");
+    // no recall of any kind is derived here
+    expect(reportsContent).not.toMatch(/true_findings_kept\s*\/\s*/);
+    expect(reportsContent).not.toMatch(/criticality_rank\s*[=:]\s*\d/);
+    // and no false-positive total is summed client-side
+    expect(reportsContent).not.toMatch(/reduce\(\s*\(.*fals/i);
   });
 });

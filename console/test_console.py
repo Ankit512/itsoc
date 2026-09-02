@@ -3319,7 +3319,14 @@ def check_efficacy_api():
                                "benchmark", "freshness", "model", "scenarios",
                                "total_misses", "total_false_positives",
                                "learned_total_misses",
-                               "learned_total_false_positives"},
+                               "learned_total_false_positives",
+                               # E8m — additive publication, same pass-through
+                               "recall_note", "format_scope_note",
+                               "line_level_recall_denominator",
+                               "finding_level_recall",
+                               "false_positive_totals",
+                               "learned_total_dropped_true_findings",
+                               "criticality_sensitivity"},
                   str(sorted(run)))
             check("GET body carries exactly {status, run, error}",
                   set(body) == {"status", "run", "error"}, str(sorted(body)))
@@ -3401,6 +3408,81 @@ def check_efficacy_api():
                       and first["learned"]["misses"] is None
                       and bool(first["learned"]["reason"]),
                       str(first["learned"])[:200])
+
+            # --- E8m: both recalls, format scope, and the counterfactual -----
+            # The console still computes nothing. These assert that what the
+            # frozen referee measured arrives at the UI intact and LABELLED.
+            flr = run.get("finding_level_recall") or {}
+            check("finding-level recall is published beside line-level, with "
+                  "its denominator named",
+                  flr.get("denominator")
+                  == "findings that cite at least one malicious line"
+                  and run.get("line_level_recall_denominator")
+                  == "manifest malicious lines",
+                  str(flr)[:200])
+            check("finding-level recall is published for BOTH systems",
+                  isinstance(flr.get("rules"), dict)
+                  and ("learned" in flr)
+                  and {"recall", "recall_defined", "true_findings_kept",
+                       "true_findings_total"} <= set(flr["rules"]),
+                  str(sorted(flr.get("rules") or {})))
+            check("the recall note names both denominators",
+                  "malicious LINES" in (run.get("recall_note") or "")
+                  and "cite at least one malicious line"
+                  in (run.get("recall_note") or ""),
+                  repr(run.get("recall_note"))[:200])
+            fps = run.get("false_positive_totals") or {}
+            check("no false-positive total is published without its format scope",
+                  isinstance(fps.get("formats"), list) and fps["formats"]
+                  and isinstance(fps.get("scope"), str) and fps["scope"]
+                  and isinstance(fps.get("by_format"), dict) and fps["by_format"],
+                  str(fps)[:200])
+            check("the scoped headline total equals the legacy total — no "
+                  "measured value moved",
+                  fps.get("rules") == run.get("total_false_positives")
+                  and fps["rules"] == sum(b["rules"] for b
+                                          in fps["by_format"].values()),
+                  f"{fps.get('rules')!r} vs {run.get('total_false_positives')!r}")
+            sens = run.get("criticality_sensitivity") or {}
+            check("the criticality sensitivity travels as a first-class, "
+                  "explicitly-labelled COUNTERFACTUAL",
+                  sens.get("kind") == "counterfactual"
+                  and sens.get("feature") == "criticality_rank"
+                  and sens.get("domain") == ["low", "standard", "crown-jewel"]
+                  and "COUNTERFACTUAL" in (sens.get("note") or ""),
+                  str(sens)[:200])
+            if model_available:
+                check("the counterfactual publishes both populations with their "
+                      "per-band direction",
+                      set(sens.get("populations") or {})
+                      == {"true_detections", "suppressions"}
+                      and all({"total", "robust", "flipping", "kept_at"}
+                              <= set(bucket)
+                              for bucket in sens["populations"].values()),
+                      str(sens.get("populations"))[:300])
+                check("findings dropped while citing malicious lines are "
+                      "published as a count and listed verbatim",
+                      isinstance(run.get("learned_total_dropped_true_findings"), int)
+                      and isinstance(flr.get("learned_dropped_true_findings"), list)
+                      and len(flr["learned_dropped_true_findings"])
+                      == run["learned_total_dropped_true_findings"],
+                      str(run.get("learned_total_dropped_true_findings")))
+                check("each scenario publishes both systems' finding-level "
+                      "recall and their dropped-finding lists",
+                      isinstance(first["rules"].get("finding_recall"), dict)
+                      and first["rules"].get("dropped_true_findings") == []
+                      and isinstance(first["learned"].get("finding_recall"), dict)
+                      and isinstance(first["learned"].get("dropped_true_findings"),
+                                     list),
+                      str(first["learned"].get("finding_recall")))
+            else:
+                check("with no model there is no counterfactual and no dropped "
+                      "count — an honest gap, never a zero",
+                      sens.get("available") is False
+                      and sens.get("populations") is None
+                      and run.get("learned_total_dropped_true_findings") is None
+                      and flr.get("learned") is None,
+                      str(sens)[:200])
 
             # --- the last run survives a refresh (and a restart) --------------
             check("the completed run is persisted under console/.soc/",

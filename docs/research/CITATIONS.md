@@ -79,6 +79,70 @@ sentence relied on** — so a reader can check whether the document represents t
 
 ---
 
+## C-2a · E8m amendment — finding-level recall, format scope, criticality sensitivity
+
+- **Used in:** `docs/BATTLECARD_TORQ.md` §3.1b
+- **Source type:** In-repo measurement against synthetic ground truth. Additive
+  amendment to C-2; it supersedes nothing in C-2 and moves no C-2 number.
+- **How to reproduce:** the all-format headline is
+  `python3 tools/efficacy_harness.py --format canonical --format rfc3164 --format rfc5424 --format jsonlog`
+  (with a locally trained model present); the `canonical`-only run of C-2 remains
+  `python3 tools/efficacy_harness.py`. Without a model every number here is an
+  honest "unavailable" with its reason.
+- **Identifier:** `tools/efficacy_harness.py` (`evaluate`, `finding_level_recall`,
+  `dropped_true_findings`, `criticality_sensitivity`), benchmark run id
+  `efficacy-7588b98a963f`, run date `2026-09-02T21:52:16+00:00`, audited tree commit
+  `3960f32197aae12348194f50fdb39e57e7597c94` (tree `7480eb11f42a55bc6d6f09c0234ee8dc4d0e4dae`, clean worktree), benchmark seeds
+  `20270302, 20270303, 20270304`, formats `canonical, rfc3164, rfc5424, jsonlog`.
+  Model: `sklearn.ensemble.GradientBoostingClassifier`, sha256
+  `0eb19182b45abbf434daa196b3d30dbb3de99c83e15694254af5440103837765`, trained on
+  seeds `20260902`–`20260915`, 434 rows, scikit-learn 1.7.2.
+- **The claim, stated precisely — three parts:**
+  1. **Two recalls, each over a named denominator.** Line-level recall is over
+     the manifest's malicious LINES; finding-level recall is over the FINDINGS
+     that cite at least one malicious line. Across 72 scenario runs the rules
+     score line-level `1.000` and finding-level `1.000` (90/90); the learned
+     system scores line-level `1.000` and finding-level **`0.9444` (85/90)**. It
+     drops five findings that were citing real malicious lines — all
+     `ioc_observed` on the crown-jewel host in `INC-4a7f`, predicted
+     `benign-expected` at confidence up to `0.992` — and line-level recall stays
+     `1.000` only because kept findings cover the same cited line. On the
+     `canonical`-only C-2 run nothing is dropped and finding-level recall is a
+     measured `1.000` (21/21) for both systems.
+  2. **False-positive totals carry their format scope.** Across all four
+     formatters the rules raise **84** false-positive findings and the learned
+     system suppresses **all 84**; the `canonical`-only subset is **21**
+     (`rfc3164` 24, `rfc5424` 18, `jsonlog` 21). The C-2 figure of 21 is that
+     subset and is correct as measured; it is single-format.
+  3. **Criticality sensitivity (COUNTERFACTUAL).** `criticality_rank` carries
+     `0.4146` of total feature importance, the largest of 21 features. Forcing it
+     across `low`/`standard`/`crown-jewel` with every other feature held as
+     measured: of 85 true detections, 57 are robust and **28 flip** (kept at
+     `low` 85 / `standard` 85 / `crown-jewel` 57); of 84 suppressions, 51 are
+     robust and **33 flip** (kept at `low` 33 / `standard` 33 / `crown-jewel` 0).
+     Direction: the model is MORE willing to dismiss a finding on a MORE critical
+     asset, driven by an org-config value rather than log evidence.
+- **What it is evidence FOR:** how the published metrics behave and what they do
+  and do not absorb, on these generated scenarios. It is not evidence about
+  production traffic and it is not a claim that the model improves any verdict —
+  the model remains advisory and writes no severity, priority, eligibility or
+  action.
+- **How it MUST be represented — binding:**
+  - Carry the same C-2 scope, ceiling and advisory sentences verbatim; this entry
+    adds to them and replaces none of them.
+  - **Never publish a recall without naming its denominator.** Publishing the
+    learned system's `1.000` line-level recall without its `0.9444` finding-level
+    recall beside it is a misrepresentation of this measurement.
+  - **Never publish a false-positive count without its format scope.** The
+    all-format total is the headline; a single format is a labelled subset.
+  - The criticality figures are **counterfactuals** and must be labelled as such
+    every time they appear. The measured numbers stand exactly as measured; the
+    counterfactual is never quoted as an observed result.
+  - Findings dropped while citing malicious lines must be listed verbatim
+    wherever misses are listed. Reporting the count alone is not sufficient.
+
+---
+
 ## Entry template (copy for each new external figure)
 
 ```
