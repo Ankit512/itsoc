@@ -19,3 +19,11 @@ Report: `docs/STAGE_E_REPORTS/activation-dispatch.md`.
 - Owner update: `docs/ITSOC_STAGE_E_ACTION_CARDS.md` replaced byte-for-byte from the 2026-09-02 download (`9e8da0b…cc2c93`), adding Track F and immediate F0. The orchestrator prompt still governs mechanics, including E7a → frozen E8 → independently graded E7b rounds → E9.
 - Dispatched: E0 `task_011af4e0ea34` / `ctx_b09c48a3291c`; E6 `task_ae693acfc187` / `ctx_eeeeb1190457`; F0 `task_2da0cfc5cfa8` / `ctx_ca8144f63b88`.
 
+## E6 accepted — 2026-09-02
+
+Report: `docs/STAGE_E_REPORTS/E6-accepted.md`.
+
+- Accepted worker commit `6285a0f` and merged locally as `9a61c0f`; no push.
+- Independent gates: Stage E wall 30/30, full console suite green, referee eval 20/20 with F1 1.000, frozen detector hash exact.
+- Accepted the AST import/call wall as the precise implementation of the requested grep guard: executable coupling fails without comment/string false positives.
+- `graphify update .` succeeded after merge.
