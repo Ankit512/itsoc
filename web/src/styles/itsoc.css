@@ -793,6 +793,33 @@
 .is-rb-badge{ font-size:9.5px; font-weight:700; letter-spacing:.05em; padding:2px 8px; border-radius:var(--radius-xs); border:1px solid transparent; background:transparent; }
 .is-rb-badge--eligible{ color:var(--acc); border-color:color-mix(in srgb,var(--acc) 45%,transparent); }
 .is-rb-badge--ineligible{ color:var(--mut); border-color:var(--bd2); }
+/* F0 — the plain-language body. This is the DEFAULT surface of the card: five
+   questions a non-builder can answer without knowing the schema. Ink for the
+   answers, muted small-caps for the question labels; no accent, no severity. */
+.is-rb-plain{ margin:0; display:flex; flex-direction:column; gap:6px; }
+.is-rb-plain__row{ display:flex; flex-direction:column; gap:2px; }
+.is-rb-plain__k{ font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mut2); }
+.is-rb-plain__v{ margin:0; font-size:11.5px; line-height:1.55; color:var(--ink2); }
+.is-rb-steps{ display:flex; flex-direction:column; gap:3px; }
+.is-rb-steps__lbl{ font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mut2); }
+.is-rb-steps__list{ margin:0; padding-left:17px; display:flex; flex-direction:column; gap:3px; }
+.is-rb-steps__item{ font-size:11.5px; line-height:1.55; color:var(--ink2); }
+/* Honest bounded fallback: an undescribed runbook says so, in muted italic —
+   never an alarm, and never a guessed step. */
+.is-rb-steps__none{ margin:0; font-size:11.5px; line-height:1.55; font-style:italic; color:var(--mut); }
+.is-rb-rev{ margin:0; font-size:11.5px; line-height:1.55; color:var(--ink2); }
+.is-rb-rev__k{ font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mut2); }
+.is-rb-rev__a{ font-weight:600; color:var(--ink); }
+.is-rb-rev__v{ color:var(--mut); }
+/* The disclosure. Closed by default; it holds the id, the floor, the raw rule
+   ids and the engine's missing[]. Quiet by design — opening it is a choice, and
+   an ineligible runbook is still information, so nothing here alarms. */
+.is-rb-detail{ border-top:1px solid var(--bd); padding-top:6px; }
+.is-rb-detail__s{ cursor:pointer; font-size:10.5px; font-weight:600; color:var(--mut); list-style:revert; }
+.is-rb-detail__s:hover{ color:var(--ink2); }
+.is-rb-detail__s:focus-visible{ outline:1px solid var(--acc); outline-offset:2px; border-radius:var(--radius-xs); }
+.is-rb-detail__body{ display:flex; flex-direction:column; gap:6px; padding-top:6px; }
+.is-rb-detail__lead{ margin:0; font-size:11.5px; line-height:1.55; color:var(--mut); }
 /* Missing-evidence — muted, verbatim from the engine. */
 .is-runbook-card__missing{ display:flex; flex-direction:column; gap:4px; }
 .is-rb-missing__lbl{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut2); }

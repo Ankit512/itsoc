@@ -250,7 +250,49 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () =>
       ).toEqual([]);
     });
 
-    it("Priority chip subsection (C4-F3) strictly avoids borrowing the severity ramp (--crit, --high, --med, --low)", () => {
+    it("F0 — the plain-language card body and its disclosure are theme-safe: every colour is a token defined in BOTH themes, and none is a severity token", () => {
+    const runbookSection = cssContent.match(
+      /\/\* ---- 12a5\. Runbook card[\s\S]*?(?=\/\* ── 22)/,
+    )?.[0] ?? "";
+    expect(runbookSection).toBeTruthy();
+    const clean = stripComments(runbookSection);
+
+    // The F0 selectors must actually be styled — an unstyled card is not legible.
+    for (const sel of [
+      ".is-rb-plain__k", ".is-rb-plain__v",
+      ".is-rb-steps__lbl", ".is-rb-steps__item", ".is-rb-steps__none",
+      ".is-rb-rev__k", ".is-rb-rev__a", ".is-rb-rev__v",
+      ".is-rb-detail", ".is-rb-detail__s", ".is-rb-detail__lead",
+    ]) {
+      expect(clean, `F0 selector ${sel} is not styled in section 12a5`).toContain(sel);
+    }
+
+    const darkTokens = parseTokenBlock(/:root,\s*\[data-theme="dark"\]\s*\{([^}]+)\}/);
+    const lightTokens = parseTokenBlock(/\[data-theme="light"\]\s*\{([^}]+)\}/);
+
+    // Every colour the F0 rules use comes from a token, and that token is
+    // defined in both themes — so both themes stay legible.
+    const f0Rules = clean.split("}").filter((r) => /is-rb-(plain|steps|rev|detail)/.test(r.split("{")[0] ?? ""));
+    expect(f0Rules.length).toBeGreaterThan(8);
+    for (const rule of f0Rules) {
+      const [selector, decls] = rule.split("{");
+      if (!decls) continue;
+      expect(decls.match(/#[0-9a-fA-F]{3,8}\b/g) || [], `Hardcoded hex in ${selector}`).toEqual([]);
+      expect(decls.match(/\brgba?\([^)]+\)/g) || [], `Hardcoded rgb in ${selector}`).toEqual([]);
+      expect(decls.match(/var\(\s*--(crit|high|med|low)\b/g) || [],
+        `F0 rule ${selector} must not borrow the severity palette`).toEqual([]);
+      for (const m of decls.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)\s*\)/g)) {
+        const token = m[1];
+        // Layout/radius tokens live on bare :root; colour tokens must be in both blocks.
+        if (!/^--(radius|font|space|shadow-)/.test(token)) {
+          expect(darkTokens.has(token), `${token} (used by ${selector}) missing from dark theme`).toBe(true);
+          expect(lightTokens.has(token), `${token} (used by ${selector}) missing from light theme`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("Priority chip subsection (C4-F3) strictly avoids borrowing the severity ramp (--crit, --high, --med, --low)", () => {
       const prioritySection = cssContent.match(
         /\/\* --- C4-F3: Priority chip[\s\S]*$/,
       )?.[0] ?? "";
