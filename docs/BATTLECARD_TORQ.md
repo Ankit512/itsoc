@@ -69,23 +69,34 @@ In accordance with repo standards, every numerical figure is verified against in
 
 ---
 
-### 3.1a Stage D Synthetic Efficacy Harness
+### 3.1a Synthetic Efficacy Harness — rules and the learned model, scored side by side
 
 **Scope:** measured against synthetic ground-truth scenarios; not a claim about production traffic.
 
 These scenarios are drawn from the same attack classes the rules were written for — the expected result is perfection, and its value is regression proof (any future score below 1.0 is a detected regression), not a general-efficacy claim.
 
-The following are **scenario-level** totals from the three canonical scenarios. They do not mean every individual rule achieved perfect recall; the harness can attribute a malicious line to multiple rules.
+the learned model is advisory; these numbers are why.
 
-| Scenario | Format | Precision | Recall | F1 | Malicious lines detected | Miss count |
+Since E8 the harness scores **two explicit systems** over the same fresh scenarios, through the same scoring function and the same ground-truth diff: the **rules** (`log_analyzer.py --rules-only`, subprocess) and the **learned** second-opinion triage model. A `confirmed` model prediction keeps a finding (model-positive); a `false-positive` or `benign-expected` prediction drops it (model-negative). The model never touches a severity, a priority, an eligibility decision or an action — dropping a finding here changes only *this benchmark's* learned column.
+
+The benchmark is proven fresh, not assumed fresh. Seeds are frozen in the harness and disjoint from the training sidecar's recorded seeds; a benchmark-only deterministic token remap makes every observed host, user, IP, port and change-window value disjoint from the training entities derived from that same sidecar, and the run refuses to proceed on any overlap. The remap is verified not to change what the rules do.
+
+Scenario-level totals, all three benchmark seeds. `n/a` = the ratio has no denominator: a scenario with no malicious lines has no recall, and a system with no findings has no precision.
+
+| Scenario | Ground truth | Rule P / R / F1 | Rule FPs | Learned P / R / F1 | Learned FPs | Malicious lines |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
-| `INC-4a7f` | `canonical` | 1.0 | 1.0 | 1.0 | 7 / 7 | 0 |
-| `failure-success` | `canonical` | 1.0 | 1.0 | 1.0 | 6 / 6 | 0 |
-| `error-burst` | `canonical` | 1.0 | 1.0 | 1.0 | 6 / 6 | 0 |
+| `INC-4a7f` | confirmed | 1.0 / 1.0 / 1.0 | 0 | 1.0 / 1.0 / 1.0 | 0 | 24 / 24 |
+| `failure-success` | confirmed | 1.0 / 1.0 / 1.0 | 0 | 1.0 / 1.0 / 1.0 | 0 | 22 / 22 |
+| `error-burst` | confirmed | 1.0 / 1.0 / 1.0 | 0 | 1.0 / 1.0 / 1.0 | 0 | 24 / 24 |
+| `near-miss-auth` | false-positive | 0.0 / n/a / n/a | 3 | n/a / n/a / n/a | 0 | 0 / 0 |
+| `near-miss-errors` | false-positive | 0.0 / n/a / n/a | 9 | n/a / n/a / n/a | 0 | 0 / 0 |
+| `benign-maintenance` | benign-expected | 0.0 / n/a / n/a | 9 | n/a / n/a / n/a | 0 | 0 / 0 |
 
-**Three-scenario rollup (`INC-4a7f`, `failure-success`, `error-burst`):** 0 missed malicious lines and 0 false-positive findings. Run date: `2026-08-30T17:22:06+00:00`; pipeline: `log_analyzer.py --rules-only (subprocess)`; audited commit: `06a7b989996319bc6d0dd421af61d4399d6cdf75` (harness landing commit: `58a73df`). Reproduce with `python3 tools/efficacy_harness.py`; provenance and representation constraints are registered as C-2 in `docs/research/CITATIONS.md`.
+**Rollup across 18 scenario runs (6 scenarios × 3 seeds):** rules — **0 missed malicious lines, 21 false-positive findings**; learned — **0 missed malicious lines, 0 false-positive findings**. The two systems are identical on every positive scenario; the model suppressed all 21 rule false positives on the near-miss and benign-maintenance scenarios and suppressed none of the true positives. **Rule misses: none. Model misses: none.**
 
-This harness measurement is separate from the **Evaluation Detection Score** below, which remains the result of `tests/eval/run_eval.py` over 19 canned cases; the two F1 measurements must not be collapsed.
+Run id: `efficacy-17286a594e96`; run date: `2026-09-02T10:25:18+00:00`; audited commit `aedd02a76cd06c82152123cb82d3069ffbc4f07e` (tree `90a2c6a7f24508ed9544ef04b45ae5ef88d8bcb3`, clean); benchmark seeds `20270302, 20270303, 20270304`; pipeline `log_analyzer.py --rules-only (subprocess)`. Model: `sklearn.ensemble.GradientBoostingClassifier`, sha256 `0eb19182b45abbf434daa196b3d30dbb3de99c83e15694254af5440103837765`, trained `2026-09-02T09:46:51+00:00` on seeds `20260902–20260915`, 434 rows, scikit-learn 1.7.2. Reproduce with `python3 tools/efficacy_harness.py`; provenance and representation constraints are registered as C-2 in `docs/research/CITATIONS.md`. Where scikit-learn or the model artifact is absent, the learned column is an honest "unavailable" with its reason — never a zero.
+
+This harness measurement is separate from the **Evaluation Detection Score** below, which remains the result of `tests/eval/run_eval.py` over its canned cases; the two F1 measurements must not be collapsed.
 
 ---
 
