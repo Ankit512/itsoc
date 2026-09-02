@@ -95,3 +95,17 @@ Report: `docs/STAGE_E_REPORTS/E8-dispatch.md`.
 - Exact accepted-main base `e46d974`. The card owns the paired-system metric path, fresh disjoint benchmark seeds/entities, provenance, Reports/battle-card publication, and referee tests.
 - A real clean-environment train and benchmark plus overlap/model-kill failure evidence are mandatory. No push or worker merge.
 - E7b remains gated until this card is independently accepted and its referee paths are frozen.
+
+## E8 accepted — 2026-09-02
+
+Report: `docs/STAGE_E_REPORTS/E8-accepted.md`. Worker report: `docs/STAGE_E_REPORTS/E8-worker.md`.
+
+- Worker commits `aedd02a` (referee) and `11fb797` (publication), merged locally as `e5d9a5f`; no push, and the worker never merged.
+- The dispatch survived a host-sleep interruption of the agent turn. The same worker was resumed on the intact worktree rather than replaced, so task `task_af321cc0bcc3` and dispatch `ctx_e58af9c7a6d8` kept their original provenance and settled once with `worker_done`.
+- The resume carried a stricter entity rule: disjointness must cover every observed host/user/IP value, not just high-cardinality identifiers. `ASSERTED_ENTITY_KINDS` is now `ip, user, host, port, change_window`, proven with zero tolerance on each kind and cross-kind. Because the generator pins hosts and draws usernames from fixed vocabularies, seed choice alone could not satisfy this; a benchmark-only deterministic token remap of log lines and matching manifest raw values makes it satisfiable, and no generator or training file was touched.
+- Coordinator verification, run independently of the worker's own report: detector sha256 `364577c5…577a4a876` unchanged; branch never pushed and absent from every remote; ten changed files all inside the allowlist with no detector, rules, eval-corpus, model/training, or dependency file among them; working tree clean.
+- Coordinator gates on merged main: harness tests 37/37 both with sklearn 1.7.2 and with it absent; console suite 0 FAIL; eval 20/20 with precision/recall/F1 1.000 and 0 false positives; web 43/43 files and 282/282 tests; `npm run build` green.
+- Both mutation exercises were reproduced by the coordinator, not taken on trust. A benchmark seed drawn from the training set exits 2 with `BENCHMARK REFUSED`, naming the sidecar's real training seeds `20260902–20260915` against the frozen benchmark seeds `20270302–20270304`. Killing the model leaves every rules number and miss list byte-identical and yields `available: false` with a stated reason and `totals: null` — an honest unavailable state, never a scored zero.
+- Measured on the frozen benchmark: rules score 1.000 precision/recall/F1 with 0 misses on all three positive scenarios and raise 21 false positives across the negatives; the learned system matches every positive and suppresses all 21, also with 0 misses. Both systems list their misses verbatim and carry one run id plus model provenance.
+- Negative scenarios carry `precision_defined`/`recall_defined`, so a 0/0 renders `n/a` rather than a measured zero. The standing synthetic-scope sentence is retained and the learned system stays advisory.
+- E8 is closed. The referee logic, its tests, and benchmark seed selection are now frozen; E7b modifiers may not edit them. E7b is unblocked.
