@@ -41,6 +41,7 @@ import export  # noqa: E402
 import org_context  # noqa: E402
 import precedent  # noqa: E402
 import redact  # noqa: E402
+import triage_model  # noqa: E402  # E7a advisory second opinion (never a verdict)
 from rule_mitre_map import RULE_TECHNIQUES  # noqa: E402
 from tactic_phase_map import phase_for_tactics  # noqa: E402
 
@@ -400,7 +401,37 @@ def _public_incident(inc):
     # disposition question honestly — "none recorded", never a fabricated value.
     for key, default in _disposition_defaults(out).items():
         out[key] = default
+    out["aiTriage"] = _incident_ai_triage(out)
     return out
+
+
+def _incident_ai_triage(inc):
+    """E7a: the learned ADVISORY second opinion for one incident.
+
+    Computed on the PROJECTION and never stored, so no model output can survive
+    into `incidents.json`, be re-read as a fact, or reach a later re-derivation.
+    `severity`, `priority`, runbook eligibility and every execution path read
+    the incident dict, and `aiTriage` is in `runbooks.ADVISORY_KEYS`, so the
+    rule-owned projection drops it before any predicate sees it.
+
+    The record handed to the model is the rule-owned E1 fact projection —
+    which rules fired, which entity values the parser observed, the observed
+    window, the configured criticality. It carries no disposition, no prose and
+    no severity.
+    """
+    record = {
+        "ruleIds": inc.get("ruleIds") or [],
+        "occurrences": inc.get("findingCount") or 1,
+        "findingCount": inc.get("findingCount") or 0,
+        "entityValues": inc.get("entityValues") or [],
+        "entity": inc.get("entity"),
+        "entityKind": inc.get("entityKind"),
+        "techniques": inc.get("techniques") or [],
+        "firstSeen": inc.get("firstSeen"),
+        "lastSeen": inc.get("lastSeen"),
+        "criticality": inc.get("criticality"),
+    }
+    return triage_model.predict(record, inc.get("severity"))
 
 
 # ---------------------------------------------------------------------------

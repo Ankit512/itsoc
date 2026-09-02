@@ -779,3 +779,118 @@ describe("Incident precedents panel (E1)", () => {
     expect(within(panel).queryAllByRole("button").length).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// E7a — AI TRIAGE · LEARNED, ADVISORY on Incidents
+// ---------------------------------------------------------------------------
+// The same component the Findings page renders, on the incident surface. Three
+// visible states, and in none of them does the block touch severity, priority,
+// runbook eligibility or an action. The E1 precedents panel keeps its
+// deterministic numeric/labelled overlap display beside it — no model prose
+// annotates it (the E4 prose part is not in this card).
+const learnedTriage = (over: Record<string, unknown> = {}) => ({
+  advisory: true as const,
+  learned: true,
+  modelAvailable: true,
+  status: "agrees" as const,
+  ruleSeverity: "CRITICAL",
+  aiSeverity: "CRITICAL",
+  aiLabel: "confirmed",
+  confidence: 0.8842,
+  agrees: true,
+  unavailableReason: null,
+  note: "Learned second opinion — ADVISORY. It never changes the rule verdict.",
+  ...over,
+});
+
+describe("Incident AI triage block (E7a)", () => {
+  it("renders the learned advisory opinion beside the rule-owned severity", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/precedents": precedentReport(),
+      "/api/incidents": { incidents: [incident({ aiTriage: learnedTriage() } as Partial<Incident>)] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    const panel = await screen.findByTestId("incident-ai-triage");
+    expect(panel).toHaveTextContent("learned · advisory");
+    const block = within(panel).getByTestId("ai-triage");
+    expect(block).toHaveAttribute("data-status", "agrees");
+    expect(within(block).getByTestId("ai-triage-severity")).toHaveTextContent("CRITICAL");
+    expect(within(block).getByTestId("ai-triage-confidence")).toHaveTextContent("88.4% confidence");
+    expect(within(block).getByTestId("ai-triage-status"))
+      .toHaveTextContent("Agrees with the rule verdict");
+    // The rule-owned severity chip on the detail header is untouched.
+    expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(1);
+    // No control on this block can act — an advisory opinion starts nothing.
+    expect(within(panel).queryAllByRole("button").length).toBe(0);
+  });
+
+  it("shows DISAGREEMENT visibly and says it is not a reason to change the verdict", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/precedents": precedentReport(),
+      "/api/incidents": { incidents: [incident({
+        aiTriage: learnedTriage({
+          status: "disagrees", agrees: false, aiSeverity: "LOW",
+          aiLabel: "benign-expected", confidence: 0.6431,
+        }),
+      } as Partial<Incident>)] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    const block = within(await screen.findByTestId("incident-ai-triage"))
+      .getByTestId("ai-triage");
+    expect(block).toHaveAttribute("data-status", "disagrees");
+    expect(block.className).toContain("is-aitriage--disagrees");
+    expect(within(block).getByTestId("ai-triage-status"))
+      .toHaveTextContent("Disagrees with the rule verdict");
+    expect(within(block).getByTestId("ai-triage-label")).toHaveTextContent("benign-expected");
+    expect(within(block).getByTestId("ai-triage-disagreement"))
+      .toHaveTextContent(/prompt to look, not a reason to change the verdict/i);
+  });
+
+  it("renders MODEL UNAVAILABLE honestly, inventing no severity and no confidence", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/precedents": precedentReport(),
+      "/api/incidents": { incidents: [incident({
+        aiTriage: {
+          advisory: true as const, learned: true, modelAvailable: false,
+          status: "unavailable" as const, ruleSeverity: "CRITICAL",
+          aiSeverity: null, aiLabel: null, confidence: null, agrees: null,
+          unavailableReason: "no trained model on this installation",
+          note: "Learned second opinion — ADVISORY — is UNAVAILABLE here.",
+        },
+      } as Partial<Incident>)] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    const panel = await screen.findByTestId("incident-ai-triage");
+    const block = within(panel).getByTestId("ai-triage");
+    expect(block).toHaveAttribute("data-status", "unavailable");
+    expect(within(block).getByTestId("ai-triage-unavailable"))
+      .toHaveTextContent("Model unavailable");
+    expect(within(block).getByTestId("ai-triage-reason"))
+      .toHaveTextContent("no trained model on this installation");
+    expect(within(block).queryByTestId("ai-triage-severity")).toBeNull();
+    expect(within(block).queryByTestId("ai-triage-confidence")).toBeNull();
+    expect(within(block).queryByTestId("ai-triage-status")).toBeNull();
+
+    // KILL-THE-MODEL, on screen: the deterministic surfaces are fully intact.
+    await screen.findByTestId("precedents-summary");
+    const precedents = screen.getByTestId("precedents-panel");
+    expect(within(precedents).getAllByTestId("precedent-row").length).toBe(2);
+    expect(within(precedents).getByTestId("precedents-summary"))
+      .toHaveTextContent("Showing 2 of 2 prior incident(s)");
+    expect(screen.getByTestId("incident-analyst")).toBeInTheDocument();
+  });
+
+  it("omits the block entirely when the API sends no advisory object at all", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/precedents": precedentReport(),
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    await screen.findByTestId("precedents-summary");
+    expect(screen.queryByTestId("incident-ai-triage")).toBeNull();
+  });
+});

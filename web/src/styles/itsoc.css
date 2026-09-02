@@ -956,3 +956,26 @@
   .is-btn,.is-icobtn,.is-side-search,.is-nav a,.is-brand,.is-cop-fab,.is-rail-drawer,.is-copilot-composer textarea{ transition:none; }
   .is-cop-fab:hover{ transform:none; }
 }
+
+/* ---- 24. AI TRIAGE · LEARNED, ADVISORY (E7a) ------------------------------
+   The learned second opinion, rendered beside the rule verdict on Findings and
+   Incidents. Three visible states — agrees / disagrees / unavailable — and the
+   block is deliberately styled so it can NEVER be mistaken for the verdict:
+   it never borrows the severity ramp (--crit/--high/--med/--low), it keeps a
+   dashed advisory border, and its caption always reads "ADVISORY".
+   Every colour is a token, so both themes are covered by the token blocks in
+   section 1 with no theme-specific rule here. */
+.is-aitriage{ border:1px dashed var(--bd2); border-radius:var(--radius); background:var(--inset); }
+.is-aitriage__cap{ display:flex; align-items:center; gap:6px; letter-spacing:.08em; text-transform:uppercase; font-size:10px; font-weight:600; color:var(--mut); }
+.is-aitriage__cap::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--acc); flex:none; }
+.is-aitriage__verdict{ color:var(--ink2); }
+.is-aitriage__row{ display:flex; flex-wrap:wrap; gap:5px; margin:5px 0 2px; }
+.is-aitriage__status{ font-weight:600; }
+.is-aitriage--agrees .is-aitriage__status{ border-color:var(--acc); color:var(--acc); background:var(--acc-weak); }
+.is-aitriage--disagrees{ border-color:var(--warn); }
+.is-aitriage--disagrees .is-aitriage__cap::before{ background:var(--warn); }
+.is-aitriage--disagrees .is-aitriage__status{ border-color:var(--warn); color:var(--warn); background:color-mix(in srgb,var(--warn) 14%,transparent); }
+.is-aitriage--unavailable{ border-style:dashed; border-color:var(--bd); background:var(--pan); }
+.is-aitriage--unavailable .is-aitriage__cap::before{ background:var(--mut2); }
+.is-aitriage--unavailable .is-aitriage__verdict{ color:var(--mut); font-size:12.5px; font-weight:600; }
+.is-aitriage__why{ margin:6px 0 0; color:var(--mut2); font-size:11px; line-height:1.5; }

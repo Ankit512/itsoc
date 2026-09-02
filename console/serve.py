@@ -1616,6 +1616,12 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
             self._json(copilot.collect_angles(STATE, _copilot_extras(STATE)))
         elif path == "/api/copilot/triage":
             self._json(triage.triage_state(STATE))
+        elif path == "/api/triage/model":
+            # E7a: the learned second opinion's real availability. When no model
+            # is installed this reports `available: false` with the reason —
+            # never a placeholder score. Read-only: nothing here can train,
+            # load-on-demand a verdict, or touch severity/priority/eligibility.
+            self._json(triage.model_status())
         elif path == "/api/sigma/rules":
             self._json({"rules": sigma_match.list_rules()})
         elif path == "/api/sigma/hits":

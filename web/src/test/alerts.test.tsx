@@ -60,29 +60,103 @@ describe("Alerts page", () => {
     expect(screen.getByText("×448")).toBeInTheDocument();
   });
 
-  it("shows AI recommended severity as advisory and does not replace the rule verdict", async () => {
+  // --- E7a: AI TRIAGE · LEARNED, ADVISORY ---------------------------------
+  const learned = (over: Record<string, unknown> = {}) => ({
+    advisory: true as const,
+    learned: true,
+    modelAvailable: true,
+    status: "agrees" as const,
+    ruleSeverity: "HIGH",
+    aiSeverity: "HIGH",
+    aiLabel: "confirmed",
+    confidence: 0.9123,
+    agrees: true,
+    unavailableReason: null,
+    note: "Learned second opinion — ADVISORY. It never changes the rule verdict.",
+    ...over,
+  });
+
+  it("renders the learned advisory block when the model AGREES, without replacing the rule verdict", async () => {
+    mockFetch({
+      "/console_state.json": consoleState([
+        finding(0, { sev: "HIGH", ruleSev: "HIGH", aiTriage: learned() }),
+      ]),
+    });
+    renderApp(<App />, { route: "/alerts?sel=detector-0" });
+
+    const block = await screen.findByTestId("ai-triage");
+    expect(block).toHaveAttribute("data-status", "agrees");
+    expect(screen.getByText("AI triage · learned, advisory")).toBeInTheDocument();
+    expect(screen.getByTestId("ai-triage-severity")).toHaveTextContent("HIGH");
+    expect(screen.getByTestId("ai-triage-status")).toHaveTextContent("Agrees with the rule verdict");
+    expect(screen.getByTestId("ai-triage-confidence")).toHaveTextContent("91.2% confidence");
+    expect(screen.getByTestId("ai-triage-label")).toHaveTextContent("confirmed");
+    expect(screen.getByText("Rule verdict · authoritative")).toBeInTheDocument();
+    expect(screen.getByText(/is unchanged/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("ai-triage-disagreement")).not.toBeInTheDocument();
+  });
+
+  it("renders DISAGREEMENT visibly, and still never changes the verdict", async () => {
+    mockFetch({
+      "/console_state.json": consoleState([
+        finding(0, {
+          sev: "HIGH",
+          ruleSev: "HIGH",
+          aiTriage: learned({
+            status: "disagrees", agrees: false, aiSeverity: "INFO",
+            aiLabel: "false-positive", confidence: 0.7712,
+          }),
+        }),
+      ]),
+    });
+    renderApp(<App />, { route: "/alerts?sel=detector-0" });
+
+    const block = await screen.findByTestId("ai-triage");
+    expect(block).toHaveAttribute("data-status", "disagrees");
+    expect(block.className).toContain("is-aitriage--disagrees");
+    expect(screen.getByTestId("ai-triage-status")).toHaveTextContent("Disagrees with the rule verdict");
+    expect(screen.getByTestId("ai-triage-severity")).toHaveTextContent("INFO");
+    expect(screen.getByTestId("ai-triage-disagreement")).toHaveTextContent(/prompt to look, not a reason/i);
+    // the rule verdict block still shows the rule's own band, untouched
+    expect(within(screen.getByText("Rule verdict · authoritative").parentElement as HTMLElement)
+      .getByText("HIGH")).toBeInTheDocument();
+  });
+
+  it("renders the honest MODEL UNAVAILABLE state with no fabricated severity or confidence", async () => {
     mockFetch({
       "/console_state.json": consoleState([
         finding(0, {
           sev: "HIGH",
           ruleSev: "HIGH",
           aiTriage: {
-            advisory: true,
+            advisory: true as const,
+            learned: true,
+            modelAvailable: false,
+            status: "unavailable" as const,
             ruleSeverity: "HIGH",
-            aiSeverity: "CRITICAL",
-            confidence: "medium",
-            agrees: false,
-            cause: "Many auth failures",
-            note: "AI recommends — analyst decides. This does not change the rule verdict.",
+            aiSeverity: null,
+            aiLabel: null,
+            confidence: null,
+            agrees: null,
+            unavailableReason: "scikit-learn is not installed",
+            note: "Learned second opinion — ADVISORY — is UNAVAILABLE here.",
           },
         }),
       ]),
     });
     renderApp(<App />, { route: "/alerts?sel=detector-0" });
-    expect(await screen.findByTestId("ai-triage")).toHaveTextContent("CRITICAL");
-    expect(screen.getByText("AI recommended severity · advisory")).toBeInTheDocument();
+
+    const block = await screen.findByTestId("ai-triage");
+    expect(block).toHaveAttribute("data-status", "unavailable");
+    expect(screen.getByTestId("ai-triage-unavailable")).toHaveTextContent("Model unavailable");
+    expect(screen.getByTestId("ai-triage-reason")).toHaveTextContent("scikit-learn is not installed");
+    // nothing is invented to fill the space
+    expect(screen.queryByTestId("ai-triage-severity")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("ai-triage-confidence")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("ai-triage-status")).not.toBeInTheDocument();
+    // and the rule verdict is completely unaffected
     expect(screen.getByText("Rule verdict · authoritative")).toBeInTheDocument();
-    expect(screen.getByText(/does not change the rule verdict/i)).toBeInTheDocument();
+    expect(screen.getByText(/stands unchanged/i)).toBeInTheDocument();
   });
 
   it("unrecognized run keeps the honest banner", async () => {

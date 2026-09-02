@@ -306,6 +306,53 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () =>
       ).toEqual([]);
     });
 
+    // ------------------------------------------------------------------------
+    // E7a — AI TRIAGE · LEARNED, ADVISORY (Section 24), both themes
+    // ------------------------------------------------------------------------
+    it("AI triage subsection (Section 24) is token-only, defined in BOTH themes, and never borrows the severity ramp", () => {
+      const aiSection = cssContent.match(
+        /\/\* ---- 24\. AI TRIAGE[\s\S]*$/,
+      )?.[0] ?? "";
+      expect(aiSection, "Section 24 (AI triage) must exist in itsoc.css").toBeTruthy();
+
+      const darkTokens = parseTokenBlock(/:root,\s*\[data-theme="dark"\]\s*\{([^}]+)\}/);
+      const lightTokens = parseTokenBlock(/\[data-theme="light"\]\s*\{([^}]+)\}/);
+      expect(darkTokens.size).toBeGreaterThan(15);
+      expect(lightTokens.size).toBeGreaterThan(15);
+
+      const clean = stripComments(aiSection);
+      const rules = clean.split("}").filter((r) => /is-aitriage/.test(r.split("{")[0] ?? ""));
+      expect(rules.length, "the AI triage block must actually be styled").toBeGreaterThan(8);
+
+      for (const rule of rules) {
+        const [selector, decls] = rule.split("{");
+        if (!decls) continue;
+        // 1. no hardcoded colour anywhere — every colour is a theme token
+        expect(decls.match(/#[0-9a-fA-F]{3,8}\b/g) || [],
+          `Hardcoded hex in ${selector}`).toEqual([]);
+        expect(decls.match(/\brgba?\([^)]+\)/g) || [],
+          `Hardcoded rgb in ${selector}`).toEqual([]);
+        // 2. the ADVISORY block must never wear the rule verdict's severity ramp
+        expect(decls.match(/var\(\s*--(crit|high|med|low)\b/g) || [],
+          `AI triage rule ${selector} must not borrow the severity palette — an ` +
+          `advisory opinion may never look like a rule verdict`).toEqual([]);
+        // 3. every token it does use exists in BOTH theme blocks
+        for (const m of decls.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)\s*\)/g)) {
+          const token = m[1];
+          if (!/^--(radius|font|space|shadow-)/.test(token)) {
+            expect(darkTokens.has(token), `${token} (used by ${selector}) missing from dark theme`).toBe(true);
+            expect(lightTokens.has(token), `${token} (used by ${selector}) missing from light theme`).toBe(true);
+          }
+        }
+      }
+
+      // 4. all three states are styled — agreement, disagreement and the honest
+      //    unavailable state must each be visibly distinct, in both themes.
+      for (const state of ["agrees", "disagrees", "unavailable"]) {
+        expect(clean, `.is-aitriage--${state} must be styled`).toContain(`.is-aitriage--${state}`);
+      }
+    });
+
     it("Advisory states subsection (Section 22) strictly avoids borrowing the severity/crit palette (--crit, --high, --med, --low)", () => {
       const advisorySection = cssContent.match(
         /\/\* ── 22\. ADVISORY STATES[\s\S]*?(?=\/\* --- C4-F3)/,

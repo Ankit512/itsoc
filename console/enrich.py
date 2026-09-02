@@ -8,11 +8,16 @@ Called after adapter.adapt() (and on run reload). Idempotent:
   * `sev` / `ruleSev` on every finding is snapshotted and restored.
   * `aiTriage` is additive advisory metadata.
 
+E7a: `aiTriage` is now the LEARNED second opinion (console/triage_model.py).
+When no model is installed it is the honest "model unavailable" state — the
+findings, their `sev` and everything downstream are byte-identical either way.
+
 Does not import anomaly_detector.py.
 """
 
 from __future__ import annotations
 
+import org_context
 import sigma_match
 import triage
 
@@ -25,10 +30,15 @@ def enrich_console_state(state):
     sevs = {id(f): (f.get("sev"), f.get("ruleSev")) for f in kept}
     extra = sigma_match.findings_from_events(state.get("events") or [], gap_fill=True)
     findings = kept + extra
+    # Configured asset criticality is a rule-owned org-context fact and one of
+    # the model's features. Resolved here, once, so train and inference see the
+    # same value for the same host (org_context.py is stdlib-only config).
+    org = org_context.load_org_context()
     attached = []
     for f in findings:
         before = (f.get("sev"), f.get("ruleSev"))
-        f["aiTriage"] = triage.recommend(f)
+        crit = org.get_criticality(f.get("host")) if f.get("hostDerived") else None
+        f["aiTriage"] = triage.recommend(f, org_criticality=crit)
         # Restore in case anything ever tried to write through.
         if id(f) in sevs:
             f["sev"], f["ruleSev"] = sevs[id(f)]
