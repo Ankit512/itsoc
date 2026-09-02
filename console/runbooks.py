@@ -71,14 +71,22 @@ RULE_OWNED_FINDING_KEYS = frozenset({
     "id", "type", "ruleSev", "sev", "host", "occurrences", "lines",
 })
 # Named for the test that asserts the allowlists and this set stay disjoint.
+# Stage E (E6) extends this set *before* the fields exist: the second-opinion
+# model (E7), the precedent panel (E1) and the proposal drafts (E4) all write
+# advisory prose onto findings/incidents, and the wall must already refuse it
+# on the day those cards land. `similarityNote`, `precedentOpinion` and
+# `proposalDraft` are therefore listed here ahead of their producers.
 ADVISORY_KEYS = frozenset({
     "llmSev", "llmWhy", "explanation", "hypothesis", "narrative", "rca",
     "advisory", "modelFindings", "summary", "prose", "llm",
     "aiTriage", "aiSeverity", "aiConfidence",
+    # --- Stage E advisory fields (E6, added before their producers) ---
+    "similarityNote", "precedentOpinion", "proposalDraft",
 })
 
 _ADVISORY_WORD_RE = re.compile(
-    r"llm|advisory|narrative|hypoth|explan|model|prose|summary|rca",
+    r"llm|advisory|narrative|hypoth|explan|model|prose|summary|rca|"
+    r"similarity|precedent|opinion|proposal|draft",
     re.IGNORECASE)
 
 
@@ -358,6 +366,30 @@ def evaluate_all(incident, findings, runbooks=None):
 # --------------------------------------------------------------------------
 
 ELIGIBILITY_PARAMS = ("runbook", "incident", "findings")
+
+
+def assert_advisory_disjoint():
+    """Assert the rule-owned projection can never carry an advisory field.
+
+    Two properties, both checked against the live constants:
+      1. neither RULE_OWNED allowlist intersects ADVISORY_KEYS — the named
+         advisory fields are not projectable;
+      2. no rule-owned key *reads* as advisory under `_ADVISORY_WORD_RE` — so
+         a future key called e.g. `precedentOpinion2` cannot be added to an
+         allowlist and quietly become an eligibility input just because it was
+         never enumerated in ADVISORY_KEYS.
+    Raises AssertionError naming the offending keys. Returns the allowlist union.
+    """
+    owned = RULE_OWNED_INCIDENT_KEYS | RULE_OWNED_FINDING_KEYS
+    overlap = sorted(owned & ADVISORY_KEYS)
+    assert not overlap, (
+        f"rule-owned projection overlaps ADVISORY_KEYS: {overlap} — an "
+        f"advisory field would reach an eligibility predicate")
+    reads_advisory = sorted(k for k in owned if _ADVISORY_WORD_RE.search(k))
+    assert not reads_advisory, (
+        f"rule-owned key(s) read as advisory: {reads_advisory} — name them "
+        f"in ADVISORY_KEYS or drop them from the allowlist")
+    return frozenset(owned)
 
 
 def assert_no_llm_input(func=None):
