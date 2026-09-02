@@ -56,3 +56,12 @@ Report: `docs/STAGE_E_REPORTS/E1-accepted.md`.
 - 2,500-incident end-to-end query: best 18.1 ms, median 18.7 ms of 7, with a clock-free posting-cost assertion proving the query does not scan the whole store.
 - Disposition joins only after deterministic ranking; advisory/disposition poisoning cannot reorder results. Explanations are recomputable from each match's shared facts.
 - `graphify update .` completed. Graphify reported one TSX parser warning on `Incidents.tsx`; the authoritative TypeScript build passed.
+
+## E7a dispatched — 2026-09-02
+
+Report: `docs/STAGE_E_REPORTS/E7a-dispatch.md`.
+
+- Existing generator/isolation prerequisite reverified: 5/5 generator tests and 13/13 harness tests.
+- Task `task_64d5ccd160ec`, dispatch `ctx_c8ce5df92642`, Claude Code, branch `feat/e7a-model-v1`.
+- Exact accepted-main base `e7f6831`. One shared rule-owned feature extractor; seeded provenance; stratified CV; balanced weighting; learned advice only.
+- Missing dependency/model must remain an honest visible unavailable state. Mutation and kill-model evidence are mandatory. No push or worker merge.
