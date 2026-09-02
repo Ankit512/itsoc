@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import App from "@/App";
 import { renderApp, mockFetch, DEFAULT_AUTH_ME, DEFAULT_AUTH_STATUS } from "./helpers";
-import type { Incident } from "@/lib/api";
+import type { Incident, PrecedentMatch, PrecedentReport } from "@/lib/api";
 
 function incident(over: Partial<Incident & { priority?: string; priorityRationale?: string }> = {}): Incident {
   return {
@@ -647,5 +647,135 @@ describe("Priority chip presentation (C4-F3)", () => {
     const audit = await screen.findByTestId("incident-audit");
     expect(within(audit).queryByTestId("disposition-chip")).toBeNull();
     expect(within(audit).queryAllByTestId("disposition-audit-entry").length).toBe(0);
+  });
+});
+
+// --- E1: the Precedents panel --------------------------------------------
+function precedent(over: Partial<PrecedentMatch> = {}): PrecedentMatch {
+  return {
+    id: "inc-prior1", overlap: 3,
+    dimensions: ["ruleIds", "entity", "attackTags"],
+    matched: { ruleIds: ["auth_bruteforce"], entity: ["203.0.113.44"], attackTags: ["T1110"] },
+    because: ["same rule: auth_bruteforce", "same entity: 203.0.113.44",
+              "same ATT&CK technique: T1110"],
+    explanation: "same rule: auth_bruteforce; same entity: 203.0.113.44; same ATT&CK technique: T1110",
+    title: "203.0.113.44 — 4 correlated finding(s)", state: "closed", severity: "HIGH",
+    createdAt: "2026-08-20T02:00:00+00:00", runId: "prior-run",
+    disposition: "confirmed", dispositionReason: "real intrusion",
+    dispositionAt: "2026-08-21T09:00:00+00:00", dispositionRecorded: true,
+    ...over,
+  };
+}
+
+function precedentReport(over: Partial<PrecedentReport> = {}): PrecedentReport {
+  return {
+    incidentId: "inc-abc123",
+    dimensions: ["ruleIds", "entity", "attackTags", "assetCriticality"],
+    candidatesStored: 42, candidatesScored: 5, matchCount: 2,
+    precedents: [precedent(), precedent({
+      id: "inc-prior2", overlap: 1, dimensions: ["ruleIds"],
+      matched: { ruleIds: ["auth_bruteforce"] },
+      because: ["same rule: auth_bruteforce"],
+      explanation: "same rule: auth_bruteforce",
+      title: "198.51.100.7 — 1 correlated finding(s)", state: "new",
+      disposition: null, dispositionReason: null, dispositionAt: null,
+      dispositionRecorded: false,
+    })],
+    note: "Deterministic overlap of rule-owned facts over stored incidents. "
+      + "Recall only — never a severity, a priority, or an eligibility input.",
+    ...over,
+  };
+}
+
+describe("Incident precedents panel (E1)", () => {
+  it("ranks precedents by shared-fact count and shows the facts that matched", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/precedents": precedentReport(),
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    // Await the resolved panel body, not the panel shell — the shell renders
+    // immediately in its loading state.
+    await screen.findByTestId("precedents-summary");
+    const panel = screen.getByTestId("precedents-panel");
+    const rows = within(panel).getAllByTestId("precedent-row");
+    expect(rows.length).toBe(2);
+    // Ranked: the 3-fact match is above the 1-fact match.
+    expect(within(rows[0]).getByTestId("precedent-link")).toHaveTextContent("inc-prior1");
+    expect(within(rows[0]).getByTestId("precedent-overlap")).toHaveTextContent("3 shared facts");
+    expect(within(rows[1]).getByTestId("precedent-overlap")).toHaveTextContent("1 shared fact");
+
+    // Every clause rendered is a matched fact — the explanation is sourced.
+    const because = within(rows[0]).getByTestId("precedent-because");
+    for (const clause of precedent().because) {
+      expect(because).toHaveTextContent(clause);
+    }
+    expect(within(panel).getByTestId("precedents-summary"))
+      .toHaveTextContent("Showing 2 of 2 prior incident(s)");
+  });
+
+  it("shows a precedent's stored disposition verbatim, labelled as analyst state", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/precedents": precedentReport(),
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    await screen.findByTestId("precedents-summary");
+    const rows = within(screen.getByTestId("precedents-panel"))
+      .getAllByTestId("precedent-row");
+    const disp = within(rows[0]).getByTestId("precedent-disposition");
+    expect(disp).toHaveTextContent("Analyst disposition: Confirmed");
+    expect(disp).toHaveTextContent("analyst-captured · not a rule verdict");
+    expect(disp).toHaveTextContent("real intrusion");
+    // A precedent with no disposition says so — it never borrows the other's.
+    expect(within(rows[1]).queryByTestId("precedent-disposition")).toBeNull();
+    expect(within(rows[1]).getByTestId("precedent-no-disposition"))
+      .toHaveTextContent("No disposition recorded on this incident.");
+  });
+
+  it("renders an honest empty state when nothing in the store shares a fact", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/precedents": precedentReport({ matchCount: 0, precedents: [] }),
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    await screen.findByTestId("precedents-empty");
+    const panel = screen.getByTestId("precedents-panel");
+    expect(within(panel).getByTestId("precedents-empty"))
+      .toHaveTextContent("There is no precedent to show — this is information, not a failure.");
+    expect(within(panel).queryAllByTestId("precedent-row").length).toBe(0);
+  });
+
+  it("states the index is unreachable rather than inventing precedents", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/precedents": { error: "no such incident", __status: 404 },
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    await screen.findByTestId("precedents-error");
+    const panel = screen.getByTestId("precedents-panel");
+    expect(within(panel).getByTestId("precedents-error"))
+      .toHaveTextContent("Nothing is invented.");
+    expect(within(panel).queryAllByTestId("precedent-row").length).toBe(0);
+  });
+
+  it("presents precedents as recall — never as a verdict or a recommendation", async () => {
+    mockFetch({
+      "/api/incidents/inc-abc123/precedents": precedentReport(),
+      "/api/incidents": { incidents: [incident()] },
+    });
+    renderApp(<App />, { route: "/incidents?sel=inc-abc123" });
+
+    await screen.findByTestId("precedents-summary");
+    const panel = screen.getByTestId("precedents-panel");
+    expect(panel).toHaveTextContent("deterministic · rule-owned facts");
+    expect(panel).toHaveTextContent(
+      /never affect this incident.s severity, priority or runbook\s+eligibility/);
+    // No action control lives on this panel: recall cannot start a response.
+    expect(within(panel).queryAllByRole("button").length).toBe(0);
   });
 });

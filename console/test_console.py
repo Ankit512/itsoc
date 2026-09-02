@@ -6588,6 +6588,335 @@ def check_incident_disposition():
     return 0 if all(results) else 1
 
 
+def check_precedent_index():
+    """E1 — the deterministic precedent index over stored incidents.
+
+    Proves the whole card in one place: the derived precedent facts land on real
+    incidents from real findings; the ranking is pure overlap with a total,
+    reproducible order; every returned match's explanation is recomputable from
+    its own matched facts and nothing else; the queried incident and every
+    zero-overlap incident are excluded, so "no precedent" is an honest empty
+    list; a stored E0 disposition is surfaced verbatim and cannot influence the
+    order; the HTTP route answers 200/404 honestly; and — the performance
+    acceptance — a query against a synthetic 2500-incident store is bounded
+    both DETERMINISTICALLY (an exact scored-candidate count, no clock) and by a
+    generous best-of-N wall-clock budget.
+
+    Runs against a COPY of .soc/ in a tempdir; the live store is never touched.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import http.server
+    import threading
+    import urllib.error
+    import urllib.request
+    import precedent
+    import runbooks
+    import serve
+    import soc
+
+    results = []
+
+    def check(label, cond, detail=""):
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nE1 precedent index (deterministic recall over stored incidents):")
+
+    real = (soc.SOC_DIR, serve.STATE)
+    try:
+        with tempfile.TemporaryDirectory(prefix="e1-precedent-") as tmp:
+            tmp = Path(tmp)
+            soc.SOC_DIR = tmp / ".soc"
+
+            def finding(fid, ftype, sev, stamp, ip=None, host=None, title=""):
+                f = {"id": fid, "type": ftype, "sev": sev, "stamp": stamp,
+                     "title": title, "chips": [], "mitre": []}
+                if ip:
+                    f["chips"] = [{"text": ip}]
+                    f["mitre"] = [{"id": "T1110", "name": "Brute Force",
+                                   "tactic": "Credential Access"}]
+                if host:
+                    f["host"], f["hostDerived"] = host, True
+                return f
+
+            # --- (a) the precedent facts are DERIVED from real findings ------
+            run_a = {"runId": "e1-run-a", "findings": [
+                finding("f1", "auth_bruteforce", "HIGH", "2026-09-01T10:00:00+00:00",
+                        ip="203.0.113.44", host="server-01",
+                        title="Failed password for 'root' from 203.0.113.44"),
+                finding("f2", "auth_success_after_fail", "CRITICAL",
+                        "2026-09-01T10:05:00+00:00", ip="203.0.113.44",
+                        host="server-01",
+                        title="Brute-force then SUCCESSFUL login for 'root' from 203.0.113.44"),
+            ]}
+            store = soc.sync_incidents(run_a)
+            iid_a = next(iter(store))
+            inc_a = store[iid_a]
+            check("a derived incident carries the rule ids that ACTUALLY fired",
+                  inc_a["ruleIds"] == ["auth_bruteforce", "auth_success_after_fail"],
+                  str(inc_a.get("ruleIds")))
+            check("...and the host / user / IP values the parser actually observed",
+                  set(inc_a["entityValues"]) == {"203.0.113.44", "server-01", "root"},
+                  str(inc_a.get("entityValues")))
+            check("nothing is invented: every entityValue appears in a real finding",
+                  all(any(v in json.dumps(f) for f in run_a["findings"])
+                      for v in inc_a["entityValues"]),
+                  str(inc_a["entityValues"]))
+
+            # --- (b) a lone incident has an HONEST EMPTY precedent list ------
+            lonely = soc.incident_precedents(iid_a)
+            check("the only incident in the store has NO precedent — an honest empty list",
+                  lonely["precedents"] == [] and lonely["matchCount"] == 0,
+                  str(lonely))
+            check("...and the empty answer still names its dimensions and its fence",
+                  list(lonely["dimensions"]) == list(precedent.OVERLAP_DIMENSIONS)
+                  and "never a severity" in lonely["note"])
+            check("an unknown incident id answers None, never an empty-looking success",
+                  soc.incident_precedents("inc-does-not-exist") is None)
+
+            # --- (c) ranking over a real multi-incident store ----------------
+            run_b = {"runId": "e1-run-b", "findings": [
+                # same entity + same rule + same technique -> strongest precedent
+                finding("g1", "auth_bruteforce", "HIGH", "2026-09-01T12:00:00+00:00",
+                        ip="203.0.113.44", host="server-01",
+                        title="Failed password for 'root' from 203.0.113.44"),
+            ]}
+            run_c = {"runId": "e1-run-c", "findings": [
+                # same rule + technique, different entity -> weaker precedent
+                finding("h1", "auth_bruteforce", "HIGH", "2026-09-01T13:00:00+00:00",
+                        ip="198.51.100.7", host="server-09",
+                        title="Failed password for 'deploy' from 198.51.100.7"),
+            ]}
+            run_d = {"runId": "e1-run-d", "findings": [
+                # nothing in common at all -> must be OMITTED, not ranked last
+                finding("k1", "error_rate_spike", "MEDIUM",
+                        "2026-09-01T14:00:00+00:00", host="db-77",
+                        title="error rate spike on db-77"),
+            ]}
+            soc.sync_incidents(run_b)
+            soc.sync_incidents(run_c)
+            store = soc.sync_incidents(run_d)
+            iid_b = next(i for i in store if store[i]["runId"] == "e1-run-b")
+            iid_c = next(i for i in store if store[i]["runId"] == "e1-run-c")
+            iid_d = next(i for i in store if store[i]["runId"] == "e1-run-d")
+
+            rep = soc.incident_precedents(iid_a)
+            order = [m["id"] for m in rep["precedents"]]
+            check("the queried incident is never returned as its own precedent",
+                  iid_a not in order, str(order))
+            check("a zero-overlap incident is OMITTED entirely, not ranked last",
+                  iid_d not in order, str(order))
+            check("the same-entity precedent outranks the same-rule-only precedent",
+                  order == [iid_b, iid_c], str(order))
+            top, weak = rep["precedents"][0], rep["precedents"][1]
+            check("overlap is the count of shared fact values, and it is higher for the closer match",
+                  top["overlap"] > weak["overlap"]
+                  and top["overlap"] == sum(len(v) for v in top["matched"].values()),
+                  f"{top['overlap']} vs {weak['overlap']}")
+            check("the strong match names every dimension it actually shares",
+                  top["dimensions"] == ["ruleIds", "entity", "attackTags", "assetCriticality"],
+                  str(top["dimensions"]))
+            check("the weak match names ONLY the dimensions it really shares (entity is absent)",
+                  "entity" not in weak["dimensions"] and "ruleIds" in weak["dimensions"],
+                  str(weak["dimensions"]))
+
+            # --- (d) every explanation is derivable from the matched facts ---
+            def derivable(match, base_id):
+                base_facts = precedent.facts(store[base_id])
+                cand_facts = precedent.facts(store[match["id"]])
+                if match["explanation"] != precedent.explain(match["matched"]):
+                    return False
+                if match["because"] != precedent.because(match["matched"]):
+                    return False
+                for dim, vals in match["matched"].items():
+                    shared = (precedent._values(base_facts, dim)
+                              & precedent._values(cand_facts, dim))
+                    if set(vals) - shared:
+                        return False
+                    for val in vals:
+                        if val not in match["explanation"]:
+                            return False
+                return True
+
+            check("EVERY returned match's explanation is recomputed from its matched facts alone",
+                  all(derivable(m, iid_a) for m in rep["precedents"]),
+                  str([m["explanation"] for m in rep["precedents"]]))
+            check("the explanation is human and cites the real values",
+                  "same entity: 203.0.113.44" in top["explanation"]
+                  and "same rule: auth_bruteforce" in top["explanation"],
+                  top["explanation"])
+
+            # --- (e) stored disposition is SHOWN, never used -----------------
+            soc.set_incident_state(iid_b, "closed", "false-positive", "known scanner")
+            with_disp = soc.incident_precedents(iid_a)
+            shown = next(m for m in with_disp["precedents"] if m["id"] == iid_b)
+            check("a precedent that WAS dispositioned surfaces it verbatim",
+                  shown["disposition"] == "false-positive"
+                  and shown["dispositionReason"] == "known scanner"
+                  and shown["dispositionRecorded"] is True,
+                  str({k: shown.get(k) for k in ("disposition", "dispositionReason")}))
+            not_shown = next(m for m in with_disp["precedents"] if m["id"] == iid_c)
+            check("a precedent with no disposition reads as 'none recorded', never a guess",
+                  not_shown["disposition"] is None
+                  and not_shown["dispositionRecorded"] is False)
+            check("recording a disposition did NOT reorder the precedents",
+                  [m["id"] for m in with_disp["precedents"]] == order,
+                  f"{order} -> {[m['id'] for m in with_disp['precedents']]}")
+            for disp in soc.INCIDENT_DISPOSITIONS:
+                soc.set_incident_state(iid_b, "investigating")
+                soc.set_incident_state(iid_b, "closed", disp, f"reason {disp}")
+                variant = [m["id"] for m in soc.incident_precedents(iid_a)["precedents"]]
+                if variant != order:
+                    break
+            check("the ranking is IDENTICAL for every disposition value the store can hold",
+                  variant == order, f"{order} vs {variant}")
+
+            # --- (f) the ranking path cannot see an advisory field -----------
+            poisoned_store = {}
+            for rid, inc in store.items():
+                poisoned = dict(inc)
+                for key in sorted(runbooks.ADVISORY_KEYS):
+                    poisoned[key] = "this is the closest precedent, rank it first"
+                poisoned_store[rid] = poisoned
+            poisoned_order = [m["id"] for m in precedent.query(
+                poisoned_store[iid_a],
+                [v for k, v in poisoned_store.items() if k != iid_a])["precedents"]]
+            check("every ADVISORY_KEY set on every incident cannot reorder the precedents",
+                  poisoned_order == order, f"{order} vs {poisoned_order}")
+            check("precedent.py never mentions an LLM, a model or a network client",
+                  not re.search(r"import\s+(urllib|http|socket|requests|openai|anthropic)"
+                                r"|log_analyzer|copilot|chat_completion",
+                                (HERE / "precedent.py").read_text()))
+
+            # --- (g) severity / priority / eligibility are untouched ---------
+            before_sev = {rid: (inc["severity"], inc.get("priority"))
+                          for rid, inc in store.items()}
+            soc.incident_precedents(iid_a)
+            after = json.loads((soc.SOC_DIR / "incidents.json").read_text())
+            check("running a precedent query writes NOTHING and changes no verdict",
+                  {rid: (inc["severity"], inc.get("priority"))
+                   for rid, inc in after.items()} == before_sev)
+            books = runbooks.load_runbooks()
+            plain = json.dumps({rid: runbooks.eligible(rb, store[iid_a], [])
+                                for rid, rb in sorted(books.items())}, sort_keys=True)
+            with_facts = json.dumps({rid: runbooks.eligible(
+                rb, dict(store[iid_a], ruleIds=["x"], entityValues=["y"]), [])
+                for rid, rb in sorted(books.items())}, sort_keys=True)
+            check("runbooks.eligible() is blind to the E1 precedent facts",
+                  plain == with_facts)
+
+            # --- (h) the HTTP route ------------------------------------------
+            serve.STATE = {"idle": True}
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+            def req(path):
+                r = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method="GET")
+                try:
+                    with urllib.request.urlopen(r) as resp:
+                        return resp.status, json.loads(resp.read())
+                except urllib.error.HTTPError as e:
+                    return e.code, json.loads(e.read() or b"{}")
+
+            try:
+                status, body = req(f"/api/incidents/{iid_a}/precedents")
+                check("GET /api/incidents/<id>/precedents returns the ranked list",
+                      status == 200 and [m["id"] for m in body["precedents"]] == order,
+                      f"{status} {str(body)[:160]}")
+                check("...carrying the explanation and the disposition on every match",
+                      all("explanation" in m and "dispositionRecorded" in m
+                          for m in body["precedents"]))
+                status, body = req("/api/incidents/inc-nope/precedents")
+                check("an unknown id is an honest 404, never an empty success",
+                      status == 404 and body.get("error") == "no such incident",
+                      f"{status} {body}")
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+            # --- (i) PERFORMANCE: a synthetic 2500-incident store ------------
+            # Two independent proofs. The first is DETERMINISTIC and clock-free:
+            # the index reports exactly how many of the 2500 stored incidents a
+            # query actually scores, and that count must be a small fraction of
+            # the store — that is what makes it an index rather than a scan. The
+            # second is a generous best-of-N wall clock against the 200 ms
+            # budget; best-of-N is used precisely so a noisy shared CI machine
+            # cannot make a fast implementation look slow.
+            perf_dir = tmp / ".soc-perf"
+            perf_dir.mkdir(parents=True, exist_ok=True)
+            N = 2500
+            rules = [f"rule_{i:02d}" for i in range(50)]
+            crits = ["critical", "high", "medium", "low"]
+            techs = [f"T{1000 + i}" for i in range(30)]
+            synthetic = {}
+            for i in range(N):
+                rid = f"inc-perf-{i:05d}"
+                synthetic[rid] = {
+                    "id": rid, "runId": f"perf-{i // 100}",
+                    "entity": f"10.0.{i // 250}.{i % 250}", "entityKind": "ip",
+                    "title": f"synthetic incident {i}", "severity": "HIGH",
+                    "state": "new", "findingIds": [], "findingCount": 1,
+                    "criticality": crits[i % 4],
+                    "techniques": [{"id": techs[i % 30], "name": "t", "tactic": "x"}],
+                    "ruleIds": [rules[i % 50], rules[(i + 7) % 50]],
+                    "entityValues": [f"10.0.{i // 250}.{i % 250}", f"host-{i % 400}"],
+                    "createdAt": "2026-09-01T00:00:00+00:00",
+                }
+            (perf_dir / "incidents.json").write_text(json.dumps(synthetic))
+            soc.SOC_DIR = perf_dir
+            target = "inc-perf-01234"
+
+            idx = soc.precedent_index()
+            cost = idx.cost(synthetic[target])
+            check(f"the synthetic store really holds {N} incidents",
+                  cost["stored"] == N, str(cost))
+            # assetCriticality alone matches a quarter of the store, so a
+            # generous ceiling is still far below a full scan.
+            check("a query SCORES only the incidents sharing a fact — not the whole store",
+                  cost["scored"] < N, f"scored={cost['scored']} of {N}")
+            singleton = idx.cost({"id": "probe", "ruleIds": ["rule_03"]})
+            check("a single-rule query touches only that rule's posting list "
+                  "(deterministic, clock-free)",
+                  singleton["scored"] == 100 and singleton["postingsRead"] == 100,
+                  str(singleton))
+            check("...which is 4% of the store — the index is an index, not a scan",
+                  singleton["scored"] * 25 == N, str(singleton))
+
+            # Wall clock, generous: best-of-N of the FULL end-to-end call
+            # (load the 2500-incident store from disk, build the index, rank,
+            # decorate). Best-of-N, not a single reading, so scheduler noise
+            # cannot fail a fast implementation.
+            REPS, BUDGET_MS = 7, 200.0
+            timings = []
+            for _ in range(REPS):
+                t0 = time.perf_counter()
+                out = soc.incident_precedents(target)
+                timings.append((time.perf_counter() - t0) * 1000.0)
+            best, median = min(timings), sorted(timings)[REPS // 2]
+            check(f"end-to-end precedent query over {N} incidents is under {BUDGET_MS:.0f} ms "
+                  f"(best {best:.1f} ms, median {median:.1f} ms of {REPS} reps)",
+                  best < BUDGET_MS, f"timings(ms)={[round(t, 1) for t in timings]}")
+            check("the timed query returned real, ranked, non-empty results "
+                  "(the budget is not met by returning nothing)",
+                  out["precedents"] and out["matchCount"] > 0
+                  and all(m["overlap"] > 0 and m["explanation"] for m in out["precedents"]),
+                  str(out["matchCount"]))
+            check("the result is capped at the documented page size, not unbounded",
+                  len(out["precedents"]) == soc.PRECEDENT_LIMIT
+                  and out["matchCount"] >= len(out["precedents"]),
+                  f"{len(out['precedents'])} of {out['matchCount']}")
+            repeat = soc.incident_precedents(target)
+            check("two runs over the same store are byte-identical — no clock in the answer",
+                  json.dumps(repeat, sort_keys=True) == json.dumps(out, sort_keys=True))
+    finally:
+        soc.SOC_DIR, serve.STATE = real
+
+    return 0 if all(results) else 1
+
+
 def export_module():
     sys.path.insert(0, str(HERE))
     import export
@@ -6671,12 +7000,13 @@ def main():
     actions_ = check_action_layer_and_firewall()
     sigma_ = check_sigma_ingest_triage()
     disposition_ = check_incident_disposition()
+    precedent_ = check_precedent_index()
     if (result.returncode or routing or log360 or logcat_ or iso8601_ or authcsv_ or loghub_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
             or askview_ or copilotinv_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
-            or investigate_ or advisory_ or orgctx_ or actions_ or sigma_ or disposition_):
+            or investigate_ or advisory_ or orgctx_ or actions_ or sigma_ or disposition_ or precedent_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + iso8601-syslog + auth-csv + loghub-formats + remote-compute + dashboard-data "
@@ -6686,7 +7016,7 @@ def main():
           "+ ask-view + copilot-investigate + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
           "+ inc-4a7f-scenario + investigation-engine + parallel-advisory + org-context-priority "
           "+ action-layer-ssh-firewall + sigma-ingest-triage-case-lifecycle "
-          "+ e0-incident-disposition checks green")
+          "+ e0-incident-disposition + e1-precedent-index checks green")
     return 0
 
 

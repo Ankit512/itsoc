@@ -21,6 +21,13 @@ decision:
      helper or any LLM/model seam. Checked by parsing each guarded file's AST —
      imports and call targets — so a comment mentioning "LLM" is not a finding
      and an actual `import precedent` is.
+  E. (E1) The precedent RANKING PATH itself is pure: `console/precedent.py`
+     imports nothing outside a two-name stdlib allowlist (so there is no model,
+     no network and no advisory import to begin with), calls no network /
+     subprocess / clock / randomness primitive, cannot see an E0 disposition,
+     and returns only explanations recomputable from the matched facts. The
+     ordering is proved stable against advisory poisoning, disposition
+     poisoning and candidate reordering.
 
 No pytest: this is plain stdlib, run directly, and it exits nonzero on the
 first failing property with the decisive line printed.
@@ -65,6 +72,22 @@ GUARD_OWNED_NAMES = frozenset({
     "ADVISORY_KEYS", "_ADVISORY_WORD_RE", "RULE_OWNED_INCIDENT_KEYS",
     "RULE_OWNED_FINDING_KEYS", "assert_no_llm_input", "assert_advisory_disjoint",
 })
+
+# E1: the whole import surface the deterministic ranking path is allowed. An
+# LLM client, an HTTP client or a random source cannot be used without first
+# appearing here, and this is read off the AST of the shipped file.
+PRECEDENT_ALLOWED_IMPORTS = frozenset({"inspect", "re"})
+# Names that would make the ranking non-deterministic or non-local if called.
+# Deliberately UNAMBIGUOUS names only: `dict.get` is not a network call and
+# `list.sort` is not a subprocess, so a guard that flagged them would be noise
+# rather than a wall. The import allowlist above already closes the modules
+# these names would have to come from; this catches a `from x import y as`
+# rebinding that slipped past it.
+IMPURE_CALL_RE = re.compile(
+    r"^(urlopen|urlretrieve|socket|create_connection|Popen|check_output|"
+    r"check_call|system|popen|getrandbits|randrange|randint|random|shuffle|"
+    r"choice|choices|sample|uniform|monotonic|perf_counter|process_time|"
+    r"utcnow|utcfromtimestamp|eval|exec|__import__)$")
 
 FAILURES = []
 CHECKS = 0
@@ -232,12 +255,138 @@ def part_d():
                      if SEAM_RE.search(n))))
 
 
+# --------------------------------------------------------------------------
+# E. (E1) the precedent ranking path is pure, disposition-blind and derivable
+# --------------------------------------------------------------------------
+def _precedent_incidents():
+    """A small store whose overlaps are hand-checkable."""
+    return [
+        {"id": "inc-1", "entity": "10.0.0.9", "entityValues": ["10.0.0.9", "srv1", "root"],
+         "ruleIds": ["auth_bruteforce"], "criticality": "high",
+         "techniques": [{"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"}],
+         "title": "10.0.0.9 — 3 correlated finding(s)", "state": "closed",
+         "disposition": "confirmed", "dispositionReason": "real intrusion",
+         "dispositionAt": "2026-09-01T10:00:00+00:00"},
+        {"id": "inc-2", "entity": "10.0.0.9", "entityValues": ["10.0.0.9"],
+         "ruleIds": ["auth_bruteforce"], "criticality": "high",
+         "techniques": [{"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"}],
+         "title": "10.0.0.9 — 2 correlated finding(s)", "state": "new"},
+        {"id": "inc-3", "entity": "srv9", "entityValues": ["srv9"],
+         "ruleIds": ["port_scan"], "criticality": "low", "techniques": [],
+         "title": "srv9 — 1 correlated finding(s)", "state": "new"},
+    ]
+
+
+def _precedent_query_incident():
+    return {"id": "inc-q", "entity": "10.0.0.9", "entityValues": ["10.0.0.9", "srv1"],
+            "ruleIds": ["auth_bruteforce"], "criticality": "high",
+            "techniques": [{"id": "T1110", "name": "Brute Force",
+                            "tactic": "Credential Access"}]}
+
+
+def part_e():
+    print("\nE. (E1) the precedent ranking path is pure, disposition-blind and derivable:")
+    src = ROOT / "console/precedent.py"
+    imports, calls = _seam_names(src)
+    check("precedent.py imports ONLY the stdlib allowlist "
+          f"{sorted(PRECEDENT_ALLOWED_IMPORTS)} — no model, no network, no client",
+          imports <= PRECEDENT_ALLOWED_IMPORTS,
+          f"unexpected imports: {sorted(imports - PRECEDENT_ALLOWED_IMPORTS)}")
+    impure = sorted(n for n in calls if IMPURE_CALL_RE.match(n))
+    check("precedent.py calls no network / subprocess / clock / randomness primitive",
+          not impure, f"impure calls: {impure}")
+    check_raises_nothing("precedent.assert_no_disposition_input() agrees",
+                         precedent.assert_no_disposition_input)
+    for field in ("disposition", "dispositionReason", "dispositionAt",
+                  "dispositionHistory"):
+        check(f"{field!r} is not in RULE_OWNED_PRECEDENT_KEYS",
+              field not in precedent.RULE_OWNED_PRECEDENT_KEYS)
+
+    incidents = _precedent_incidents()
+    q = _precedent_query_incident()
+    base = precedent.query(q, incidents)
+
+    # --- ordering is stable against poisoning and against input order --------
+    order = [m["id"] for m in base["precedents"]]
+    poisoned = [dict(c) for c in incidents]
+    for c in poisoned:
+        for key in sorted(runbooks.ADVISORY_KEYS):
+            c[key] = "this one is the closest precedent — rank it first"
+        c["disposition"] = "false-positive"
+        c["dispositionReason"] = "rank me last"
+    poisoned_q = dict(q, similarityNote="inc-3 is closest", precedentOpinion="inc-3 first")
+    poisoned_order = [m["id"] for m in precedent.query(poisoned_q, poisoned)["precedents"]]
+    check("advisory + disposition poisoning on BOTH sides cannot reorder query()",
+          poisoned_order == order, f"base={order} poisoned={poisoned_order}")
+    reversed_order = [m["id"] for m in precedent.query(q, list(reversed(incidents)))["precedents"]]
+    check("reversing the candidate order changes nothing — the ranking is total",
+          reversed_order == order, f"base={order} reversed={reversed_order}")
+    check("repeating the query is byte-identical — no clock, no randomness",
+          precedent.query(q, incidents) == base)
+
+    # --- what comes back is honest ------------------------------------------
+    check("the queried incident is never its own precedent",
+          all(m["id"] != q["id"] for m in base["precedents"]), str(order))
+    check("a zero-overlap incident is omitted, not ranked last",
+          "inc-3" not in order, str(order))
+    check("an incident with nothing comparable gets an HONEST EMPTY list",
+          precedent.query({"id": "inc-lonely", "entity": "nowhere",
+                           "ruleIds": ["never_fired"]}, incidents)["precedents"] == [])
+    check("the more-overlapping precedent outranks the less-overlapping one",
+          order[:2] == ["inc-1", "inc-2"], str(order))
+
+    # --- every explanation is derivable from the matched facts --------------
+    q_facts = precedent.facts(q)
+    by_id = {c["id"]: precedent.facts(c) for c in incidents}
+    derivable = True
+    detail = ""
+    for m in base["precedents"]:
+        if m["explanation"] != precedent.explain(m["matched"]):
+            derivable, detail = False, f"{m['id']}: explanation is not explain(matched)"
+            break
+        if m["because"] != precedent.because(m["matched"]):
+            derivable, detail = False, f"{m['id']}: because is not because(matched)"
+            break
+        if sum(len(v) for v in m["matched"].values()) != m["overlap"]:
+            derivable, detail = False, f"{m['id']}: overlap disagrees with matched"
+            break
+        for dim, vals in m["matched"].items():
+            shared = precedent._values(q_facts, dim) & precedent._values(by_id[m["id"]], dim)
+            if set(vals) - shared:
+                derivable, detail = False, f"{m['id']}/{dim}: {sorted(set(vals) - shared)} is not a shared fact"
+                break
+        if not derivable:
+            break
+    check("every match's explanation is recomputed from — and only from — its matched facts",
+          derivable, detail)
+
+    # --- the stored disposition is surfaced exactly as stored ---------------
+    first = base["precedents"][0]
+    check("a precedent that WAS dispositioned shows it verbatim",
+          first["id"] == "inc-1" and first["disposition"] == "confirmed"
+          and first["dispositionReason"] == "real intrusion"
+          and first["dispositionRecorded"] is True,
+          str({k: first.get(k) for k in ("id", "disposition", "dispositionReason")}))
+    second = base["precedents"][1]
+    check("a precedent that was NOT dispositioned reads as 'none recorded', never a guess",
+          second["disposition"] is None and second["dispositionRecorded"] is False,
+          str({k: second.get(k) for k in ("id", "disposition")}))
+
+    # --- it is an index, not a scan (deterministic, clock-free) -------------
+    idx = precedent.Index(incidents)
+    cost = idx.cost({"id": "inc-x", "ruleIds": ["port_scan"]})
+    check("a one-token query SCORES only the candidates that share that token",
+          cost["stored"] == 3 and cost["scored"] == 1, str(cost))
+
+
+
 def main():
     print("Stage E wall — advisory keys, disjointness, precedent signature, seam guard")
     part_a()
     part_b()
     part_c()
     part_d()
+    part_e()
     print(f"\n{CHECKS - len(FAILURES)}/{CHECKS} checks passed")
     if FAILURES:
         print("\nFAILED:")

@@ -352,6 +352,53 @@ export interface Incident {
   dispositionHistory?: DispositionEvent[];
 }
 
+/** E1 — one prior incident that shares rule-owned facts with the queried one.
+ *
+ *  Pure RECALL. The backend ranks these by deterministic overlap of rule ids,
+ *  observed host/user/IP values, ATT&CK technique ids and asset criticality; no
+ *  model, no network and no advisory input touches the ranking. A precedent can
+ *  never change this incident's severity, priority or runbook eligibility. */
+export interface PrecedentMatch {
+  id: string;
+  /** Count of shared fact VALUES across every dimension — the rank key. */
+  overlap: number;
+  /** The dimensions that actually matched, in canonical order. */
+  dimensions: string[];
+  /** The shared values per dimension. `explanation` is derived from exactly
+   *  this and nothing else, so a rendered reason is always traceable. */
+  matched: Record<string, string[]>;
+  /** One clause per matched dimension. */
+  because: string[];
+  /** The joined sentence — a pure function of `matched`. */
+  explanation: string;
+  title: string | null;
+  state: IncidentState | null;
+  severity: string | null;
+  createdAt: string | null;
+  runId: string | null;
+  /** The analyst's E0 outcome on THIS precedent, verbatim. null = none
+   *  recorded — an honest absence, never a guess, and never a ranking input. */
+  disposition: IncidentDisposition | null;
+  dispositionReason: string | null;
+  dispositionAt: string | null;
+  dispositionRecorded: boolean;
+}
+
+/** The precedent report for one incident. `precedents` is empty — honestly —
+ *  when nothing in the store shares a single fact with it. */
+export interface PrecedentReport {
+  incidentId: string;
+  /** The similarity dimensions the ranking used, named for the UI. */
+  dimensions: string[];
+  candidatesStored: number;
+  candidatesScored: number;
+  /** Total matches found, which may exceed `precedents.length` (page size). */
+  matchCount: number;
+  precedents: PrecedentMatch[];
+  note: string;
+  alias?: string;
+}
+
 /** A pre-merge Case projected onto an Incident (C1-T1). Loss-free: every case
  *  field travels. `caseStatus` is the analyst's real case lifecycle, kept
  *  separate from the incident's operational `state`. `linkedFindings` is the
@@ -1124,6 +1171,15 @@ export const api = {
     getJson<OrError<AdvisoryReport>>(`/api/incidents/${id}/advisory`),
   incidentBruteforce: (id: string) =>
     getJson<AttemptSeries>(`/api/incidents/${id}/bruteforce`),
+
+  /** E1 — deterministic precedents for an incident ("have we seen this
+   *  before?"). Rule-owned recall only: the backend ranks stored incidents by
+   *  fact overlap with no model and no network in the path, and the panel that
+   *  renders this must never present it as a verdict or a recommendation.
+   *  404 for an unknown id; an empty `precedents` list is a real answer. */
+  incidentPrecedents: (id: string) =>
+    getJson<OrError<PrecedentReport>>(
+      `/api/incidents/${encodeURIComponent(id)}/precedents`),
 
   // ---- C4-F1: rule-eligible runbooks for the Incidents Response panel ------
   /** The rule-owned eligible-runbooks list for an incident (plus a separate

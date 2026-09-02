@@ -143,6 +143,75 @@ disposition, reason and timestamp — every field HTML-escaped, and an honest
 "No incident has been dispositioned yet." when there are none. The plain
 `/api/export` HTML path passes no incidents and is byte-for-byte unchanged.
 
+### 1b. Precedents (E1) — deterministic recall over stored incidents
+
+`GET /api/incidents/<id>/precedents` answers one question — *have we seen this
+before?* — from the incident store alone. It is **recall**, never advice: it
+does not rank a response, recommend a runbook, or carry an opinion.
+
+**Similarity dimensions.** Four, all rule-owned facts:
+
+| dimension | source on a stored incident |
+|---|---|
+| `ruleIds` | the rule ids that actually fired (`finding.type`), hoisted onto the incident at derivation |
+| `entity` | `entity` plus `entityValues` — the host / user / IP values the parser actually observed (IP chips, `hostDerived` hosts, and usernames found with `redact.USER_PATTERNS`) |
+| `attackTags` | `techniques[].id` — the derived ATT&CK annotation |
+| `assetCriticality` | `criticality` — the org-context asset criticality already on the incident |
+
+`ruleIds` and `entityValues` are **derived** in `derive_incidents()` from the
+cluster's own real findings and rebuilt on every sync, exactly like every other
+derived field. Nothing is invented: every value is present in a real finding.
+An incident stored before E1 simply carries neither key, contributes no overlap
+on those dimensions, and is never rewritten — additive, like E0.
+
+**Ranking.** `overlap` is the number of shared fact *values* summed over the
+four dimensions. The order is `(-overlap, -dimensionsMatched, id)`: total,
+reproducible, and broken by nothing but the incident id. `console/precedent.py`
+holds an inverted index over `(dimension, value)` tokens, so a query scores only
+the incidents that share at least one fact — `Index.cost()` reports that as
+exact integers, which is how the performance claim is asserted without a clock.
+
+**Two deliberate omissions, both honesty.** The queried incident is never its
+own precedent, and a zero-overlap incident is omitted entirely rather than
+ranked last. An incident with nothing comparable in the store gets
+`precedents: []` — never a nearest-anything filler.
+
+**Every match explains itself.** A match carries `matched` (the shared values
+per dimension), `because` (one clause per dimension) and `explanation` (the
+joined sentence). `explanation` and `because` are *pure functions of* `matched`
+— `precedent.explain(m.matched) == m.explanation` — so a rendered reason is
+always traceable to facts both incidents really share.
+
+**Disposition is shown, never used.** Each match carries the E0 disposition of
+that prior incident verbatim (`disposition`, `dispositionReason`,
+`dispositionAt`, `dispositionRecorded`), and `disposition: null` reads as "none
+recorded". It is read only *after* ranking is complete, from
+`DISPLAY_ONLY_KEYS`, which is disjoint from `RULE_OWNED_PRECEDENT_KEYS` — so a
+precedent's recorded outcome can never feed back into which precedents surface.
+There is no learned loop here.
+
+**Fence — structural, not promised.** `precedent.rank()` has a closed
+two-parameter signature (`incident`, `candidates`, no `*args`, no `**kwargs`)
+and projects every record through `RULE_OWNED_PRECEDENT_KEYS`, which contains
+no advisory key and no disposition key. `console/precedent.py` imports exactly
+`inspect` and `re` — no model client, no HTTP client, no randomness, no clock —
+and `tests/test_stage_e_wall.py` part E reads that off the AST of the shipped
+file rather than trusting this paragraph. Precedent never affects detector
+severity, incident priority, runbook eligibility or runbook execution, and a
+precedent query writes nothing to the store.
+
+**UI.** The **Precedents** panel on the Incidents detail
+(`web/src/pages/Incidents.tsx`, `data-testid="precedents-panel"`) renders each
+match with its matched-fact clauses and its disposition, states plainly when
+none was recorded, shows an honest empty state when there is no precedent, and
+carries no action control — recall cannot start a response.
+
+**Proof.** `console/test_console.py::check_precedent_index` (derivation,
+ranking, self-exclusion, honest empty, disposition surfacing and
+disposition-blindness, the HTTP 200/404, and the 2500-incident performance
+acceptance), `tests/test_stage_e_wall.py` part E (purity of the ranking path),
+and `web/src/test/incidents.test.tsx` ("Incident precedents panel (E1)").
+
 ## 2. Assets & users — `GET /api/assets`, `GET /api/users`
 
 Derived **only from entities the parser actually observed** in the current
