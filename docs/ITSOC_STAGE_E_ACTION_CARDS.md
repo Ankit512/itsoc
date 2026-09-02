@@ -2,6 +2,8 @@
 
 _v1 · Sep 2026 · Two tracks. Track A is owner-only and comes first: no build card below the line may claim priority over it. Track B is the Stage E build ("legible intelligence"), derived from the Torq SOC Brain analysis (video + slides, Aug 2026, in the competitive file). All Stage C/D doctrine binds: detector frozen at `364577c5…a4a876`, GUARDRAILS.md applies, delivery is the liveness signal, audits are grepped, security accepted by attack._
 
+Where this document and the Stage E orchestrator prompt differ on sequencing or mechanics, the orchestrator prompt (v2) governs; this document governs scope and acceptance content.
+
 **The wall (restated once, binding on every card):** no learned or advisory signal ever touches severity, eligibility, priority, or execution — not as a score, a tiebreaker, a re-ranker of verdicts, or a confidence gate. Torq's architecture feeds a per-org transformer INTO the verdict (Reflex → Auto Triage) and puts an AI model inside retrieval ("Deep Relevance Judgement"). itsoc's architecture is the inversion: verdicts and candidate sets are deterministic; models may only annotate them, labeled ADVISORY, for human eyes.
 
 ---
@@ -32,7 +34,7 @@ File the video summary + both slides in `docs/research/COMPETITIVE.md` with date
 
 ## Track B — Stage E build: "legible intelligence" (fleet; orchestrator runs it)
 
-Sequencing gate: **E0, E1, E6 start now, then E7 → E8** — the second-opinion model is the MVP centerpiece and is interview-independent (its training data comes from the generator's ground truth, not customers). **E2, E3, E5, and E4's copilot-prose part wait for at least one interview signal** ranking them; a design partner's first request re-orders the track. Build order: E0 + E6 (schema and wall first) → E1 → E7 → E8.
+Sequencing gate: **E0, E1, E6 start now, then E7 → E8** — the second-opinion model is the MVP centerpiece and is interview-independent (its training data comes from the generator's ground truth, not customers). **E2, E3, E5, and E4's copilot-prose part wait for at least one interview signal** ranking them; a design partner's first request re-orders the track. Build order: E0 + E6 (schema and wall first) → E1 → E7a (dataset + first model + render) → E8 (the frozen benchmark — becomes the referee) → E7b (two improvement rounds, graded against frozen E8 with fresh seeds per round) → E9.
 
 ### E0 · Disposition capture (foundation — everything downstream consumes this)
 Incident lifecycle gains a rule-owned disposition on close: `confirmed | false-positive | benign-expected`, each with optional free-text reason. (Taxonomy adopted from Torq's TP/FP/Positive-Benign split — their best design decision; the third category keeps "correct rule, expected finding" from poisoning both recall and tuning.) Stored on the incident, exported in reports, shown as a chip in History.
@@ -55,13 +57,15 @@ Worker: Claude Code (migration-bearing) + Codex (format mapping tests). Acceptan
 Worker: Claude Code (rule path adjacency — severity untouched, suppression is display/priority-layer only; if it needs to touch verdict emission, STOP and re-scope).
 Acceptance: suppression never deletes or alters a finding record; counts visible; expiry works; `eligible()` unaffected (test).
 
-### E7 · Second-opinion model — train + render (STARTS NOW; needs E0 schema + E6 tests first)
+### E7 · Second-opinion model — train + render (split E7a/E7b per the orchestrator prompt: E7a before E8, E7b after — the improvement rounds are graded only by the frozen E8 benchmark)
 The MVP model-training card. A small, local, per-installation learned triage model whose output is rendered, measured, and never wired.
 - **Data:** bootstrap from `tools/attack_generator.py` ground-truth manifests + the 2,500-event store; real dispositions (E0) join the training set as they accrue. A `train` CLI (`tools/train_triage.py`) regenerates the model locally; the model file lives in `console/.soc/models/`, gitignored, with a provenance sidecar (training date, dataset counts, feature list).
 - **Model:** feature-vector classifier first (rule hits, entity counts, timing, criticality → scikit-learn gradient boosting); Ollama-embedding + linear head as a variant behind the same interface. Local only — training and inference never leave the machine.
 - **Render:** an "AI TRIAGE · LEARNED, ADVISORY" block beside the rule verdict on Findings/Incidents: the model's severity opinion, confidence, and agreement status with the rules (agrees / disagrees — disagreement is information for the human, never a gate). Reuses the `aiSeverity` advisory plumbing; fields registered in `ADVISORY_KEYS`.
 - **The wall, enforced:** E6's tests extend to the model fields; `eligible()`, severity, priority, and execution provably unreachable from model output (mutation-proven).
 Worker: Claude Code (pipeline + guard integration), Antigravity (UI evidence, both themes). Acceptance: model trains from scratch on a clean checkout in <10 min; kill-the-model test → rule verdicts and case files fully intact, advisory block shows honest "model unavailable"; disagreement renders visibly; no model import anywhere in the verdict/eligibility path (grep + import-graph test, seen to fail).
+
+**E7b:** E7b runs after E8 exists; each round is verified against the frozen benchmark with fresh, disjoint seeds; no agent may both modify the training setup and declare the result improved.
 
 ### E8 · Harness-benchmark the model — publish honest numbers (needs E7 + the harness)
 Run the trained model through `tools/efficacy_harness.py` scenarios as a *second scored system* beside the rules: per-scenario precision/recall/F1 for both, side by side, misses listed verbatim for both. Publish in the Reports efficacy section and the battle card with the standing scope sentence plus one more: "the learned model is advisory; these numbers are why." Either outcome is a win: model under rules = the thesis, measured; model strong = a validated advisory signal whose disagreements feed E5's proposal queue.
