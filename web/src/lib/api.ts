@@ -170,18 +170,45 @@ export interface Finding {
   lines: EvidenceLine[];
   linesNote: string | null;
   timeline: { t: string; label: string; line?: number; dot?: string }[];
-  /** Advisory AI recommendation. NEVER a verdict — `sev` stays rule-owned. */
-  aiTriage?: {
-    advisory: boolean;
-    ruleSeverity: string;
-    aiSeverity: string;
-    confidence: string;
-    agrees: boolean;
-    cause: string;
-    falsePositiveHint?: string;
-    nextSteps?: string[];
-    note: string;
-  };
+  /** E7a: the LEARNED advisory second opinion. NEVER a verdict — `sev`,
+   *  `ruleSev`, incident severity, priority, runbook eligibility and every
+   *  execution path are rule-owned and are not reachable from this object.
+   *  When no model is installed, `modelAvailable` is false and `aiSeverity`,
+   *  `confidence` and `agrees` are all null — an honest unavailable state, never
+   *  a fabricated band or score. */
+  aiTriage?: AiTriage;
+}
+
+export type AiTriageStatus = "agrees" | "disagrees" | "unavailable";
+
+export interface AiTriage {
+  advisory: true;
+  /** Always true in E7a: the opinion comes from a trained local model, not a
+   *  hand-written heuristic dressed up as one. */
+  learned: boolean;
+  modelAvailable: boolean;
+  status: AiTriageStatus;
+  /** The rule verdict, echoed for display. The model never wrote it. */
+  ruleSeverity: string;
+  /** The model's advisory severity opinion, or null when unavailable. */
+  aiSeverity: string | null;
+  /** The predicted analyst class: confirmed | false-positive | benign-expected. */
+  aiLabel: string | null;
+  /** Numeric probability of the predicted class, or null when unavailable. */
+  confidence: number | null;
+  /** Whether the opinion matches the rule band, or null when unavailable. */
+  agrees: boolean | null;
+  /** Why there is no opinion — named out loud, never a silent blank. */
+  unavailableReason: string | null;
+  modelProvenance?: {
+    trainedAt?: string;
+    seed?: number;
+    datasetRows?: number;
+    modelSha256?: string;
+    sklearnVersion?: string;
+  } | null;
+  nextSteps?: string[];
+  note: string;
 }
 
 export interface ConsoleState {
@@ -350,6 +377,11 @@ export interface Incident {
   dispositionAt?: string | null;
   /** Append-only audit trail of every disposition set/cleared. */
   dispositionHistory?: DispositionEvent[];
+  // --- E7a: the learned advisory second opinion (additive, never a verdict) --
+  /** Computed on the projection and never stored, so no model output can be
+   *  re-read as a fact. `severity`, `priority`, runbook eligibility and every
+   *  execution path are unaffected by it. */
+  aiTriage?: AiTriage;
 }
 
 /** E1 — one prior incident that shares rule-owned facts with the queried one.
@@ -1473,10 +1505,26 @@ export const api = {
   ingestStatus: () => getJson<{ sources: Record<string, number>; total: number }>("/api/ingest/status"),
   sigmaRules: () => getJson<{ rules: { id: string; title: string; level: string }[] }>("/api/sigma/rules"),
   copilotTriage: () => getJson<{
-    advisory: boolean; count: number; disagreements: number;
-    items: { id: string; ruleSeverity: string; aiSeverity: string; agrees: boolean }[];
+    advisory: boolean; learned: boolean;
+    modelAvailable: boolean; modelReason: string | null;
+    count: number; disagreements: number; unavailable: number;
+    items: {
+      id: string; ruleSeverity: string; aiSeverity: string | null;
+      aiLabel: string | null; confidence: number | null;
+      agrees: boolean | null; status: AiTriageStatus;
+    }[];
     note: string;
   }>("/api/copilot/triage"),
+
+  /** E7a: whether a learned model is installed here, and its provenance. Read
+   *  only — this endpoint can neither train nor influence a verdict. */
+  triageModel: () => getJson<{
+    available: boolean;
+    reason: string | null;
+    sklearn: string | null;
+    modelPath: string;
+    provenance: Record<string, unknown> | null;
+  }>("/api/triage/model"),
 
   // --- nmap discovery + vuln scan (socf-discovery) ---
   // Poll the REAL scanner state; launch a scan (always user-initiated). A

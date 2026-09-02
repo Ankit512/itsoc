@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Check, Sparkles, Pencil, X, Shield, ShieldCheck, FolderKanban, Search } from "lucide-react";
 import { api, INCIDENT_STATES, CASE_STATUSES, INCIDENT_DISPOSITIONS, DISPOSITION_LABELS, type IncidentDisposition, type AttemptPoint, type CaseStatus, type EmbeddedCase, type Incident, type IncidentState, type Rca, type InvestigationEvent, type AdvisoryBlock, type AdvisoryReport, type PrecedentMatch } from "@/lib/api";
+import { AiTriageBlock } from "@/pages/Alerts";
 import { RunbookCard, type RunbookCardData } from "@/components/RunbookCard";
 import { cn } from "@/lib/utils";
 
@@ -1506,6 +1507,27 @@ function IncidentDetail({ inc, onBack }: { inc: Incident; onBack: () => void }) 
 
         {/* Verbatim evidence */}
         <EvidenceCard inc={inc} />
+
+        {/* AI TRIAGE · LEARNED, ADVISORY (E7a) — the model's second opinion on
+            this incident. Rendered from the SAME component the Findings page
+            uses, so the two surfaces cannot drift. It never touches severity,
+            priority, runbook eligibility or execution: `aiTriage` is computed on
+            the API projection and is an ADVISORY_KEY, so the rule-owned
+            projection drops it before any predicate sees it.
+            E4 note: the deterministic numeric/labelled overlap display below
+            (Precedents) stays the non-prose similarity surface. No model prose
+            annotates it. */}
+        {inc.aiTriage && (
+          <section className="is-panel" data-testid="incident-ai-triage">
+            <div className="is-panel__h" style={{ justifyContent: "space-between" }}>
+              <h3>AI triage</h3>
+              <span className="is-chip" title="A locally-trained model's second opinion. It never changes a verdict, a priority, an eligibility or an action.">
+                learned · advisory
+              </span>
+            </div>
+            <AiTriageBlock t={inc.aiTriage} />
+          </section>
+        )}
 
         {/* Precedents (E1) — deterministic recall over the stored incidents */}
         <PrecedentsPanel inc={inc} />

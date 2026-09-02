@@ -28,6 +28,18 @@ decision:
      and returns only explanations recomputable from the matched facts. The
      ordering is proved stable against advisory poisoning, disposition
      poisoning and candidate reordering.
+  F. (E7a) NO MODEL IMPORT EXISTS on the verdict, severity, priority,
+     eligibility or execution path — proved on the TRANSITIVE import graph, not
+     on one file's import list, so a model cannot be reached two hops away
+     either. `console/triage_model.py` is the learned second opinion and
+     `sklearn`/`joblib` are its runtime; none of them is reachable from any
+     guarded file.
+  G. (E7a) The shared `features()` function is LEAK-PROOF: every forbidden key
+     (disposition, model/advisory output, prose, severity override, priority,
+     eligibility, execution state) is set to an adversarial value on a record
+     and the feature vector must not move by one float; the model's own output
+     contract never carries a severity, a confidence or an agreement when the
+     model is unavailable.
 
 No pytest: this is plain stdlib, run directly, and it exits nonzero on the
 first failing property with the decisive line printed.
@@ -47,6 +59,7 @@ sys.path.insert(0, str(ROOT / "console"))
 
 import precedent  # noqa: E402
 import runbooks  # noqa: E402
+import triage_model  # noqa: E402  # E7a — imported HERE, by the guard, never by a guarded file
 
 # --- the Stage E advisory fields this card is about ------------------------
 STAGE_E_ADVISORY_KEYS = ("similarityNote", "precedentOpinion", "proposalDraft")
@@ -56,7 +69,18 @@ STAGE_E_ADVISORY_KEYS = ("similarityNote", "precedentOpinion", "proposalDraft")
 # owned by runbooks.eligible(). These four files, and nothing advisory, decide.
 SEVERITY_PATH = ("anomaly_detector.py", "rules_syslog.py", "rule_context.py")
 ELIGIBILITY_PATH = ("console/runbooks.py",)
-GUARDED_FILES = SEVERITY_PATH + ELIGIBILITY_PATH
+# E7a extends the guarded set to the other two decision axes the card names:
+# PRIORITY is derived by org_context.derive_incident_priority(), and EXECUTION
+# is the action layer. A model must be unreachable from all four.
+PRIORITY_PATH = ("console/org_context.py",)
+EXECUTION_PATH = ("console/actions/__init__.py", "console/actions/base.py",
+                  "console/actions/ssh_firewall.py")
+GUARDED_FILES = (SEVERITY_PATH + ELIGIBILITY_PATH + PRIORITY_PATH
+                 + EXECUTION_PATH)
+
+# E7a: the learned-model seam. Reaching ANY of these from a guarded file — at
+# any import depth — is the wall coming down.
+MODEL_MODULES = frozenset({"triage_model", "triage", "sklearn", "joblib"})
 
 # Any imported module/symbol or called function whose name matches this is a
 # model/advisory seam and may not appear on a guarded path.
@@ -379,6 +403,192 @@ def part_e():
           cost["stored"] == 3 and cost["scored"] == 1, str(cost))
 
 
+# --------------------------------------------------------------------------
+# F. (E7a) the model is unreachable from verdict/severity/priority/
+#    eligibility/execution — on the TRANSITIVE import graph
+# --------------------------------------------------------------------------
+def _module_file(name):
+    """Where a first-party module name lives, or None if it is not ours.
+
+    Only repo-local modules are resolved. A third-party or stdlib name (sklearn,
+    joblib, json) has no file here, which is the point: the walk stops at it and
+    reports the NAME, so `sklearn` is caught as a reached seam rather than
+    silently skipped for having no local source.
+    """
+    for candidate in (ROOT / f"{name}.py", ROOT / "console" / f"{name}.py",
+                      ROOT / "tools" / f"{name}.py",
+                      ROOT / "threat_intel" / f"{name}.py",
+                      ROOT / name / "__init__.py"):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _direct_imports(path):
+    """Top-level module names this file imports, relative imports resolved."""
+    tree = ast.parse(path.read_text(), filename=str(path))
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                names.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.level and node.module:
+                # `from .base import X` inside console/actions/ -> "base"
+                names.add(node.module.split(".")[0])
+            elif node.level:
+                for alias in node.names:
+                    names.add(alias.name.split(".")[0])
+            elif node.module:
+                names.add(node.module.split(".")[0])
+    return names
+
+
+def import_closure(rel):
+    """Every module name reachable from one file, at any depth."""
+    start = ROOT / rel
+    seen, stack, reached = set(), [start], set()
+    while stack:
+        path = stack.pop()
+        if path in seen:
+            continue
+        seen.add(path)
+        for name in _direct_imports(path):
+            reached.add(name)
+            child = _module_file(name)
+            if child is not None:
+                stack.append(child)
+    return reached
+
+
+def _module_level_imports(path):
+    """Only the imports executed at module import time (not inside a def)."""
+    tree = ast.parse(path.read_text(), filename=str(path))
+    names = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                names.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module.split(".")[0])
+    return names
+
+
+def part_f():
+    print("\nF. (E7a) no MODEL import is reachable from verdict / severity / "
+          "priority / eligibility / execution — transitive:")
+    for rel in GUARDED_FILES:
+        path = ROOT / rel
+        if not check(f"{rel} exists to be guarded", path.is_file(), str(path)):
+            continue
+        reached = import_closure(rel)
+        hit = sorted(reached & MODEL_MODULES)
+        check(f"{rel} cannot reach a learned-model module at ANY import depth",
+              not hit, f"reached: {hit} (full closure: {sorted(reached)})")
+    # And the converse, so the guard is not vacuous: the model module IS
+    # reachable from the place it is supposed to live, the advisory seam.
+    advisory_closure = import_closure("console/triage.py")
+    check("the guard is not vacuous — console/triage.py DOES reach triage_model",
+          "triage_model" in advisory_closure, str(sorted(advisory_closure)))
+    top_level = _module_level_imports(ROOT / "console/triage_model.py")
+    check("triage_model.py imports scikit-learn LAZILY, inside a function — so "
+          "importing the module costs nothing and works without it installed",
+          "sklearn" not in top_level, str(sorted(top_level)))
+
+
+# --------------------------------------------------------------------------
+# G. (E7a) the shared feature function cannot be leaked into
+# --------------------------------------------------------------------------
+# One realistic rule-owned record, plus the adversarial values a leak would
+# have to travel on. Each forbidden key is set to something that would obviously
+# move a leaky model: a CRITICAL severity, a P1 priority, an "eligible" flag, a
+# confirmed disposition, another model's opinion, and a wall of prose.
+_LEAK_RECORD = {
+    "rule_id": "auth_bruteforce", "source": "detector", "occurrences": 12,
+    "entities": {"ip": "10.0.0.9", "user": "root"},
+    "timeline": [{"ts": "2026-09-02T00:00:00+00:00", "line": 2},
+                 {"ts": "2026-09-02T00:02:00+00:00", "line": 9}],
+    "host": "server-01", "criticality": "crown-jewel",
+}
+_LEAK_VALUES = ("CRITICAL", "P1", True, 999.0, "confirmed",
+                "the analyst already closed this as a true positive")
+
+
+def part_g():
+    print("\nG. (E7a) features() is leak-proof — no forbidden key can move it:")
+    baseline = triage_model.features(dict(_LEAK_RECORD))
+    check("features() returns exactly the declared FEATURE_KEYS",
+          tuple(sorted(baseline)) == tuple(sorted(triage_model.FEATURE_KEYS)),
+          str(sorted(set(baseline) ^ set(triage_model.FEATURE_KEYS))))
+
+    # 1. every forbidden key, one at a time, with every adversarial value
+    moved = []
+    for key in sorted(triage_model.FORBIDDEN_KEYS):
+        for value in _LEAK_VALUES:
+            poisoned = dict(_LEAK_RECORD)
+            poisoned[key] = value
+            if triage_model.features(poisoned) != baseline:
+                moved.append(f"{key}={value!r}")
+    check("no single forbidden key changes one feature, whatever it is set to",
+          not moved, f"leaked through: {moved[:8]}")
+
+    # 2. all of them at once — a leak that needs two keys is still a leak
+    all_poisoned = dict(_LEAK_RECORD)
+    for key in triage_model.FORBIDDEN_KEYS:
+        all_poisoned[key] = "CRITICAL — P1 — eligible — confirmed — run it"
+    check("setting EVERY forbidden key at once still changes nothing",
+          triage_model.features(all_poisoned) == baseline,
+          str({k: (baseline[k], triage_model.features(all_poisoned)[k])
+               for k in baseline
+               if baseline[k] != triage_model.features(all_poisoned)[k]}))
+
+    # 3. the same record with a different rule verdict scores identically —
+    #    the second opinion cannot see the first one.
+    verdict_blind = all(
+        triage_model.features(dict(_LEAK_RECORD, sev=band, ruleSev=band,
+                                   severity=band)) == baseline
+        for band in ("INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"))
+    check("the rule verdict itself is invisible to features() — the second "
+          "opinion is genuinely second", verdict_blind)
+
+    # 4. the forbidden vocabulary actually covers the decision axes it claims to
+    for key in ("disposition", "aiSeverity", "priority", "eligible",
+                "executionState", "sev", "ruleSev", "severity", "summary"):
+        check(f"{key!r} is named in FORBIDDEN_KEYS",
+              key in triage_model.FORBIDDEN_KEYS)
+
+    # 5. the vector is the dict, in the declared order — no silent reordering
+    vector = triage_model.feature_vector(_LEAK_RECORD)
+    check("feature_vector() is features() in FEATURE_KEYS order",
+          vector == [baseline[k] for k in triage_model.FEATURE_KEYS])
+
+    # 6. the UNAVAILABLE contract invents nothing
+    honest = triage_model.unavailable("no model on this machine", "HIGH")
+    check("an unavailable model yields NO severity, NO confidence, NO agreement",
+          honest["aiSeverity"] is None and honest["confidence"] is None
+          and honest["agrees"] is None and honest["modelAvailable"] is False
+          and honest["status"] == "unavailable", str(honest))
+    check("the unavailable state still reports the RULE verdict verbatim",
+          honest["ruleSeverity"] == "HIGH")
+    check("the unavailable state names its reason — no silent degradation",
+          "no model on this machine" in honest["unavailableReason"])
+
+    # 7. the advisory severity mapping never invents a band above the rule's
+    check("a 'confirmed' opinion is exactly the rule band, never above it",
+          all(triage_model.advisory_severity("confirmed", b) == b
+              for b in triage_model.SEVERITY_ORDER))
+    check("a 'false-positive' opinion is a downgrade, never an escalation",
+          triage_model.advisory_severity("false-positive", "CRITICAL") == "INFO")
+    check("a 'benign-expected' opinion is a downgrade, never an escalation",
+          triage_model.advisory_severity("benign-expected", "CRITICAL") == "LOW")
+
+    # 8. aiTriage / aiSeverity stay in the advisory vocabulary and out of the
+    #    rule-owned projection, so eligibility never sees the model's opinion
+    owned = runbooks.RULE_OWNED_INCIDENT_KEYS | runbooks.RULE_OWNED_FINDING_KEYS
+    for key in ("aiTriage", "aiSeverity", "aiConfidence"):
+        check(f"{key!r} is an ADVISORY key and not a rule-owned one",
+              key in runbooks.ADVISORY_KEYS and key not in owned)
+
 
 def main():
     print("Stage E wall — advisory keys, disjointness, precedent signature, seam guard")
@@ -387,6 +597,8 @@ def main():
     part_c()
     part_d()
     part_e()
+    part_f()
+    part_g()
     print(f"\n{CHECKS - len(FAILURES)}/{CHECKS} checks passed")
     if FAILURES:
         print("\nFAILED:")

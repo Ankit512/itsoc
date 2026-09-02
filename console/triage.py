@@ -1,162 +1,134 @@
 #!/usr/bin/env python3
 """
-triage.py — advisory AI severity recommendation.
+triage.py — the ADVISORY second opinion, now LEARNED (card E7a).
 
-HARD LINE: this module NEVER writes `sev` / `ruleSev` / incident severity.
-It returns an `aiTriage` object labelled advisory. The analyst decides.
-Rules (frozen detector + Sigma + syslog extras) own the verdict.
+HARD LINE (unchanged, and now enforced further down the stack): this module
+NEVER writes `sev` / `ruleSev` / incident severity / priority / runbook
+eligibility / any execution state. It returns an `aiTriage` object labelled
+advisory. Rules (frozen detector + Sigma + syslog extras) own the verdict; the
+analyst decides.
 
-The recommendation is deterministic so tests and air-gapped runs do not
-need a model. When a finding already carries `llmSev` from a compare run,
-that value is used as the recommendation (still not copied onto `sev`).
+WHAT CHANGED IN E7a
+-------------------
+The deterministic pseudo-AI that used to keyword-match a finding's prose and
+"recommend" a band is GONE. It was a plausible-looking constant, and a
+plausible-looking constant is the exact thing this product refuses to ship.
+
+In its place: `console/triage_model.py` scores a locally-trained classifier over
+the ONE shared rule-owned feature vector. Two outcomes, both honest.
+
+  * A model is loaded  -> an advisory severity opinion, a NUMERIC confidence,
+    and an explicit agrees / disagrees status against the rule verdict.
+    Disagreement is information for the human, never a gate.
+  * No scikit-learn, no artifact, or a corrupt one -> the UNAVAILABLE state:
+    `aiSeverity` is None, `confidence` is None, `agrees` is None, and the reason
+    is named. Nothing is guessed. Every rule verdict, incident and case file is
+    untouched by this either way.
+
+The feature vector deliberately cannot see the rule verdict, so `agrees` is a
+real second opinion rather than an echo. See triage_model.FEATURE_KEYS.
 """
 
 from __future__ import annotations
 
-import re
-
-_SEV_RANK = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4, "UNKNOWN": 5}
-_VALID = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
-
-_CBS_RE = re.compile(r"\bCBS[_E]|HRESULT|windows_cbs|servicing", re.I)
-_BRUTE_RE = re.compile(r"brute|failed.?password|auth_fail|T1110|spray", re.I)
-_MALWARE_RE = re.compile(r"malware|ransomware|trojan|sigma_itsoc_edr", re.I)
+import triage_model
 
 
 def _rule_sev(finding):
     return str(finding.get("sev") or finding.get("ruleSev") or "INFO").upper()
 
 
-def _occ(finding):
-    try:
-        n = int(finding.get("occurrences") or 1)
-    except (TypeError, ValueError):
-        n = 1
-    return n if n > 0 else 1
-
-
-def _bump(sev, steps=1):
-    order = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
-    s = sev if sev in order else "INFO"
-    return order[min(len(order) - 1, order.index(s) + steps)]
-
-
-def _drop(sev, steps=1):
-    order = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
-    s = sev if sev in order else "INFO"
-    return order[max(0, order.index(s) - steps)]
+_NEXT_STEPS = (
+    "Read the verbatim evidence lines on this finding.",
+    "The rule verdict is authoritative — do not replace it with this opinion.",
+)
+_DISAGREE_STEP = ("The learned model disagrees with the rule band. That is a "
+                  "prompt to look, not a reason to change the verdict.")
+_UNAVAILABLE_STEP = ("No learned opinion is available on this installation — "
+                     "triage on the rule verdict and the evidence alone.")
 
 
 def recommend(finding, org_criticality=None):
-    """One advisory triage object. Does not mutate the finding."""
+    """One advisory triage object. Does not mutate the finding.
+
+    `org_criticality` is the configured asset criticality for this finding's
+    host — a rule-owned org-context fact, and one of the model's features.
+    """
     finding = finding or {}
     rule = _rule_sev(finding)
-    if rule not in _VALID:
-        rule_out = rule if rule else "INFO"
-    else:
-        rule_out = rule
-    rec = rule_out if rule_out in _VALID else "INFO"
-    cause = str(finding.get("ruleWhy") or finding.get("title") or "").strip()
-    fp = ""
-    next_steps = [
-        "Read the verbatim evidence lines on this finding.",
-        "The rule verdict is authoritative — do not replace it with this recommendation.",
-    ]
-    title = str(finding.get("title") or "")
-    ftype = str(finding.get("type") or "")
-    blob = f"{title} {ftype} {cause}"
-    occ = _occ(finding)
+    record = dict(finding)
+    if org_criticality:
+        record["criticality"] = org_criticality
+    out = triage_model.predict(record, rule)
 
-    llm = finding.get("llmSev")
-    llm_s = str(llm).upper() if llm else ""
-
-    if _CBS_RE.search(blob):
-        rec = rule_out if rule_out in _VALID else "HIGH"
-        fp = "Windows servicing / CBS HRESULT — typically not an intrusion by itself."
-        cause = cause or "CBS/CSI servicing noise; rule severity stands."
-        next_steps.append("Confirm this is Component-Based Servicing, not credential abuse.")
-    elif _MALWARE_RE.search(blob):
-        rec = "CRITICAL" if rec in ("HIGH", "MEDIUM", "LOW", "INFO") else rec
-        cause = cause or "EDR/malware signature matched — AI would treat as CRITICAL."
-        next_steps.append("Isolate the host only after an analyst confirms the EDR event.")
-    elif _BRUTE_RE.search(blob):
-        if occ >= 20 and _SEV_RANK.get(rec, 9) > 0:
-            rec = _bump(rec, 1)
-            cause = (
-                f"{occ} matching auth-failure lines. Rule verdict is {rule_out}; "
-                f"AI would recommend {rec}."
-            )
-        else:
-            cause = cause or f"Auth-failure cluster ({occ} line(s)). Rule verdict stands."
-        next_steps.append("Check for a later auth success from the same source.")
-    elif org_criticality in ("crown-jewel", "critical", "high") and rec in ("MEDIUM", "LOW"):
-        rec = _bump(rec, 1)
-        cause = (
-            f"Asset criticality {org_criticality}: AI would raise the "
-            f"recommendation from {rule_out} to {rec}. Verdict unchanged."
-        )
-
-    if llm_s in _VALID:
-        rec = llm_s
-        cause = (finding.get("llmWhy") or cause
-                 or "Compare-run model rating reused as the advisory recommendation.")
-
-    agrees = rec == rule_out
-    note = (
-        "AI recommends — analyst decides. This does not change the rule verdict "
-        f"({rule_out})."
-    )
-    return {
-        "advisory": True,
-        "ruleSeverity": rule_out,
-        "aiSeverity": rec,
-        "confidence": "medium" if not agrees else "high",
-        "agrees": agrees,
-        "cause": cause[:400],
-        "stage": "",
-        "falsePositiveHint": fp,
-        "priority": rec,
-        "nextSteps": next_steps[:6],
-        "note": note,
-    }
+    steps = list(_NEXT_STEPS)
+    if out["modelAvailable"] and out["status"] == "disagrees":
+        steps.append(_DISAGREE_STEP)
+    elif not out["modelAvailable"]:
+        steps.append(_UNAVAILABLE_STEP)
+    out["nextSteps"] = steps
+    return out
 
 
 def attach(finding, org_criticality=None):
     """Return a shallow copy with aiTriage set; `sev` is copied unchanged."""
     f = dict(finding or {})
     sev = f.get("sev")
+    rule_sev = f.get("ruleSev")
     f["aiTriage"] = recommend(f, org_criticality=org_criticality)
     f["sev"] = sev
+    f["ruleSev"] = rule_sev
     return f
 
 
+def model_status():
+    """Availability of the learned model, for the API/UI. No invented numbers."""
+    return triage_model.status()
+
+
 def triage_state(state):
-    """Advisory triage for every finding on the run. Never edits `sev`."""
+    """Advisory triage for every finding on the run. Never edits `sev`.
+
+    `available` is the model's real state, and `unavailable` counts the findings
+    that carry no learned opinion — so a caller can render "N findings, no
+    learned opinion for any of them" rather than an empty-looking agreement.
+    """
     findings = list((state or {}).get("findings") or [])
     items = []
     disagreements = 0
+    unavailable = 0
     for f in findings:
         t = recommend(f)
-        if t["ruleSeverity"] != (f.get("sev") or f.get("ruleSev")):
-            # Finding sev is source of truth; recommend() already used it.
-            pass
-        if not t["agrees"]:
-            disagreements += 1
+        if t["modelAvailable"]:
+            if not t["agrees"]:
+                disagreements += 1
+        else:
+            unavailable += 1
         items.append({
             "id": f.get("id"),
             "title": f.get("title"),
             "ruleSeverity": t["ruleSeverity"],
             "aiSeverity": t["aiSeverity"],
+            "aiLabel": t["aiLabel"],
+            "confidence": t["confidence"],
             "agrees": t["agrees"],
+            "status": t["status"],
             "advisory": True,
         })
+    status = triage_model.status()
     return {
         "advisory": True,
+        "learned": True,
+        "modelAvailable": bool(status["available"]),
+        "modelReason": status["reason"],
+        "modelProvenance": status["provenance"],
         "count": len(items),
         "disagreements": disagreements,
+        "unavailable": unavailable,
         "items": items,
         "note": (
-            "AI recommends — analyst decides. Rule verdicts are unchanged. "
-            "aiSeverity is never copied onto sev."
+            "Learned second opinion — ADVISORY. Rule verdicts are unchanged. "
+            "aiSeverity is never copied onto sev, and no model output reaches "
+            "severity, priority, runbook eligibility or execution."
         ),
     }

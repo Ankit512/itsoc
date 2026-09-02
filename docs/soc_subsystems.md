@@ -212,6 +212,94 @@ disposition-blindness, the HTTP 200/404, and the 2500-incident performance
 acceptance), `tests/test_stage_e_wall.py` part E (purity of the ranking path),
 and `web/src/test/incidents.test.tsx` ("Incident precedents panel (E1)").
 
+### 1c. AI triage (E7a) — the learned second opinion, advisory and fenced
+
+A small, **local, per-installation** classifier gives a second opinion on a
+finding or an incident. It is rendered, it is measured, and it is *never wired*.
+
+**Where it appears.** `aiTriage` on every finding in `console_state.json`
+(attached by `console/enrich.py`) and on every incident returned by
+`GET /api/incidents` / `GET /api/incidents/<id>` (attached by
+`soc._public_incident`, on the **projection** — the model's opinion is never
+stored, so it cannot be re-read later as a fact). `GET /api/triage/model`
+reports availability and provenance; `GET /api/copilot/triage` rolls the run up.
+
+```json
+"aiTriage": {
+  "advisory": true, "learned": true, "modelAvailable": true,
+  "status": "agrees" | "disagrees" | "unavailable",
+  "ruleSeverity": "HIGH",          // echoed; the model never wrote it
+  "aiSeverity": "INFO" | null,     // null when unavailable
+  "aiLabel": "confirmed" | "false-positive" | "benign-expected" | null,
+  "confidence": 0.8021 | null,     // numeric probability, null when unavailable
+  "agrees": false | null,
+  "unavailableReason": "scikit-learn is not installed — …" | null,
+  "modelProvenance": { "trainedAt": "…", "seed": 20260902, "datasetRows": 434,
+                       "modelSha256": "…", "sklearnVersion": "1.7.2" } | null,
+  "note": "…"
+}
+```
+
+**Labels.** The three classes are E0's disposition vocabulary verbatim —
+`confirmed`, `false-positive`, `benign-expected` — so a generated ground-truth
+row and a real closed incident are the same kind of label. A predicted class
+becomes the rendered severity opinion by a fixed, published mapping applied
+*outside* the model: `confirmed` → the rule's own band (agrees),
+`false-positive` → `INFO`, `benign-expected` → `LOW`. The mapping can only ever
+downgrade, so the model can never escalate anything, even on screen.
+
+**Features.** ONE function, `console/triage_model.py:features(record)`, shared
+by training and inference (21 keys, `FEATURE_KEYS`). It reads only rule-owned
+facts: which rule families fired, the entity counts the parser actually
+observed, the observed time span and rate, and the configured asset
+criticality. `FORBIDDEN_KEYS` names everything it must never read — dispositions,
+model/advisory output, prose, severity, priority, eligibility, execution state
+— **including `sev`/`ruleSev` themselves**: a second opinion that can see the
+first one is not a second opinion, and excluding the verdict is what makes
+`agrees`/`disagrees` carry information.
+
+**Training.** `python3 tools/train_triage.py` — deterministic seeded scenarios
+from `tools/attack_generator.py`, ingested through the **real** analyzer as a
+subprocess (`log_analyzer.py --rules-only`; the CLI never imports the frozen
+detector), labelled from the manifests' declared class and line citations, plus
+every locally stored incident that carries a real analyst disposition
+(undispositioned incidents are **skipped**, never guessed). The local event
+store is read as observed context only — a count in the sidecar, never a row.
+Artifacts land in `console/.soc/models/` (gitignored): `triage_v1.pkl` and
+`triage_v1.provenance.json`, the sidecar carrying the exact seeds, the actual
+dataset counts by label and origin, the feature list, the measured
+cross-validation fold scores, the training duration and the artifact's sha256.
+
+**Optional at runtime.** scikit-learn is pinned in `requirements.txt` and is the
+repo's only dependency; nothing else needs it. With no scikit-learn, no
+artifact, or an artifact whose sha256 disagrees with its sidecar, every surface
+shows the **unavailable** state: `aiSeverity`, `confidence` and `agrees` are all
+`null`, the reason is printed, and nothing is guessed. There is no
+deterministic pseudo-AI fallback — the previous keyword-matching stand-in was
+removed in E7a precisely because it looked like an opinion without being one.
+
+**Fence.** `aiTriage` / `aiSeverity` / `aiConfidence` are in
+`runbooks.ADVISORY_KEYS`, so the rule-owned projection drops them before any
+predicate sees them. `tests/test_stage_e_wall.py` part F proves, on the
+**transitive** import graph, that no severity, priority (`console/org_context.py`),
+eligibility (`console/runbooks.py`) or execution (`console/actions/*`) file can
+reach `triage_model`, `triage`, `sklearn` or `joblib` at any depth; part G is the
+leakage test that mutates every forbidden key and requires the feature vector not
+to move.
+
+**UI.** The **AI TRIAGE · LEARNED, ADVISORY** block
+(`web/src/pages/Alerts.tsx:AiTriageBlock`, reused verbatim by
+`web/src/pages/Incidents.tsx`, `data-testid="ai-triage"`) renders all three
+states in both themes, shows disagreement loudly, and carries no action control.
+The E1 Precedents panel remains the deterministic numeric/labelled similarity
+surface beside it — no model prose annotates it.
+
+**Proof.** `console/test_console.py::check_sigma_ingest_triage` (advisory
+contract, both loaded-model branches, kill-the-model, corrupt artifact,
+eligibility parity with and without the block), `tools/test_train_triage.py`,
+`tests/test_stage_e_wall.py` parts F and G, and
+`web/src/test/{alerts,incidents,c4-themes}.test.tsx`.
+
 ## 2. Assets & users — `GET /api/assets`, `GET /api/users`
 
 Derived **only from entities the parser actually observed** in the current

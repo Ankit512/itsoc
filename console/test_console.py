@@ -6220,22 +6220,189 @@ def check_sigma_ingest_triage():
           cloud["event_name"] == "ConsoleLogin" and cloud["user"] == "alice"
           and "ConsoleLogin" in cloud["raw"])
 
+    # --- E7a: the LEARNED second opinion -----------------------------------
+    # The deterministic pseudo-AI is gone. What replaces it either answers with
+    # a real model or says so. Both branches are exercised here; neither may
+    # touch sev.
+    import triage_model
+
     finding = {
         "id": "detector-0", "sev": "HIGH", "ruleSev": "HIGH",
         "title": "Brute-force burst ×40", "type": "auth_bruteforce",
         "occurrences": 40, "ruleWhy": "failures then silence",
+        "source": "detector", "criticality": "crown-jewel",
+        "entities": {"ip": "203.0.113.44", "user": "admin"},
+        "timeline": [{"ts": "2026-08-31T12:00:00+00:00", "line": 2},
+                     {"ts": "2026-08-31T12:02:00+00:00", "line": 41}],
         "mitre": [{"id": "T1110"}],
     }
     rec = triage.recommend(finding)
     attached = triage.attach(finding)
-    check("AI triage is advisory and labelled as such",
-          rec["advisory"] is True and "analyst decides" in rec["note"].lower())
-    check("AI may recommend a different band but MUST NOT write sev",
-          rec["aiSeverity"] == "CRITICAL" and attached["sev"] == "HIGH"
+    check("AI triage is advisory, learned, and labelled as such",
+          rec["advisory"] is True and rec["learned"] is True
+          and "advisory" in rec["note"].lower())
+    check("advisory triage NEVER writes sev / ruleSev, whatever it thinks",
+          attached["sev"] == "HIGH" and attached["ruleSev"] == "HIGH"
           and finding["sev"] == "HIGH",
-          f"ai={rec['aiSeverity']} sev={attached['sev']}")
+          f"sev={attached['sev']} ruleSev={attached['ruleSev']}")
     check("ruleSeverity on the triage object is the original verdict",
           rec["ruleSeverity"] == "HIGH")
+    check("status is exactly one of agrees / disagrees / unavailable",
+          rec["status"] in ("agrees", "disagrees", "unavailable"), rec["status"])
+    if rec["modelAvailable"]:
+        check("a LOADED model returns a numeric confidence and a real class",
+              isinstance(rec["confidence"], float)
+              and 0.0 <= rec["confidence"] <= 1.0
+              and rec["aiLabel"] in triage_model.LABELS,
+              str((rec["confidence"], rec["aiLabel"])))
+        check("a loaded model's agrees flag matches its rendered opinion",
+              rec["agrees"] is (rec["aiSeverity"] == rec["ruleSeverity"]))
+    else:
+        check("with NO model, nothing is invented: no severity, no confidence, "
+              "no agreement",
+              rec["aiSeverity"] is None and rec["confidence"] is None
+              and rec["agrees"] is None and rec["status"] == "unavailable",
+              str({k: rec[k] for k in ("aiSeverity", "confidence", "agrees")}))
+        check("...and the reason is named out loud, never a silent blank",
+              bool(rec["unavailableReason"]), str(rec["unavailableReason"]))
+
+    # --- the loaded-model rendering contract, without needing an artifact ---
+    # A stub estimator with the sklearn predict_proba/classes_ shape drives the
+    # SAME pure function inference uses. This proves the rendering, not a model.
+    class _StubEstimator:
+        def __init__(self, label, probability):
+            self.classes_ = list(triage_model.LABELS)
+            self._label, self._p = label, probability
+
+        def predict_proba(self, rows):
+            out = []
+            for _row in rows:
+                rest = (1.0 - self._p) / (len(self.classes_) - 1)
+                out.append([self._p if c == self._label else rest
+                            for c in self.classes_])
+            return out
+
+    agree = triage_model.predict_with(_StubEstimator("confirmed", 0.91),
+                                      finding, "HIGH")
+    check("a loaded model that CONFIRMS agrees, at the rule's own band",
+          agree["modelAvailable"] is True and agree["status"] == "agrees"
+          and agree["aiSeverity"] == "HIGH" and agree["agrees"] is True
+          and agree["confidence"] == 0.91, str(agree))
+    disagree = triage_model.predict_with(_StubEstimator("false-positive", 0.77),
+                                         finding, "HIGH")
+    check("a loaded model that calls it a false positive DISAGREES, visibly",
+          disagree["status"] == "disagrees" and disagree["agrees"] is False
+          and disagree["aiSeverity"] == "INFO" and disagree["confidence"] == 0.77,
+          str(disagree))
+    check("disagreement is rendered as information, not as a severity change",
+          finding["sev"] == "HIGH" and finding["ruleSev"] == "HIGH")
+    benign = triage_model.predict_with(_StubEstimator("benign-expected", 0.6),
+                                       finding, "HIGH")
+    check("the third class (benign-expected) is its own visible opinion",
+          benign["aiLabel"] == "benign-expected" and benign["aiSeverity"] == "LOW"
+          and benign["status"] == "disagrees")
+
+    class _NoProbability:
+        classes_ = list(triage_model.LABELS)
+
+        def predict(self, rows):
+            return ["confirmed" for _ in rows]
+
+    try:
+        triage_model.predict_with(_NoProbability(), finding, "HIGH")
+        check("an estimator with no calibrated probability is refused", False)
+    except triage_model.ModelUnavailable as exc:
+        check("an estimator with no calibrated probability is refused rather "
+              "than given a made-up confidence", "confidence" in str(exc))
+
+    # --- KILL THE MODEL ----------------------------------------------------
+    # Point the loader at an empty directory (no artifact at all), then at a
+    # corrupt one. Rule verdicts, incidents and case files must be untouched and
+    # the surface must say "model unavailable".
+    real_model_dir = triage_model.MODEL_DIR
+    try:
+        with tempfile.TemporaryDirectory(prefix="killed-model-") as empty:
+            triage_model.MODEL_DIR = Path(empty)
+            triage_model.reset_cache()
+            killed = triage.recommend(finding)
+            status = triage.model_status()
+            check("KILL-THE-MODEL: no artifact -> honest unavailable state",
+                  killed["modelAvailable"] is False
+                  and killed["status"] == "unavailable"
+                  and killed["aiSeverity"] is None
+                  and killed["confidence"] is None and killed["agrees"] is None,
+                  str(killed))
+            check("KILL-THE-MODEL: the API says unavailable and names the reason",
+                  status["available"] is False and bool(status["reason"]),
+                  str(status))
+            check("KILL-THE-MODEL: the rule verdict on the finding is intact",
+                  triage.attach(finding)["sev"] == "HIGH"
+                  and finding["sev"] == "HIGH" and finding["ruleSev"] == "HIGH")
+            check("KILL-THE-MODEL: the rule's own fields are byte-identical",
+                  finding["type"] == "auth_bruteforce"
+                  and finding["occurrences"] == 40
+                  and finding["ruleWhy"] == "failures then silence")
+
+            # a model file with no provenance, and one whose provenance lies
+            (Path(empty) / triage_model.MODEL_NAME).write_bytes(b"not a model")
+            triage_model.reset_cache()
+            orphan = triage.recommend(finding)
+            check("a model artifact with NO provenance sidecar is refused",
+                  orphan["modelAvailable"] is False
+                  and ("provenance" in orphan["unavailableReason"]
+                       or "scikit-learn" in orphan["unavailableReason"]),
+                  str(orphan["unavailableReason"]))
+            (Path(empty) / triage_model.PROVENANCE_NAME).write_text(json.dumps({
+                "modelSha256": "0" * 64,
+                "featureKeys": list(triage_model.FEATURE_KEYS)}))
+            triage_model.reset_cache()
+            corrupt = triage.recommend(finding)
+            check("a CORRUPT artifact (hash mismatch) is refused, not scored",
+                  corrupt["modelAvailable"] is False
+                  and corrupt["aiSeverity"] is None
+                  and ("integrity" in corrupt["unavailableReason"]
+                       or "scikit-learn" in corrupt["unavailableReason"]),
+                  str(corrupt["unavailableReason"]))
+    finally:
+        triage_model.MODEL_DIR = real_model_dir
+        triage_model.reset_cache()
+
+    # --- the run-level advisory roll-up ------------------------------------
+    roll = triage.triage_state({"findings": [dict(finding)]})
+    check("triage_state reports the model's real availability, never a guess",
+          roll["advisory"] is True and roll["learned"] is True
+          and isinstance(roll["modelAvailable"], bool)
+          and roll["count"] == 1
+          and (roll["unavailable"] == 1) is (not roll["modelAvailable"]),
+          str({k: roll[k] for k in ("modelAvailable", "unavailable", "count")}))
+    check("triage_state never copies aiSeverity onto sev",
+          "aiSeverity is never copied onto sev" in roll["note"])
+
+    # --- the incident projection carries the advisory block, and only that --
+    import runbooks as _rb
+    inc_probe = {
+        "id": "inc-e7a", "entity": "10.0.0.9", "entityKind": "ip",
+        "severity": "HIGH", "findingIds": ["f1"], "ruleIds": ["auth_bruteforce"],
+        "entityValues": ["10.0.0.9", "srv1"], "findingCount": 3,
+        "criticality": "crown-jewel",
+        "firstSeen": "2026-09-02T00:00:00Z", "lastSeen": "2026-09-02T00:05:00Z",
+    }
+    projected = soc._public_incident(dict(inc_probe))
+    check("an incident projection carries aiTriage as ADVISORY metadata",
+          isinstance(projected.get("aiTriage"), dict)
+          and projected["aiTriage"]["advisory"] is True
+          and projected["severity"] == "HIGH")
+    members = [{"id": "f1", "type": "auth_bruteforce", "ruleSev": "HIGH",
+                "sev": "HIGH", "host": "srv1", "occurrences": 12,
+                "lines": [{"n": 41, "raw": "Failed password for root"}]}]
+    rb_probe = _rb.load_runbooks()["rb-block-ip"]
+    check("runbook eligibility is IDENTICAL with and without the advisory block",
+          _rb.eligible(rb_probe, projected, members)
+          == _rb.eligible(rb_probe, inc_probe, members),
+          str((_rb.eligible(rb_probe, projected, members),
+               _rb.eligible(rb_probe, inc_probe, members))))
+    check("the advisory block is never stored back onto the incident record",
+          "aiTriage" not in inc_probe)
 
     real_soc = soc.SOC_DIR
     real_store = (store.SOC_DIR, store.DB_PATH)

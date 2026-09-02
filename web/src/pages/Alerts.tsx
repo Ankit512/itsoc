@@ -7,11 +7,88 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { api, type Finding } from "@/lib/api";
+import { api, type AiTriage, type Finding } from "@/lib/api";
 import { useLogStream, type LogStream } from "@/lib/useLogStream";
 import { sevVar, SEV_ORDER } from "@/lib/severity";
 import { UnrecognizedBanner } from "@/components/UnrecognizedBanner";
 import { cn } from "@/lib/utils";
+
+/** AI TRIAGE · LEARNED, ADVISORY (card E7a).
+ *
+ *  The learned second opinion, rendered beside — never instead of — the rule
+ *  verdict. Three states, all of them visible:
+ *
+ *    agrees      the model's opinion matches the rule band;
+ *    disagrees   it does not, and that is shown loudly. Disagreement is
+ *                information for the analyst, never a gate: nothing here can
+ *                change `sev`, the incident severity, the priority, runbook
+ *                eligibility or any execution state;
+ *    unavailable no scikit-learn or no valid model on this machine. Then there
+ *                is NO severity, NO confidence and NO agreement on screen —
+ *                the reason is printed instead. Nothing is guessed to fill the
+ *                space, and every rule verdict and case file is unaffected.
+ *
+ *  Exported so the Incidents page renders the identical block from the identical
+ *  code — one component, one contract, two surfaces.
+ */
+export function AiTriageBlock({ t }: { t: AiTriage }) {
+  const unavailable = !t.modelAvailable;
+  const status: AiTriage["status"] = unavailable ? "unavailable" : t.status;
+  return (
+    <div
+      className={`is-block is-aitriage is-aitriage--${status}`}
+      data-testid="ai-triage"
+      data-status={status}
+    >
+      <div className="cap is-aitriage__cap">AI triage · learned, advisory</div>
+      {unavailable ? (
+        <>
+          <div className="verdict is-aitriage__verdict" data-testid="ai-triage-unavailable">
+            Model unavailable
+          </div>
+          <p className="is-mut">
+            No learned opinion is shown, and none is guessed. The rule verdict
+            ({t.ruleSeverity || "—"}) stands unchanged, as do incidents, case files and
+            every runbook decision.
+          </p>
+          {t.unavailableReason && (
+            <p className="is-aitriage__why" data-testid="ai-triage-reason">
+              Why: {t.unavailableReason}
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="verdict is-aitriage__verdict" data-testid="ai-triage-severity">
+            {t.aiSeverity}
+          </div>
+          <div className="is-aitriage__row">
+            <span className="is-chip is-aitriage__status" data-testid="ai-triage-status">
+              {t.agrees ? "Agrees with the rule verdict" : "Disagrees with the rule verdict"}
+            </span>
+            {t.confidence !== null && (
+              <span className="is-chip is-tnum" data-testid="ai-triage-confidence">
+                {(t.confidence * 100).toFixed(1)}% confidence
+              </span>
+            )}
+            {t.aiLabel && (
+              <span className="is-chip" data-testid="ai-triage-label">{t.aiLabel}</span>
+            )}
+          </div>
+          <p className="is-mut">
+            {t.note} Rule verdict ({t.ruleSeverity}) is unchanged.
+          </p>
+          {!t.agrees && (
+            <p className="is-aitriage__why" data-testid="ai-triage-disagreement">
+              The model disagrees with the rules. That is a prompt to look, not a
+              reason to change the verdict — the analyst decides.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 /** Map a rule severity ("CRITICAL"…) to the design-system short token used by
  *  .is-tag--<sev> and .is-block.<sev>. */
@@ -164,16 +241,7 @@ function FindingDetail({ f }: { f: Finding }) {
             {f.explanation || "Explanation pending — the deterministic verdict above is already final."}
           </p>
         </div>
-        {f.aiTriage && (
-          <div className="is-block" data-testid="ai-triage">
-            <div className="cap">AI recommended severity · advisory</div>
-            <div className="verdict" style={{ opacity: 0.85 }}>{f.aiTriage.aiSeverity}</div>
-            <p className="is-mut">
-              {f.aiTriage.note} Rule verdict ({f.aiTriage.ruleSeverity}) is unchanged.
-              {f.aiTriage.falsePositiveHint ? ` ${f.aiTriage.falsePositiveHint}` : ""}
-            </p>
-          </div>
-        )}
+        {f.aiTriage && <AiTriageBlock t={f.aiTriage} />}
       </div>
 
       {f.lines.length > 0 && (

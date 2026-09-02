@@ -1,0 +1,21 @@
+# itsoc — OPTIONAL dependencies.
+#
+# The engine, the console, the exporters and every test in this repo run on the
+# Python standard library alone. Nothing here is required to analyse a log, to
+# produce a verdict, to open a case file, or to run `tests/eval/run_eval.py`,
+# `console/test_console.py` or `tests/test_stage_e_wall.py`.
+#
+# This file exists for exactly one card: E7a, the learned second-opinion triage
+# model. Installing it lets `tools/train_triage.py` train a local model and lets
+# the console render a learned ADVISORY opinion beside the rule verdict. Not
+# installing it is a supported configuration: the advisory block then renders an
+# honest "model unavailable" state, and every rule verdict, incident, priority,
+# runbook eligibility and case file behaves identically.
+#
+#     python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+#     .venv/bin/python tools/train_triage.py
+#
+# Pinned to one stable release verified on Python 3.13 (the repo's interpreter).
+# scikit-learn pulls numpy/scipy/joblib itself; they are not pinned here so the
+# resolver can pick the wheels that match the local platform.
+scikit-learn==1.7.2
