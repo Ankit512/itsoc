@@ -1774,30 +1774,110 @@ export interface EfficacyTotals {
   precision: number;
   recall: number;
   f1: number;
+  /** False when the ratio had no denominator — the 0.0 is undefined, not measured. */
+  precision_defined?: boolean;
+  recall_defined?: boolean;
   missed_lines?: number;
   findings?: number;
+}
+
+/** One scored system (E8). `available: false` is the honest gap: no totals, no
+ *  misses, and a real reason — never zeros standing in for a score. */
+export interface EfficacySystem {
+  system: "rules" | "learned";
+  available: boolean;
+  reason: string | null;
+  findings: number | null;
+  totals: EfficacyTotals | null;
+  per_rule: Record<string, EfficacyRuleScore> | null;
+  misses: EfficacyMiss[] | null;
+  false_positives: EfficacyFalsePositive[] | null;
 }
 
 export interface EfficacyScenario {
   scenario: string;
   format: string;
+  seed?: number | null;
+  scenario_class?: string | null;
   line_count?: number;
+  /** Legacy alias of `rules.totals` — the same object, not a second measurement. */
   totals: EfficacyTotals;
   per_rule?: Record<string, EfficacyRuleScore>;
   misses: EfficacyMiss[];
   false_positives?: EfficacyFalsePositive[];
+  rules?: EfficacySystem;
+  learned?: EfficacySystem;
   scope: string;
   run_date?: string;
+  run_id?: string;
   log?: string;
 }
 
+/** Model provenance every published learned number must carry (E8). */
+export interface EfficacyModel {
+  available: boolean;
+  reason: string | null;
+  name?: string | null;
+  file?: string | null;
+  path?: string | null;
+  sha256?: string | null;
+  trainedAt?: string | null;
+  trainingSeed?: number | null;
+  trainingSeeds?: number[] | null;
+  datasetRows?: number | null;
+  featureCount?: number | null;
+  sklearnVersion?: string | null;
+}
+
+export interface EfficacyProvenance {
+  commit: string | null;
+  tree: string | null;
+  branch?: string | null;
+  worktreeDirty: boolean | null;
+}
+
+export interface EfficacyBenchmark {
+  seeds: number[];
+  scenarios: string[];
+  formats: string[];
+  generator?: string;
+  entities?: Record<string, string[]>;
+  assertedEntityKinds?: string[];
+  remap?: string;
+}
+
+export interface EfficacyFreshness {
+  asserted: boolean;
+  reason?: string;
+  benchmarkSeeds?: number[];
+  trainingSeeds?: number[];
+  trainingEntities?: Record<string, string[]>;
+  benchmarkEntities?: Record<string, string[]>;
+  assertedEntityKinds?: string[];
+  assertedEntityOverlap?: Record<string, string[]>;
+}
+
 export interface EfficacyRun {
+  run_id?: string;
   run_date: string;
   scope: string;
+  ceiling?: string;
+  /** Travels beside the scope sentence; never replaces it. */
+  advisory?: string;
   pipeline: string;
+  systems?: string[];
+  interpretation?: string;
+  metric_note?: string;
+  provenance?: EfficacyProvenance;
+  benchmark?: EfficacyBenchmark;
+  freshness?: EfficacyFreshness;
+  model?: EfficacyModel;
   scenarios: EfficacyScenario[];
   total_misses: number;
   total_false_positives: number;
+  /** null when the learned model was unavailable — an honest gap, not a zero. */
+  learned_total_misses?: number | null;
+  learned_total_false_positives?: number | null;
 }
 
 export interface EfficacyResponse {

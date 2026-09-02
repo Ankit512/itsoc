@@ -7,6 +7,15 @@ as a subprocess. Nothing here recomputes precision/recall/F1, and nothing here
 imports ``anomaly_detector`` — the detector stays behind the harness's
 subprocess seam.
 
+Since E8 that run scores **two systems** — the rules and the trained learned
+triage model — and this module still passes both straight through. In
+particular it does NOT choose benchmark seeds, does not read the model, and
+does not decide whether the learned half is available: the frozen referee in
+``tools/efficacy_harness.py`` owns seed selection, the freshness assertion
+against the model's provenance sidecar, and every metric. A run whose learned
+half is unavailable arrives here already carrying its reason, and is passed on
+unchanged rather than being filled in.
+
 Honest states, in the shape the two D2 cards consume:
 
 * ``idle``    — no harness run has been stored yet; ``run`` is ``None``.

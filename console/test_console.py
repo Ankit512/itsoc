@@ -3313,10 +3313,64 @@ def check_efficacy_api():
                   and not isinstance(run.get("total_misses"), bool),
                   f"{run.get('total_misses')!r} {run.get('total_false_positives')!r}")
             check("the run body carries exactly the contract keys",
-                  set(run) == {"run_date", "scope", "pipeline", "scenarios",
-                               "total_misses", "total_false_positives"}, str(sorted(run)))
+                  set(run) == {"run_id", "run_date", "scope", "ceiling",
+                               "advisory", "pipeline", "systems",
+                               "interpretation", "metric_note", "provenance",
+                               "benchmark", "freshness", "model", "scenarios",
+                               "total_misses", "total_false_positives",
+                               "learned_total_misses",
+                               "learned_total_false_positives"},
+                  str(sorted(run)))
             check("GET body carries exactly {status, run, error}",
                   set(body) == {"status", "run", "error"}, str(sorted(body)))
+
+            # --- E8: two named systems, one run id, real model provenance -----
+            check("the run names exactly the two systems it scored",
+                  run.get("systems") == ["rules", "learned"], str(run.get("systems")))
+            check("the run carries one benchmark run id",
+                  isinstance(run.get("run_id"), str)
+                  and run["run_id"].startswith("efficacy-"), repr(run.get("run_id")))
+            check("the run carries commit/tree provenance",
+                  {"commit", "tree", "worktreeDirty"} <= set(run.get("provenance") or {}),
+                  str(run.get("provenance")))
+            check("the run carries its benchmark seeds and entities",
+                  isinstance((run.get("benchmark") or {}).get("seeds"), list)
+                  and (run["benchmark"]["seeds"])
+                  and isinstance(run["benchmark"].get("entities"), dict),
+                  str(run.get("benchmark"))[:200])
+            check("the run carries the learned model's availability + reason",
+                  isinstance(run.get("model"), dict)
+                  and "available" in run["model"] and "reason" in run["model"],
+                  str(run.get("model"))[:200])
+            check("the advisory sentence travels with the numbers, verbatim",
+                  run.get("advisory") == "the learned model is advisory; these "
+                  "numbers are why.", repr(run.get("advisory")))
+            model_available = bool((run.get("model") or {}).get("available"))
+            if model_available:
+                check("an available model publishes its name, hash, trainedAt "
+                      "and training seeds",
+                      all(run["model"].get(key) for key in
+                          ("name", "sha256", "trainedAt", "trainingSeeds")),
+                      str(run["model"]))
+                check("benchmark seeds are disjoint from the recorded training seeds",
+                      not (set(run["benchmark"]["seeds"])
+                           & set(run["model"]["trainingSeeds"])),
+                      f"{run['benchmark']['seeds']} vs {run['model']['trainingSeeds']}")
+                check("freshness was asserted, with zero entity overlap on every kind",
+                      run["freshness"].get("asserted") is True
+                      and not any(run["freshness"]["assertedEntityOverlap"].values()),
+                      str(run.get("freshness", {}).get("assertedEntityOverlap")))
+                check("learned totals are real integers when the model answered",
+                      isinstance(run.get("learned_total_misses"), int)
+                      and isinstance(run.get("learned_total_false_positives"), int),
+                      f"{run.get('learned_total_misses')!r}")
+            else:
+                check("an unavailable model publishes a REASON and NO learned "
+                      "number — never a zero standing in for a score",
+                      bool(run["model"].get("reason"))
+                      and run.get("learned_total_misses") is None
+                      and run.get("learned_total_false_positives") is None,
+                      str(run.get("model"))[:200])
 
             first = run["scenarios"][0]
             check("each scenario keeps the harness's own totals/per_rule/misses",
@@ -3326,6 +3380,27 @@ def check_efficacy_api():
                   "come straight from the harness",
                   {"precision", "recall", "f1"} <= set(first["totals"]),
                   str(sorted(first["totals"])))
+            check("each scenario carries BOTH systems, separately",
+                  isinstance(first.get("rules"), dict)
+                  and isinstance(first.get("learned"), dict)
+                  and first["rules"]["system"] == "rules"
+                  and first["learned"]["system"] == "learned",
+                  str(sorted(first)))
+            check("the legacy top-level totals ARE the rules system's totals",
+                  first["totals"] == first["rules"]["totals"])
+            if first["learned"].get("available"):
+                check("the learned system reports its own precision/recall/f1 "
+                      "and its own verbatim miss list",
+                      {"precision", "recall", "f1"} <= set(first["learned"]["totals"])
+                      and isinstance(first["learned"]["misses"], list),
+                      str(first["learned"])[:200])
+            else:
+                check("an unavailable learned system reports a reason and NO "
+                      "totals — the honest gap, not a zero row",
+                      first["learned"]["totals"] is None
+                      and first["learned"]["misses"] is None
+                      and bool(first["learned"]["reason"]),
+                      str(first["learned"])[:200])
 
             # --- the last run survives a refresh (and a restart) --------------
             check("the completed run is persisted under console/.soc/",
@@ -3392,6 +3467,13 @@ def check_efficacy_api():
         check("efficacy_api.py defines no scoring of its own — precision/recall/f1 "
               "exist only in the harness output it passes through",
               not any(f"def {name}" in helper for name in ("precision", "recall", "f1", "score")))
+        check("efficacy_api.py picks no benchmark seed of its own — the frozen "
+              "referee owns seed selection",
+              "seeds=" not in helper and "BENCHMARK_SEEDS" not in helper,
+              "efficacy_api.py passes a seed into the harness")
+        check("efficacy_api.py never imports the learned model directly — the "
+              "learned system is scored inside the harness, behind one seam",
+              "triage_model" not in helper)
     finally:
         efficacy_api.SOC_DIR = real_soc
         efficacy_api.reset()
