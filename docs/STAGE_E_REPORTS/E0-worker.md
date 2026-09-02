@@ -5,8 +5,9 @@
 - `git branch --show-current` → **`feat/e0-disposition-capture`** — checked
   **before the first edit**, matched the card exactly, work proceeded.
 - Base head at start: `5978d71` ("docs: update Stage E action cards").
-- Commit produced by this card: see `git log -1` on the branch (added below at
-  commit time); explicit paths only, no `git add -A`, no push, no merge.
+- Commit produced by this card: **`622f540`** — "feat(E0): capture analyst
+  disposition on incident close". Staged with explicit paths only, no
+  `git add -A`, not pushed, not merged.
 
 ## Freeze verification (`anomaly_detector.py`)
 
