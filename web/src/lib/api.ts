@@ -1821,6 +1821,10 @@ export interface EfficacySystem {
   false_positives: EfficacyFalsePositive[] | null;
   /** E8m — published for BOTH systems; null only when the system is unavailable. */
   finding_recall?: EfficacyFindingRecall | null;
+  /** E8m2 — the same recall per rule class, keyed by `rule_id`. Each entry
+   *  carries its own denominator: that rule's findings citing a malicious
+   *  line. A rule with no such finding is absent, never a published 0/0. */
+  finding_recall_by_rule?: Record<string, EfficacyFindingRecall> | null;
   dropped_true_findings?: EfficacyDroppedFinding[] | null;
 }
 
@@ -1868,7 +1872,15 @@ export interface EfficacyProvenance {
 
 export interface EfficacyBenchmark {
   seeds: number[];
+  /** What this run actually measured. */
   scenarios: string[];
+  /** E8m2 — the referee's frozen benchmark scenario set. A scenario added to
+   *  the generator does not appear here, so it cannot move a benchmark
+   *  number. `scenarioSetIsFrozen` is false when a caller deliberately asked
+   *  for something other than the frozen set. */
+  frozenScenarios?: string[];
+  scenarioSetIsFrozen?: boolean;
+  scenarioNote?: string;
   formats: string[];
   generator?: string;
   entities?: Record<string, string[]>;
@@ -1887,6 +1899,21 @@ export interface EfficacyFreshness {
   assertedEntityOverlap?: Record<string, string[]>;
 }
 
+/** One rule class's row in the E8m2 finding-level recall breakdown. The
+ *  denominator is the RULES system's count for that rule — the reference
+ *  collection both systems are scored against — so a class the learned system
+ *  drops entirely reads 0.0 here while the aggregate barely moves. */
+export interface EfficacyRuleFindingRecall {
+  denominator: string;
+  true_findings_total: number;
+  rules: EfficacyFindingRecall;
+  /** null when the learned model was unavailable — never a zero standing in. */
+  learned: EfficacyFindingRecall | null;
+  /** How many of the verbatim dropped findings belong to this rule class. The
+   *  full list is still published; this is a count, not a replacement. */
+  learned_dropped_true_findings: number | null;
+}
+
 /** Both recalls at run level (E8m), each with its denominator named. */
 export interface EfficacyRunFindingRecall {
   denominator: string;
@@ -1895,6 +1922,9 @@ export interface EfficacyRunFindingRecall {
   /** null when the learned model was unavailable — an honest gap, not a zero. */
   learned: EfficacyFindingRecall | null;
   learned_dropped_true_findings: EfficacyDroppedFinding[] | null;
+  /** E8m2 — the aggregate broken down by rule class, keyed by `rule_id`. */
+  by_rule?: Record<string, EfficacyRuleFindingRecall>;
+  by_rule_note?: string;
 }
 
 /** False-positive totals, never bare (E8m): the headline is every format the

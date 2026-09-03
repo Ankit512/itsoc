@@ -97,7 +97,17 @@ const MOCK_DONE_RUN: EfficacyResponse = {
     pipeline: "log_analyzer.py --rules-only (subprocess)",
     systems: ["rules", "learned"],
     provenance: { commit: "e46d974559f8cda1a513fe918f6d580b85633abf", tree: "39910ef", worktreeDirty: false },
-    benchmark: { seeds: [20270302, 20270303], scenarios: ["brute_force"], formats: ["canonical"] },
+    benchmark: {
+      seeds: [20270302, 20270303],
+      scenarios: ["brute_force"],
+      // E8m2: the referee's frozen set, published beside what ran
+      frozenScenarios: ["INC-4a7f", "failure-success", "error-burst",
+                        "near-miss-auth", "near-miss-errors", "benign-maintenance"],
+      scenarioSetIsFrozen: false,
+      scenarioNote:
+        "The benchmark's scenario set is frozen in the referee, not read from the generator.",
+      formats: ["canonical"],
+    },
     freshness: { asserted: true, assertedEntityOverlap: { ip: [], user: [], host: [], port: [], change_window: [] } },
     model: MODEL,
     scenarios: [
@@ -244,6 +254,41 @@ const MOCK_DONE_RUN: EfficacyResponse = {
         denominator: "findings that cite at least one malicious line",
       },
       learned_dropped_true_findings: [DROPPED_TRUE_FINDING],
+      // --- E8m2: the same recall, per rule class ---
+      by_rule_note:
+        "Finding-level recall is also published PER RULE CLASS, each with its own denominator. A rule that produced no finding citing a malicious line is absent from the breakdown rather than published as a 0/0. This is a reading aid over `dropped_true_findings`, which stays published verbatim.",
+      by_rule: {
+        ioc_observed: {
+          denominator: "findings this rule produced that cite at least one malicious line",
+          true_findings_total: 1,
+          rules: {
+            true_findings_kept: 1, true_findings_total: 1, recall: 1.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          learned: {
+            true_findings_kept: 0, true_findings_total: 1, recall: 0.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          learned_dropped_true_findings: 1,
+        },
+        auth_bruteforce: {
+          denominator: "findings this rule produced that cite at least one malicious line",
+          true_findings_total: 2,
+          rules: {
+            true_findings_kept: 2, true_findings_total: 2, recall: 1.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          learned: {
+            true_findings_kept: 2, true_findings_total: 2, recall: 1.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          learned_dropped_true_findings: 0,
+        },
+      },
     },
     false_positive_totals: {
       formats: ["canonical", "combined"],
@@ -352,6 +397,21 @@ const MOCK_MODEL_UNAVAILABLE_RUN: EfficacyResponse = {
       },
       learned: null,
       learned_dropped_true_findings: null,
+      by_rule_note:
+        "Finding-level recall is also published PER RULE CLASS, each with its own denominator.",
+      by_rule: {
+        auth_bruteforce: {
+          denominator: "findings this rule produced that cite at least one malicious line",
+          true_findings_total: 1,
+          rules: {
+            true_findings_kept: 1, true_findings_total: 1, recall: 1.0,
+            recall_defined: true,
+            denominator: "findings that cite at least one malicious line",
+          },
+          learned: null,
+          learned_dropped_true_findings: null,
+        },
+      },
     },
     false_positive_totals: {
       formats: ["canonical"],
@@ -779,6 +839,97 @@ describe("Efficacy surface on Reports", () => {
     expect(screen.queryByTestId("efficacy-recall-denominators")).not.toBeInTheDocument();
     expect(screen.queryByTestId("efficacy-fp-totals")).not.toBeInTheDocument();
     expect(screen.queryByTestId("efficacy-criticality-sensitivity")).not.toBeInTheDocument();
+  });
+
+  // --- E8m2: the per-rule breakdown and the frozen scenario pin ------------
+
+  it("E8m2: finding-level recall is broken down by rule class, each with its own denominator", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_DONE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    const table = await screen.findByTestId("efficacy-finding-recall-by-rule");
+    // the class the learned system LOST is readable on its own row — this is
+    // exactly what an aggregate 0.9111 hid
+    const lost = within(table).getByTestId("efficacy-by-rule-ioc_observed");
+    expect(within(lost).getByTestId("efficacy-by-rule-ioc_observed-rules")).toHaveTextContent("1 (1/1)");
+    expect(within(lost).getByTestId("efficacy-by-rule-ioc_observed-learned")).toHaveTextContent("0 (0/1)");
+    expect(within(lost).getByTestId("efficacy-by-rule-ioc_observed-dropped")).toHaveTextContent("1");
+    // ... beside a class it kept in full
+    const kept = within(table).getByTestId("efficacy-by-rule-auth_bruteforce");
+    expect(within(kept).getByTestId("efficacy-by-rule-auth_bruteforce-learned")).toHaveTextContent("1 (2/2)");
+    expect(within(table).getByTestId("efficacy-by-rule-note")).toHaveTextContent(
+      "PER RULE CLASS",
+    );
+  });
+
+  it("E8m2: the breakdown ADDS to the verbatim dropped list, it does not replace it", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_DONE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    await screen.findByTestId("efficacy-finding-recall-by-rule");
+    // the same drop, still listed verbatim with its real evidence
+    const dropped = screen.getByTestId("learned-dropped-brute_force");
+    expect(dropped).toHaveTextContent(DROPPED_TRUE_FINDING.cited_malicious_lines[0].raw);
+    // and the aggregate is still published, unreplaced
+    expect(screen.getByTestId("efficacy-finding-recall-learned")).toHaveTextContent("0.6667 (2/3)");
+  });
+
+  it("E8m2: with no learned model every per-rule learned cell is an honest gap", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_MODEL_UNAVAILABLE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    const table = await screen.findByTestId("efficacy-finding-recall-by-rule");
+    const row = within(table).getByTestId("efficacy-by-rule-auth_bruteforce");
+    expect(within(row).getByTestId("efficacy-by-rule-auth_bruteforce-learned")).toHaveTextContent(
+      "unavailable",
+    );
+    expect(within(row).getByTestId("efficacy-by-rule-auth_bruteforce-dropped")).toHaveTextContent("n/a");
+    expect(within(row).getByTestId("efficacy-by-rule-auth_bruteforce-learned")).not.toHaveTextContent("0 (0/");
+  });
+
+  it("E8m2: a run body with no per-rule breakdown renders no table, never a fabricated one", async () => {
+    const legacy = JSON.parse(JSON.stringify(MOCK_DONE_RUN));
+    delete legacy.run.finding_level_recall.by_rule;
+    delete legacy.run.finding_level_recall.by_rule_note;
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": legacy });
+    renderApp(<App />, { route: "/reports" });
+
+    await screen.findByTestId("efficacy-recall-denominators");
+    expect(screen.queryByTestId("efficacy-finding-recall-by-rule")).not.toBeInTheDocument();
+    // the aggregate it sits beside is untouched
+    expect(screen.getByTestId("efficacy-finding-recall-learned")).toHaveTextContent("0.6667 (2/3)");
+  });
+
+  it("E8m2: the benchmark's frozen scenario set is shown beside what actually ran", async () => {
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": MOCK_DONE_RUN });
+    renderApp(<App />, { route: "/reports" });
+
+    const pin = await screen.findByTestId("efficacy-scenario-pin");
+    expect(within(pin).getByTestId("efficacy-scenarios")).toHaveTextContent("brute_force");
+    // this fixture deliberately did NOT run the frozen set, and says so
+    expect(within(pin).getByTestId("efficacy-scenario-pin-off")).toHaveTextContent(
+      "NOT the frozen set",
+    );
+    expect(pin).toHaveTextContent("INC-4a7f");
+    expect(screen.queryByTestId("efficacy-scenario-pin-on")).not.toBeInTheDocument();
+  });
+
+  it("E8m2: a run of the frozen set says so, and a run body without the pin shows nothing", async () => {
+    const pinned = JSON.parse(JSON.stringify(MOCK_DONE_RUN));
+    pinned.run.benchmark.scenarioSetIsFrozen = true;
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": pinned });
+    const { unmount } = renderApp(<App />, { route: "/reports" });
+    expect(await screen.findByTestId("efficacy-scenario-pin-on")).toHaveTextContent(
+      "the frozen benchmark set",
+    );
+    unmount();
+
+    const legacy = JSON.parse(JSON.stringify(MOCK_DONE_RUN));
+    delete legacy.run.benchmark.frozenScenarios;
+    mockFetch({ "/api/reports": { reports: [] }, "/api/efficacy": legacy });
+    renderApp(<App />, { route: "/reports" });
+    await screen.findByTestId("efficacy-table");
+    expect(screen.queryByTestId("efficacy-scenario-pin")).not.toBeInTheDocument();
   });
 
   it("E8m: the client still computes nothing — the amendment added no arithmetic", () => {

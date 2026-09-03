@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, EXPORT_FORMATS } from "@/lib/api";
-import type { EfficacyRun, EfficacySystem, EfficacyTotals } from "@/lib/api";
+import type { EfficacyRun, EfficacyRunFindingRecall, EfficacySystem, EfficacyTotals } from "@/lib/api";
 
 /** Reports — real files only, in the itsoc. design system (mirrors prototype
  *  #p-reports / handoff §3). Downloads are real <a href download> to
@@ -205,6 +205,21 @@ function EfficacyProvenanceBlock({ run }: { run: EfficacyRun }) {
           Benchmark seeds: <span className="is-mono" style={{ color: "var(--ink)" }} data-testid="efficacy-seeds">{seeds.join(", ")}</span>
         </div>
       )}
+      {run.benchmark?.frozenScenarios?.length ? (
+        <div data-testid="efficacy-scenario-pin">
+          Benchmark scenarios:{" "}
+          <span className="is-mono" style={{ color: "var(--ink)" }} data-testid="efficacy-scenarios">
+            {(run.benchmark.scenarios ?? []).join(", ")}
+          </span>{" "}
+          {run.benchmark.scenarioSetIsFrozen === false ? (
+            <span style={{ color: "var(--high)" }} data-testid="efficacy-scenario-pin-off">
+              (NOT the frozen set — frozen is {run.benchmark.frozenScenarios.join(", ")})
+            </span>
+          ) : (
+            <span className="is-mut" data-testid="efficacy-scenario-pin-on">(the frozen benchmark set)</span>
+          )}
+        </div>
+      ) : null}
       {run.pipeline && (
         <div>
           Pipeline: <span className="is-mono" style={{ color: "var(--ink)" }}>{run.pipeline}</span>
@@ -326,9 +341,81 @@ function RecallDenominatorBlock({ run }: { run: EfficacyRun }) {
           )}
         </div>
       </div>
+      <FindingRecallByRuleTable flr={flr} />
       {run.recall_note && (
         <p className="is-mut" style={{ fontSize: 11.5, margin: "6px 0 0", lineHeight: 1.5 }} data-testid="efficacy-recall-note">
           {run.recall_note}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** E8m2 (1). Finding-level recall BROKEN DOWN BY RULE CLASS, each row with its
+ *  own denominator. An aggregate cannot say which class a system is losing —
+ *  a 1.000 line-level number hid five crown-jewel `ioc_observed` dismissals,
+ *  and eight `infra_unknown_high` drops read only as an aggregate 0.9111. This
+ *  table is a reading aid over the verbatim dropped list below, never a
+ *  replacement for it. */
+function FindingRecallByRuleTable({ flr }: { flr: EfficacyRunFindingRecall }) {
+  const byRule = flr.by_rule ?? {};
+  const ruleIds = Object.keys(byRule);
+  if (ruleIds.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8 }} data-testid="efficacy-finding-recall-by-rule">
+      <div style={{ fontWeight: 600, fontSize: 11.5 }}>
+        Finding-level recall by rule class — each with its own denominator
+      </div>
+      <table className="is-table" style={{ fontSize: 11.5, marginTop: 4 }}>
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th style={{ textAlign: "right" }}>Rules</th>
+            <th style={{ textAlign: "right" }}>Learned</th>
+            <th style={{ textAlign: "right" }}>Dropped</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ruleIds.map((ruleId) => {
+            const row = byRule[ruleId];
+            const learned = row.learned;
+            const losing = !!learned && learned.recall_defined && learned.recall < 1;
+            return (
+              <tr key={ruleId} data-testid={`efficacy-by-rule-${ruleId}`}>
+                <td className="is-mono">{ruleId}</td>
+                <td className="is-tnum" style={{ textAlign: "right" }} data-testid={`efficacy-by-rule-${ruleId}-rules`}>
+                  {row.rules.recall_defined ? row.rules.recall : "n/a"}{" "}
+                  <span className="is-mut">
+                    ({row.rules.true_findings_kept}/{row.rules.true_findings_total})
+                  </span>
+                </td>
+                <td
+                  className="is-tnum"
+                  style={{ textAlign: "right", color: losing ? "var(--high)" : undefined, fontWeight: losing ? 600 : undefined }}
+                  data-testid={`efficacy-by-rule-${ruleId}-learned`}
+                >
+                  {learned ? (
+                    <>
+                      {learned.recall_defined ? learned.recall : "n/a"}{" "}
+                      <span className="is-mut">
+                        ({learned.true_findings_kept}/{learned.true_findings_total})
+                      </span>
+                    </>
+                  ) : (
+                    <span className="is-mut">unavailable</span>
+                  )}
+                </td>
+                <td className="is-tnum" style={{ textAlign: "right" }} data-testid={`efficacy-by-rule-${ruleId}-dropped`}>
+                  {row.learned_dropped_true_findings ?? "n/a"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {flr.by_rule_note && (
+        <p className="is-mut" style={{ fontSize: 11.5, margin: "6px 0 0", lineHeight: 1.5 }} data-testid="efficacy-by-rule-note">
+          {flr.by_rule_note}
         </p>
       )}
     </div>

@@ -58,7 +58,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -203,6 +203,40 @@ ADVISORY_SENTENCE = "the learned model is advisory; these numbers are why."
 # recorded provenance, not against this comment.
 BENCHMARK_SEEDS = (20270302, 20270303, 20270304)
 
+# --------------------------------------------------------------------------- #
+# E8m2 (2) — the benchmark's SCENARIO LIST is frozen here, not inherited
+# --------------------------------------------------------------------------- #
+# The benchmark used to default to `generator.SCENARIOS`, so any scenario added
+# to `tools/attack_generator.py` silently changed what the frozen benchmark
+# measured and made a before/after comparison meaningless. That was a hole in
+# the freeze: the referee is supposed to own what is measured, and it did not
+# own this. It does now. Adding a scenario to the generator has ZERO effect on
+# benchmark output; measuring it requires either an explicit `--scenario` on the
+# command line or a deliberate, reviewable edit to this tuple.
+#
+# These are exactly the six scenarios the benchmark measured before this
+# amendment, in the generator's own declaration order, so no published number
+# moves.
+BENCHMARK_SCENARIOS = (
+    "INC-4a7f",
+    "failure-success",
+    "error-burst",
+    "near-miss-auth",
+    "near-miss-errors",
+    "benign-maintenance",
+)
+
+BENCHMARK_SCENARIO_NOTE = (
+    "The benchmark's scenario set is frozen in the referee "
+    "(`BENCHMARK_SCENARIOS`), not read from the generator. A scenario added to "
+    "`tools/attack_generator.py` therefore cannot change what the benchmark "
+    "measures, and before/after runs stay comparable; measuring a new scenario "
+    "takes an explicit `--scenario` or a deliberate edit to the frozen tuple. "
+    "`benchmark.scenarios` is what this run actually measured; "
+    "`benchmark.frozenScenarios` is what the frozen set says, and the two "
+    "differ only when a caller asked for something else on purpose."
+)
+
 # The E7a training sidecar's seed window, recorded here only so the DEFAULT
 # benchmark set can be checked for disjointness without a model on disk. The
 # binding check always uses the seeds the sidecar actually recorded.
@@ -319,6 +353,108 @@ def finding_level_recall(kept_true: int, reference_true: int) -> dict[str, Any]:
         "recall": _ratio(kept_true, reference_true),
         "recall_defined": reference_true > 0,
         "denominator": "findings that cite at least one malicious line",
+    }
+
+
+def benchmark_scenarios() -> tuple[str, ...]:
+    """The frozen benchmark scenario set, checked against the generator.
+
+    E8m2 (2). The referee owns WHAT is measured, not just the seeds it is
+    measured at. This returns the frozen tuple and never the generator's
+    dictionary, so a scenario added to `tools/attack_generator.py` cannot move
+    a benchmark number.
+
+    The one thing it does read from the generator is whether every frozen
+    scenario still EXISTS there. A frozen scenario the generator can no longer
+    produce is a hard failure, not a silently shorter benchmark — the same
+    posture the freshness assertion takes: refuse rather than publish numbers
+    that quietly mean something else.
+    """
+    missing = [name for name in BENCHMARK_SCENARIOS if name not in generator.SCENARIOS]
+    if missing:
+        raise BenchmarkProvenanceError(
+            "the frozen benchmark scenario set names scenario(s) the generator "
+            f"no longer produces: {', '.join(missing)}. The benchmark is not "
+            "measuring what it says it measures; fix the generator or change "
+            "BENCHMARK_SCENARIOS deliberately."
+        )
+    return BENCHMARK_SCENARIOS
+
+
+# --------------------------------------------------------------------------- #
+# E8m2 (1) — finding-level recall, broken down by rule class
+# --------------------------------------------------------------------------- #
+# An aggregate finding-level recall hides WHICH rule class a system is losing.
+# E7a's five crown-jewel `ioc_observed` dismissals hid behind a line-level
+# 1.000; E7b round 1's eight `infra_unknown_high` drops are visible in the
+# aggregate only as 0.9111. Per-rule recall makes the losing class readable
+# without parsing the verbatim dropped list — which is still published, in full,
+# and is still the evidence. This breakdown is IN ADDITION to it, never instead.
+BY_RULE_RECALL_NOTE = (
+    "Finding-level recall is also published PER RULE CLASS, each with its own "
+    "denominator: the findings THAT rule produced that cite at least one "
+    "malicious line. The denominator is the rules system's count for that rule "
+    "— the reference collection both systems are scored against — so a class "
+    "the learned system drops entirely scores 0.0 here while the aggregate "
+    "barely moves. A rule that produced no finding citing a malicious line has "
+    "no finding-level recall to measure and is absent from the breakdown "
+    "rather than published as a 0/0. This is a reading aid over "
+    "`dropped_true_findings`, which stays published verbatim and stays the "
+    "evidence."
+)
+
+
+def _true_findings_by_rule(per_rule: Mapping[str, Any] | None) -> dict[str, int]:
+    """{rule_id: true-positive finding count} out of an existing `per_rule`.
+
+    Reads the numbers `diff()` already computed. Nothing is re-scored here.
+    """
+    out: dict[str, int] = {}
+    for rule_id, bucket in (per_rule or {}).items():
+        out[str(rule_id)] = int(bucket.get("true_positive_findings") or 0)
+    return out
+
+
+def finding_recall_by_rule(
+    reference_per_rule: Mapping[str, Any] | None,
+    system_per_rule: Mapping[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    """Per-rule-class finding-level recall, against the reference denominator.
+
+    `reference_per_rule` is always the RULES system's `per_rule` — the
+    collection both systems are scored on — so the learned system is measured
+    against what the analyzer actually produced for that rule, not against its
+    own surviving subset. Reuses :func:`finding_level_recall`, so there is still
+    one finding-recall implementation and one `_ratio()`.
+    """
+    reference = _true_findings_by_rule(reference_per_rule)
+    kept = _true_findings_by_rule(system_per_rule)
+    return {
+        rule_id: finding_level_recall(kept.get(rule_id, 0), total)
+        for rule_id, total in sorted(reference.items())
+        if total > 0
+    }
+
+
+def merge_finding_recall_by_rule(
+    entries: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Sum per-scenario per-rule breakdowns into one run-level breakdown.
+
+    Kept/total are summed per rule class and the ratio is recomputed from the
+    summed pair — never an average of ratios, which would weight a one-finding
+    scenario the same as a nine-finding one.
+    """
+    kept: dict[str, int] = {}
+    total: dict[str, int] = {}
+    for entry in entries:
+        for rule_id, bucket in (entry or {}).items():
+            kept[rule_id] = kept.get(rule_id, 0) + int(bucket["true_findings_kept"])
+            total[rule_id] = total.get(rule_id, 0) + int(bucket["true_findings_total"])
+    return {
+        rule_id: finding_level_recall(kept.get(rule_id, 0), total[rule_id])
+        for rule_id in sorted(total)
+        if total[rule_id] > 0
     }
 
 
@@ -1132,6 +1268,12 @@ def score_pair(
         # E8m: published beside line-level recall, for BOTH systems.
         "finding_recall": finding_level_recall(
             reference_true_findings, reference_true_findings),
+        # E8m2: the same recall, per rule class. The rules system IS the
+        # reference collection, so every class is 1.0 here by construction —
+        # published anyway, so the learned column always has a row to sit
+        # beside and a reader never has to assume the denominator.
+        "finding_recall_by_rule": finding_recall_by_rule(
+            rules_entry["per_rule"], rules_entry["per_rule"]),
         # The rules system drops nothing, so this list is empty BY MEASUREMENT,
         # not by omission — it is published either way.
         "dropped_true_findings": [],
@@ -1149,6 +1291,7 @@ def score_pair(
             "false_positives": None,
             "decisions": None,
             "finding_recall": None,
+            "finding_recall_by_rule": None,
             "dropped_true_findings": None,
         }
     else:
@@ -1167,6 +1310,11 @@ def score_pair(
             "finding_recall": finding_level_recall(
                 learned_entry["totals"]["true_positive_findings"],
                 reference_true_findings),
+            # E8m2: which rule CLASS this system is losing. The denominator is
+            # the rules system's per-rule count, so a class dropped entirely
+            # reads 0.0 here even when the aggregate barely moves.
+            "finding_recall_by_rule": finding_recall_by_rule(
+                rules_entry["per_rule"], learned_entry["per_rule"]),
             # A finding this system dropped WHILE it cited malicious lines. It
             # costs finding-level recall and is invisible in line-level recall
             # whenever a kept finding covers the same lines, so it is listed
@@ -1314,6 +1462,33 @@ def evaluate(
                     for item in entry["learned"]["dropped_true_findings"]]
                    if learned_available else None)
 
+    # E8m2 (1): the same finding-level recall, per rule class, summed across
+    # scenarios from the per-scenario breakdowns each system already carries.
+    rules_by_rule = merge_finding_recall_by_rule(
+        [entry["rules"]["finding_recall_by_rule"] for entry in results])
+    learned_by_rule = (merge_finding_recall_by_rule(
+        [entry["learned"]["finding_recall_by_rule"] for entry in results])
+        if learned_available else None)
+    # Every rule class the run measured, so the two systems are always read as
+    # one table with one denominator per row.
+    by_rule = {
+        rule_id: {
+            "denominator": ("findings this rule produced that cite at least "
+                            "one malicious line"),
+            "true_findings_total": bucket["true_findings_total"],
+            "rules": bucket,
+            "learned": ((learned_by_rule or {}).get(rule_id)
+                        if learned_available else None),
+            # The verbatim drops behind this row's learned number, counted.
+            # The list itself stays published in full, unsummarised.
+            "learned_dropped_true_findings": (
+                sum(1 for item in (all_dropped or [])
+                    if item.get("rule_id") == rule_id)
+                if learned_available else None),
+        }
+        for rule_id, bucket in rules_by_rule.items()
+    }
+
     # (2) false-positive totals, never bare: the headline is every format this
     #     run measured, with each single format published as a labelled subset.
     by_format: dict[str, dict[str, Any]] = {}
@@ -1347,6 +1522,11 @@ def evaluate(
             "entities": benchmark_entities,
             "remap": BENCHMARK_REMAP_NOTE,
             "assertedEntityKinds": list(ASSERTED_ENTITY_KINDS),
+            # E8m2 (2): what the FROZEN set says, beside what this run measured.
+            # `scenarios` above is unchanged and is still the measured list.
+            "frozenScenarios": list(BENCHMARK_SCENARIOS),
+            "scenarioSetIsFrozen": list(scenarios) == list(BENCHMARK_SCENARIOS),
+            "scenarioNote": BENCHMARK_SCENARIO_NOTE,
         },
         "freshness": freshness,
         "model": (model.describe() if model is not None else
@@ -1373,6 +1553,9 @@ def evaluate(
             "learned": (finding_level_recall(learned_true, reference_true)
                         if learned_available else None),
             "learned_dropped_true_findings": all_dropped,
+            # --- E8m2, additive only. Nothing above changed. -------------
+            "by_rule_note": BY_RULE_RECALL_NOTE,
+            "by_rule": by_rule,
         },
         "line_level_recall_denominator": "manifest malicious lines",
         "false_positive_totals": {
@@ -1468,6 +1651,13 @@ def render(summary: dict[str, Any]) -> str:
     benchmark = summary.get("benchmark") or {}
     lines.append(f"Benchmark seeds: {benchmark.get('seeds')}  "
                  f"formats: {benchmark.get('formats')}")
+    # E8m2 (2): what was measured, and whether it is the frozen set.
+    frozen = benchmark.get("frozenScenarios")
+    if frozen is not None:
+        pinned = ("the frozen benchmark set" if benchmark.get("scenarioSetIsFrozen")
+                  else f"NOT the frozen set — frozen is {frozen}")
+        lines.append(f"Benchmark scenarios: {benchmark.get('scenarios')} "
+                     f"({pinned})")
     freshness = summary.get("freshness") or {}
     if freshness.get("asserted"):
         lines.append(f"Training seeds (from sidecar): {freshness.get('trainingSeeds')}")
@@ -1553,6 +1743,34 @@ def render(summary: dict[str, Any]) -> str:
                          f"{summary.get('learned_total_dropped_true_findings')} "
                          "finding(s) dropped while citing a malicious line")
 
+        # E8m2 (1): the same recall per rule class, so the losing class is
+        # readable without parsing the verbatim dropped list below.
+        by_rule = flr.get("by_rule") or {}
+        if by_rule:
+            lines.append("  finding-level recall BY RULE CLASS "
+                         "(denominator: that rule's findings citing a "
+                         "malicious line):")
+            for rule_id, bucket in by_rule.items():
+                rules_cell = bucket["rules"]
+                learned_cell = bucket.get("learned")
+                if learned_cell is None:
+                    learned_text = "learned n/a"
+                else:
+                    value = (learned_cell["recall"]
+                             if learned_cell["recall_defined"] else "n/a")
+                    learned_text = (f"learned {value} "
+                                    f"({learned_cell['true_findings_kept']}/"
+                                    f"{learned_cell['true_findings_total']})")
+                    dropped = bucket.get("learned_dropped_true_findings")
+                    if dropped:
+                        learned_text += f" — {dropped} dropped"
+                lines.append(
+                    f"    {rule_id}: rules "
+                    f"{rules_cell['recall'] if rules_cell['recall_defined'] else 'n/a'} "
+                    f"({rules_cell['true_findings_kept']}/"
+                    f"{rules_cell['true_findings_total']}), {learned_text}")
+            lines.append(f"  {flr.get('by_rule_note')}")
+
     # E8m (c): the criticality counterfactual, first class.
     sens = summary.get("criticality_sensitivity") or {}
     lines.append("")
@@ -1584,7 +1802,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--scenario", choices=generator.SCENARIOS, action="append", dest="scenarios",
-        help="scenario to measure (repeatable; default: all)",
+        help=f"scenario to measure (repeatable; default: the frozen benchmark "
+             f"set {BENCHMARK_SCENARIOS}). Any scenario the generator can "
+             "produce may be measured explicitly, but only the frozen set is "
+             "the benchmark.",
     )
     parser.add_argument(
         "--format", choices=generator.FORMATTERS, action="append", dest="formats",
@@ -1607,7 +1828,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--json", type=Path, default=None, help="also write the full result as JSON")
     args = parser.parse_args(argv)
 
-    scenarios = args.scenarios or list(generator.SCENARIOS)
+    # E8m2 (2): the DEFAULT is the referee's frozen set, never the generator's
+    # dictionary — adding a scenario there must not move a benchmark number.
+    try:
+        scenarios = args.scenarios or list(benchmark_scenarios())
+    except BenchmarkProvenanceError as exc:
+        print(f"BENCHMARK REFUSED: {exc}", file=sys.stderr)
+        return 2
     formats = args.formats or ["canonical"]
     seeds = args.seeds or list(BENCHMARK_SEEDS)
 

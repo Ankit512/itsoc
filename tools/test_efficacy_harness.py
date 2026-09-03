@@ -979,5 +979,228 @@ class AmendmentIsAdditiveTests(unittest.TestCase):
         self.assertEqual(summary["total_misses"], 0)
 
 
+class PerRuleFindingRecallTests(unittest.TestCase):
+    """E8m2 (1). Finding-level recall, broken down by rule class.
+
+    The defect this closes: an aggregate cannot say WHICH rule class a system
+    is losing. E7a's five crown-jewel `ioc_observed` dismissals sat behind a
+    line-level 1.000; E7b round 1's eight `infra_unknown_high` drops read only
+    as an aggregate 0.9111. The breakdown is published IN ADDITION to the
+    verbatim dropped list, never instead of it.
+    """
+
+    def test_the_denominator_is_the_reference_collection_per_rule(self) -> None:
+        reference = {
+            "rule_a": {"true_positive_findings": 4, "false_positive_findings": 1},
+            "rule_b": {"true_positive_findings": 2, "false_positive_findings": 0},
+        }
+        system = {"rule_a": {"true_positive_findings": 3}}   # rule_b gone entirely
+        by_rule = harness.finding_recall_by_rule(reference, system)
+        self.assertEqual(by_rule["rule_a"]["true_findings_kept"], 3)
+        self.assertEqual(by_rule["rule_a"]["true_findings_total"], 4)
+        self.assertEqual(by_rule["rule_a"]["recall"], 0.75)
+        # A class the system dropped ENTIRELY reads 0.0 against the reference
+        # denominator — it does not vanish from the table with it.
+        self.assertEqual(by_rule["rule_b"]["true_findings_kept"], 0)
+        self.assertEqual(by_rule["rule_b"]["true_findings_total"], 2)
+        self.assertEqual(by_rule["rule_b"]["recall"], 0.0)
+        self.assertTrue(by_rule["rule_b"]["recall_defined"])
+
+    def test_a_rule_with_no_true_finding_is_absent_not_a_published_zero(self) -> None:
+        """0/0 is not a measurement. It is left out, and the note says so."""
+        reference = {"fp_only": {"true_positive_findings": 0,
+                                 "false_positive_findings": 3}}
+        self.assertEqual(harness.finding_recall_by_rule(reference, reference), {})
+        self.assertIn("absent from the breakdown", harness.BY_RULE_RECALL_NOTE)
+
+    def test_the_run_level_breakdown_sums_pairs_never_averages_ratios(self) -> None:
+        """One 1/1 scenario and one 0/9 scenario is 1/10, not 0.5."""
+        merged = harness.merge_finding_recall_by_rule([
+            {"r": {"true_findings_kept": 1, "true_findings_total": 1}},
+            {"r": {"true_findings_kept": 0, "true_findings_total": 9}},
+        ])
+        self.assertEqual(merged["r"]["true_findings_kept"], 1)
+        self.assertEqual(merged["r"]["true_findings_total"], 10)
+        self.assertEqual(merged["r"]["recall"], 0.1)
+
+    def test_a_class_dropped_wholesale_is_visible_while_the_aggregate_is_not(self) -> None:
+        """The whole point, on real ingested scenarios.
+
+        A model that drops exactly one rule class must read 0.0 for that class
+        while the aggregate stays high — which is the number that hid the E7a
+        and E7b regressions.
+        """
+        class _OneRuleKiller:
+            """Drops every finding of one rule; keeps the rest."""
+
+            classes_ = ("benign-expected", "confirmed", "false-positive")
+
+            def __init__(self, victim: str) -> None:
+                self.victim = victim
+                self.rule_ids: list[str] = []
+
+            def predict_proba(self, vectors):
+                rows = []
+                for rule_id in self.rule_ids:
+                    keep = rule_id != self.victim
+                    row = [0.0, 1.0, 0.0] if keep else [0.0, 0.0, 1.0]
+                    rows.append(row)
+                self.rule_ids = []
+                return rows
+
+        with tempfile.TemporaryDirectory(prefix="efficacy-by-rule-") as tmp:
+            directory = Path(tmp)
+            pairs = _ingest(("INC-4a7f",), harness.BENCHMARK_SEEDS[:1], directory)
+            reference = harness.diff(pairs[0][0], {"findings": pairs[0][1]["findings"]})
+            victim = sorted(
+                rule_id for rule_id, bucket in reference["per_rule"].items()
+                if bucket["true_positive_findings"] > 0)[0]
+            others = [rule_id for rule_id in reference["per_rule"]
+                      if rule_id != victim
+                      and reference["per_rule"][rule_id]["true_positive_findings"] > 0]
+            self.assertTrue(others, "need a second true-finding rule to be non-vacuous")
+
+            estimator = _OneRuleKiller(victim)
+            model = harness.LearnedSystem(estimator, {"trainedAt": "stub"})
+            original_opinion = model.opinion
+
+            def opinion(finding, manifest, org=None):
+                estimator.rule_ids.append(
+                    str(finding.get("rule_id") or finding.get("category")
+                        or "unattributed"))
+                return original_opinion(finding, manifest, org)
+
+            model.opinion = opinion                     # type: ignore[method-assign]
+            scored = harness.score_manifests(pairs, model)
+
+        learned = scored[0]["learned"]
+        by_rule = learned["finding_recall_by_rule"]
+        self.assertEqual(by_rule[victim]["recall"], 0.0,
+                         "the dropped class must read 0.0 in its own row")
+        self.assertGreater(by_rule[victim]["true_findings_total"], 0)
+        for rule_id in others:
+            self.assertEqual(by_rule[rule_id]["recall"], 1.0)
+        # ... and the aggregate, on its own, would have hidden it.
+        self.assertGreater(learned["finding_recall"]["recall"], 0.0)
+        # The verbatim list is still there, still naming the same rule.
+        self.assertTrue(learned["dropped_true_findings"])
+        self.assertEqual({item["rule_id"] for item in learned["dropped_true_findings"]},
+                         {victim})
+
+    def test_the_rules_system_publishes_its_own_row_at_one(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="efficacy-by-rule-rules-") as tmp:
+            pairs = _ingest(("INC-4a7f",), harness.BENCHMARK_SEEDS[:1], Path(tmp))
+            scored = harness.score_manifests(pairs, _stub_model("confirmed"))
+        by_rule = scored[0]["rules"]["finding_recall_by_rule"]
+        self.assertTrue(by_rule, "the rules system publishes a breakdown too")
+        for bucket in by_rule.values():
+            self.assertEqual(bucket["recall"], 1.0)
+            self.assertEqual(bucket["true_findings_kept"],
+                             bucket["true_findings_total"])
+
+    def test_no_model_means_no_per_rule_learned_number_is_invented(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="efficacy-by-rule-gap-") as tmp:
+            pairs = _ingest(("INC-4a7f",), harness.BENCHMARK_SEEDS[:1], Path(tmp))
+            scored = harness.score_manifests(pairs, None, "model removed")
+        self.assertIsNone(scored[0]["learned"]["finding_recall_by_rule"])
+
+    def test_the_run_publishes_the_breakdown_and_renders_it(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="efficacy-by-rule-run-") as tmp:
+            summary = harness.evaluate(
+                ["INC-4a7f"], ["canonical"], Path(tmp),
+                seeds=[harness.BENCHMARK_SEEDS[0]],
+                model_dir=Path(tmp) / "no-model")
+        by_rule = summary["finding_level_recall"]["by_rule"]
+        self.assertTrue(by_rule)
+        for rule_id, bucket in by_rule.items():
+            self.assertEqual(bucket["rules"]["recall"], 1.0)
+            # no model → the learned half of every row is an honest gap
+            self.assertIsNone(bucket["learned"])
+            self.assertIsNone(bucket["learned_dropped_true_findings"])
+            self.assertIn("malicious line", bucket["denominator"])
+        text = harness.render(summary)
+        self.assertIn("finding-level recall BY RULE CLASS", text)
+        for rule_id in by_rule:
+            self.assertIn(rule_id, text)
+        self.assertIn(harness.BY_RULE_RECALL_NOTE, text)
+
+
+class FrozenBenchmarkScenarioSetTests(unittest.TestCase):
+    """E8m2 (2). The referee owns WHAT is measured, not only at which seeds.
+
+    Before this, the benchmark defaulted to `generator.SCENARIOS`, so adding a
+    scenario to `tools/attack_generator.py` silently changed what the frozen
+    benchmark measured and made before/after numbers incomparable.
+    """
+
+    def test_the_frozen_set_is_exactly_todays_six_scenarios(self) -> None:
+        self.assertEqual(
+            harness.BENCHMARK_SCENARIOS,
+            ("INC-4a7f", "failure-success", "error-burst",
+             "near-miss-auth", "near-miss-errors", "benign-maintenance"))
+        # ... and it is still what the generator can actually produce.
+        self.assertEqual(harness.benchmark_scenarios(), harness.BENCHMARK_SCENARIOS)
+
+    def test_a_generator_scenario_added_later_does_not_move_the_benchmark(self) -> None:
+        """THE assertion. An extra generator scenario changes nothing."""
+        extended = dict(harness.generator.SCENARIOS)
+        extended["a-scenario-added-tomorrow"] = lambda rng: []
+        original = harness.generator.SCENARIOS
+        try:
+            harness.generator.SCENARIOS = extended     # type: ignore[assignment]
+            self.assertIn("a-scenario-added-tomorrow", harness.generator.SCENARIOS)
+            self.assertEqual(harness.benchmark_scenarios(),
+                             harness.BENCHMARK_SCENARIOS)
+            self.assertNotIn("a-scenario-added-tomorrow",
+                             harness.benchmark_scenarios())
+            # and the CLI default — the path the benchmark is actually run by
+            parser_default = _cli_default_scenarios()
+            self.assertEqual(tuple(parser_default), harness.BENCHMARK_SCENARIOS)
+        finally:
+            harness.generator.SCENARIOS = original     # type: ignore[assignment]
+
+    def test_a_frozen_scenario_the_generator_lost_is_refused_not_skipped(self) -> None:
+        shrunk = {name: fn for name, fn in harness.generator.SCENARIOS.items()
+                  if name != "error-burst"}
+        original = harness.generator.SCENARIOS
+        try:
+            harness.generator.SCENARIOS = shrunk       # type: ignore[assignment]
+            with self.assertRaises(harness.BenchmarkProvenanceError) as caught:
+                harness.benchmark_scenarios()
+        finally:
+            harness.generator.SCENARIOS = original     # type: ignore[assignment]
+        self.assertIn("error-burst", str(caught.exception))
+
+    def test_the_run_publishes_the_frozen_set_beside_what_it_measured(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="efficacy-pin-") as tmp:
+            summary = harness.evaluate(
+                ["INC-4a7f"], ["canonical"], Path(tmp),
+                seeds=[harness.BENCHMARK_SEEDS[0]],
+                model_dir=Path(tmp) / "no-model")
+        benchmark = summary["benchmark"]
+        self.assertEqual(benchmark["scenarios"], ["INC-4a7f"])
+        self.assertEqual(benchmark["frozenScenarios"],
+                         list(harness.BENCHMARK_SCENARIOS))
+        # this run deliberately measured a subset, and says so rather than
+        # claiming to be the benchmark
+        self.assertFalse(benchmark["scenarioSetIsFrozen"])
+        self.assertIn("NOT the frozen set", harness.render(summary))
+
+    def test_the_pin_does_not_touch_the_seeds_or_the_freshness_assertion(self) -> None:
+        source = (REPO_ROOT / "tools" / "efficacy_harness.py").read_text(encoding="utf-8")
+        self.assertEqual(harness.BENCHMARK_SEEDS, (20270302, 20270303, 20270304))
+        self.assertEqual(source.count("def assert_fresh("), 1)
+        self.assertEqual(source.count("BENCHMARK_SEEDS = "), 1)
+
+
+def _cli_default_scenarios() -> list[str]:
+    """What `main()` would measure with no `--scenario` given.
+
+    Read through the same expression `main()` uses, so the test cannot pass
+    while the CLI still defaults to the generator's dictionary.
+    """
+    return list(harness.benchmark_scenarios())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
