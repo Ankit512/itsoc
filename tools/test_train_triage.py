@@ -332,5 +332,178 @@ class ModelArtifactTests(unittest.TestCase):
         self.assertIn('compute_sample_weight("balanced"', source)
 
 
+class RuleFamilyEncodingTests(unittest.TestCase):
+    """E7b r2. The rule-family encoding must not conflate unrelated rules.
+
+    This is a REGRESSION PIN, not a style preference. Before E7b r2,
+    `ioc_observed` matched no family regex and landed in `rule_family_other`
+    together with every `infra_unknown_*` rule. Both then produced the same
+    vector shape, so an IOC finding inherited whatever the infra rules had been
+    labelled — which dismissed five true detections in the E7a benchmark. If a
+    future edit puts them back in one bucket, these fail.
+    """
+
+    def _families(self, rule_id: str) -> set:
+        computed = triage_model.features({"rule_id": rule_id})
+        return {key for key, value in computed.items()
+                if key.startswith("rule_family_") and value}
+
+    def test_ioc_rules_are_threat_family_not_the_residual_bucket(self) -> None:
+        for rule_id in ("ioc_observed", "ioc_ips", "ioc_domains", "ioc_hashes"):
+            with self.subTest(rule_id=rule_id):
+                families = self._families(rule_id)
+                self.assertIn("rule_family_malware_or_threat", families)
+                self.assertNotIn("rule_family_other", families)
+
+    def test_ioc_and_infra_unknown_do_not_share_a_family(self) -> None:
+        """The exact conflation that cost the five E7a `ioc_observed` drops."""
+        for severity in ("low", "medium", "high", "critical"):
+            with self.subTest(severity=severity):
+                infra = self._families(f"infra_unknown_{severity}")
+                self.assertEqual(
+                    infra & self._families("ioc_observed"), set(),
+                    "ioc_observed and infra_unknown_* must not share a family")
+
+    def test_ioc_substring_does_not_leak_into_unrelated_rule_ids(self) -> None:
+        """`ioc` matches as a token, so an embedded substring must not fire."""
+        for rule_id in ("generic_socket_error", "biocheck_failed", "iocaine_rule"):
+            with self.subTest(rule_id=rule_id):
+                self.assertNotIn("rule_family_malware_or_threat",
+                                 self._families(rule_id))
+
+    def test_the_pre_existing_families_are_unchanged(self) -> None:
+        expected = {
+            "auth_bruteforce": "rule_family_auth",
+            "generic_auth_failure": "rule_family_auth",
+            "threat_port_scan": "rule_family_malware_or_threat",
+            "error_rate_spike": "rule_family_error_or_resource",
+            "windows_4625": "rule_family_windows",
+            "infra_unknown_high": "rule_family_other",
+        }
+        for rule_id, family in expected.items():
+            with self.subTest(rule_id=rule_id):
+                self.assertIn(family, self._families(rule_id))
+
+    def test_feature_schema_is_unchanged_by_this_card(self) -> None:
+        """E7b r2 re-encoded a family; it added and removed no feature key."""
+        self.assertEqual(len(triage_model.FEATURE_KEYS), 21)
+        self.assertIn("criticality_rank", triage_model.FEATURE_KEYS)
+
+
+class CriticalityIsNotALabelProxyTests(unittest.TestCase):
+    """E7b r2. The training corpus must not let asset criticality BE the label.
+
+    Measured on the shipped corpus before this card: every `benign-expected`
+    row sat on the one crown-jewel asset and every `false-positive` row sat on a
+    standard one, so `criticality_rank` separated two of the three classes
+    perfectly without reading a single line of evidence.
+    """
+
+    def test_the_training_corpus_is_pinned_by_name(self) -> None:
+        """A generator addition must not silently change what is trained on."""
+        self.assertEqual(train.DEFAULT_SCENARIOS, (
+            "INC-4a7f", "failure-success", "error-burst", "near-miss-auth",
+            "near-miss-errors", "benign-maintenance", "near-miss-auth-crown"))
+        for scenario in train.DEFAULT_SCENARIOS:
+            self.assertIn(scenario, generator.SCENARIOS)
+
+    def test_a_false_positive_scenario_sits_on_the_crown_jewel_asset(self) -> None:
+        org = org_context.load_org_context()
+        crown = {scenario for scenario in train.DEFAULT_SCENARIOS
+                 if org.get_criticality(generator.SCENARIO_HOST[scenario])
+                 == "crown-jewel"}
+        classes = {generator.SCENARIO_CLASS[s] for s in crown}
+        self.assertIn("false-positive", classes,
+                      "no false-positive scenario runs on a crown-jewel asset, "
+                      "so crown-jewel again implies 'not a false positive'")
+
+    def _bands_per_class(self) -> dict:
+        """{ground-truth class: the criticality bands it is observed on}.
+
+        This is the direction that actually bites. The band->class direction is
+        vacuous: on the ORIGINAL six-scenario corpus every band already carried
+        more than one class, yet `criticality_rank` was still the model's
+        largest feature at 0.4146 with an inverted gradient. What made it a
+        proxy is that each of two classes was observed on exactly ONE band.
+        """
+        org = org_context.load_org_context()
+        by_class: dict = {}
+        for scenario in train.DEFAULT_SCENARIOS:
+            by_class.setdefault(generator.SCENARIO_CLASS[scenario], set()).add(
+                org.get_criticality(generator.SCENARIO_HOST[scenario]))
+        return by_class
+
+    def test_false_positive_is_no_longer_confined_to_one_criticality_band(self) -> None:
+        bands = self._bands_per_class()["false-positive"]
+        self.assertGreater(
+            len(bands), 1,
+            f"`false-positive` is observed only on {bands} — the configured "
+            "criticality would again stand in for the label")
+        self.assertIn("crown-jewel", bands)
+
+    def test_benign_expected_is_still_confined_to_one_band_KNOWN_RESIDUAL(self) -> None:
+        """An honest pin on what E7b r2 did NOT fix, so nobody reads it as fixed.
+
+        Adding a `benign-expected` scenario on a standard host DOES dissolve
+        this (measured: `criticality_rank` importance 0.4146 -> 0.0465, and the
+        criticality counterfactual's suppression flips 33/84 -> 0/84). It was
+        rejected because it also cost eight true `infra_unknown_high`
+        detections on `error-burst` — finding-level recall 1.0 -> 0.9111 — for
+        the reason recorded in docs/STAGE_E_REPORTS/E7b-r2-worker.md: an
+        authorised maintenance burst and an attack burst reach `features()` as
+        the SAME vector, so the only thing separating them is the host's
+        configured criticality. Removing that separation without first giving
+        the projection a way to observe authorisation trades recall for it.
+
+        If a later card gives the projection that observed fact, delete this
+        test and assert the general property instead.
+        """
+        bands = self._bands_per_class()["benign-expected"]
+        self.assertEqual(
+            bands, {"crown-jewel"},
+            "benign-expected is no longer confined to the crown-jewel band — "
+            "if that was intentional, replace this test with the general "
+            "assertion that no class maps to exactly one band")
+
+
+class AdditiveGeneratorTests(unittest.TestCase):
+    """E7b r2 ADDED a scenario. It must not have moved an existing one."""
+
+    ORIGINAL_SIX = ("INC-4a7f", "failure-success", "error-burst",
+                    "near-miss-auth", "near-miss-errors", "benign-maintenance")
+
+    def test_the_original_six_keep_their_identity_class_and_host(self) -> None:
+        for scenario in self.ORIGINAL_SIX:
+            self.assertIn(scenario, generator.SCENARIOS)
+        self.assertEqual(tuple(generator.SCENARIOS)[:6], self.ORIGINAL_SIX,
+                         "the six original scenarios must keep their order")
+        self.assertEqual(generator.SCENARIO_CLASS["benign-maintenance"],
+                         "benign-expected")
+        self.assertEqual(generator.SCENARIO_HOST["error-burst"], "api-01")
+
+    def test_the_added_scenario_is_a_benign_false_positive_on_the_crown_jewel(self) -> None:
+        self.assertEqual(generator.SCENARIO_CLASS["near-miss-auth-crown"],
+                         "false-positive")
+        self.assertEqual(generator.SCENARIO_HOST["near-miss-auth-crown"],
+                         "server-01")
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path, manifest_path = generator.generate(
+                "near-miss-auth-crown", "canonical", Path(tmp), 20260902)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["malicious_count"], 0,
+                             "a false-positive scenario declares no malicious line")
+            self.assertEqual(manifest["malicious_lines"], [])
+            for line in log_path.read_text(encoding="utf-8").splitlines():
+                self.assertIn("server-01", line)
+
+    def test_the_added_scenario_is_deterministic_per_seed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            first = generator.generate("near-miss-auth-crown", "rfc3164",
+                                       Path(tmp) / "a", 4242)[0].read_bytes()
+            second = generator.generate("near-miss-auth-crown", "rfc3164",
+                                        Path(tmp) / "b", 4242)[0].read_bytes()
+        self.assertEqual(first, second)
+
+
 if __name__ == "__main__":
     unittest.main()

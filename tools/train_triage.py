@@ -70,6 +70,21 @@ DEFAULT_VARIANTS = 14
 # construction (the parser normalises before the rules run), so the extra two
 # would multiply the subprocess count without adding a distinguishable row.
 DEFAULT_FORMATS = ("canonical", "rfc3164")
+# The training corpus, PINNED by name rather than taken from
+# `generator.SCENARIOS`. A scenario added to the generator for some other
+# consumer must not silently change what this model is trained on: the corpus a
+# published number was measured against has to be a decision, not a default.
+DEFAULT_SCENARIOS = (
+    "INC-4a7f",
+    "failure-success",
+    "error-burst",
+    "near-miss-auth",
+    "near-miss-errors",
+    "benign-maintenance",
+    # E7b r2: a false positive ON the crown-jewel asset, so the configured
+    # criticality can no longer stand in for the `false-positive` label.
+    "near-miss-auth-crown",
+)
 
 INCIDENT_STORE = REPO_ROOT / "console" / ".soc" / "incidents.json"
 EVENT_STORE = REPO_ROOT / "console" / ".soc" / "soc_history.db"
@@ -402,7 +417,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     formats = tuple(args.formats or DEFAULT_FORMATS)
-    scenarios = tuple(args.scenarios or generator.SCENARIOS)
+    scenarios = tuple(args.scenarios or DEFAULT_SCENARIOS)
     verbose = not args.quiet
     started = time.monotonic()
     started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
