@@ -30,6 +30,21 @@ of it computed by the referee and none of it by the console:
 * ``criticality_sensitivity`` — the ``criticality_rank`` counterfactual, marked
   ``kind: "counterfactual"``, published as a first-class finding.
 
+E8m2 amends it again, and again this module computes nothing new. Two things
+reach it from the referee:
+
+* ``finding_level_recall.by_rule`` — the same finding-level recall broken down
+  BY RULE CLASS, each row with its own denominator, for both systems. An
+  aggregate hides which rule class a system is losing; this does not. The
+  verbatim ``learned_dropped_true_findings`` list is still published in full
+  beside it and is still the evidence.
+* ``benchmark.frozenScenarios`` / ``scenarioSetIsFrozen`` — the referee now
+  owns the benchmark's SCENARIO LIST as well as its seeds. This module's
+  default scenario set is that frozen tuple, read from the referee, so a
+  scenario added to ``tools/attack_generator.py`` cannot silently change what a
+  console-triggered benchmark measures. A caller may still ask for any scenario
+  the generator can produce, explicitly.
+
 Honest states, in the shape the two D2 cards consume:
 
 * ``idle``    — no harness run has been stored yet; ``run`` is ``None``.
@@ -147,6 +162,22 @@ def available():
     return list(attack_generator.SCENARIOS), list(attack_generator.FORMATTERS)
 
 
+def default_scenarios():
+    """The scenario set a run measures when the caller names none (E8m2).
+
+    NOT ``available()[0]``. The referee freezes the benchmark's scenario list
+    exactly as it freezes its seeds, and the console does not get to widen it:
+    a scenario added to the generator shows up in ``available()`` — a caller may
+    ask for it by name — but it does not change what an unqualified run
+    measures, so console-triggered benchmarks stay comparable across commits.
+    """
+    import sys
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from tools import efficacy_harness
+    return list(efficacy_harness.benchmark_scenarios())
+
+
 def start(scenarios=None, formats=None, runner=None, background=True):
     """Kick off a measurement.
 
@@ -161,7 +192,12 @@ def start(scenarios=None, formats=None, runner=None, background=True):
         return {"status": "error", "run": None,
                 "error": f"efficacy harness unavailable: {exc}"}, 500
 
-    scenarios = list(scenarios) if scenarios else list(known_scenarios)
+    try:
+        fallback_scenarios = default_scenarios()
+    except Exception as exc:                       # referee unavailable
+        return {"status": "error", "run": None,
+                "error": f"efficacy harness unavailable: {exc}"}, 500
+    scenarios = list(scenarios) if scenarios else fallback_scenarios
     formats = list(formats) if formats else ["canonical"]
     unknown = ([s for s in scenarios if s not in known_scenarios]
                + [f for f in formats if f not in known_formats])

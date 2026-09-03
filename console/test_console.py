@@ -3484,6 +3484,78 @@ def check_efficacy_api():
                       and flr.get("learned") is None,
                       str(sens)[:200])
 
+            # --- E8m2: the per-rule breakdown and the frozen scenario pin ----
+            # Still nothing computed here. These assert the two additions
+            # arrive intact, labelled, and with their denominators.
+            by_rule = flr.get("by_rule") or {}
+            check("finding-level recall arrives BROKEN DOWN BY rule_id, each "
+                  "row carrying its own denominator",
+                  isinstance(by_rule, dict) and by_rule
+                  and all(isinstance(bucket.get("rules"), dict)
+                          and "learned" in bucket
+                          and isinstance(bucket.get("true_findings_total"), int)
+                          and bucket["true_findings_total"] > 0
+                          and "malicious line" in (bucket.get("denominator") or "")
+                          for bucket in by_rule.values()),
+                  str(sorted(by_rule))[:200])
+            check("every per-rule denominator is the rules system's own count "
+                  "— the reference collection, not a system's surviving subset",
+                  all(bucket["rules"]["true_findings_kept"]
+                      == bucket["rules"]["true_findings_total"]
+                      == bucket["true_findings_total"]
+                      for bucket in by_rule.values()),
+                  str(by_rule)[:200])
+            check("the per-rule totals reconcile with the aggregate — the "
+                  "breakdown is the same measurement, split",
+                  sum(bucket["true_findings_total"] for bucket in by_rule.values())
+                  == flr.get("true_findings_total"),
+                  f"{sum(b['true_findings_total'] for b in by_rule.values())} vs "
+                  f"{flr.get('true_findings_total')}")
+            check("the per-rule note says the breakdown ADDS to the verbatim "
+                  "dropped list rather than replacing it",
+                  "dropped_true_findings" in (flr.get("by_rule_note") or "")
+                  and "absent from the breakdown"
+                  in (flr.get("by_rule_note") or ""),
+                  repr(flr.get("by_rule_note"))[:200])
+            benchmark = run.get("benchmark") or {}
+            check("the benchmark publishes the referee's FROZEN scenario set "
+                  "beside the scenarios this run measured",
+                  isinstance(benchmark.get("frozenScenarios"), list)
+                  and benchmark["frozenScenarios"] == [
+                      "INC-4a7f", "failure-success", "error-burst",
+                      "near-miss-auth", "near-miss-errors", "benign-maintenance"]
+                  and isinstance(benchmark.get("scenarioSetIsFrozen"), bool)
+                  and "frozen" in (benchmark.get("scenarioNote") or ""),
+                  str(benchmark.get("frozenScenarios")))
+            check("this run asked for one scenario, and says so rather than "
+                  "claiming to be the frozen benchmark",
+                  benchmark.get("scenarios") == ["INC-4a7f"]
+                  and benchmark.get("scenarioSetIsFrozen") is False,
+                  str(benchmark.get("scenarios")))
+            if model_available:
+                check("each per-rule row counts the verbatim drops behind its "
+                      "own learned number",
+                      sum(bucket["learned_dropped_true_findings"]
+                          for bucket in by_rule.values())
+                      <= (run.get("learned_total_dropped_true_findings") or 0)
+                      and all(isinstance(bucket["learned"], dict)
+                              for bucket in by_rule.values()),
+                      str(by_rule)[:200])
+                check("each scenario publishes both systems' per-rule "
+                      "finding-level recall",
+                      isinstance(first["rules"].get("finding_recall_by_rule"), dict)
+                      and isinstance(first["learned"].get("finding_recall_by_rule"),
+                                     dict),
+                      str(first["learned"].get("finding_recall_by_rule"))[:200])
+            else:
+                check("with no model every per-rule learned cell is an honest "
+                      "gap, never a zero",
+                      all(bucket["learned"] is None
+                          and bucket["learned_dropped_true_findings"] is None
+                          for bucket in by_rule.values())
+                      and first["learned"].get("finding_recall_by_rule") is None,
+                      str(by_rule)[:200])
+
             # --- the last run survives a refresh (and a restart) --------------
             check("the completed run is persisted under console/.soc/",
                   (efficacy_api.SOC_DIR / "efficacy.json").exists())
@@ -3549,6 +3621,12 @@ def check_efficacy_api():
         check("efficacy_api.py defines no scoring of its own — precision/recall/f1 "
               "exist only in the harness output it passes through",
               not any(f"def {name}" in helper for name in ("precision", "recall", "f1", "score")))
+        check("efficacy_api.py picks no benchmark SCENARIO SET of its own — an "
+              "unqualified run measures the referee's frozen tuple, so a "
+              "scenario added to the generator cannot move a benchmark number",
+              "efficacy_harness.benchmark_scenarios()" in helper
+              and "list(known_scenarios)" not in helper,
+              "efficacy_api.py still defaults to the generator's scenarios")
         check("efficacy_api.py picks no benchmark seed of its own — the frozen "
               "referee owns seed selection",
               "seeds=" not in helper and "BENCHMARK_SEEDS" not in helper,
