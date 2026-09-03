@@ -49,6 +49,23 @@ The owner has activated autonomous execution. This modifies the gate semantics a
 - **Push policy:** per the owner's answers below. Absent an explicit yes, work stays local — merged to local `main`, never pushed.
 - **Upfront questions:** before the environment gate, issue `ITSOC_KICKOFF_QUESTIONS.md` to the owner verbatim and wait for the blocking answers (Q1–Q3); record answers in `docs/STAGE_C_ANSWERS.md` (paths to secrets only, never values). If a genuinely unforeseen decision arises mid-run that is not covered by the build doc, the answers, or this prompt's routing rules — stop and ask; do not guess.
 
+## Standing card setup preamble (every dispatched card, performed silently)
+
+These are expectations, not deviations. A worker does them without asking and without logging them
+as exceptions; it reports them only if one FAILS.
+
+1. **Base check first, before any edit.** Every card carries a `base:`. Run
+   `git merge-base --is-ancestor <base> HEAD`. If it fails, run it in REVERSE: success there means
+   the worktree is merely STALE (report and wait — the orchestrator resets it); failure both ways
+   means the tree has DIVERGED (halt). Record the result either way.
+2. **Install web dependencies.** Orca's setup step fails routinely and leaves `web/node_modules`
+   missing. Run `npm --prefix web install` as a matter of course, record the resolved versions, and
+   proceed. This is standing setup, not a deviation to report.
+3. **Verify the detector freeze** before and after: sha256 must equal
+   `364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876`.
+4. **Branch name is a warning, never a stop.** Workspace naming conventions (`Ankit512/<name>`) are
+   expected; only the base check stops work.
+
 ## Standing tripwires (halt the current branch immediately, report, await instruction)
 
 - Detector sha changes or the CI sha check goes red.

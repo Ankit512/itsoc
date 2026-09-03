@@ -95,3 +95,21 @@ advisory — it never writes or changes a severity.
 
 The referee logic, its tests, and benchmark seed selection are frozen as of this acceptance. E7b
 modifiers may not edit them. E7b is unblocked.
+
+### Correction, 2026-09-03 — what this freeze actually covered
+
+Read the sentence above literally, because it was narrower than it was later remembered to be. It
+froze **benchmark seed selection**. It did not freeze benchmark *composition*, and there was never a
+stored, hash-recorded benchmark manifest to freeze — the referee calls
+`attack_generator.generate()` at runtime and, until card E8m2, took its scenario set from
+`generator.SCENARIOS` by default.
+
+So the freeze was real **as seed-pinning only**. Any scenario added to the generator would have
+silently changed what the benchmark measured, under seeds that were themselves correctly frozen.
+Nothing had added one, so nothing ever revealed it. The hole was found only when a round-2 candidate
+proposed generator diversity on the stated premise that a locked manifest made generator edits safe
+by construction; the premise was checked against the tree before dispatch and did not hold.
+
+**E8m2 makes the freeze real for the first time** by pinning an explicit frozen benchmark scenario
+tuple, so a generator addition cannot reach the benchmark unless the tuple is deliberately changed.
+That is a new property, not a refinement of an existing one.
