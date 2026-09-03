@@ -3,6 +3,35 @@ import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RunbookCard, type RunbookCardData } from "@/components/RunbookCard";
 import { runbookPlainCopy, UNDESCRIBED } from "@/lib/runbookCopy";
+// @ts-expect-error node:fs type declarations not included in the browser tsconfig
+import fs from "node:fs";
+// @ts-expect-error node:path type declarations not included in the browser tsconfig
+import path from "node:path";
+// @ts-expect-error node:url type declarations not included in the browser tsconfig
+import { fileURLToPath } from "node:url";
+
+/** The shipped stylesheet, read from disk. The F0-FIX block below asserts the
+ *  COMPUTED result of these real bytes, so the rules cannot be restated (and
+ *  quietly kept correct) inside the test. */
+const ITSOC_CSS_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../styles/itsoc.css",
+);
+function readItsocCss(): string {
+  return fs.readFileSync(ITSOC_CSS_PATH, "utf-8") as string;
+}
+/** Concatenate the declaration blocks of the named selectors, comments stripped. */
+function extractRules(css: string, selectors: string[]): string {
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  return selectors
+    .map((sel) => {
+      const esc = sel.replace(/[.+*?^${}()|[\]\\]/g, "\\$&");
+      const m = bare.match(new RegExp(`(?:^|\\})\\s*${esc}\\s*\\{([^}]*)\\}`, "m"));
+      if (!m) throw new Error(`selector not found in itsoc.css: ${sel}`);
+      return m[1];
+    })
+    .join("\n");
+}
 
 /** C4-F1 + F0 — is-runbook-card. Component-level invariants, each proven by a
  *  run, not by a visual claim. (Invariant 3 — the accent-button budget in the
@@ -279,5 +308,132 @@ describe("F0 — keyboard accessibility", () => {
     const card = screen.getByTestId("runbook-card");
     expect(card).not.toHaveAttribute("role");
     expect(card).not.toHaveAttribute("tabindex");
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * CARD F0-FIX — the steps must RENDER as a numbered list, not merely BE one.
+ *
+ * WHY THIS BLOCK EXISTS. The 15 F0 tests above passed for the entire life of
+ * the "steps are not numbered" defect, because every one of them asserts
+ * STRUCTURE — that an <ol> exists and that it holds N `listitem` roles. That is
+ * true of a list whose markers are invisible, so the suite could not see the
+ * bug. These tests assert the COMPUTED RESULT under the real shipped
+ * stylesheets instead, so they fail if either cause returns.
+ *
+ * WHAT THE ENVIRONMENT LETS US PROVE, EXACTLY. jsdom does not lay out or paint,
+ * so it generates no ::marker box: nothing here reads an actual painted "1.".
+ * Within that limit the two causes are asserted at the strongest level each
+ * one admits, and each assertion was verified by reverting the fix and watching
+ * it fail:
+ *   - CAUSE 1 (`display:flex`, which blockifies the <li> children so no marker
+ *     box is ever generated) is asserted on the COMPUTED style of the rendered
+ *     <ol>, resolved by jsdom's cascade from the real bytes of itsoc.css.
+ *   - CAUSE 2 (Tailwind preflight's `ol,ul{ list-style:none }`) is asserted on
+ *     the CSS SOURCE, because jsdom's cascade propagates `display` but not
+ *     `list-style-type` — getComputedStyle reports the UA default `decimal`
+ *     whatever the stylesheets say, so a computed assertion would have been
+ *     vacuous. The source assertion is not vacuous: it is what fails on a fix
+ *     that unflexes the list but leaves the marker to the preflight.
+ * So these tests prove both suppression mechanisms are gone from the shipped
+ * stylesheet and stay gone. They do NOT prove the final pixel — that is what
+ * the before/after screenshots of the running app in
+ * docs/STAGE_E_REPORTS/F0-fix-evidence/ are for.
+ * ──────────────────────────────────────────────────────────────────────────── */
+describe("F0-FIX — the steps list renders numbered, and keeps its list semantics", () => {
+  /** Load the real shipped CSS in the real cascade order the app uses:
+   *  main.tsx imports index.css (Tailwind, whose preflight resets
+   *  `ol,ul{ list-style:none }`) and THEN styles/itsoc.css. Reproducing that
+   *  order matters — the preflight reset is half of the original defect, so a
+   *  test that omitted it could pass on a fix that the real app would lose. */
+  function applyShippedStyles(): void {
+    const preflight = document.createElement("style");
+    // The two Tailwind preflight declarations that reach an <ol>, verbatim.
+    preflight.textContent = "ol,ul{ list-style:none; margin:0; padding:0; }";
+    document.head.appendChild(preflight);
+
+    const itsoc = document.createElement("style");
+    itsoc.textContent = readItsocCss();
+    document.head.appendChild(itsoc);
+  }
+
+  const FLEXED = ["flex", "inline-flex", "grid", "inline-grid"];
+
+  it("REGRESSION — the shipped stylesheet gives the steps <ol> a counting marker and does NOT flex it", () => {
+    applyShippedStyles();
+    render(<RunbookCard rb={blockIp()} />);
+
+    const ol = within(screen.getByTestId("rb-steps")).getByRole("list");
+    const cs = getComputedStyle(ol);
+
+    // CAUSE 1 — `display:flex` blockifies the <li> children, so the browser
+    // never generates a ::marker box and the reserved gutter stays empty.
+    expect(FLEXED).not.toContain(cs.display);
+
+    // The gutter the markers occupy is still reserved, so nothing shifts.
+    expect(cs.paddingLeft).not.toBe("");
+    expect(cs.paddingLeft).not.toBe("0px");
+  });
+
+  it("REGRESSION — the rule states a counting marker EXPLICITLY, so Tailwind's `list-style:none` preflight cannot win", () => {
+    // CAUSE 2, and the reason this one assertion is made at the source rather
+    // than on a computed value: jsdom's cascade propagates `display` (proven by
+    // the test above, which fails on the pre-fix stylesheet) but does NOT
+    // propagate `list-style-type` — getComputedStyle returns the UA default
+    // `decimal` no matter what any stylesheet says, so a computed assertion
+    // here would pass even on an <ol> that the real browser renders bare. It
+    // was checked: reverting to a fix that removes the flex but leaves the
+    // marker to the preflight is caught by THIS test and by nothing else.
+    //
+    // What must hold is that .is-rb-steps__list declares a list-style itself.
+    // An <ol> that inherits `list-style:none` from the preflight is not merely
+    // unnumbered — Safari/VoiceOver stops announcing it as a list at all, so
+    // the step ORDER is lost to that reader.
+    const rule = extractRules(readItsocCss(), [".is-rb-steps__list"]);
+    const listStyle = rule.match(/list-style(?:-type)?\s*:\s*([^;}]+)/);
+    expect(listStyle, ".is-rb-steps__list must declare its own list-style").not.toBeNull();
+    expect(listStyle![1].trim()).not.toMatch(/^none\b/);
+    expect(listStyle![1]).toMatch(/decimal/);
+  });
+
+  it("REGRESSION — every step is a real list-item under the shipped stylesheet, so each one gets its own number", () => {
+    applyShippedStyles();
+    render(<RunbookCard rb={blockIp()} />);
+
+    const items = within(screen.getByTestId("rb-steps")).getAllByRole("listitem");
+    expect(items.length).toBeGreaterThan(1); // more than one step ⇒ order is meaningful
+    for (const li of items) {
+      expect(getComputedStyle(li).display).toBe("list-item");
+    }
+  });
+
+  it("the ordinals stay legible in BOTH themes — the marker inherits the item's token colour and names no colour of its own", () => {
+    // A ::marker cannot be read in jsdom, so this is proven at the source: the
+    // steps rules declare no colour for the list or the marker, which means the
+    // ordinal inherits `color: var(--ink2)` from the item — a token defined in
+    // both theme blocks (c4-themes.test.tsx owns that both-themes guarantee).
+    const css = readItsocCss();
+    const stepsRules = extractRules(css, [
+      ".is-rb-steps__list",
+      ".is-rb-steps__item",
+      ".is-rb-steps__item + .is-rb-steps__item",
+    ]);
+    expect(stepsRules).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/);
+    expect(stepsRules).not.toMatch(/::marker/);
+    expect(stepsRules).toMatch(/color:\s*var\(--ink2\)/);
+  });
+
+  it("HONEST FALLBACK — an undescribed runbook still says so and does NOT sprout an empty numbered list", () => {
+    applyShippedStyles();
+    render(<RunbookCard rb={blockIp({ runbookId: "rb-unknown-xyz" })} />);
+
+    const steps = screen.getByTestId("rb-steps");
+    // No list element at all — not a list that merely happens to be empty.
+    expect(within(steps).queryByRole("list")).toBeNull();
+    expect(within(steps).queryAllByRole("listitem")).toHaveLength(0);
+    // stepsNote is `string | null` on the type; for the fallback it is the
+    // honest note, and the card must be showing exactly that.
+    expect(UNDESCRIBED.stepsNote).not.toBeNull();
+    expect(screen.getByTestId("rb-steps-none")).toHaveTextContent(UNDESCRIBED.stepsNote!);
   });
 });

@@ -802,8 +802,24 @@
 .is-rb-plain__v{ margin:0; font-size:11.5px; line-height:1.55; color:var(--ink2); }
 .is-rb-steps{ display:flex; flex-direction:column; gap:3px; }
 .is-rb-steps__lbl{ font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mut2); }
-.is-rb-steps__list{ margin:0; padding-left:17px; display:flex; flex-direction:column; gap:3px; }
+/* F0-FIX — the steps list must RENDER as an ordered list, not merely BE one.
+   Two independent causes had to be undone, and both were accessibility bugs
+   before they were cosmetic ones:
+   (1) `display:flex` blockified the <li> children, so no ::marker box was
+       generated and nothing was painted into the 17px gutter this rule already
+       reserved for the numbers;
+   (2) Tailwind's preflight (`@tailwind base` in index.css) sets
+       `ol,ul{ list-style:none }`, and list-style:none on an <ol> makes
+       Safari/VoiceOver drop list semantics entirely — the ordering is lost to
+       that reader even where a sighted user could infer it.
+   So: keep the list a real block-level list and state the marker explicitly.
+   The 3px rhythm the old flex `gap` provided is preserved verbatim by
+   item-to-item margin, so surrounding spacing and hierarchy are unchanged.
+   Markers inherit colour and size from the item, so they stay legible in both
+   themes without naming a colour here. Locked by runbook-card.test.tsx. */
+.is-rb-steps__list{ margin:0; padding-left:17px; display:block; list-style:decimal outside; }
 .is-rb-steps__item{ font-size:11.5px; line-height:1.55; color:var(--ink2); }
+.is-rb-steps__item + .is-rb-steps__item{ margin-top:3px; }
 /* Honest bounded fallback: an undescribed runbook says so, in muted italic —
    never an alarm, and never a guessed step. */
 .is-rb-steps__none{ margin:0; font-size:11.5px; line-height:1.55; font-style:italic; color:var(--mut); }
