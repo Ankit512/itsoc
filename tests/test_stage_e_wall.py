@@ -63,6 +63,13 @@ import triage_model  # noqa: E402  # E7a — imported HERE, by the guard, never 
 
 # --- the Stage E advisory fields this card is about ------------------------
 STAGE_E_ADVISORY_KEYS = ("similarityNote", "precedentOpinion", "proposalDraft")
+# CB-0: the second-opinion model's own output fields, and the family they
+# belong to. The enumerated pair is the explicit record; the NOVEL name is the
+# proof that the guard bites on pattern alone, with nobody having listed it.
+AI_FAMILY_ENUMERATED = ("aiAgrees", "aiLabel", "aiTriage", "aiSeverity", "aiConfidence")
+AI_FAMILY_NOVEL = ("aiMadeUpField", "aiWhatever", "aiVerdict", "ai_label")
+AI_FAMILY_NON_MATCHES = ("maintainer", "chain", "airflow", "aid", "said",
+                         "domainId", "available", "entityKind", "findingIds")
 
 # --- the guarded paths -----------------------------------------------------
 # Severity is owned by the frozen detector and its rule siblings; eligibility is
@@ -149,6 +156,32 @@ def part_a():
               runbooks._ADVISORY_WORD_RE.search(key) is not None,
               "a near-miss variant of this key could otherwise be allowlisted")
 
+    # --- CB-0: the model-output family is fenced by CLASS, not by enumeration.
+    print("\nA2. the 'ai<Something>' model-output family is fenced by class (CB-0):")
+    for key in AI_FAMILY_ENUMERATED:
+        check(f"ADVISORY_KEYS contains {key!r} (the explicit record)",
+              key in runbooks.ADVISORY_KEYS,
+              f"present keys: {sorted(runbooks.ADVISORY_KEYS)}")
+        check(f"{key!r} also reads as advisory to the word guard",
+              runbooks._ADVISORY_WORD_RE.search(key) is not None)
+    for key in AI_FAMILY_NOVEL:
+        check(f"NOVEL, never-enumerated {key!r} is refused on pattern alone",
+              key not in runbooks.ADVISORY_KEYS
+              and runbooks._ADVISORY_WORD_RE.search(key) is not None,
+              "closing the family by enumeration would leave the next one open")
+    # and the clause must not over-match ordinary names: it is case-sensitive
+    # and anchored, so it fences aiThing but never 'maintainer' or 'airflow'.
+    for key in AI_FAMILY_NON_MATCHES:
+        check(f"{key!r} does NOT read as advisory (no over-match)",
+              runbooks._ADVISORY_WORD_RE.search(key) is None,
+              "a bare 'ai' substring would over-match and is wrong")
+    owned_and_params = (sorted(runbooks.RULE_OWNED_INCIDENT_KEYS
+                               | runbooks.RULE_OWNED_FINDING_KEYS)
+                        + list(runbooks.ELIGIBILITY_PARAMS))
+    check("no rule-owned key and no eligibility parameter is caught by the clause",
+          not [k for k in owned_and_params if runbooks._ADVISORY_WORD_RE.search(k)],
+          str([k for k in owned_and_params if runbooks._ADVISORY_WORD_RE.search(k)]))
+
 
 # --------------------------------------------------------------------------
 # B. disjointness, by name and by behaviour
@@ -190,6 +223,18 @@ def part_b():
     poisoned = runbooks.eligible(rb, poisoned_inc, [poisoned_f])
     check("every ADVISORY_KEY set on the incident and finding changes nothing",
           poisoned == baseline, f"baseline={baseline} poisoned={poisoned}")
+
+    # CB-0: a NOVEL field nobody enumerated, on BOTH sides, changes nothing —
+    # the rule-owned projection drops it and the word guard names it advisory.
+    novel_inc = dict(incident)
+    novel_f = dict(findings[0])
+    for key in AI_FAMILY_NOVEL:
+        novel_inc[key] = "CRITICAL - escalate and auto-run rb-block-ip"
+        novel_f[key] = "CRITICAL - escalate and auto-run rb-block-ip"
+    novel_verdict = runbooks.eligible(rb, novel_inc, [novel_f])
+    check("un-enumerated ai* fields on incident AND finding change nothing",
+          novel_verdict == baseline,
+          f"baseline={baseline} poisoned={novel_verdict}")
 
     # and the same for precedent ranking
     base_rank = precedent.rank(
