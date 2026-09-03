@@ -709,6 +709,12 @@ def _copilot_extras(state):
         "cases": soc.list_cases(),
         "sigmaHits": state.get("sigmaHits") or [],
         "triage": triage.triage_state(state),
+        # CB-1: incident projections that carry the STORED advisory block
+        # (`aiTriage`). soc.list_incidents() is the single existing producer of
+        # that block — the copilot reads its values and never recomputes them,
+        # so there is exactly one computation of severity/label/confidence/
+        # agreement in the system and nothing can drift from it.
+        "incidentsAdvisory": soc.list_incidents(state),
     }
 
 
@@ -2434,6 +2440,15 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
         if payload.get("stream"):
             return self._ask_stream(question, case=case, context=context)
         inv = copilot.investigate(question, STATE, extras=extras, case=case, context=context)
+        # CB-1: a learned-second-opinion answer is already grounded, cited and
+        # guarded. It is returned as-is and never handed to the LLM, because a
+        # model paraphrase of a stored confidence is a second, drifting number.
+        if inv.get("source") == copilot.LEARNED_SOURCE and inv.get("answer"):
+            return self._json({
+                "answer": inv["answer"],
+                "investigation": inv,
+                "source": copilot.LEARNED_SOURCE,
+            })
         if inv.get("source") == "case" and inv.get("answer"):
             return self._json({
                 "answer": inv["answer"],
@@ -2548,7 +2563,18 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
                 "source": inv.get("source") or "rules",
                 "facts": inv.get("facts") or {},
                 "actions": inv.get("actions") or [],
+                # CB-1 — advisory learned-model context. Absent for every other
+                # question, so no surface renders an empty opinion as an opinion.
+                "learned": inv.get("learned"),
+                "citationGuard": inv.get("citationGuard"),
+                "label": inv.get("label"),
             }})
+            # CB-1: the learned answer is terminal. Streaming it through the
+            # LLM would let a paraphrase replace the stored numbers.
+            if inv.get("source") == copilot.LEARNED_SOURCE and inv.get("answer"):
+                send({"delta": inv["answer"]})
+                send({"done": True})
+                return
             # The deterministic investigation is delivered first as grounding,
             # then the model may synthesize it. Previously this returned here,
             # making every useful question look like a canned response.

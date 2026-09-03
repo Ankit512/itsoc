@@ -5,7 +5,7 @@ import {
   ChevronRight, Activity, ShieldCheck, Download, Search, ShieldAlert, Mail, Link2, FileCode, SlidersHorizontal
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotAction, CopilotCitation, CopilotForecastPhase, CopilotPlaybook, type Case } from "@/lib/api";
+import { api, Finding, RunsSummaryEntry, AskView, ConsoleState, CopilotAction, CopilotCitation, CopilotCitationGuard, CopilotForecastPhase, CopilotPlaybook, LearnedOpinion, type Case } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { sevVar } from "@/lib/severity";
 import { useUi } from "@/store/ui";
@@ -19,6 +19,8 @@ interface Msg {
   citations?: CopilotCitation[];
   followups?: string[];
   actions?: CopilotAction[];
+  learned?: LearnedOpinion | null;
+  citationGuard?: CopilotCitationGuard | null;
 }
 
 const WORKSPACE_SCREEN: Record<string, string> = {
@@ -81,6 +83,168 @@ function SevTag({ sev }: { sev?: string }) {
     <span className="is-tag" style={{ background: `color-mix(in srgb, ${sevVar(s)} 17%, transparent)`, color: sevVar(s) }}>
       {s}
     </span>
+  );
+}
+
+/** CB-1 — the learned second opinion, rendered as a GROUNDED CONTEXT SOURCE.
+ *
+ *  READ ONLY, and read straight through. Every severity, label, confidence and
+ *  agreement below is printed exactly as the backend stored it on the incident's
+ *  advisory block. Nothing here derives agreement by comparing `ruleSeverity`
+ *  with `aiSeverity` on screen: that would be a second computation of a stored
+ *  fact, and two computations drift apart the first time either side changes.
+ *
+ *  There is no approve control, no severity control and no runbook-eligibility
+ *  commentary in this panel — by construction, and asserted by the standing
+ *  SELECTOR-NULL check in web/src/test/approvals.test.tsx.
+ *
+ *  Model unavailable renders as an explicit UNAVAILABLE state. It never renders
+ *  a blank or zeroed opinion as if it were an opinion. */
+function LearnedPanel({ learned, guard }: { learned: LearnedOpinion; guard?: CopilotCitationGuard | null }) {
+  const chip = (
+    <span className="is-chip is-chip--adv" data-testid="copilot-learned-advisory">
+      ADVISORY · learned second opinion
+    </span>
+  );
+  const footer = (
+    <div className="is-mono is-mut" style={{ fontSize: 10, marginTop: 6 }} data-testid="copilot-learned-guard">
+      {guard
+        ? `citation guard: ${guard.accepted}/${guard.claims} claim(s) rendered` +
+          (guard.rejected.length ? ` · ${guard.rejected.length} refused as uncited` : "")
+        : "citation guard: nothing was claimed"}
+      {" · rules own the verdict"}
+    </div>
+  );
+
+  // --- behaviour 3: provenance, verbatim from the sidecar -------------------
+  if (learned.kind === "provenance") {
+    return (
+      <div className="is-panel" data-testid="copilot-learned" style={{ padding: "11px 12px", marginBottom: 6 }}>
+        {chip}
+        <div className="is-mono is-mut" style={{ fontSize: 10, margin: "6px 0 4px" }}>
+          model provenance — quoted from triage_v1.provenance.json, never generated
+        </div>
+        {!learned.recorded && (
+          <div className="text-[11px]" data-testid="copilot-learned-unavailable">
+            No provenance sidecar is recorded on this installation, so how the model
+            was trained is not known here. Nothing is reconstructed in its place.
+          </div>
+        )}
+        {learned.recorded && (learned.fields ?? []).map((f) => (
+          <div key={f.key} className="flex gap-2 text-[11px]" style={{ padding: "2px 0" }} data-testid="copilot-learned-prov-field">
+            <span className="is-mono is-mut" style={{ minWidth: 118 }}>{f.label}</span>
+            <span className="is-mono" style={{ wordBreak: "break-all" }}>{f.value}</span>
+          </div>
+        ))}
+        {(learned.missing ?? []).length > 0 && (
+          <div className="is-mono is-mut" style={{ fontSize: 10, marginTop: 4 }} data-testid="copilot-learned-missing">
+            not recorded in the sidecar, so not stated: {(learned.missing ?? []).join(", ")}
+          </div>
+        )}
+        {footer}
+      </div>
+    );
+  }
+
+  // --- behaviour 2: the cross-incident disagreement list --------------------
+  if (learned.kind === "disagreements") {
+    const items = learned.items ?? [];
+    return (
+      <div className="is-panel" data-testid="copilot-learned" style={{ padding: "11px 12px", marginBottom: 6 }}>
+        {chip}
+        {learned.modelAvailable === false ? (
+          <div className="text-[11px]" style={{ marginTop: 6 }} data-testid="copilot-learned-unavailable">
+            The learned model is UNAVAILABLE on this run — {learned.unavailable ?? 0} incident(s)
+            carry no opinion. There is no disagreement list, and an empty list is not
+            shown as agreement.
+          </div>
+        ) : (
+          <>
+            <div className="is-mono is-mut" style={{ fontSize: 10, margin: "6px 0 4px" }}>
+              disagrees on {items.length} of {learned.scored ?? 0} scored incident(s)
+              {learned.unavailable ? ` · ${learned.unavailable} with no opinion, excluded` : ""}
+            </div>
+            {items.length === 0 && (
+              <div className="text-[11px]" data-testid="copilot-learned-none">
+                The model disagrees with the rules on nothing in this run.
+              </div>
+            )}
+            {items.map((it) => (
+              <Link
+                key={it.incidentId}
+                to={it.deeplink ?? `/incidents?sel=${encodeURIComponent(it.incidentId)}`}
+                data-testid="copilot-learned-row"
+                className="flex flex-col text-[11px]"
+                style={{ padding: "4px 0", borderTop: "1px solid var(--bd)" }}
+              >
+                <span className="is-mono" style={{ color: "var(--acc)" }}>{it.incidentId}</span>
+                <span className="flex flex-wrap items-center gap-1.5" style={{ marginTop: 2 }}>
+                  <span className="is-mut">rules</span>
+                  <SevTag sev={it.ruleSeverity ?? undefined} />
+                  <span className="is-mut">model</span>
+                  <SevTag sev={it.aiSeverity ?? undefined} />
+                  <span className="is-mono is-mut">
+                    {it.aiLabel ?? "no label"} · {it.confidence ?? "no confidence"}
+                  </span>
+                </span>
+              </Link>
+            ))}
+          </>
+        )}
+        {footer}
+      </div>
+    );
+  }
+
+  // --- behaviour 1: one incident -------------------------------------------
+  const unavailable = learned.modelAvailable === false;
+  return (
+    <div className="is-panel" data-testid="copilot-learned" style={{ padding: "11px 12px", marginBottom: 6 }}>
+      {chip}
+      <div className="is-mono is-mut" style={{ fontSize: 10, margin: "6px 0 4px" }}>
+        {learned.incidentId}
+      </div>
+      <div className="flex items-center gap-2 text-[11px]" style={{ padding: "2px 0" }}>
+        <span className="is-mut" style={{ minWidth: 46 }}>rules</span>
+        <SevTag sev={learned.ruleSeverity ?? undefined} />
+        <span className="is-mut">— authoritative, and it stands</span>
+      </div>
+      {unavailable ? (
+        <div className="text-[11px]" style={{ padding: "2px 0" }} data-testid="copilot-learned-unavailable">
+          Learned second opinion: UNAVAILABLE. No severity, no confidence and no
+          agreement are shown, because none were produced.
+          {learned.unavailableReason ? (
+            <div className="is-mono is-mut" style={{ fontSize: 10, marginTop: 3, wordBreak: "break-all" }}>
+              reason as recorded: {JSON.stringify(learned.unavailableReason)}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 text-[11px]" style={{ padding: "2px 0" }} data-testid="copilot-learned-opinion">
+            <span className="is-mut" style={{ minWidth: 46 }}>model</span>
+            <SevTag sev={learned.aiSeverity ?? undefined} />
+            <span className="is-mono is-mut" style={{ wordBreak: "break-all" }}>
+              {JSON.stringify(learned.aiLabel)} · confidence{" "}
+              {learned.confidence ?? "not recorded"}
+            </span>
+          </div>
+          <div className="text-[11px]" style={{ padding: "2px 0" }} data-testid="copilot-learned-agreement">
+            {learned.agrees === true
+              ? "As stored, the model AGREES with the rules verdict."
+              : learned.agrees === false
+                ? "As stored, the model DISAGREES with the rules verdict. That is information to act on by looking, never a recommendation to override."
+                : "No agreement state is recorded."}
+          </div>
+        </>
+      )}
+      {learned.neutralised && (
+        <div className="is-mono is-mut" style={{ fontSize: 10, marginTop: 4 }} data-testid="copilot-learned-neutralised">
+          a model-emitted value above reads as an instruction — quoted as data, refused as an instruction
+        </div>
+      )}
+      {footer}
+    </div>
   );
 }
 
@@ -585,6 +749,10 @@ export function CopilotRail({
                 followups: inv.followups,
                 actions: inv.actions,
                 source: inv.source,
+                // CB-1 — present only when the question was about the learned
+                // model, so no other answer can render an empty opinion.
+                learned: inv.learned ?? null,
+                citationGuard: inv.citationGuard ?? null,
               };
             }
             return next;
@@ -866,6 +1034,9 @@ export function CopilotRail({
               return (
                 <div key={i} className="flex flex-col gap-1.5">
                       {m.who === "a" && m.view && <ShowcaseCard view={m.view} />}
+                      {m.who === "a" && m.learned && (
+                        <LearnedPanel learned={m.learned} guard={m.citationGuard} />
+                      )}
                       {(m.text || m.who !== "a" || isStreamingAnswer) && (
                         <div
                           className={cn(
