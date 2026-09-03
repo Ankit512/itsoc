@@ -129,7 +129,18 @@ FORBIDDEN_KEYS = frozenset({
 
 _AUTH_RE = re.compile(r"auth|login|password|brute|credential|lockout|account", re.I)
 _SCAN_RE = re.compile(r"scan|port|exposure|outbound|break_in|url_|vulnerab|nmap", re.I)
-_THREAT_RE = re.compile(r"threat|malware|ransom|c2|exfil|persistence|privilege|lateral", re.I)
+# `ioc_*` belongs to the threat family, matching the grouping `rule_context.py`
+# already uses (`atype.startswith("threat_") or atype in ("ioc_observed", ...)`).
+# E7b r2, measured: without this, `ioc_observed` matched NO family regex and
+# fell into `rule_family_other` — the same bucket as every `infra_unknown_*`
+# rule. The two then shared one indistinguishable vector shape (family=other,
+# rule_count=1, occurrences=N, one host, one timeline step), so an IOC finding
+# inherited whatever `infra_unknown_high` had been labelled. That, and not the
+# asset criticality, is what dismissed five true `ioc_observed` detections in
+# the E7a benchmark. Naming the family the rules already name is the fix.
+_THREAT_RE = re.compile(
+    r"threat|malware|ransom|c2|exfil|persistence|privilege|lateral"
+    r"|(?<![a-z])ioc(?![a-z])|indicator", re.I)
 _ERROR_RE = re.compile(r"error|disk|resource|critical_service|burst|quorum|zookeeper", re.I)
 _WINDOWS_RE = re.compile(r"^windows_|^sigma_", re.I)
 

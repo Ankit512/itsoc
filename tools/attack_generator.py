@@ -220,6 +220,45 @@ def _benign_maintenance(rng: random.Random | None = None) -> list[Event]:
     return events
 
 
+# --- criticality-diverse templates (E7b r2) --------------------------------
+# ADDITIVE ONLY. The six templates above are untouched, byte for byte, at every
+# seed. These two exist for one measured reason: in the six-scenario corpus
+# every `benign-expected` row sits on the ONE crown-jewel asset and every
+# `false-positive` row sits on a standard asset, so the configured asset
+# criticality is a LABEL PROXY rather than a risk signal. These break that
+# coupling in both directions — a false positive ON the crown jewel, and an
+# authorised, expected burst on a standard host — so no org-config value can
+# separate the classes by accident. Every line below is benign; the manifests
+# carry zero malicious lines.
+
+def _near_miss_auth_crown(rng: random.Random | None = None) -> list[Event]:
+    """Fat-fingered logins on the CROWN-JEWEL host. Under every threshold.
+
+    Same honest shape as `near-miss-auth`, on the asset the org config marks
+    crown-jewel. A false positive on a critical asset is still a false positive.
+    """
+    r = _rng_or_default(rng)
+    if rng is None:
+        failures, user, source = 2, "erin", "10.20.6.9"
+    else:
+        failures = r.randint(1, 3)
+        user = r.choice(("erin", "frank", "grace", "heidi"))
+        source = f"10.20.{r.randint(1, 40)}.{r.randint(2, 250)}"
+    events = [Event("2026-08-30T11:00:00Z", "INFO", "server-01", "sshd service ready")]
+    for offset in range(failures):
+        events.append(Event(
+            f"2026-08-30T11:{offset * 7 + 3:02d}:00Z", "WARN", "server-01",
+            f"Failed password for {user} from {source} port {52000 + offset} ssh2",
+        ))
+    events.append(Event(
+        f"2026-08-30T11:{failures * 7 + 5:02d}:00Z", "INFO", "server-01",
+        f"Accepted publickey for {user} from {source} port {52100} ssh2"))
+    events.append(Event("2026-08-30T11:59:00Z", "INFO", "server-01", "health check passed"))
+    return events
+
+
+
+
 SCENARIOS: dict[str, Callable[..., list[Event]]] = {
     "INC-4a7f": _brute_force,
     "failure-success": _failure_success,
@@ -227,6 +266,8 @@ SCENARIOS: dict[str, Callable[..., list[Event]]] = {
     "near-miss-auth": _near_miss_auth,
     "near-miss-errors": _near_miss_errors,
     "benign-maintenance": _benign_maintenance,
+    # ADDITIVE (E7b r2) — appended, so the six above keep their order.
+    "near-miss-auth-crown": _near_miss_auth_crown,
 }
 
 # Ground-truth analyst class per scenario, in E0's disposition vocabulary. This
@@ -239,6 +280,7 @@ SCENARIO_CLASS: dict[str, str] = {
     "near-miss-auth": "false-positive",
     "near-miss-errors": "false-positive",
     "benign-maintenance": "benign-expected",
+    "near-miss-auth-crown": "false-positive",
 }
 
 # The host each scenario is about, so a consumer can resolve the configured
@@ -251,6 +293,7 @@ SCENARIO_HOST: dict[str, str] = {
     "near-miss-auth": "server-02",
     "near-miss-errors": "api-01",
     "benign-maintenance": "server-01",
+    "near-miss-auth-crown": "server-01",
 }
 
 
