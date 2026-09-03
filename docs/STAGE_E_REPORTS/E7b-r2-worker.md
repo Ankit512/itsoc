@@ -4,7 +4,8 @@
 the worktree was already on this branch — name only, no behavioural difference).
 **Base:** `944c47e30d8e7cf3fb1d3137e3818e5a3fdb4f46`.
 **Task:** `task_c4c9cf449f9e`. **Dispatch:** `ctx_573da9d1477e`.
-**Worker commit:** `f029c5d`. **Not pushed. Not merged.**
+**Worker commit:** `adfd888` (implementation). This report's own sha is recorded by the
+follow-up docs commit that is the branch head. **Not pushed. Not merged.**
 
 ## Result in one line
 
