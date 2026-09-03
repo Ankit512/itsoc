@@ -85,7 +85,14 @@ The model is **more** willing to dismiss a finding on a more critical asset. Tha
 the operational intuition, and it is driven by an org-config value rather than by log evidence.
 
 These are counterfactuals: benchmark hosts have fixed criticality, so the published numbers stand
-exactly as measured. The point is that a headline result of "0 false positives, 0 misses" rests
+exactly as measured.
+
+**Status as of 2026-09-03, after two graded E7b rounds:** this gradient is **halved, not
+eliminated** — `criticality_rank` importance fell 0.4146 to 0.2026 while suppression flips held at
+33/84. Both rounds independently measured the price of closing it outright: **eight true
+`infra_unknown_high` detections**, reached by different routes (round 1 deleted the feature, round 2
+added a standard-host benign scenario). It is a parked, named open item — OPEN-15 — because closing
+it needs a richer record projection or a different lever, not another pass at feature selection. The point is that a headline result of "0 false positives, 0 misses" rests
 substantially on one configuration value.
 
 ## 5. Standing guardrails, unaffected
