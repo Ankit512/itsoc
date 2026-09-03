@@ -5818,6 +5818,22 @@ def check_runbooks():
           not (runbooks.RULE_OWNED_INCIDENT_KEYS | runbooks.RULE_OWNED_FINDING_KEYS)
           & runbooks.ADVISORY_KEYS)
 
+    # ---- CB-0: the model-output family is fenced by class, not enumeration ---
+    check("the model's own output fields are enumerated in ADVISORY_KEYS",
+          {"aiAgrees", "aiLabel"} <= runbooks.ADVISORY_KEYS,
+          str(sorted(runbooks.ADVISORY_KEYS)))
+    check("a NOVEL, never-enumerated 'aiMadeUpField' is refused on pattern alone",
+          "aiMadeUpField" not in runbooks.ADVISORY_KEYS
+          and runbooks._ADVISORY_WORD_RE.search("aiMadeUpField") is not None)
+    check("the ai-family clause does not over-match ordinary names",
+          not any(runbooks._ADVISORY_WORD_RE.search(n)
+                  for n in ("maintainer", "chain", "airflow", "aid", "domainId")))
+    check("no rule-owned key or eligibility parameter is caught by the clause",
+          not [k for k in (sorted(runbooks.RULE_OWNED_INCIDENT_KEYS
+                                  | runbooks.RULE_OWNED_FINDING_KEYS)
+                           + list(runbooks.ELIGIBILITY_PARAMS))
+               if runbooks._ADVISORY_WORD_RE.search(k)])
+
     # ---- shipped runbooks load and validate --------------------------------
     rbs = runbooks.load_runbooks()
     check("exactly the two shipped runbooks load",

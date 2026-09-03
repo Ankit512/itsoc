@@ -82,11 +82,26 @@ ADVISORY_KEYS = frozenset({
     "aiTriage", "aiSeverity", "aiConfidence",
     # --- Stage E advisory fields (E6, added before their producers) ---
     "similarityNote", "precedentOpinion", "proposalDraft",
+    # --- CB-0: the second-opinion model's own output fields. Enumerated here
+    #     as the explicit record; the `ai<Something>` clause below fences the
+    #     whole family so the next un-enumerated `aiWhatever` is refused too.
+    "aiAgrees", "aiLabel",
 })
 
+# The safety net behind the enumeration: a field that was never listed in
+# ADVISORY_KEYS still cannot reach an eligibility predicate if its *name* reads
+# as advisory. The final clause fences the model-output family by CLASS rather
+# than by instance — `ai` immediately followed by an upper-case letter (the
+# camelCase model-output prefix: aiTriage, aiSeverity, aiAgrees, aiLabel, and
+# every future aiWhatever) or by an underscore (the snake_case spelling). That
+# clause is deliberately case-SENSITIVE via the scoped `(?-i:...)` group: under
+# the module-wide IGNORECASE a bare `ai[A-Z]` would degrade to a substring `ai`
+# and over-match ordinary words ("maintainer", "chain"). `\b` anchors it to a
+# name start, so `airflow` / `aid` / `said` do not match either.
 _ADVISORY_WORD_RE = re.compile(
     r"llm|advisory|narrative|hypoth|explan|model|prose|summary|rca|"
-    r"similarity|precedent|opinion|proposal|draft",
+    r"similarity|precedent|opinion|proposal|draft|"
+    r"(?-i:\bai[A-Z]|\bai_)",
     re.IGNORECASE)
 
 
