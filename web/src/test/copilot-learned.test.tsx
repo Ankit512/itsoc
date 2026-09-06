@@ -65,6 +65,11 @@ const PROVENANCE: CopilotInvestigation = {
   citationGuard: { claims: 4, accepted: 4, rejected: [], note: "" },
 };
 
+/**
+ * Mock the askStream API to return a pre-built investigation result.
+ * @param inv - The CopilotInvestigation to return in the stream
+ * @returns A vi spy that mocks api.askStream
+ */
 function stream(inv: CopilotInvestigation) {
   return vi.spyOn(api, "askStream").mockImplementation(async (_q, onDelta, _s, onInv) => {
     onInv?.(inv);
@@ -72,6 +77,10 @@ function stream(inv: CopilotInvestigation) {
   });
 }
 
+/**
+ * Helper to render the copilot rail and ask a question.
+ * @param q - The question string to type and send
+ */
 async function ask(q: string) {
   renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
   const box = await screen.findByTestId("copilot-composer");
@@ -96,7 +105,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
   // --- behaviour 1 -------------------------------------------------------
   it("states the stored per-incident opinion — rule verdict, model opinion, agreement", async () => {
     stream(OPINION_DISAGREE);
-    await ask("What does the model say about inc-2c97?");
+    await ask("What does the learned model say about inc-2c97?");
 
     const panel = await screen.findByTestId("copilot-learned");
     expect(panel).toHaveTextContent("inc-2c97");
@@ -117,7 +126,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
 
   it("renders agreement, when stored, as agreement — and never as an override", async () => {
     stream({ ...OPINION_DISAGREE, learned: { ...OPINION_DISAGREE.learned!, agrees: true, status: "agrees", aiSeverity: "HIGH", aiLabel: "confirmed", confidence: 0.7078 } });
-    await ask("What does the model say about inc-2c97?");
+    await ask("What does the learned model say about inc-2c97?");
     expect(await screen.findByTestId("copilot-learned-agreement"))
       .toHaveTextContent(/model AGREES with the rules verdict/);
   });
@@ -127,7 +136,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
     // The rail must print what is STORED. Re-deriving here would be a second
     // computation of a stored fact, and two computations drift.
     stream({ ...OPINION_DISAGREE, learned: { ...OPINION_DISAGREE.learned!, ruleSeverity: "HIGH", aiSeverity: "INFO", agrees: true } });
-    await ask("What does the model say about inc-2c97?");
+    await ask("What does the learned model say about inc-2c97?");
     expect(await screen.findByTestId("copilot-learned-agreement"))
       .toHaveTextContent(/model AGREES/);
   });
@@ -135,7 +144,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
   // --- behaviour 2 -------------------------------------------------------
   it("lists cross-incident disagreements read-only, each linking to its incident", async () => {
     stream(DISAGREEMENTS);
-    await ask("What does the model disagree with the rules about?");
+    await ask("What does the learned model disagree with the rules about?");
 
     const rows = await screen.findAllByTestId("copilot-learned-row");
     expect(rows).toHaveLength(2);
@@ -151,7 +160,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
 
   it("says plainly when the model disagrees with nothing, rather than showing an empty list", async () => {
     stream({ ...DISAGREEMENTS, learned: { ...DISAGREEMENTS.learned!, items: [], scored: 3, unavailable: 0 } });
-    await ask("What does the model disagree with the rules about?");
+    await ask("What does the learned model disagree with the rules about?");
     expect(await screen.findByTestId("copilot-learned-none"))
       .toHaveTextContent(/disagrees with the rules on nothing/i);
   });
@@ -191,7 +200,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
       },
       citationGuard: { claims: 3, accepted: 3, rejected: [], note: "" },
     });
-    await ask("What does the model say about inc-2c97?");
+    await ask("What does the learned model say about inc-2c97?");
 
     const panel = await screen.findByTestId("copilot-learned");
     expect(screen.getByTestId("copilot-learned-unavailable"))
@@ -212,7 +221,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
       learned: { kind: "disagreements", modelAvailable: false, scored: 0, unavailable: 19, items: [] },
       citationGuard: { claims: 1, accepted: 1, rejected: [], note: "" },
     });
-    await ask("What does the model disagree with the rules about?");
+    await ask("What does the learned model disagree with the rules about?");
     expect(await screen.findByTestId("copilot-learned-unavailable"))
       .toHaveTextContent(/an empty list is not\s+shown as agreement/i);
     expect(screen.queryAllByTestId("copilot-learned-row")).toHaveLength(0);
@@ -232,7 +241,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
       },
       citationGuard: { claims: 4, accepted: 4, rejected: [], note: "" },
     });
-    await ask("What does the model say about inc-2c97?");
+    await ask("What does the learned model say about inc-2c97?");
 
     const panel = await screen.findByTestId("copilot-learned");
     // Shown — honesty: what the model emitted is not silently dropped …
@@ -261,7 +270,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
         note: "",
       },
     });
-    await ask("What does the model say about inc-2c97?");
+    await ask("What does the learned model say about inc-2c97?");
     expect(await screen.findByTestId("copilot-learned-guard"))
       .toHaveTextContent("citation guard: 3/6 claim(s) rendered · 3 refused as uncited");
   });
@@ -275,7 +284,7 @@ describe("CB-1 — learned second opinion in the copilot rail", () => {
         "/console_state.json": consoleState([finding(0, { id: "detector-0", sev: "HIGH" })]),
       });
       stream(inv);
-      await ask("What does the model say about inc-2c97?");
+      await ask("What does the learned model say about inc-2c97?");
       const panel = await screen.findByTestId("copilot-learned");
       expect(within(panel).queryByTestId("approval-approve")).toBeNull();
       expect(within(panel).queryByTestId("approval-reject")).toBeNull();

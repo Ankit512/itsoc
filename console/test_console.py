@@ -7427,12 +7427,13 @@ def main():
     disposition_ = check_incident_disposition()
     precedent_ = check_precedent_index()
     cb1_ = check_cb1_learned_copilot()
+    cb1fix_ = check_cb1fix_copilot_read_only()
     if (result.returncode or routing or log360 or logcat_ or iso8601_ or authcsv_ or loghub_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
             or askview_ or copilotinv_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
-            or investigate_ or advisory_ or orgctx_ or actions_ or sigma_ or disposition_ or precedent_ or cb1_):
+            or investigate_ or advisory_ or orgctx_ or actions_ or sigma_ or disposition_ or precedent_ or cb1_ or cb1fix_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + iso8601-syslog + auth-csv + loghub-formats + remote-compute + dashboard-data "
@@ -7442,7 +7443,7 @@ def main():
           "+ ask-view + copilot-investigate + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
           "+ inc-4a7f-scenario + investigation-engine + parallel-advisory + org-context-priority "
           "+ action-layer-ssh-firewall + sigma-ingest-triage-case-lifecycle "
-          "+ e0-incident-disposition + e1-precedent-index + cb1-copilot-learned-triage checks green")
+          "+ e0-incident-disposition + e1-precedent-index + cb1-copilot-learned-triage + cb1fix-copilot-read-only checks green")
     return 0
 
 
@@ -7473,16 +7474,19 @@ def check_cb1_learned_copilot():
     results = []
 
     def check(label, cond, detail=""):
+        """Record a test check result and print pass/fail status."""
         results.append(cond)
         print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
 
     print("\nCB-1 copilot × learned triage (advisory context source):")
 
     def incident(iid, sev, block):
+        """Build a test incident projection with an aiTriage advisory block."""
         return {"id": iid, "runId": "cb1-run", "severity": sev,
                 "title": f"incident {iid}", "aiTriage": block}
 
     def block(**kw):
+        """Build a test advisory block with base defaults and caller overrides."""
         base = {"advisory": True, "learned": True, "modelAvailable": True,
                 "status": "agrees", "ruleSeverity": "HIGH",
                 "aiSeverity": "HIGH", "aiLabel": "confirmed",
@@ -7497,6 +7501,7 @@ def check_cb1_learned_copilot():
                "crossValidation": {"macroF1Mean": 1.0, "folds": 5}}
 
     def extras(incidents, sidecar=SIDECAR):
+        """Build copilot extras with advisory incidents and provenance sidecar."""
         return {"incidentsAdvisory": incidents,
                 "triage": {"modelProvenance": sidecar,
                            "modelAvailable": sidecar is not None,
@@ -7538,7 +7543,7 @@ def check_cb1_learned_copilot():
           and bool(runbooks._ADVISORY_WORD_RE.search(copilot.LEARNED_CONTAINER)))
 
     # --- (b) BEHAVIOUR 1 — per-incident, values quoted, never recomputed ----
-    inv = copilot.investigate(f"What does the model say about {DISAGREE['id']}?",
+    inv = copilot.investigate(f"What does the learned model say about {DISAGREE['id']}?",
                               STATE, extras=EX)
     check("(b) a learned question routes to the learned source, not the LLM",
           inv["source"] == copilot.LEARNED_SOURCE, str(inv.get("source")))
@@ -7565,20 +7570,20 @@ def check_cb1_learned_copilot():
     skew = incident("inc-skew001", "HIGH",
                     block(ruleSeverity="HIGH", aiSeverity="INFO",
                           aiLabel="false-positive", agrees=True, status="agrees"))
-    skew_inv = copilot.investigate(f"What does the model say about {skew['id']}?",
+    skew_inv = copilot.investigate(f"What does the learned model say about {skew['id']}?",
                                    STATE, extras=extras([skew]))
     check("(b) a stored agrees=True is rendered as agreement even when the "
           "severities differ — the stored fact wins, no second computation",
           "agrees with the rules verdict" in skew_inv["answer"]
           and skew_inv["learned"]["agrees"] is True, skew_inv["answer"])
 
-    agree_inv = copilot.investigate(f"What does the model say about {AGREE['id']}?",
+    agree_inv = copilot.investigate(f"What does the learned model say about {AGREE['id']}?",
                                     STATE, extras=EX)
     check("(b) an agreeing incident renders as agreement",
           "agrees with the rules verdict" in agree_inv["answer"])
 
     # --- (c) BEHAVIOUR 2 — cross-incident disagreement list -----------------
-    dis = copilot.investigate("What does the model disagree with the rules about?",
+    dis = copilot.investigate("What does the learned model disagree with the rules about?",
                               STATE, extras=EX)
     check("(c) the disagreement question routes to the learned source",
           dis["source"] == copilot.LEARNED_SOURCE)
@@ -7666,7 +7671,7 @@ def check_cb1_learned_copilot():
                         block(status="disagrees", ruleSeverity="HIGH",
                               aiSeverity="INFO", aiLabel=POISON,
                               confidence=0.9976, agrees=False))
-    p_inv = copilot.investigate(f"What does the model say about {poisoned['id']}?",
+    p_inv = copilot.investigate(f"What does the learned model say about {poisoned['id']}?",
                                 STATE, extras=extras([poisoned]))
     quoted, neutralised = copilot.quote_model_value(POISON)
     check("(f) the poisoned value is flattened to ONE line — it cannot forge "
@@ -7692,7 +7697,7 @@ def check_cb1_learned_copilot():
                         aiSeverity=None, aiLabel=None, confidence=None,
                         agrees=None,
                         unavailableReason="model scoring failed: " + POISON))
-    p2_inv = copilot.investigate(f"What does the model say about {p2['id']}?",
+    p2_inv = copilot.investigate(f"What does the learned model say about {p2['id']}?",
                                  STATE, extras=extras([p2]))
     check("(f) the unavailableReason vector is quoted and refused too",
           "refused as an instruction" in p2_inv["answer"]
@@ -7712,7 +7717,7 @@ def check_cb1_learned_copilot():
     killed = [incident("inc-dead0001", "HIGH", dict(dead, ruleSeverity="HIGH")),
               incident("inc-dead0002", "MEDIUM", dict(dead, ruleSeverity="MEDIUM"))]
     KEX = extras(killed, None)
-    k1 = copilot.investigate(f"What does the model say about {killed[0]['id']}?",
+    k1 = copilot.investigate(f"What does the learned model say about {killed[0]['id']}?",
                              STATE, extras=KEX)
     check("(g1) per-incident says UNAVAILABLE and names the reason",
           "UNAVAILABLE" in k1["answer"]
@@ -7725,7 +7730,7 @@ def check_cb1_learned_copilot():
           "I will not say what the model would have said" in k1["answer"])
     check("(g1) the rule verdict still stands and is still stated",
           '"HIGH"' in k1["answer"] and "stands" in k1["answer"])
-    k2 = copilot.investigate("What does the model disagree with the rules about?",
+    k2 = copilot.investigate("What does the learned model disagree with the rules about?",
                              STATE, extras=KEX)
     check("(g2) the disagreement list says UNAVAILABLE, not 'no disagreements'",
           "UNAVAILABLE" in k2["answer"] and k2["learned"]["items"] == []
@@ -7744,8 +7749,8 @@ def check_cb1_learned_copilot():
 
     # --- (h) the wall: nothing here writes a verdict ------------------------
     before = json.dumps(ALL, sort_keys=True)
-    for q in (f"What does the model say about {DISAGREE['id']}?",
-              "What does the model disagree with the rules about?",
+    for q in (f"What does the learned model say about {DISAGREE['id']}?",
+              "What does the learned model disagree with the rules about?",
               "How was this model trained?"):
         copilot.investigate(q, STATE, extras=EX)
     check("(h) not one incident was mutated by answering",
@@ -7755,21 +7760,259 @@ def check_cb1_learned_copilot():
                 "eligibleRunbooks", "approvals"} & set(inv) | set(dis) & {"sev"}))
 
     # --- (i) an unknown incident is an honest 'no such incident' -----------
-    miss = copilot.investigate("What does the model say about inc-nosuchid?",
+    miss = copilot.investigate("What does the learned model say about inc-nosuchid?",
                                STATE, extras=EX)
     check("(i) an unknown incident id is answered honestly, with no opinion",
           "No incident inc-nosuchid exists" in miss["answer"]
           and "did not guess" in miss["answer"], miss["answer"])
 
-    # --- (j) the router does not hijack unrelated questions ----------------
-    for q in ("Show me the MITRE techniques involved",
-              "Explain this page", "What should I do next?"):
+    # --- (j) THE NEGATIVE SPACE: the router does not hijack anything --------
+    #
+    # CB-1-FIX finding 1. This is the most important table in the card, because
+    # CB-1 also made the learned answer TERMINAL — serve.py never hands it to
+    # the LLM on either the JSON or the streaming path. That is correct (a
+    # paraphrase of a stored confidence would be a second, drifting number) but
+    # it removes the fallback: a mis-routed question does not degrade to a
+    # mediocre LLM answer, it returns a confident, cited, ADVISORY-labelled
+    # answer about the WRONG SUBJECT with no path to recovery.
+    #
+    # Every negative is asserted TWICE — with no context, and with an incident
+    # SELECTED in the rail — because the selected-incident fallback is exactly
+    # what turned a mis-route into a confidently wrong answer. Before the fix,
+    # "why did the model return no explanation for this finding" routed to
+    # ('disagreements', None) bare and to ('opinion', 'inc-abc123') with a
+    # selection: it answered about whatever was selected, whatever was asked.
+    SELECTED = {"selectedIncidentId": "inc-abc123"}
+    MUST_NOT_ROUTE = (
+        # the two reproduced hijacks — generic prose naming "the model"
+        "why did the model return no explanation for this finding",
+        "explain the model behind this page",
+        # questions about the analyst LLM, not the learned second opinion
+        "what model are you using",
+        "which model produced this summary",
+        "the model output looks odd on this row",
+        # a technique question and a plain page question
+        "what ATT&CK technique does this map to",
+        "Show me the MITRE techniques involved",
+        "Explain this page",
+        "What should I do next?",
+    )
+    for q in MUST_NOT_ROUTE:
+        check(f"(j) {q!r} does NOT route to a learned behaviour",
+              copilot.learned_question(q) is None,
+              str(copilot.learned_question(q)))
+        check(f"(j) {q!r} does NOT route even with an incident SELECTED — the "
+              "selected-incident fallback is unreachable without a learned phrase",
+              copilot.learned_question(q, SELECTED) is None,
+              str(copilot.learned_question(q, SELECTED)))
         other = copilot.investigate(q, {"runId": "cb1-run", "findings": [],
-                                        "events": []}, extras=EX)
-        check(f"(j) {q!r} is NOT captured by the learned router",
+                                        "events": []}, extras=EX, context=SELECTED)
+        check(f"(j) {q!r} is NOT captured by the learned source end-to-end",
               other["source"] != copilot.LEARNED_SOURCE, str(other.get("source")))
 
+    # ...and the positive cases still route, with and without a selection.
+    # The provenance route is the one to watch: learned_question() used to check
+    # _PROVENANCE_WORDS only AFTER a model phrase matched, so simply deleting
+    # "the model"/"this model" would have silently broken it.
+    MUST_ROUTE = (
+        (f"What does the learned model say about {DISAGREE['id']}?",
+         ("opinion", DISAGREE["id"])),
+        ("What does the learned model disagree with the rules about?",
+         ("disagreements", None)),
+        ("where does the model disagree with the rules",
+         ("disagreements", None)),
+        ("How was this model trained?", ("provenance", None)),
+        ("what is the learned model's training data?", ("provenance", None)),
+    )
+    for q, want in MUST_ROUTE:
+        check(f"(j) {q!r} still routes to {want}",
+              copilot.learned_question(q) == want,
+              str(copilot.learned_question(q)))
+        check(f"(j) {q!r} routes the same way with an incident selected",
+              copilot.learned_question(q, SELECTED) == want,
+              str(copilot.learned_question(q, SELECTED)))
+    # the bare "second opinion" phrase is the ONE case that may legitimately
+    # use the selection — it names the learned model and asks for no behaviour.
+    check("(j) a bare learned phrase may still use the selected incident",
+          copilot.learned_question("what is the second opinion here?") ==
+          ("disagreements", None)
+          and copilot.learned_question("what is the second opinion here?",
+                                       SELECTED) == ("opinion", "inc-abc123"))
+
+    # every follow-up the copilot SUGGESTS must be one it can actually answer
+    for suggested in (dis.get("next") or []) + (inv.get("next") or []):
+        if "model" in suggested.lower():
+            check(f"(j) the suggested follow-up {suggested!r} actually routes",
+                  copilot.learned_question(suggested) is not None)
+
     return 0 if all(results) else 1
+
+
+def check_cb1fix_copilot_read_only():
+    """CB-1-FIX finding 2 — the copilot request path performs NO store write.
+
+    CB-1 added `"incidentsAdvisory": soc.list_incidents(state)` to serve.py's
+    _copilot_extras(). soc.list_incidents() calls sync_incidents() whenever a
+    run is loaded, and sync_incidents() ends in `_save("incidents.json", ...)`.
+    So EVERY non-idle copilot request performed an unconditional disk write.
+
+    Asking the copilot a question is a READ. Guardrail 5 is read-only posture,
+    so this is a correctness defect and not merely a latency one: a question
+    seeded incidents.json, and ensure_incident_cases() (reached from the
+    `cases` key of the very same extras) opens one analyst case per unlinked
+    incident — so a later copilot request could open analyst-visible CASES as a
+    side effect of somebody having asked a question.
+
+    This test asserts the class, not the symptom: it COUNTS soc._save() calls
+    across a representative copilot request and pins incidents.json's bytes and
+    mtime. A test that only asserted the answer was still correct would not
+    have caught this, and would not catch the next one.
+    """
+    ROOT = HERE.parent
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(HERE))
+    import serve
+    import soc
+
+    results = []
+
+    def check(label, cond, detail=""):
+        """Record a test check result and print pass/fail status."""
+        results.append(cond)
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
+
+    print("\nCB-1-FIX — the copilot read path writes nothing:")
+
+    real = (serve.RUNS_DIR, serve.STATE_FILE, serve.CURRENT_RUN_FILE, soc.SOC_DIR)
+    try:
+        with tempfile.TemporaryDirectory(prefix="cb1fix-test-") as tmp:
+            tmp = Path(tmp)
+            serve.RUNS_DIR, serve.STATE_FILE = tmp / ".runs", tmp / "state.json"
+            soc.SOC_DIR = tmp / ".soc"
+
+            def finding(rule, sev, stamp, ip):
+                """Build one detector finding that clusters into an incident."""
+                line = (f"{stamp} ERROR host-1 auth failed for user 'admin' "
+                        f"from {ip}")
+                return {"source": "detector", "severity": sev, "sev": sev,
+                        "rule_id": rule, "id": f"{rule}-{stamp}",
+                        "summary": f"{rule} from {ip}", "evidence": "",
+                        "stamp": stamp,
+                        "entities": {"ip": [ip], "user": ["admin"]},
+                        "timeline": [{"t": stamp[11:16], "label": "x",
+                                      "line": line, "n": 1}],
+                        "raw": line}
+
+            STATE = {"runId": "cb1fix-run", "idle": False,
+                     "findings": [finding("auth_bruteforce", "HIGH",
+                                          "2026-08-13T02:16:44Z", "203.0.113.44"),
+                                  finding("auth_bruteforce", "HIGH",
+                                          "2026-08-13T02:17:02Z", "203.0.113.44"),
+                                  finding("auth_spray", "CRITICAL",
+                                          "2026-08-13T02:20:10Z", "198.51.100.9")],
+                     "events": []}
+
+            # The run publishes once, exactly as it does in production. THIS is
+            # the legitimate writer, and it must keep writing.
+            soc.sync_incidents(STATE)
+            store_file = soc.SOC_DIR / "incidents.json"
+            check("the publishing path still writes incidents.json",
+                  store_file.exists(), str(store_file))
+            seeded_ids = [i["id"] for i in soc.list_incidents(STATE)]
+            check("the seeded run produced real incidents to reason about",
+                  len(seeded_ids) >= 1, str(seeded_ids))
+
+            saves = []
+            real_save = soc._save
+            def counting_save(name, data):
+                """Record every store write attempted while armed."""
+                saves.append(name)
+                return real_save(name, data)
+
+            # --- PROBE 1: the defect and the fix, side by side --------------
+            # Unconditional, and independent of how settled the store is: the
+            # accessor CB-1 used writes incidents.json every single call; the
+            # one the copilot now uses writes nothing.
+            soc._save = counting_save
+            try:
+                writing = soc.list_incidents(STATE)
+                writing_saves = list(saves)
+                saves.clear()
+                readonly = soc.list_incidents_readonly(STATE)
+                readonly_saves = list(saves)
+            finally:
+                soc._save = real_save
+            check("soc.list_incidents() — what CB-1 called — DOES write "
+                  "incidents.json, which is the defect",
+                  writing_saves == ["incidents.json"], str(writing_saves))
+            check("soc.list_incidents_readonly() — what the copilot now calls "
+                  "— writes NOTHING",
+                  readonly_saves == [], str(readonly_saves))
+            check("and the two return exactly the same list, so nothing the "
+                  "copilot can see changed — only the write is gone",
+                  json.dumps(readonly, sort_keys=True, default=str)
+                  == json.dumps(writing, sort_keys=True, default=str))
+
+            # --- PROBE 2: the whole copilot request, end to end -------------
+            # Settle the store first. list_cases() -> ensure_incident_cases()
+            # opens one case per unlinked incident and is a PRE-EXISTING,
+            # conditional write that CB-1 did not introduce; it is quiet once
+            # every incident has its case. Settling here is what isolates the
+            # unconditional write CB-1 DID introduce. Note the direction of the
+            # fix: a copilot question can no longer seed incidents.json at all,
+            # so it can no longer cause a later request to open analyst-visible
+            # cases as a side effect of somebody having asked a question.
+            soc.list_cases()
+            before_bytes = store_file.read_bytes()
+            before_mtime = store_file.stat().st_mtime_ns
+            cases_before = len(soc.list_cases())
+
+            saves.clear()
+            soc._save = counting_save
+            try:
+                extras = serve._copilot_extras(STATE)
+                serve._copilot_extras(STATE)
+            finally:
+                soc._save = real_save
+
+            check("a copilot request performs ZERO store writes",
+                  saves == [], f"soc._save called for: {saves}")
+            check("incidents.json is byte-identical after the copilot request",
+                  store_file.read_bytes() == before_bytes)
+            check("incidents.json was not even touched (mtime unchanged)",
+                  store_file.stat().st_mtime_ns == before_mtime)
+            check("no analyst-visible CASE is opened as a side effect of asking",
+                  len(soc.list_cases()) == cases_before,
+                  f"{cases_before} -> {len(soc.list_cases())}")
+
+            # --- the advisory list itself is UNCHANGED by the fix -----------
+            advisory = extras.get("incidentsAdvisory") or []
+            check("the copilot still receives the advisory incident list",
+                  len(advisory) == len(seeded_ids) and advisory != [],
+                  str(len(advisory)))
+            check("every advisory incident still carries its aiTriage block — "
+                  "the single producer is unchanged, only the write is gone",
+                  all("aiTriage" in i for i in advisory))
+
+            # --- the ids must still RESOLVE: /incidents?sel=<id> -----------
+            # The disagreement list deep-links to them. Ids are derived
+            # deterministically, so an id the copilot showed is the same id the
+            # incidents route produces when the analyst follows the link.
+            visible = {i["id"] for i in soc.list_incidents(STATE)}
+            check("every id the copilot can cite resolves on the incidents route",
+                  {i["id"] for i in advisory} <= visible and bool(advisory),
+                  str({i["id"] for i in advisory} - visible))
+
+            # --- the fix did not make the store read-only for real writers --
+            soc.sync_incidents(STATE)
+            check("a genuine publish after the question still persists",
+                  store_file.exists() and json.loads(store_file.read_text()))
+    finally:
+        (serve.RUNS_DIR, serve.STATE_FILE, serve.CURRENT_RUN_FILE,
+         soc.SOC_DIR) = real
+
+    return 0 if all(results) else 1
+
 
 def check_cases_incidents_migration():
     """C1-T1 — Cases absorb into Incidents ADDITIVELY (owner-ratified 2026-08-28).

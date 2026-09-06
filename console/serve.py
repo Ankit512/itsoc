@@ -709,12 +709,19 @@ def _copilot_extras(state):
         "cases": soc.list_cases(),
         "sigmaHits": state.get("sigmaHits") or [],
         "triage": triage.triage_state(state),
-        # CB-1: incident projections that carry the STORED advisory block
-        # (`aiTriage`). soc.list_incidents() is the single existing producer of
-        # that block — the copilot reads its values and never recomputes them,
-        # so there is exactly one computation of severity/label/confidence/
-        # agreement in the system and nothing can drift from it.
-        "incidentsAdvisory": soc.list_incidents(state),
+        # CB-1: incident projections that carry the advisory `aiTriage` block.
+        # The copilot READS those values and never recomputes them, so there is
+        # exactly one computation of severity/label/confidence/agreement in the
+        # system — soc._public_incident() reaching triage_model.predict() — and
+        # nothing can drift from it.
+        #
+        # CB-1-FIX finding 2: this used to call soc.list_incidents(), which
+        # syncs and therefore _save()s incidents.json on EVERY non-idle copilot
+        # request. Answering a question is a read (guardrail 5), so it now uses
+        # the read-only accessor: same merge, same projection, same single
+        # producer, no store write. The list is identical — only the persisting
+        # is gone, and every writing caller still uses soc.list_incidents().
+        "incidentsAdvisory": soc.list_incidents_readonly(state),
     }
 
 
