@@ -20,7 +20,18 @@ inform — but nothing here is currently world-readable.
 
 ---
 
-## SEV-1 — the console's HTTP API accepts cross-site requests. Reproduced.
+## SEV-1 — the console's HTTP API accepts cross-site requests. Reproduced. **CLOSED (SEC-1, 2026-09-06).**
+
+> **Outcome.** Fixed on `Ankit512/sec1-origin-guard` by `console/serve.py`'s browser-origin guard:
+> `request_guard_reason()` plus the `ConsoleHandler.parse_request` seam. All three foreign-context
+> probes below now return **403 / 415**; the plain unauthenticated loopback `GET` still returns 200,
+> because this card did **not** reopen the login-gate decision. The wrong mitigation comment at
+> `serve.py:113-127` was rewritten to state what is actually true. Evidence, including a
+> disable-and-restore demonstration that the guard bites:
+> [`docs/STAGE_E_REPORTS/SEC1-worker.md`](STAGE_E_REPORTS/SEC1-worker.md). Regression tests live in
+> `console/test_console.py` (`check_origin_guard`, 49 checks) and `console/test_auth_security.py`
+> (`origin_guard_regressions`, both auth modes) — both inside `scripts/gate.sh`.
+
 
 **The mitigation in the code is incomplete, and that is the actual finding.**
 `console/serve.py:113-127` disables the login gate by owner decision and states the mitigation:
@@ -65,6 +76,35 @@ against the analyst's own network without their intent.
 an expected loopback value and reject requests carrying a cross-origin `Origin`, on state-changing
 methods at minimum. Both are a few lines in one place, in the same spirit as the existing single
 `AUTH_REQUIRED` switch.
+
+### What was actually built (SEC-1)
+
+One place — `ConsoleHandler.parse_request`, which `http.server` calls after the headers are read and
+**before** it dispatches to any `do_*` method, so a route added tomorrow is guarded on the day it is
+written. Three checks:
+
+| Check | Rule | Refusal |
+|---|---|---|
+| **Host** | must be a loopback authority — `127.0.0.0/8`, `::1`, `localhost` — on **any port** | `403` |
+| **Origin** | if present, must be an `http(s)` loopback origin; `null` is foreign. Applied to **every** method, GET included | `403` |
+| **Content-Type** | a request that carries a body must declare `application/json`, or `multipart/form-data` on the three routes that really parse it (`/api/analyze`, `/api/evtx/ingest`, case attachments) | `415` |
+
+The Content-Type check is the one that closes the no-preflight path: `text/plain`,
+`application/x-www-form-urlencoded` and an **absent** Content-Type (a `Blob` with an empty type) are
+exactly the three bodies a browser will send cross-site without a preflight, and a JSON endpoint has
+no business accepting any of them. Origin validation was widened past state-changing methods on
+purpose: no caller on this machine ever sends a foreign `Origin`, and refusing it on `GET` too
+replaces the *incidental* protection of a missing `Access-Control-Allow-Origin` header with a
+deliberate one.
+
+The boundary is **loopback on any port**, not one port. `web/vite.config.ts` does not set
+`changeOrigin`, so in dev the forwarded `Host` is `localhost:5173` and the browser `Origin` is
+`http://localhost:5173`. An allowlist of exactly `127.0.0.1:8765` would have broken dev mode, and the
+answer to that is not to relax the guard — the dev path is asserted as accepted in both suites.
+
+Refusals are honest: a real status, the reason in the JSON body, and a server log line. Never a
+silent drop, never a fake success. **Not** addressed by this card, and deliberately so: the login
+gate stays off by owner decision, and the `vitest` advisory below remains a separate change.
 
 ---
 
@@ -111,10 +151,10 @@ samples and constructed fixtures — documentation-range addresses, no customer 
 
 ## Recommendation
 
-One card, narrowly scoped: **Host-header and Origin validation on the console API**, plus a
+~~One card, narrowly scoped: **Host-header and Origin validation on the console API**, plus a
 `Content-Type` check on JSON endpoints, plus a regression test that asserts a foreign `Origin` and a
-foreign `Host` are both refused. It does not touch the login-gate decision, the detector, or any
-verdict path.
+foreign `Host` are both refused.~~ **Done — SEC-1, 2026-09-06.** It did not touch the login-gate
+decision, the detector, or any verdict path.
 
 The `vitest` bump is separate and should be its own change, since a test-toolchain upgrade can move
 test results and must not ride along with a security fix whose evidence is those same tests.
