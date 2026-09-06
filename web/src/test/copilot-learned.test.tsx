@@ -65,6 +65,11 @@ const PROVENANCE: CopilotInvestigation = {
   citationGuard: { claims: 4, accepted: 4, rejected: [], note: "" },
 };
 
+/**
+ * Mock the askStream API to return a pre-built investigation result.
+ * @param inv - The CopilotInvestigation to return in the stream
+ * @returns A vi spy that mocks api.askStream
+ */
 function stream(inv: CopilotInvestigation) {
   return vi.spyOn(api, "askStream").mockImplementation(async (_q, onDelta, _s, onInv) => {
     onInv?.(inv);
@@ -72,6 +77,10 @@ function stream(inv: CopilotInvestigation) {
   });
 }
 
+/**
+ * Helper to render the copilot rail and ask a question.
+ * @param q - The question string to type and send
+ */
 async function ask(q: string) {
   renderApp(<CopilotRail defaultOpen={true} model="llama3.1:8b" />);
   const box = await screen.findByTestId("copilot-composer");

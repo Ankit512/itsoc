@@ -1810,6 +1810,12 @@ def render_claims(claims, incident_ids, sidecar_fields):
 
 
 def _learned_result(answer, guard, facts, followups, extras_view=None):
+    """Build a learned-source investigation result with standard fields.
+
+    Returns a dict with answer, citations, followups, facts, actions, source,
+    label, advisory flag, and citation guard. If extras_view is provided, it
+    is attached as the 'learned' key for structured panel rendering.
+    """
     out = {
         "answer": answer,
         "citations": [],
@@ -1949,6 +1955,12 @@ def learned_opinion(incident_id, extras, run_id=None):
 
 
 def _learned_followups(rows):
+    """Generate suggested follow-up questions for learned-model answers.
+
+    Returns a list of up to _MAX_SUGGEST follow-up questions, including
+    standard queries about disagreements and provenance, plus a specific
+    incident query if any disagreeing incident exists in rows.
+    """
     qs = ["What does the model disagree with the rules about?",
           "How was this model trained?"]
     for inc in rows:
@@ -2216,6 +2228,12 @@ def learned_question(ql, context=None):
 
 
 def learned_answer(kind, incident_id, extras, run_id=None):
+    """Dispatch to the appropriate learned-model answer function.
+
+    Routes to learned_provenance for "provenance", learned_opinion for
+    "opinion", or learned_disagreements otherwise, based on the kind
+    parameter returned by learned_question.
+    """
     if kind == "provenance":
         return learned_provenance(extras, run_id)
     if kind == "opinion":

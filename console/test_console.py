@@ -7473,16 +7473,19 @@ def check_cb1_learned_copilot():
     results = []
 
     def check(label, cond, detail=""):
+        """Record a test check result and print pass/fail status."""
         results.append(cond)
         print(f"  [{'PASS' if cond else 'FAIL'}] {label}" + ("" if cond or not detail else f" — {detail}"))
 
     print("\nCB-1 copilot × learned triage (advisory context source):")
 
     def incident(iid, sev, block):
+        """Build a test incident projection with an aiTriage advisory block."""
         return {"id": iid, "runId": "cb1-run", "severity": sev,
                 "title": f"incident {iid}", "aiTriage": block}
 
     def block(**kw):
+        """Build a test advisory block with base defaults and caller overrides."""
         base = {"advisory": True, "learned": True, "modelAvailable": True,
                 "status": "agrees", "ruleSeverity": "HIGH",
                 "aiSeverity": "HIGH", "aiLabel": "confirmed",
@@ -7497,6 +7500,7 @@ def check_cb1_learned_copilot():
                "crossValidation": {"macroF1Mean": 1.0, "folds": 5}}
 
     def extras(incidents, sidecar=SIDECAR):
+        """Build copilot extras with advisory incidents and provenance sidecar."""
         return {"incidentsAdvisory": incidents,
                 "triage": {"modelProvenance": sidecar,
                            "modelAvailable": sidecar is not None,
