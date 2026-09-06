@@ -258,3 +258,26 @@ Report: `docs/STAGE_E_REPORTS/E8-leakage-interrogation.md`.
 - **Second pre-existing failure found:** `console/test_auth_security.py` fails identically at base
   (auth gate off unless `ITSOC_AUTH=1`), alongside the known `tests/test_battlecard_efficacy.py`. Both
   outside the standing gate set. That set now has two known holes in it.
+
+## CB-1-FIX accepted — both review findings closed — 2026-09-06
+
+- **CodeRabbit found two Major defects in accepted, merged CB-1.** Both real, both re-verified by
+  the coordinator before dispatch: the learned router over-captured generic "the model" prose (and,
+  with an incident selected, answered about *that* incident regardless of the question), and
+  `_copilot_extras` performed an unconditional `incidents.json` write on every copilot request.
+- **Both fixed and demonstrated.** Two-tier router — naming phrases route alone, a generic model
+  reference never reaches the selected-incident fallback; and `soc.list_incidents_readonly()`, a
+  pure extract-method refactor leaving every existing caller byte-identical. Coordinator probe:
+  `list_incidents` writes `['incidents.json']`, `list_incidents_readonly` writes `[]`, outputs
+  identical.
+- **The worker found a bug the card did not name:** the copilot *suggests* follow-up questions,
+  and five of those suggestion strings would no longer have routed under the narrowed router — the
+  copilot offering a question it could not answer. Fixed and pinned by test (j).
+- **The coordinator found one neither worker did:** the shipped CB-1 evidence screenshots use a
+  prompt that no longer routes. Annotated in `CB1-evidence/README.md` rather than re-shot; the
+  trade-off is recorded rather than silent.
+- **All CB-1 properties re-verified after the fix** — four attacks, the fake-system-turn vector, the
+  model kill, and the no-re-derivation probe. Gates green; detector unchanged.
+- **The lesson, kept narrow:** the four attacks were the right test of the wall and said nothing
+  about the router's negative space or the write path, because no acceptance criterion asked. A
+  negative-space table is now the standing shape for routing changes.
