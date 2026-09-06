@@ -338,12 +338,14 @@ def _strip_disposition(inc):
     return inc
 
 
-def sync_incidents(state):
-    """Upsert derived incidents into the store, preserving analyst lifecycle.
+def _merge_incidents(state):
+    """The merge half of sync_incidents(), computed IN MEMORY — never written.
 
-    Deterministic ids make this idempotent: re-analyzing the same run updates
-    the derived fields of an existing incident and never duplicates it or
-    erases the analyst's state/acknowledgedAt/resolvedAt."""
+    Split out so a read-only caller can obtain exactly the same merged view
+    without touching disk. sync_incidents() is still the only writer and its
+    behaviour for its existing callers is unchanged; this holds no logic of
+    its own beyond what used to live inline above the _save().
+    """
     store = _load("incidents.json")
     for inc in derive_incidents(state):
         prev = store.get(inc["id"], {})
@@ -364,17 +366,27 @@ def sync_incidents(state):
         _strip_disposition(inc)
         inc.update(_disposition_defaults(prev))
         store[inc["id"]] = inc
+    return store
+
+
+def sync_incidents(state):
+    """Upsert derived incidents into the store, preserving analyst lifecycle.
+
+    Deterministic ids make this idempotent: re-analyzing the same run updates
+    the derived fields of an existing incident and never duplicates it or
+    erases the analyst's state/acknowledgedAt/resolvedAt."""
+    store = _merge_incidents(state)
     _save("incidents.json", store)
     return store
 
 
-def list_incidents(state=None, state_filter=None):
-    """All stored incidents, newest detection first. Syncs from the current
-    run first when one is loaded, so the list always reflects real findings."""
-    if state and not state.get("idle"):
-        store = sync_incidents(state)
-    else:
-        store = _load("incidents.json")
+def _project_incidents(store, state_filter=None):
+    """Order, dedupe, filter and publicly project a merged incident store.
+
+    The tail of list_incidents(), shared verbatim with the read-only accessor
+    so both return byte-identical projections — including the `aiTriage` block
+    that _public_incident() attaches.
+    """
     out = sorted(store.values(), key=lambda i: i.get("createdAt") or "", reverse=True)
     deduped = []
     seen = set()
@@ -387,6 +399,37 @@ def list_incidents(state=None, state_filter=None):
         deduped = [i for i in deduped
                    if normalize_incident_state(i.get("state")) == wanted]
     return [_public_incident(i) for i in deduped]
+
+
+def list_incidents(state=None, state_filter=None):
+    """All stored incidents, newest detection first. Syncs from the current
+    run first when one is loaded, so the list always reflects real findings."""
+    if state and not state.get("idle"):
+        store = sync_incidents(state)
+    else:
+        store = _load("incidents.json")
+    return _project_incidents(store, state_filter)
+
+
+def list_incidents_readonly(state=None, state_filter=None):
+    """list_incidents() without the write — for callers on a READ path.
+
+    Identical output: the same _merge_incidents() lifecycle merge over the same
+    deterministic ids, then the same _project_incidents()/_public_incident()
+    projection, so the `aiTriage` advisory block is produced by exactly the same
+    triage_model.predict() call as everywhere else. The ONLY difference is that
+    the merged store is not persisted, so an incident id returned here resolves
+    identically at /incidents?sel=<id> (that route syncs, and the merge is
+    deterministic and idempotent) without this call having written anything.
+
+    Guardrail 5: answering a copilot question is a read and must not mutate the
+    store. Every writing caller keeps calling list_incidents().
+    """
+    if state and not state.get("idle"):
+        store = _merge_incidents(state)
+    else:
+        store = _load("incidents.json")
+    return _project_incidents(store, state_filter)
 
 
 def _public_incident(inc):

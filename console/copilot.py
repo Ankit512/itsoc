@@ -1859,7 +1859,7 @@ def learned_opinion(incident_id, extras, run_id=None):
                  "note": "nothing was claimed, so nothing needed a citation"}
         return _learned_result(answer, guard,
                                {"incidentId": incident_id, "found": False},
-                               ["What does the model disagree with the rules about?"])
+                               ["What does the learned model disagree with the rules about?"])
 
     block = advisory_block(inc)
     iid = inc["id"]
@@ -1961,12 +1961,12 @@ def _learned_followups(rows):
     standard queries about disagreements and provenance, plus a specific
     incident query if any disagreeing incident exists in rows.
     """
-    qs = ["What does the model disagree with the rules about?",
+    qs = ["What does the learned model disagree with the rules about?",
           "How was this model trained?"]
     for inc in rows:
         block = advisory_block(inc)
         if block and block.get("agrees") is False:
-            qs.append(f"What does the model say about {inc['id']}?")
+            qs.append(f"What does the learned model say about {inc['id']}?")
             break
     return qs[:_MAX_SUGGEST]
 
@@ -2151,7 +2151,7 @@ def learned_provenance(extras, run_id=None):
                           "stated as unrecorded, not cited")}
         return _learned_result(answer, guard,
                                {"provenanceRecorded": False},
-                               ["What does the model disagree with the rules about?"],
+                               ["What does the learned model disagree with the rules about?"],
                                {"kind": "provenance", "recorded": False,
                                 "fields": [],
                                 "missing": list(PROVENANCE_EXPECTED)})
@@ -2185,7 +2185,7 @@ def learned_provenance(extras, run_id=None):
         answer, guard,
         {"provenanceRecorded": True, "fields": len(fields),
          "missing": len(missing)},
-        ["What does the model disagree with the rules about?"],
+        ["What does the learned model disagree with the rules about?"],
         {"kind": "provenance", "recorded": True, "fields": fields,
          "missing": missing})
 
@@ -2193,12 +2193,27 @@ def learned_provenance(extras, run_id=None):
 # ---------------------------------------------------------------------------
 # routing
 # ---------------------------------------------------------------------------
-# Deliberately narrow. A bare "model" or "ai" would hijack unrelated questions
-# (the analyst LLM, an ATT&CK question, a "model" in prose), so the router only
-# fires on a phrase that names the LEARNED second opinion.
+# Deliberately narrow, and narrow in TWO tiers, because a mis-route here is not
+# a mediocre answer — the learned answer is terminal (serve.py never hands it to
+# the LLM, on either the JSON or the streaming path), so a hijacked question
+# returns a confident, cited, ADVISORY-labelled answer about the WRONG subject
+# with no fallback.
+#
+# Tier 1, _LEARNED_WORDS: phrases that NAME the learned second opinion. Nothing
+# else in the product answers to these, so any one of them is sufficient on its
+# own to route — including to the bare per-incident/selected-incident fallback.
+#
+# Tier 2, _MODEL_REF_WORDS: a generic reference to *a* model. "the model" is
+# also the analyst LLM, a model in prose, a model on the page. It is NEVER
+# sufficient on its own and can never reach the selected-incident fallback. It
+# only qualifies when paired with an intent word that is unambiguous in this
+# product: a provenance word (only the learned model has a provenance sidecar)
+# or a disagreement word (rules are the only verdict producer, so the only
+# thing that can "disagree with the rules" is the learned second opinion).
 _LEARNED_WORDS = ("learned model", "learned second opinion", "second opinion",
-                  "triage model", "aitriage", "the model", "this model",
-                  "ml model", "learned classifier", "model's")
+                  "triage model", "aitriage", "ml model", "learned classifier",
+                  "learned triage", "learned model's")
+_MODEL_REF_WORDS = ("the model", "this model", "model's")
 _PROVENANCE_WORDS = ("trained", "training", "provenance", "training data",
                      "training set", "seed", "benchmark", "how was this model")
 _DISAGREE_WORDS = ("disagree", "disagreement", "false positive candidate",
@@ -2211,12 +2226,19 @@ def learned_question(ql, context=None):
     Deterministic and word-based, in the same idiom as the rest of this module.
     """
     ql = str(ql or "").lower()
-    mentions_model = any(w in ql for w in _LEARNED_WORDS)
-    if mentions_model and any(w in ql for w in _PROVENANCE_WORDS):
+    names_learned = any(w in ql for w in _LEARNED_WORDS)
+    # A generic "the model" only counts alongside an unambiguous intent word.
+    generic_ref = names_learned or any(w in ql for w in _MODEL_REF_WORDS)
+    if generic_ref and any(w in ql for w in _PROVENANCE_WORDS):
         return ("provenance", None)
-    if any(w in ql for w in _DISAGREE_WORDS) and mentions_model:
+    if generic_ref and any(w in ql for w in _DISAGREE_WORDS):
         return ("disagreements", None)
-    if not mentions_model:
+    # Past this point the question carries no intent word, so only a phrase
+    # that NAMES the learned second opinion may route. This is the guard that
+    # stops "why did the model return no explanation for this finding" from
+    # being answered as an opinion about whatever incident happens to be
+    # selected in the rail.
+    if not names_learned:
         return None
     hit = _INCIDENT_ID_RE.search(str(ql))
     if hit:
