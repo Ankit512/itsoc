@@ -237,3 +237,24 @@ Report: `docs/STAGE_E_REPORTS/E8-leakage-interrogation.md`.
 - **The family, named: auto-detected infrastructure config is unverified config.** This is the same shape as the `worktreeBaseRef` defect HK1 root-caused — both were `mode: auto` guesses that were simply wrong, and **this session found both by paying their tax repeatedly, not by inspection.** Roughly eighteen deviations across the two, against a thirty-second check.
 - **Guardrail 13 added** to carry it: anything the tooling inferred rather than a human chose — base ref, setup script, package manager, default branch — gets checked against the repo's actual conventions at stage start, before the first dispatch. And: **a workaround that outlives its cause becomes cargo cult** — when the root cause is fixed, retire the workaround and say so.
 - **PENDING RETIREMENT:** on the first dispatch after the UI correction, verify setup succeeds cleanly, then **remove the `npm --prefix web install` self-install step from the standing card setup preamble** in `docs/ITSOC_ORCHESTRATOR_PROMPT.md` and record the retirement here. Until verified, the preamble stays — retiring a workaround before its cause is confirmed fixed is the same error in the other direction.
+
+## CB-1 accepted — the learned second opinion, attacked four ways — 2026-09-06
+
+- **Accepted and merged.** Four behaviours; four attack demonstrations reproduced by the coordinator
+  independently of the worker's transcript, plus a fifth vector the card did not name (a newline
+  payload forging a fake system turn — flattened, quoted, refused).
+- **The option-3 exclusion was tested, not assumed.** Stored `agrees: True` with the severities
+  diverging (rules `HIGH`, model `INFO`). A display-time re-derivation would have said *disagrees*. It
+  said *agrees*, as stored, and the disagreement list held zero items.
+- **The best line in the diff is in `serve.py`:** a learned answer is terminal on both the JSON and
+  streaming paths and never reaches the LLM, "because a model paraphrase of a stored confidence is a
+  second, drifting number." Unprompted, and the right instinct.
+- **Coordinator premise error, guardrail 6.** The card asserted `aiSeverity`, `aiConfidence`,
+  `aiAgrees` and `aiLabel` are all fenced. `aiConfidence` and `aiAgrees` **do not exist as leaf keys** —
+  `triage_model` emits `confidence`/`agrees` inside `aiTriage`. Not grepped before dispatch. Accepted
+  on the containment reading, with the safety property verified rather than assumed (container fenced
+  twice, `_assert_fenced()` re-derives at read time, no production code hoists the leaves). Logged as
+  **OPEN-16**; the strict-leaf alternative is a cheap rename in a path CB-1 was forbidden to touch.
+- **Second pre-existing failure found:** `console/test_auth_security.py` fails identically at base
+  (auth gate off unless `ITSOC_AUTH=1`), alongside the known `tests/test_battlecard_efficacy.py`. Both
+  outside the standing gate set. That set now has two known holes in it.

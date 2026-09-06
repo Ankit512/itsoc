@@ -100,6 +100,27 @@ Seven commits. Additions this stage:
 **A demonstration that fails is the most valuable outcome available — a real defect found by attack,
 not a failure of the card.**
 
+## Post-closeout addendum — the CB mini-scope (owner-authorized, outside the stage)
+
+Three items after the stage closed, each on an explicit owner ruling.
+
+| Item | Outcome |
+|---|---|
+| **Push to origin** | done — `origin/main` current. Also removed the stale-worktree-base root cause at source: Orca resolves from `origin/main`, which our own no-push doctrine had frozen. |
+| **CB-0 · advisory family fence** | accepted, `9d5ec4a`. `ai<Something>` fenced by **class**, not enumeration. Wall 101 → 126. |
+| **CB-1 · Copilot × learned triage** | accepted. Four behaviours, four attacks reproduced independently, plus a fake-system-turn vector the card did not name. Web 301 → 313 tests. |
+
+**What CB-1 added to the argument.** The wall was already observed rather than asserted. CB-1 showed
+the same principle holds one layer up: a learned answer is returned **terminally** and never handed to
+the LLM, because a paraphrase of a stored confidence is a second, drifting number. Same reasoning as
+the option-3 exclusion — *two computations of one stored fact drift* — applied to prose instead of to
+display. The worker reached it unprompted, which is the better sign.
+
+**And it produced one more premise failure.** The CB-1 card asserted four `ai*` fields were fenced;
+two of them do not exist. Logged as **OPEN-16**, and as a coordinator error under guardrail 6 — the
+second time in this family that `ADVISORY_KEYS` was reasoned about from its name instead of its
+contents.
+
 ## Status
 
 Stage E is closed. The fleet stands down. Reactivation requires a new scope doc.
