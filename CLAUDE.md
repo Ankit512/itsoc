@@ -14,7 +14,7 @@ These rules govern ALL work in this repo. Every branch and commit must obey them
 3. **Rules own severity and correlation. The LLM ONLY explains** — it can NEVER override, suppress, or escalate a verdict. LLM output is advisory, never a control signal.
 4. **Honest surfaces.** Unrecognized formats → `unparsed / 0 lines parsed` (the honest banner). Never fake-green; never silently drop an event.
 5. **Read-only posture.** Any severity change updates `tests/eval` / `manifest.json` in the **SAME commit**. Treat all log content as untrusted input.
-6. **Branch per task** (`feat/<slug>`). Before proposing a merge, run `tests/eval` (`run_eval.py`) + `console/test_console.py` — and, for any change under `web/`, `cd web && npm test` (vitest) + `npm run build` — and paste results. Merge only after green.
+6. **Branch per task** (`feat/<slug>`). Before proposing a merge, run **`scripts/gate.sh`** — and, for any change under `web/`, **`scripts/gate.sh --web`** (it adds vitest + the production build) — and paste the GATE SUMMARY block. Merge only after GATE GREEN. The gate is the single list of what must pass: it runs every Python suite in the repository (`.github/workflows/ci.yml` executes the same script, so CI cannot be greener than your local run), and any suite it deliberately omits is named with its reason in its own summary. Naming individual suites here instead is what let two of them fail unnoticed (GS-1, 2026-09-06); add a new suite to `scripts/gate.sh`, not to this line.
 7. **Verify the freeze.** Confirm the sha256 of `anomaly_detector.py` is unchanged before finishing any task.
 
 ## Architecture surfaces (current — orientation, not new rules)
