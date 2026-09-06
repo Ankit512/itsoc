@@ -6,9 +6,32 @@ on:
   pull_request:
     branches: [main]
 
+# CI runs THE GATE, not a hand-listed subset of it.
+#
+# Until 2026-09-06 this file named three suites by hand and scripts/gate.sh named
+# the same three. Both drifted from the repository, which by then had eighteen
+# Python suites, and two of them had been failing for an unknown length of time
+# because nothing ran them. Two hand-maintained lists of what to test is one list
+# too many: whichever is edited less becomes a lie. There is now exactly one
+# list — scripts/gate.sh — and CI executes it. Adding a suite to the gate adds it
+# to CI for free, and CI can no longer be greener than a developer's local gate.
+#
+# No `pip install` step, deliberately. Every Python suite here is stdlib-only.
+# The optional extras are PROVEN optional by their absence in this job:
+#   * scikit-learn is absent, so tools/test_train_triage.py and
+#     tools/test_efficacy_harness.py take their honest skip path, and
+#     tests/test_battlecard_efficacy.py reports the learned column as
+#     unverified-with-a-reason rather than fabricating a pass.
+#   * The live-TAXII extras in threat_intel/requirements-taxii.txt are not
+#     installed; threat_intel/taxii_client.py guards that import, so the offline
+#     path must keep working without them — and CI proves it does.
+# No network calls: the LLM spot-check is opt-in behind --llm (not passed), and
+# MITRE technique resolution skips automatically on a cold cache rather than
+# downloading the 46MB ATT&CK bundle.
+
 jobs:
-  tests:
-    name: Eval corpus + threat-intel smoke test
+  gate:
+    name: scripts/gate.sh --web
     runs-on: ubuntu-latest
 
     steps:
@@ -18,25 +41,27 @@ jobs:
         with:
           python-version: '3.x'
 
-      # No `pip install` step, deliberately. Both suites are Python-stdlib only.
-      # The live-TAXII extras in threat_intel/requirements-taxii.txt are NOT
-      # installed here: threat_intel/taxii_client.py guards that import, so the
-      # offline path must keep working without them — and CI proves it does.
+      # Node is needed for two reasons: console/test_console.py executes the
+      # console's own JS against a stubbed DOM, and --web runs the vitest suite
+      # and the production build. The previous CI never built web/ at all.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
-      - name: Deterministic detector eval corpus
-        # 15 labeled cases; no model involved. The LLM spot-check is opt-in
-        # behind --llm (not passed here), so this makes no network calls.
-        run: python3 tests/eval/run_eval.py
+      - name: Install web dependencies
+        run: npm --prefix web ci
 
-      - name: Threat-intel smoke test
-        # IOC matching against the local STIX bundle. MITRE technique resolution
-        # is skipped automatically on a cold ~/.cache/mitre_attack — CI never
-        # downloads the 46MB ATT&CK bundle.
-        run: python3 threat_intel/test_threat_intel.py
+      - name: Run the canonical gate
+        run: scripts/gate.sh --web
 
-      - name: Console render smoke test
-        # Executes the console's own JS against a stubbed DOM: every run state,
-        # the filters, marking, and the honest compare-not-run / partial /
-        # all-clear states. No browser, no network, no model — ubuntu-latest
-        # ships Node, and the test skips loudly if a runner ever lacks it.
-        run: python3 console/test_console.py
+      # Rule 1 of the gate is that evidence is never discarded. A red CI run is
+      # only useful if the output that made it red survives the runner.
+      - name: Upload gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-logs
+          path: gate-logs/
+          if-no-files-found: warn
