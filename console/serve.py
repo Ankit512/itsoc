@@ -120,11 +120,167 @@ MAX_RUNS = 25
 #   AUTH_REQUIRED = True     -> restore the fail-closed gate
 #   ITSOC_AUTH=1 in the env  -> restore it for a single run
 #
-# Mitigation, not a justification: bind() listens on 127.0.0.1 only, so the API
-# is reachable from this machine alone — it is not exposed to the network.
-# console/test_console.py exercises BOTH modes, so flipping this back is safe.
+# WHAT ACTUALLY PROTECTS THE OFF STATE (corrected 2026-09-06, SEC-1).
+#
+# This comment used to read: "bind() listens on 127.0.0.1 only, so the API is
+# reachable from this machine alone — it is not exposed to the network." That
+# was WRONG, and it was wrong in the direction that matters. Loopback bind stops
+# other HOSTS. It does not stop the BROWSER RUNNING ON THIS HOST: any page the
+# analyst visits can issue requests to http://127.0.0.1:8765, and until SEC-1
+# nothing in the request path rejected them. It was measured, not theorised — a
+# cross-origin POST of `Content-Type: text/plain` (a CORS *simple* request, so no
+# preflight) to /api/syslog/start returned 200 and started a live network
+# listener inside the console.
+#
+# What is true now: request_guard_reason() below refuses any request that did not
+# come from a loopback context, and ConsoleHandler.parse_request runs it on EVERY
+# request before any route or auth check. Loopback bind + that guard is the pair;
+# neither half is sufficient alone. The guard is what makes the auth-off state
+# safe against the analyst's own browser. It does not replace the login gate and
+# is not a reason to leave the gate off — that stays the owner's call.
+#
+# console/test_console.py exercises BOTH auth modes, so flipping this back is
+# safe; console/test_auth_security.py exercises the guard in both modes too.
 # ---------------------------------------------------------------------------
 AUTH_REQUIRED = os.environ.get("ITSOC_AUTH", "").strip() == "1"
+
+# ---------------------------------------------------------------------------
+# BROWSER-ORIGIN GUARD (SEC-1, 2026-09-06) — the second half of the pair above.
+#
+# ONE PLACE, deliberately, in the spirit of the single AUTH_REQUIRED switch: a
+# scattered check is a check someone forgets on the next endpoint. Every request
+# passes through ConsoleHandler.parse_request, which calls request_guard_reason()
+# below before a route is even looked up. A new endpoint is covered the day it is
+# added, without its author knowing this file exists.
+#
+# Three checks, each closing a different door:
+#
+#   1. HOST. The Host header must name a loopback address. This — and nothing
+#      else — defeats DNS REBINDING: an attacker domain that re-resolves to
+#      127.0.0.1 becomes same-origin to the browser and could otherwise READ
+#      incidents, findings, raw log lines and case files. The browser sends the
+#      attacker's name in Host, so the server can still tell the difference.
+#   2. ORIGIN. A request carrying a cross-origin Origin is refused. Applied to
+#      EVERY method, not only the state-changing ones: no legitimate caller on
+#      this machine ever sends a foreign Origin, and doing it on GET as well
+#      closes the cross-origin read path instead of leaning on the absence of an
+#      Access-Control-Allow-Origin header, which was incidental, not designed.
+#      `Origin: null` (a sandboxed iframe, a file:// page) is a foreign origin.
+#   3. CONTENT-TYPE. A request that carries a body must declare application/json
+#      — or multipart/form-data on the three routes that really parse it. This is
+#      what removes the no-preflight smuggling path: text/plain, form-urlencoded
+#      and a Content-Type-less Blob body are exactly the three bodies a browser
+#      will send cross-origin WITHOUT a preflight, and a JSON endpoint has no
+#      business accepting any of them.
+#
+# THE BOUNDARY IS LOOPBACK, NOT ONE PORT. The dev setup is `web` on :5173
+# proxying /api to serve.py on :8765, and web/vite.config.ts does NOT set
+# changeOrigin, so the forwarded Host is `localhost:5173` and the browser Origin
+# is `http://localhost:5173`. An allowlist of exactly `127.0.0.1:8765` would
+# break dev mode, and the fix for that is NOT to relax the guard. Loopback on ANY
+# PORT is allowed (127.0.0.1/8, ::1, localhost); everything else is refused.
+#
+# Refusals are honest: a real status (403 for a foreign host/origin, 415 for a
+# smuggled body type), a stated reason in the JSON body, and a log line. Never a
+# silent drop, never a fake success.
+# ---------------------------------------------------------------------------
+
+# Names that resolve to this machine but are not IP literals, so ip_address()
+# cannot classify them.
+LOOPBACK_HOST_NAMES = frozenset({
+    "localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback",
+})
+
+# Methods whose handlers read and json.loads() a request body.
+BODY_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+# How much of a refused request's body to drain before answering, so the peer can
+# finish writing and then read our refusal instead of seeing a reset connection.
+GUARD_DRAIN_LIMIT = 1 << 20
+
+
+def _host_is_loopback(hostname):
+    """True for localhost, 127.0.0.0/8 and ::1 — the whole loopback range."""
+    if not hostname:
+        return False
+    name = hostname.strip().lower().rstrip(".")
+    if name in LOOPBACK_HOST_NAMES:
+        return True
+    try:
+        return ipaddress.ip_address(name).is_loopback
+    except ValueError:
+        return False
+
+
+def _authority_is_loopback(authority):
+    """'127.0.0.1:8765', 'localhost:5173', '[::1]:8765' -> True. 'evil.test' -> False.
+
+    Port-blind on purpose: see THE BOUNDARY IS LOOPBACK, NOT ONE PORT above.
+    """
+    value = (authority or "").strip()
+    if not value:
+        return False
+    try:
+        # urlsplit gives correct bracket/port handling for IPv6 authorities.
+        return _host_is_loopback(urllib.parse.urlsplit(f"//{value}").hostname)
+    except ValueError:
+        return False
+
+
+def _origin_is_loopback(origin):
+    """True only for an http(s) origin on a loopback host. 'null' is foreign."""
+    value = (origin or "").strip()
+    if not value or value.lower() == "null":
+        return False
+    try:
+        parts = urllib.parse.urlsplit(value)
+        if parts.scheme.lower() not in ("http", "https"):
+            return False
+        return _host_is_loopback(parts.hostname)
+    except ValueError:
+        return False
+
+
+def _route_accepts_multipart(path):
+    """The three routes that genuinely parse multipart/form-data uploads."""
+    if path in ("/api/analyze", "/api/evtx/ingest"):
+        return True
+    return path.startswith("/api/cases/") and path.endswith("/attachments")
+
+
+def request_guard_reason(command, path, headers):
+    """None when the request may proceed, else (http_status, honest_reason).
+
+    Pure and header-only so it can be unit-tested without a socket.
+    """
+    host = headers.get("Host")
+    if not _authority_is_loopback(host):
+        return (403, "refused: this console answers loopback requests only, and the "
+                     f"Host header {host!r} is not a loopback address. A request "
+                     "reaching 127.0.0.1 under some other name is DNS rebinding.")
+
+    origin = headers.get("Origin")
+    if origin is not None and not _origin_is_loopback(origin):
+        return (403, f"refused: cross-origin request from Origin {origin!r}. This "
+                     "console is not a cross-site API; only pages served from a "
+                     "loopback origin may call it.")
+
+    if command in BODY_METHODS:
+        try:
+            length = int(headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1     # unparseable: treat as a body, and demand a type for it
+        chunked = "chunked" in (headers.get("Transfer-Encoding") or "").lower()
+        if length != 0 or chunked:
+            ctype = (headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            multipart_ok = ctype == "multipart/form-data" and _route_accepts_multipart(path)
+            if ctype != "application/json" and not multipart_ok:
+                shown = ctype or "(absent)"
+                return (415, f"refused: Content-Type {shown} on a request body. This "
+                             "endpoint reads JSON and requires "
+                             "'Content-Type: application/json', which a browser "
+                             "cannot send cross-site without a preflight.")
+    return None
 
 MAX_UPLOAD_BYTES = 64 * 1024 * 1024
 MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024
@@ -1447,6 +1603,58 @@ class ConsoleHandler(http.server.BaseHTTPRequestHandler):
     """Serves the console, its state, and the analyze endpoint. Nothing else."""
 
     protocol_version = "HTTP/1.1"
+
+    def parse_request(self):
+        """The ONE place the browser-origin guard runs (SEC-1).
+
+        http.server calls parse_request() after the request line and headers are
+        read and BEFORE it dispatches to do_GET/do_POST/do_PATCH/..., so a guard
+        here covers every method and every route — including routes that do not
+        exist yet. Returning False aborts the request without dispatching.
+        """
+        if not super().parse_request():
+            return False
+        problem = request_guard_reason(
+            self.command, urllib.parse.urlparse(self.path).path, self.headers)
+        if problem is None:
+            return True
+        self._refuse(*problem)
+        return False
+
+    def _drain_request_body(self):
+        """Read (and discard) a refused request's body so the peer can read our
+        answer instead of hitting a reset connection mid-write."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return
+        remaining = min(max(length, 0), GUARD_DRAIN_LIMIT)
+        while remaining > 0:
+            chunk = self.rfile.read(min(remaining, 65536))
+            if not chunk:
+                return
+            remaining -= len(chunk)
+
+    def _refuse(self, status, reason):
+        """Honest refusal: a real status, the reason, a log line, connection closed.
+
+        Written by hand rather than through _send() because this runs before
+        dispatch and must stay correct for HEAD (headers, no body).
+        """
+        self.close_connection = True
+        self._drain_request_body()
+        self.log_error("origin-guard refused %s %s (%d): %s",
+                       self.command, self.path, status, reason)
+        payload = json.dumps({"error": reason}).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(payload)
 
     def _send(self, body, content_type, status=200, headers=None):
         self.send_response(status)

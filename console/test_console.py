@@ -7348,6 +7348,193 @@ def export_module():
     return export
 
 
+def check_origin_guard():
+    """SEC-1 — the browser-origin guard in console/serve.py.
+
+    The login gate is OFF by owner decision and this card did not change that.
+    What it changed is the claim that loopback bind alone made the OFF state
+    safe. It never did: loopback bind stops other HOSTS, not the BROWSER running
+    on this host. These checks pin the three doors the guard closes, and — just
+    as important — pin the doors it must NOT close, because the tempting way to
+    make a guard test pass is to widen the guard.
+    """
+    print("\nSEC-1 browser-origin guard (Host / Origin / Content-Type):")
+    results = []
+
+    def check(label, cond):
+        print(f"  [{'PASS' if cond else 'FAIL'}] {label}")
+        results.append(bool(cond))
+
+    import http.client
+    import http.server
+    import threading
+    import serve
+
+    # --- 1. The pure predicate, no socket needed. -------------------------------
+    # The dev setup is `web` on :5173 proxying /api to serve.py on :8765, and
+    # vite.config.ts does NOT set changeOrigin, so the forwarded Host is
+    # localhost:5173. The boundary is LOOPBACK ON ANY PORT, never one port.
+    for authority in ("127.0.0.1:8765", "127.0.0.1", "localhost:5173", "localhost",
+                      "[::1]:8765", "127.0.0.1:5173", "127.9.9.9:1234", "LOCALHOST:5173"):
+        check(f"Host {authority!r} reads as loopback", serve._authority_is_loopback(authority))
+    for authority in ("attacker.test", "evil.example:8765", "127.0.0.1.attacker.test",
+                      "192.168.1.10:8765", "0.0.0.0:8765", "", "localhost.attacker.test"):
+        check(f"Host {authority!r} is NOT loopback", not serve._authority_is_loopback(authority))
+
+    for origin in ("http://localhost:5173", "http://127.0.0.1:8765", "https://localhost",
+                   "http://[::1]:8765"):
+        check(f"Origin {origin!r} reads as loopback", serve._origin_is_loopback(origin))
+    for origin in ("https://evil.example", "http://attacker.test:5173", "null",
+                   "file://", "http://127.0.0.1.evil.example", ""):
+        check(f"Origin {origin!r} is NOT loopback", not serve._origin_is_loopback(origin))
+
+    # --- 2. Live, over a real socket, against the real handler. -----------------
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), serve.ConsoleHandler)
+    srv.daemon_threads = True
+    gport = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+    def raw(method, path, headers=None, body=None, host=None):
+        """One request, one connection — the guard closes the connection when it
+        refuses, so nothing here may rely on keep-alive."""
+        conn = http.client.HTTPConnection("127.0.0.1", gport, timeout=10)
+        hdrs = dict(headers or {})
+        if host is not None:
+            hdrs["Host"] = host
+        try:
+            conn.request(method, path, body=body, headers=hdrs)
+            resp = conn.getresponse()
+            payload = resp.read()
+            return resp.status, payload, dict(resp.getheaders())
+        finally:
+            conn.close()
+
+    def as_json(payload):
+        try:
+            return json.loads(payload or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            return {}
+
+    try:
+        # BASELINE: the gate is off by owner decision, and this card does NOT
+        # turn it on. A plain unauthenticated GET from a loopback context still
+        # works — if this ever fails, the guard has been widened into an
+        # accidental login gate.
+        st, payload, _ = raw("GET", "/api/overview")
+        check("baseline: unauthenticated loopback GET /api/overview still 200 (gate stays off)",
+              st == 200)
+
+        # DOOR 1 — foreign Origin. Applied to EVERY method, GET included.
+        st, payload, hdrs = raw("GET", "/api/overview",
+                                headers={"Origin": "https://evil.example"})
+        body = as_json(payload)
+        check("foreign Origin on GET is refused with 403", st == 403)
+        check("...and the refusal is honest: a stated reason, never a silent drop",
+              "evil.example" in str(body.get("error", "")))
+        check("...and no Access-Control-Allow-Origin is ever handed back",
+              not any(k.lower() == "access-control-allow-origin" for k in hdrs))
+
+        st, payload, _ = raw("POST", "/api/syslog/start",
+                             headers={"Origin": "https://evil.example",
+                                      "Content-Type": "application/json"},
+                             body=json.dumps({"port": 15147, "bind": "127.0.0.1"}))
+        check("foreign Origin on a state-changing POST is refused with 403", st == 403)
+
+        st, _, _ = raw("GET", "/api/overview", headers={"Origin": "null"})
+        check("Origin: null (sandboxed iframe / file:// page) is refused", st == 403)
+
+        # DOOR 2 — foreign Host. This, and nothing else, defeats DNS rebinding.
+        for bad_host in ("attacker.test", "attacker.test:8765", "127.0.0.1.attacker.test"):
+            st, payload, _ = raw("GET", "/api/overview", host=bad_host)
+            check(f"foreign Host {bad_host!r} is refused with 403 (DNS rebinding)", st == 403)
+
+        # DOOR 3 — Content-Type. This is what removes the no-preflight smuggling
+        # path: text/plain, form-urlencoded and a type-less body are exactly the
+        # three bodies a browser sends cross-site WITHOUT a preflight.
+        smuggle = json.dumps({"port": 15148, "bind": "127.0.0.1"})
+        for ctype, label in (("text/plain;charset=UTF-8", "text/plain"),
+                             ("application/x-www-form-urlencoded", "form-urlencoded")):
+            st, payload, _ = raw("POST", "/api/syslog/start",
+                                 headers={"Content-Type": ctype}, body=smuggle)
+            check(f"JSON smuggled as {label} is refused with 415", st == 415)
+            check(f"...and the {label} refusal says why",
+                  "application/json" in str(as_json(payload).get("error", "")))
+
+        # A Blob with an empty type sends NO Content-Type and is still a simple
+        # request, so an absent type must be refused too.
+        conn = http.client.HTTPConnection("127.0.0.1", gport, timeout=10)
+        try:
+            conn.putrequest("POST", "/api/syslog/start")
+            conn.putheader("Content-Length", str(len(smuggle)))
+            conn.endheaders()
+            conn.send(smuggle.encode())
+            resp = conn.getresponse()
+            st, payload = resp.status, resp.read()
+        finally:
+            conn.close()
+        check("a body with NO Content-Type at all is refused with 415", st == 415)
+
+        # THE POINT OF ALL THREE: the attack must not have taken effect.
+        st, payload, _ = raw("GET", "/api/syslog/status")
+        status = as_json(payload)
+        check("no smuggled request started a syslog listener",
+              st == 200 and not status.get("listeners") and not status.get("ports"))
+
+        # --- 3. What the guard must NOT break. ---------------------------------
+        # Vite forwards Host: localhost:5173 and Origin: http://localhost:5173.
+        # An allowlist of exactly 127.0.0.1:8765 would break dev mode, and
+        # relaxing the guard to fix that would BE the defect.
+        st, _, _ = raw("GET", "/api/overview", host="localhost:5173",
+                       headers={"Origin": "http://localhost:5173"})
+        check("dev path: loopback origin on a NON-DEFAULT port (localhost:5173) is accepted",
+              st == 200)
+        st, payload, _ = raw("POST", "/api/compute", host="localhost:5173",
+                             headers={"Origin": "http://localhost:5173",
+                                      "Content-Type": "application/json"},
+                             body=json.dumps({"mode": "local"}))
+        check("dev path: a JSON POST from localhost:5173 is accepted",
+              st == 200 and as_json(payload).get("mode") == "local")
+
+        # The React app fires several POSTs with no body and no Content-Type
+        # (/api/reports, /api/syslog/stop, /api/incidents/<id>/case). A bodiless
+        # request has nothing to smuggle, so the content-type door does not apply.
+        st, _, _ = raw("POST", "/api/syslog/stop", host="127.0.0.1:%d" % gport)
+        check("a bodiless POST with no Content-Type still reaches its handler",
+              st == 200)
+
+        # Multipart is allowed only where a route really parses it.
+        check("multipart is allowed on /api/analyze",
+              serve.request_guard_reason(
+                  "POST", "/api/analyze",
+                  {"Host": "127.0.0.1:8765", "Content-Length": "10",
+                   "Content-Type": "multipart/form-data; boundary=x"}) is None)
+        check("multipart is allowed on a case-attachment upload",
+              serve.request_guard_reason(
+                  "POST", "/api/cases/c-1/attachments",
+                  {"Host": "127.0.0.1:8765", "Content-Length": "10",
+                   "Content-Type": "multipart/form-data; boundary=x"}) is None)
+        check("multipart is REFUSED on a JSON route",
+              (serve.request_guard_reason(
+                  "POST", "/api/mark",
+                  {"Host": "127.0.0.1:8765", "Content-Length": "10",
+                   "Content-Type": "multipart/form-data; boundary=x"}) or (0,))[0] == 415)
+
+        # --- 4. The seam is ONE place, not a per-endpoint checklist. ------------
+        # parse_request runs before dispatch, so a route that does not exist is
+        # guarded too — which is the property that survives the next endpoint.
+        st, _, _ = raw("GET", "/api/a-route-nobody-has-written-yet",
+                       headers={"Origin": "https://evil.example"})
+        check("a route that does not exist yet is guarded too (one place, not per-endpoint)",
+              st == 403)
+        check("the guard is wired into parse_request, before any dispatch",
+              "parse_request" in serve.ConsoleHandler.__dict__)
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+    return 0 if all(results) else 1
+
+
 def main():
     node = shutil.which("node")
     if not node:
@@ -7428,12 +7615,13 @@ def main():
     precedent_ = check_precedent_index()
     cb1_ = check_cb1_learned_copilot()
     cb1fix_ = check_cb1fix_copilot_read_only()
+    origin_guard_ = check_origin_guard()
     if (result.returncode or routing or log360 or logcat_ or iso8601_ or authcsv_ or loghub_ or remote or dashboard
             or layout or allruns or soc or subsystems or stream_ or export_ or react
             or store_ or efficacy_ or syslog_ or discovery_ or ti_oem_ or evtx_ or validate_
             or formats_ or parity_ or explstream_ or structured_ or phase4_ or auth_
             or askview_ or copilotinv_ or bfseries_ or runbooks_ or audit_ or migration_ or inc4a7f_
-            or investigate_ or advisory_ or orgctx_ or actions_ or sigma_ or disposition_ or precedent_ or cb1_ or cb1fix_):
+            or investigate_ or advisory_ or orgctx_ or actions_ or sigma_ or disposition_ or precedent_ or cb1_ or cb1fix_ or origin_guard_):
         print("\nFAILED")
         return 1
     print("\nPASSED — render + routing + log360 + logcat + iso8601-syslog + auth-csv + loghub-formats + remote-compute + dashboard-data "
@@ -7443,7 +7631,7 @@ def main():
           "+ ask-view + copilot-investigate + bruteforce-series + runbooks + audit-chain + cases->incidents-migration "
           "+ inc-4a7f-scenario + investigation-engine + parallel-advisory + org-context-priority "
           "+ action-layer-ssh-firewall + sigma-ingest-triage-case-lifecycle "
-          "+ e0-incident-disposition + e1-precedent-index + cb1-copilot-learned-triage + cb1fix-copilot-read-only checks green")
+          "+ e0-incident-disposition + e1-precedent-index + cb1-copilot-learned-triage + cb1fix-copilot-read-only + sec1-origin-guard checks green")
     return 0
 
 
