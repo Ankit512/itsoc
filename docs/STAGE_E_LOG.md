@@ -295,3 +295,33 @@ Report: `docs/STAGE_E_REPORTS/E8-leakage-interrogation.md`.
 - **Proven to bite.** A negative control hoisted `confidence` onto the projection: the wall failed
   two checks and exited 1. A guard that cannot fail is not a guard — the F0 lesson, applied before
   the fact rather than after it.
+
+## GS-1 accepted — the gate runs every suite, not three — 2026-09-06
+
+- **Coverage was the defect, not construction.** `scripts/gate.sh` ran 3 of 18 Python suites. Its four
+  self-imposed rules (never discard evidence, never let `tee` mask an exit code, never stop at first
+  red, never round a SKIP up to a PASS) were sound and are unchanged. A **fifth** was added: never
+  leave a suite unlisted — every suite is run or named in a DELIBERATELY OUT block with its reason.
+- **Gate now GREEN at 21 PASS in ~71s**, `--web` GREEN at 23. Re-run independently by the coordinator
+  on the merged tree.
+- **CI repointed at the same script**, so CI can never be greener than a local run. `CLAUDE.md` §6 now
+  names the gate rather than individual suites — naming suites in the contract is what let two rot.
+- **Finding beyond the brief (1):** the battlecard test's row-assertion half was **dead**, not stale —
+  0 of 18 rows matched the document in any form since E8 commit `11fb797` changed the table's shape.
+  The **published document was correct**; nothing was adjusted on either side to force agreement.
+  Coordinator negative control: perturbing one figure in `BATTLECARD_TORQ.md` now fails the test
+  (`AssertionError: 7 != 0`), so the repaired assertion is not vacuous.
+- **Finding beyond the brief (2):** `tests/eval/validate_real.py --selftest` is a real asserting check
+  that appeared on no list, including the coordinator's own baseline — now in the gate.
+- **Invocation mode was load-bearing.** Two `tools/` suites passed or failed purely by how they were
+  launched (`ModuleNotFoundError: No module named 'tools'` as files, OK as modules). Root-caused to
+  `sys.path`, not the tests; the gate now launches them as modules deliberately and says so.
+- **Task 2 was not a stop.** The test was wrong, not the product. `console/test_auth_security.py` now
+  pins `AUTH_REQUIRED=True` for its own duration, restores it, states which mode it asserts — and
+  **guards the owner's 2026-08-27 default**, so a future change flipping it on cannot hide behind
+  this suite.
+- **The gate was proven to bite twice**, and the second one is the argument for the whole card:
+  disabling redaction in `scripts/intake.py` turned `test_intake` RED on a raw IP
+  (`198.51.100.20`) leaking into a report headed **REDACTED** — a guardrail-4 egress failure the old
+  three-suite gate **could not have caught**. Reproduced independently by the coordinator; both
+  breaks reverted and verified byte-identical.
