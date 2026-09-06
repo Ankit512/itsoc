@@ -40,7 +40,7 @@ numbers match reality. Guardrails unaffected: the model remains advisory and nev
 
 ## OPEN-16 — the advisory guard fences container names the producer does not emit
 
-**Status:** `OPEN` — awaiting owner ruling. Raised by CB-1 acceptance, 2026-09-06. No live defect.
+**Status:** `RATIFIED` — **owner ruling 2026-09-06: keep the containment reading.** Raised by CB-1 acceptance the same day. No live defect, and the assumption the ruling rests on is now enforced by test rather than assumed (see *Ruling* below).
 
 **What it is.** `console/runbooks.py` `ADVISORY_KEYS` lists `aiConfidence` and `aiAgrees`. **Neither
 exists as a leaf key anywhere in the repo.** `console/triage_model.py` emits them as `confidence` and
@@ -72,3 +72,37 @@ That premise was not grepped before dispatch, and it was false. This is the seco
 family about `ADVISORY_KEYS` that did not survive contact — the first was the owner's
 denylist-as-allowlist category error. The pattern is worth naming: **`ADVISORY_KEYS` is being reasoned
 about from its name rather than from its contents.** Read it before citing it.
+
+### Ruling — 2026-09-06
+
+**Keep the containment reading.** A leaf inside a fenced advisory container is fenced. No rename in
+`console/triage_model.py`; `aiConfidence` and `aiAgrees` stay in `ADVISORY_KEYS` as denylist entries
+for names the producer does not currently emit, which costs nothing and fails safe if it ever does.
+
+**What the ruling rests on, and why that needed pinning.** Containment is not belt *and* braces here
+— it is the only belt. Five of the eight leaves the copilot reads (`confidence`, `agrees`, `status`,
+`ruleSeverity`, `unavailableReason`) are unfenced under their own names and are safe *only* because
+they travel inside `aiTriage`. That was verified once, by hand, at CB-1 acceptance. A property
+verified once and then relied on forever is exactly the shape this project keeps finding defects in.
+
+**So the assumption is now an invariant.** `tests/test_stage_e_wall.py` **part H** (wall 126 → 135)
+pins the two facts the ruling depends on:
+
+1. the container is fenced twice over — in `ADVISORY_KEYS` *and* by `_ADVISORY_WORD_RE`'s
+   `ai<Something>` class clause — and is not a rule-owned key;
+2. no advisory leaf is ever hoisted out of it: the live `soc._public_incident()` projection carries
+   every leaf *only* inside the block, and dropping `ADVISORY_KEYS` from that projection removes
+   every one of them.
+
+It also pins `copilot.LEARNED_LEAVES` as a subset of the leaves part H covers, so a future reader
+that adds a leaf must come back to this check and justify it rather than quietly widening the set.
+
+**Proven to bite, not merely to pass.** A negative control simulated the failure mode — a refactor
+hoisting `confidence` onto the incident projection — and the wall failed two checks and exited 1.
+A guard that cannot fail is not a guard, which is the lesson from the fifteen F0 component tests
+that passed for a rendering defect's entire life.
+
+**What is still true and unchanged.** No production code hoists these leaves today. The strict-leaf
+alternative remains available and cheap if it is ever wanted: a rename in `triage_model.py`, outside
+every current allowlist. This ruling does not foreclose it — it makes the cost of *not* doing it
+visible and monitored.

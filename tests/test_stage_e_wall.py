@@ -635,6 +635,79 @@ def part_g():
               key in runbooks.ADVISORY_KEYS and key not in owned)
 
 
+# --------------------------------------------------------------------------
+# H. (OPEN-16) the containment reading, enforced rather than assumed
+# --------------------------------------------------------------------------
+# OPEN-16 ruling, 2026-09-06: the copilot may read a leaf inside a fenced
+# advisory container even when that leaf name is NOT itself fenced. Five of the
+# eight leaves the copilot reads — confidence, agrees, status, ruleSeverity,
+# unavailableReason — are unfenced under their own names. They are safe ONLY
+# because they travel inside `aiTriage`, which the guard drops wholesale before
+# any eligibility predicate sees it.
+#
+# That makes containment the only belt, and a belt nothing tests is a belt that
+# rots. These checks pin the two facts the ruling depends on: the container is
+# fenced, and no projection ever hoists a leaf out of it. If a future change
+# flattens an aiTriage block onto an incident or a finding, this breaks loudly
+# instead of silently widening the eligibility surface.
+CONTAINER = "aiTriage"
+CONTAINED_LEAVES = ("confidence", "agrees", "status", "ruleSeverity",
+                    "modelAvailable", "unavailableReason", "aiSeverity",
+                    "aiLabel")
+
+
+def part_h():
+    print("\nH. (OPEN-16) advisory leaves are fenced BY CONTAINMENT, and stay contained:")
+    owned = runbooks.RULE_OWNED_INCIDENT_KEYS | runbooks.RULE_OWNED_FINDING_KEYS
+
+    # 1. the container itself is fenced twice over — this is what the ruling rests on
+    check(f"{CONTAINER!r} is in ADVISORY_KEYS",
+          CONTAINER in runbooks.ADVISORY_KEYS)
+    check(f"{CONTAINER!r} also matches the ai<Something> class clause",
+          runbooks._ADVISORY_WORD_RE.search(CONTAINER) is not None)
+    check(f"{CONTAINER!r} is not a rule-owned key",
+          CONTAINER not in owned)
+
+    # 2. an unfenced leaf name must never collide with a rule-owned key — that
+    #    is what would make a hoist dangerous rather than merely untidy
+    collisions = [k for k in CONTAINED_LEAVES if k in owned]
+    check("no contained leaf name collides with a rule-owned key",
+          not collisions, str(sorted(collisions)))
+
+    # 3. the live projection actually contains them. soc._public_incident() is
+    #    what attaches the block; every leaf must appear ONLY inside it.
+    import soc
+    projected = soc._public_incident({
+        "id": "inc-open16", "entity": "srv1", "entityKind": "host",
+        "severity": "HIGH", "findingIds": ["f1"], "ruleIds": ["auth_bruteforce"],
+        "findingCount": 3, "criticality": "standard",
+    })
+    block = projected.get(CONTAINER)
+    check(f"the projection carries an {CONTAINER!r} block",
+          isinstance(block, dict), f"got {type(block).__name__}")
+    hoisted = [k for k in CONTAINED_LEAVES if k in projected]
+    check("no advisory leaf is hoisted to the incident top level",
+          not hoisted, f"hoisted: {sorted(hoisted)}")
+
+    # 4. the decisive one: dropping the fenced container removes every leaf the
+    #    copilot reads. If this fails, containment has stopped being true.
+    stripped = {k: v for k, v in projected.items()
+                if k not in runbooks.ADVISORY_KEYS
+                and not runbooks._ADVISORY_WORD_RE.search(k)}
+    survivors = [k for k in CONTAINED_LEAVES if k in stripped]
+    check("dropping ADVISORY_KEYS removes every contained advisory leaf",
+          not survivors, f"survived the drop: {sorted(survivors)}")
+
+    # 5. and the copilot reads exactly the leaves this part pins — so a future
+    #    reader that adds a leaf must come back here and justify it
+    import copilot
+    check("copilot's LEARNED_LEAVES are all covered by this part",
+          set(copilot.LEARNED_LEAVES) <= set(CONTAINED_LEAVES),
+          str(sorted(set(copilot.LEARNED_LEAVES) - set(CONTAINED_LEAVES))))
+    check(f"copilot reads the fenced container {CONTAINER!r}",
+          copilot.LEARNED_CONTAINER == CONTAINER)
+
+
 def main():
     print("Stage E wall — advisory keys, disjointness, precedent signature, seam guard")
     part_a()
@@ -644,6 +717,7 @@ def main():
     part_e()
     part_f()
     part_g()
+    part_h()
     print(f"\n{CHECKS - len(FAILURES)}/{CHECKS} checks passed")
     if FAILURES:
         print("\nFAILED:")

@@ -281,3 +281,17 @@ Report: `docs/STAGE_E_REPORTS/E8-leakage-interrogation.md`.
 - **The lesson, kept narrow:** the four attacks were the right test of the wall and said nothing
   about the router's negative space or the write path, because no acceptance criterion asked. A
   negative-space table is now the standing shape for routing changes.
+
+## OPEN-16 ratified — containment kept, and pinned — 2026-09-06
+
+- **Owner ruling: keep the containment reading.** A leaf inside a fenced advisory container is
+  fenced. No rename in `triage_model.py`; `aiConfidence`/`aiAgrees` stay as denylist entries for
+  names nothing currently emits — costs nothing, fails safe.
+- **The ruling rested on a once-verified assumption, so it is now an invariant.** Containment is the
+  only belt for five of the eight leaves the copilot reads. `tests/test_stage_e_wall.py` gains
+  **part H** (126 → **135**): the container is fenced twice over and is not rule-owned; no leaf is
+  hoisted out of the live `soc._public_incident()` projection; dropping `ADVISORY_KEYS` removes every
+  leaf; and `copilot.LEARNED_LEAVES` must stay a subset of what part H covers.
+- **Proven to bite.** A negative control hoisted `confidence` onto the projection: the wall failed
+  two checks and exited 1. A guard that cannot fail is not a guard — the F0 lesson, applied before
+  the fact rather than after it.
