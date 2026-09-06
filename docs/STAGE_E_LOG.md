@@ -325,3 +325,33 @@ Report: `docs/STAGE_E_REPORTS/E8-leakage-interrogation.md`.
   (`198.51.100.20`) leaking into a report headed **REDACTED** — a guardrail-4 egress failure the old
   three-suite gate **could not have caught**. Reproduced independently by the coordinator; both
   breaks reverted and verified byte-identical.
+
+## SEC-1 accepted — the console API refuses cross-site requests — 2026-09-06
+
+- **The finding was a wrong mitigation, not a missing feature.** `serve.py:113-127` claimed loopback
+  binding meant "reachable from this machine alone." Loopback bind stops other HOSTS; it does not stop
+  the BROWSER on that host. Measured, not theorised: a cross-origin `Content-Type: text/plain` POST
+  (a CORS *simple* request, no preflight) to `/api/syslog/start` returned 200 and **started a live
+  network listener inside the console**.
+- **The fix is one place, hooked early.** `request_guard_reason()` is called from
+  `ConsoleHandler.parse_request`, which `http.server` runs BEFORE dispatching to any `do_*` method —
+  so routes added later inherit the guard instead of having to remember it. Host authority must be
+  loopback on any port (this is what defeats DNS rebinding); Origin must be loopback http(s) and
+  `null` is treated as foreign; a request body must be `application/json`, or multipart on the three
+  routes that parse it.
+- **Coordinator re-ran the four original probes against the build:** loopback GET **200** (the
+  owner's gate-off decision preserved), foreign Origin **403**, foreign Host **403**, text/plain CSRF
+  **403** — and `/api/syslog/status` confirms **no listener started**, where the base build started
+  one.
+- **The Content-Type door bites on its own**, verified with NO Origin header present at all:
+  `text/plain` **415**, absent **415**, form-urlencoded **415**. Defence in depth, not a single check.
+- **The dev path still works** — `Host: localhost:5173` + `Origin: http://localhost:5173` accepted on
+  both GET and JSON POST. This was the named trap: Vite's proxy sets no `changeOrigin`, so a naive
+  `127.0.0.1:8765` allowlist would have broken dev and invited someone to loosen the guard.
+- **Guard proven to bite, reproduced independently:** neutering `request_guard_reason()` returned all
+  three attacks to **200** and failed **15** of the new checks; restored byte-identical.
+- **Scope held.** `AUTH_REQUIRED` byte-identical; `web/package.json` untouched (the `vitest` critical
+  is deliberately a separate change). Gate `--web` **GREEN 23/23**; detector unchanged.
+- **The honest residual, stated by the worker without being asked:** this guard defends against the
+  BROWSER. A local non-browser process is still unauthenticated — which is the login-gate decision the
+  card forbade reopening, and it did not.
