@@ -13,6 +13,7 @@ Returns:
     answer, citations[{n, raw, findingId}], followups, facts, source="rules"
 """
 
+import json
 import re
 
 _SEV_RANK = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4, "UNKNOWN": 5}
@@ -1037,6 +1038,17 @@ def investigate(question, state, extras=None, case=None, context=None):
         },
     }
 
+    # CB-1: the learned second opinion is a GROUNDED CONTEXT SOURCE, answered
+    # deterministically from the STORED advisory block. Routed ahead of the
+    # workspace/angle branches so a model question is never absorbed by a
+    # generic one, and answered here rather than by the LLM so no number is
+    # ever paraphrased on the way out.
+    learned = learned_question(ql, context)
+    if learned:
+        kind, incident_id = learned
+        return learned_answer(kind, incident_id, extras or {},
+                              run_id=state.get("runId"))
+
     wants_workspace = (
         ("explain" in ql and any(w in ql for w in ("screen", "page", "dashboard", "card", "workspace")))
         or any(w in ql for w in ("what should i do next", "next best", "next step", "best suggestion"))
@@ -1619,3 +1631,593 @@ def draft_playbook(state, scan=None):
     empty["markdown"] = "\n".join(lines) + "\n"
     empty["note"] = "Advisory draft — not executed."
     return empty
+
+
+# ---------------------------------------------------------------------------
+# CB-1 — the learned second opinion as a GROUNDED CONTEXT SOURCE
+# ---------------------------------------------------------------------------
+# The learned triage model (E7a/E7b, benchmarked in E8) is ADVISORY FOREVER.
+# This section lets the copilot TALK about it. It does not let the model do
+# anything: nothing below writes `sev`, `ruleSev`, incident severity, priority,
+# runbook eligibility or any execution state, and nothing below is reachable
+# from a predicate that does.
+#
+# THE FIELD RULE, as enforced here rather than merely asserted.
+# The only model-emitted structure this section reads is the `aiTriage` block
+# that console/soc.py:_public_incident() attaches to an incident projection.
+# `aiTriage` is in console/runbooks.py ADVISORY_KEYS *and* matches
+# _ADVISORY_WORD_RE's `ai<Something>` class clause (card CB-0), so the
+# rule-owned projection drops the whole subtree before any eligibility
+# predicate can see it. `_assert_fenced()` below re-derives that from
+# runbooks' own guard at read time, so a future refactor that un-fences the
+# container breaks this read loudly instead of quietly widening the surface.
+#
+# NEVER RECOMPUTE. Severity, label, confidence and agreement are all read
+# STRAIGHT OUT of the stored advisory block. Agreement in particular is never
+# re-derived by comparing severities here: a display-time derivation is a
+# second computation of a stored fact, and two computations drift.
+#
+# UNTRUSTED INPUT. Model output is log-adjacent data (guardrail 5). Every
+# model-emitted string is rendered through `quote_model_value()` as a quoted,
+# single-line, length-bounded DATA value — never as an instruction.
+
+LEARNED_SOURCE = "learned"
+LEARNED_LABEL = "ADVISORY · learned second opinion · not a verdict"
+
+# The advisory container this section is allowed to read, and the leaf keys it
+# reads out of it. The container is what the guard fences; the leaves travel
+# inside it and cannot escape it.
+LEARNED_CONTAINER = "aiTriage"
+LEARNED_LEAVES = ("aiSeverity", "aiLabel", "confidence", "agrees", "status",
+                  "ruleSeverity", "modelAvailable", "unavailableReason")
+
+# Incident ids are `inc-<hash>`; the canonical demo aliases are `INC-4a7f`
+# style. Matched case-insensitively and resolved case-insensitively, so a
+# question typed in either case reaches the same real incident.
+_INCIDENT_ID_RE = re.compile(r"\binc-[A-Za-z0-9_-]{2,}\b", re.I)
+
+# Instruction-shaped content in a model-emitted value. Matching does NOT drop
+# the value — it is still shown verbatim, because silently swallowing what the
+# model emitted would be its own dishonesty. It marks the value as refused as
+# an instruction, so the surface says out loud that it was read as data.
+_INSTRUCTION_RE = re.compile(
+    r"ignore\s+(?:all\s+|any\s+|the\s+)?previous|"
+    r"disregard\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above)|"
+    r"new\s+instructions?\b|system\s+prompt|"
+    r"\byou\s+(?:must|should\s+now|will\s+now)\b|"
+    r"\bapprove\b|\bexecute\b|\bquarantine\b|\boverride\b|"
+    r"\bescalate\b|\bsuppress\b|\bset\s+sev\b|\bmark\s+as\b",
+    re.I)
+
+_MODEL_VALUE_LIMIT = 240
+
+
+def _assert_fenced(field):
+    """Refuse to read a field the advisory guard does not fence.
+
+    Imported lazily: console/runbooks.py owns the fence, and nothing on the
+    verdict path may pull the copilot in through an import cycle.
+    """
+    import runbooks
+    if field in runbooks.ADVISORY_KEYS:
+        return field
+    if runbooks._ADVISORY_WORD_RE.search(field):
+        return field
+    raise ValueError(
+        f"CB-1 refuses to read {field!r}: the advisory guard in "
+        "console/runbooks.py does not fence it. Report the field; do not "
+        "widen the guard to make the read legal.")
+
+
+def quote_model_value(value, limit=_MODEL_VALUE_LIMIT):
+    """Render one model-emitted value as DATA. Returns (quoted, neutralised).
+
+    Flattened to a single line (so it cannot forge a new paragraph or a fake
+    system turn), length-bounded, and wrapped in quotes. `neutralised` is True
+    when the value reads as an instruction — it is still quoted verbatim, and
+    the caller says plainly that it was refused as an instruction.
+    """
+    if value is None:
+        return "not recorded", False
+    text = str(value)
+    text = "".join(" " if ch < " " or ch == "\x7f" else ch for ch in text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) > limit:
+        text = text[:limit] + "…"
+    neutralised = bool(_INSTRUCTION_RE.search(text))
+    return '"' + text.replace('"', '\\"') + '"', neutralised
+
+
+def advisory_block(incident):
+    """The stored advisory block for one incident, or None. Reads, never derives."""
+    _assert_fenced(LEARNED_CONTAINER)
+    block = (incident or {}).get(LEARNED_CONTAINER)
+    return block if isinstance(block, dict) else None
+
+
+def _incidents_with_opinion(extras, run_id=None):
+    """Current-run incident projections that carry a stored advisory block."""
+    rows = list((extras or {}).get("incidentsAdvisory") or [])
+    out = []
+    for inc in rows:
+        if not isinstance(inc, dict) or not inc.get("id"):
+            continue
+        if run_id and inc.get("runId") and inc.get("runId") != run_id:
+            continue
+        out.append(inc)
+    return out
+
+
+def _sidecar(extras):
+    """The provenance sidecar as recorded. Never generated, never filled in."""
+    triage = (extras or {}).get("triage") or {}
+    prov = triage.get("modelProvenance")
+    return prov if isinstance(prov, dict) else {}
+
+
+# ---------------------------------------------------------------------------
+# the citation guard
+# ---------------------------------------------------------------------------
+
+def guard_claims(claims, incident_ids, sidecar_fields):
+    """Every rendered claim must cite something that RESOLVES. No exceptions.
+
+    A citation is either a real incident id from this run, or `sidecar:<field>`
+    naming a key that is actually present in the provenance sidecar. A claim
+    with no citation, or with a citation that does not resolve, is REJECTED and
+    never rendered — the reason is kept so the surface can show what it refused.
+    """
+    known = set(incident_ids or ())
+    fields = set(sidecar_fields or ())
+    accepted, rejected = [], []
+    for claim in claims or ():
+        text = str((claim or {}).get("text") or "").strip()
+        if not text:
+            continue
+        cites = [str(c) for c in ((claim or {}).get("cites") or [])]
+        reasons = []
+        if not cites:
+            reasons.append("no citation — a factual claim must cite an "
+                           "incident id or a sidecar field")
+        for ref in cites:
+            if ref.startswith("sidecar:"):
+                if ref.split(":", 1)[1] not in fields:
+                    reasons.append(f"{ref} is not a field recorded in the "
+                                   "provenance sidecar")
+            elif ref not in known:
+                reasons.append(f"{ref} does not resolve to an incident on "
+                               "this run")
+        if reasons:
+            rejected.append({"text": text, "cites": cites, "reasons": reasons})
+        else:
+            accepted.append({"text": text, "cites": cites})
+    return accepted, rejected
+
+
+def render_claims(claims, incident_ids, sidecar_fields):
+    """Guard, then render. Returns (answer_text, guard_report)."""
+    accepted, rejected = guard_claims(claims, incident_ids, sidecar_fields)
+    lines = [f"{c['text']} [{', '.join(c['cites'])}]" for c in accepted]
+    report = {
+        "claims": len(accepted) + len(rejected),
+        "accepted": len(accepted),
+        "rejected": rejected,
+        "note": ("Every rendered sentence cites a real incident id or a real "
+                 "provenance-sidecar field. Uncited claims are refused, not "
+                 "softened."),
+    }
+    return "\n".join(lines), report
+
+
+def _learned_result(answer, guard, facts, followups, extras_view=None):
+    out = {
+        "answer": answer,
+        "citations": [],
+        "followups": followups,
+        "facts": facts,
+        "actions": [],
+        "source": LEARNED_SOURCE,
+        "label": LEARNED_LABEL,
+        "advisory": True,
+        "citationGuard": guard,
+    }
+    if extras_view is not None:
+        out["learned"] = extras_view
+    return out
+
+
+_LEARNED_FOOTER = (
+    "ADVISORY. The rules own the verdict; the learned model never changes, "
+    "escalates or suppresses it, and nothing here approves anything."
+)
+
+
+# ---------------------------------------------------------------------------
+# behaviour 1 — per-incident learned opinion
+# ---------------------------------------------------------------------------
+
+def learned_opinion(incident_id, extras, run_id=None):
+    """State the learned opinion for ONE incident, citing the stored values."""
+    rows = _incidents_with_opinion(extras, run_id)
+    ids = [i["id"] for i in rows]
+    sidecar = _sidecar(extras)
+    wanted = str(incident_id or "").strip().lower()
+    inc = next((i for i in rows
+                if str(i.get("id") or "").lower() == wanted
+                or str(i.get("alias") or "").lower() == wanted), None)
+    if inc is None:
+        claims = []
+        answer = (f"No incident {incident_id} exists on this run, so there is "
+                  "no stored learned opinion to read. I did not guess one.")
+        guard = {"claims": 0, "accepted": 0, "rejected": [],
+                 "note": "nothing was claimed, so nothing needed a citation"}
+        return _learned_result(answer, guard,
+                               {"incidentId": incident_id, "found": False},
+                               ["What does the model disagree with the rules about?"])
+
+    block = advisory_block(inc)
+    iid = inc["id"]
+    if not block:
+        answer = "\n".join([
+            f"Incident {iid} carries no learned advisory block at all — the "
+            "second opinion was not attached to this projection. Nothing is "
+            "shown in its place.",
+            _LEARNED_FOOTER,
+        ])
+        guard = {"claims": 0, "accepted": 0, "rejected": [],
+                 "note": "no advisory block, so no claim was made"}
+        return _learned_result(answer, guard,
+                               {"incidentId": iid, "modelAvailable": None},
+                               _learned_followups(rows))
+
+    rule_sev, _ = quote_model_value(block.get("ruleSeverity") or inc.get("severity"))
+    if not block.get("modelAvailable"):
+        # Behaviour 4 — honest absence. No opinion, no zeroed opinion, no guess.
+        reason, reason_neutralised = quote_model_value(block.get("unavailableReason"))
+        claims = [
+            {"text": f"The rules verdict on {iid} is {rule_sev} and it stands.",
+             "cites": [iid]},
+            {"text": (f"The learned second opinion is UNAVAILABLE for {iid}: "
+                      f"reason as recorded {reason}."),
+             "cites": [iid]},
+            {"text": ("No severity, no confidence and no agreement are shown, "
+                      "because none were produced. I will not say what the "
+                      "model would have said."),
+             "cites": [iid]},
+        ]
+        answer, guard = render_claims(claims, ids, sidecar.keys())
+        if reason_neutralised:
+            answer += ("\nThat reason string reads as an instruction. It was "
+                       "quoted as data and refused as an instruction.")
+        answer += "\n" + _LEARNED_FOOTER
+        return _learned_result(
+            answer, guard,
+            {"incidentId": iid, "modelAvailable": False,
+             "aiSeverity": None, "confidence": None, "agrees": None},
+            _learned_followups(rows),
+            {"incidentId": iid, "modelAvailable": False,
+             "ruleSeverity": block.get("ruleSeverity"),
+             "aiSeverity": None, "aiLabel": None, "confidence": None,
+             "agrees": None, "status": "unavailable",
+             "unavailableReason": block.get("unavailableReason"),
+             "neutralised": reason_neutralised})
+
+    # Values are QUOTED STRAIGHT OUT of the stored block. No re-derivation.
+    ai_sev, sev_neutralised = quote_model_value(block.get("aiSeverity"))
+    ai_label, label_neutralised = quote_model_value(block.get("aiLabel"))
+    confidence = block.get("confidence")
+    agrees = block.get("agrees")
+    status = block.get("status")
+    conf_text = ("not recorded" if confidence is None else repr(confidence))
+    agree_text = ("agrees with" if agrees is True
+                  else "disagrees with" if agrees is False
+                  else "records no agreement state against")
+
+    claims = [
+        {"text": f"The rules say {rule_sev} on {iid}, and that verdict stands.",
+         "cites": [iid]},
+        {"text": (f"The learned model reads {iid} as {ai_label} and would call "
+                  f"it {ai_sev}, at confidence {conf_text}."),
+         "cites": [iid]},
+        {"text": (f"As stored, the model {agree_text} the rules verdict "
+                  f"(status {status!r})."),
+         "cites": [iid]},
+    ]
+    if agrees is False:
+        claims.append({
+            "text": ("That disagreement is INFORMATION — a prompt to look at "
+                     f"{iid}, never a recommendation to override the rules."),
+            "cites": [iid]})
+    answer, guard = render_claims(claims, ids, sidecar.keys())
+    if sev_neutralised or label_neutralised:
+        answer += ("\nOne or more of those model-emitted values reads as an "
+                   "instruction. They are quoted above as data and were "
+                   "refused as instructions.")
+    answer += "\n" + _LEARNED_FOOTER
+    return _learned_result(
+        answer, guard,
+        {"incidentId": iid, "modelAvailable": True,
+         "aiSeverity": block.get("aiSeverity"), "aiLabel": block.get("aiLabel"),
+         "confidence": confidence, "agrees": agrees, "status": status},
+        _learned_followups(rows),
+        {"incidentId": iid, "modelAvailable": True,
+         "ruleSeverity": block.get("ruleSeverity"),
+         "aiSeverity": block.get("aiSeverity"), "aiLabel": block.get("aiLabel"),
+         "confidence": confidence, "agrees": agrees, "status": status,
+         "unavailableReason": None,
+         "neutralised": bool(sev_neutralised or label_neutralised)})
+
+
+def _learned_followups(rows):
+    qs = ["What does the model disagree with the rules about?",
+          "How was this model trained?"]
+    for inc in rows:
+        block = advisory_block(inc)
+        if block and block.get("agrees") is False:
+            qs.append(f"What does the model say about {inc['id']}?")
+            break
+    return qs[:_MAX_SUGGEST]
+
+
+# ---------------------------------------------------------------------------
+# behaviour 2 — cross-incident disagreement list
+# ---------------------------------------------------------------------------
+
+def learned_disagreements(extras, run_id=None):
+    """READ-ONLY list of incidents where the stored opinion disagrees."""
+    rows = _incidents_with_opinion(extras, run_id)
+    ids = [i["id"] for i in rows]
+    sidecar = _sidecar(extras)
+    scored, unavailable, disagreeing = 0, 0, []
+    for inc in rows:
+        block = advisory_block(inc)
+        if not block:
+            continue
+        if not block.get("modelAvailable"):
+            unavailable += 1
+            continue
+        scored += 1
+        if block.get("agrees") is False:
+            disagreeing.append((inc, block))
+
+    if rows and unavailable and not scored:
+        # Behaviour 4 across the list: the model answered for nothing.
+        first = advisory_block(rows[0]) or {}
+        reason, neutralised = quote_model_value(first.get("unavailableReason"))
+        claims = [{
+            "text": (f"The learned model is UNAVAILABLE on this run, so there "
+                     f"is no disagreement list to give: {unavailable} of "
+                     f"{len(rows)} incident(s) carry no opinion. Reason as "
+                     f"recorded {reason}."),
+            "cites": [rows[0]["id"]]}]
+        answer, guard = render_claims(claims, ids, sidecar.keys())
+        if neutralised:
+            answer += ("\nThat reason string reads as an instruction. It was "
+                       "quoted as data and refused as an instruction.")
+        answer += ("\nI am not showing an empty agreement list as if the model "
+                   "had agreed with everything.\n" + _LEARNED_FOOTER)
+        return _learned_result(answer, guard,
+                               {"scored": 0, "unavailable": unavailable,
+                                "disagreements": None},
+                               ["How was this model trained?"],
+                               {"kind": "disagreements", "modelAvailable": False,
+                                "scored": 0, "unavailable": unavailable,
+                                "items": []})
+
+    if not rows:
+        answer = ("No incidents exist on this run, so the learned model has "
+                  "nothing to agree or disagree with.\n" + _LEARNED_FOOTER)
+        guard = {"claims": 0, "accepted": 0, "rejected": [],
+                 "note": "nothing was claimed, so nothing needed a citation"}
+        return _learned_result(answer, guard, {"scored": 0, "disagreements": 0},
+                               ["How was this model trained?"],
+                               {"kind": "disagreements", "modelAvailable": None,
+                                "scored": 0, "unavailable": 0, "items": []})
+
+    claims = []
+    items = []
+    if not disagreeing:
+        claims.append({
+            "text": (f"The learned model disagrees with the rules on none of "
+                     f"the {scored} scored incident(s) on this run."),
+            "cites": [rows[0]["id"]]})
+    else:
+        claims.append({
+            "text": (f"The learned model disagrees with the rules on "
+                     f"{len(disagreeing)} of {scored} scored incident(s) on "
+                     "this run. These are the false-positive candidates worth "
+                     "a look — nothing here changes a verdict."),
+            "cites": [d[0]["id"] for d in disagreeing]})
+        for inc, block in disagreeing:
+            iid = inc["id"]
+            rule_sev, _ = quote_model_value(block.get("ruleSeverity")
+                                            or inc.get("severity"))
+            ai_sev, sev_n = quote_model_value(block.get("aiSeverity"))
+            ai_label, label_n = quote_model_value(block.get("aiLabel"))
+            conf = block.get("confidence")
+            claims.append({
+                "text": (f"{iid}: rules {rule_sev}; model {ai_label} at "
+                         f"{ai_sev}, confidence "
+                         f"{'not recorded' if conf is None else repr(conf)}."),
+                "cites": [iid]})
+            items.append({
+                "incidentId": iid,
+                "title": inc.get("title"),
+                "ruleSeverity": block.get("ruleSeverity") or inc.get("severity"),
+                "aiSeverity": block.get("aiSeverity"),
+                "aiLabel": block.get("aiLabel"),
+                "confidence": conf,
+                "agrees": block.get("agrees"),
+                "status": block.get("status"),
+                "neutralised": bool(sev_n or label_n),
+                "deeplink": f"/incidents?sel={iid}",
+            })
+    if unavailable:
+        claims.append({
+            "text": (f"{unavailable} further incident(s) carry no learned "
+                     "opinion at all and are excluded rather than counted as "
+                     "agreement."),
+            "cites": [rows[0]["id"]]})
+    answer, guard = render_claims(claims, ids, sidecar.keys())
+    if any(i["neutralised"] for i in items):
+        answer += ("\nOne or more model-emitted values above reads as an "
+                   "instruction. They are quoted as data and were refused as "
+                   "instructions.")
+    answer += "\n" + _LEARNED_FOOTER
+    return _learned_result(
+        answer, guard,
+        {"scored": scored, "unavailable": unavailable,
+         "disagreements": len(disagreeing)},
+        _learned_followups(rows),
+        {"kind": "disagreements", "modelAvailable": True, "scored": scored,
+         "unavailable": unavailable, "items": items})
+
+
+# ---------------------------------------------------------------------------
+# behaviour 3 — provenance on ask, VERBATIM from the sidecar
+# ---------------------------------------------------------------------------
+# Answered from `triage_v1.provenance.json` as recorded and from nowhere else.
+# Nothing here is generated, inferred or rounded: every field the sidecar holds
+# is quoted, and a field it does not hold is reported as NOT RECORDED rather
+# than reconstructed from a plausible-sounding default.
+
+# Human labels for the sidecar keys that have one. A key with no label is still
+# quoted — under its own name — so a sidecar that grows a field does not
+# silently lose it here.
+PROVENANCE_LABELS = {
+    "trainedAt": "trained at",
+    "startedAt": "training started at",
+    "trainDurationSeconds": "training duration (seconds)",
+    "datasetRows": "training rows",
+    "dataset": "training dataset composition",
+    "labels": "label vocabulary",
+    "labelSource": "label source",
+    "seed": "random seed",
+    "seedsUsed": "seeds used",
+    "variants": "generated variants",
+    "featureCount": "feature count",
+    "featureKeys": "feature keys",
+    "crossValidation": "cross-validation benchmark scores",
+    "model": "estimator",
+    "modelFile": "model file",
+    "modelSha256": "model sha256",
+    "sklearnVersion": "scikit-learn version",
+    "python": "python version",
+    "pipeline": "training pipeline",
+    "scope": "scope of the claim",
+    "card": "originating card",
+    "wall": "advisory wall",
+}
+
+# Fields an analyst reasonably asks for that this sidecar does NOT record. They
+# are named and reported as unrecorded — the honest answer to "what is its
+# false-positive rate in production?" is that nobody wrote it down.
+PROVENANCE_EXPECTED = ("holdoutRows", "productionAccuracy", "falsePositiveRate")
+
+_PROVENANCE_VALUE_LIMIT = 400
+
+
+def learned_provenance(extras, run_id=None):
+    """Answer 'how was this model trained?' from the sidecar, VERBATIM."""
+    rows = _incidents_with_opinion(extras, run_id)
+    ids = [i["id"] for i in rows]
+    sidecar = _sidecar(extras)
+    triage = (extras or {}).get("triage") or {}
+
+    if not sidecar:
+        reason, neutralised = quote_model_value(triage.get("modelReason"))
+        answer = ("There is no provenance sidecar recorded on this "
+                  "installation, so I cannot tell you how the model was "
+                  f"trained. Reason as recorded: {reason}. I will not "
+                  "reconstruct training details from generation.")
+        if neutralised:
+            answer += (" That reason string reads as an instruction; it is "
+                       "quoted as data and was refused as an instruction.")
+        answer += "\n" + _LEARNED_FOOTER
+        guard = {"claims": 0, "accepted": 0, "rejected": [],
+                 "note": ("nothing was claimed: an unrecorded provenance is "
+                          "stated as unrecorded, not cited")}
+        return _learned_result(answer, guard,
+                               {"provenanceRecorded": False},
+                               ["What does the model disagree with the rules about?"],
+                               {"kind": "provenance", "recorded": False,
+                                "fields": [],
+                                "missing": list(PROVENANCE_EXPECTED)})
+
+    claims, fields, missing = [], [], []
+    for key in sorted(sidecar):
+        if sidecar[key] is None:
+            missing.append(key)
+            continue
+        raw = sidecar[key]
+        if isinstance(raw, (dict, list)):
+            raw = json.dumps(raw, sort_keys=True)
+        value, neutralised = quote_model_value(raw, _PROVENANCE_VALUE_LIMIT)
+        label = PROVENANCE_LABELS.get(key, key)
+        claims.append({"text": f"{label}: {value}.", "cites": [f"sidecar:{key}"]})
+        fields.append({"key": key, "label": label, "value": value,
+                       "neutralised": neutralised})
+    missing += [k for k in PROVENANCE_EXPECTED if k not in sidecar]
+    answer, guard = render_claims(claims, ids, sidecar.keys())
+    header = ("Model provenance, quoted verbatim from the sidecar "
+              "(triage_v1.provenance.json). Nothing here is generated:")
+    answer = header + "\n" + answer
+    if missing:
+        answer += ("\nNot recorded in the sidecar, so not stated: "
+                   + ", ".join(missing) + ".")
+    if any(f["neutralised"] for f in fields):
+        answer += ("\nOne or more sidecar values reads as an instruction. They "
+                   "are quoted as data and were refused as instructions.")
+    answer += "\n" + _LEARNED_FOOTER
+    return _learned_result(
+        answer, guard,
+        {"provenanceRecorded": True, "fields": len(fields),
+         "missing": len(missing)},
+        ["What does the model disagree with the rules about?"],
+        {"kind": "provenance", "recorded": True, "fields": fields,
+         "missing": missing})
+
+
+# ---------------------------------------------------------------------------
+# routing
+# ---------------------------------------------------------------------------
+# Deliberately narrow. A bare "model" or "ai" would hijack unrelated questions
+# (the analyst LLM, an ATT&CK question, a "model" in prose), so the router only
+# fires on a phrase that names the LEARNED second opinion.
+_LEARNED_WORDS = ("learned model", "learned second opinion", "second opinion",
+                  "triage model", "aitriage", "the model", "this model",
+                  "ml model", "learned classifier", "model's")
+_PROVENANCE_WORDS = ("trained", "training", "provenance", "training data",
+                     "training set", "seed", "benchmark", "how was this model")
+_DISAGREE_WORDS = ("disagree", "disagreement", "false positive candidate",
+                   "false-positive candidate", "differ from the rules")
+
+
+def learned_question(ql, context=None):
+    """Which learned-model behaviour this question asks for, or None.
+
+    Deterministic and word-based, in the same idiom as the rest of this module.
+    """
+    ql = str(ql or "").lower()
+    mentions_model = any(w in ql for w in _LEARNED_WORDS)
+    if mentions_model and any(w in ql for w in _PROVENANCE_WORDS):
+        return ("provenance", None)
+    if any(w in ql for w in _DISAGREE_WORDS) and mentions_model:
+        return ("disagreements", None)
+    if not mentions_model:
+        return None
+    hit = _INCIDENT_ID_RE.search(str(ql))
+    if hit:
+        return ("opinion", hit.group(0))
+    selected = str((context or {}).get("selectedIncidentId") or "").strip()
+    if selected:
+        return ("opinion", selected)
+    return ("disagreements", None)
+
+
+def learned_answer(kind, incident_id, extras, run_id=None):
+    if kind == "provenance":
+        return learned_provenance(extras, run_id)
+    if kind == "opinion":
+        return learned_opinion(incident_id, extras, run_id)
+    return learned_disagreements(extras, run_id)

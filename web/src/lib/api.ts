@@ -62,6 +62,59 @@ export interface CopilotContext {
   selectedFindingId?: string | null;
   selectedIncidentId?: string | null;
 }
+/** CB-1 — the learned second opinion as a GROUNDED CONTEXT SOURCE.
+ *  Every value below is READ from the backend's stored advisory block
+ *  (`aiTriage`, produced once by console/triage_model.py). The rail never
+ *  recomputes a severity, a confidence or an agreement, and in particular
+ *  never re-derives `agrees` by comparing severities on screen — a second
+ *  computation of a stored fact is a fact that drifts. Advisory forever: no
+ *  approve control, no verdict, no eligibility commentary. */
+export interface LearnedProvenanceField {
+  key: string;
+  label: string;
+  value: string;
+  neutralised?: boolean;
+}
+export interface LearnedDisagreement {
+  incidentId: string;
+  title?: string | null;
+  ruleSeverity?: string | null;
+  aiSeverity?: string | null;
+  aiLabel?: string | null;
+  confidence?: number | null;
+  agrees?: boolean | null;
+  status?: string | null;
+  neutralised?: boolean;
+  deeplink?: string;
+}
+export interface LearnedOpinion {
+  kind?: "provenance" | "disagreements";
+  /** behaviour 1 — one incident */
+  incidentId?: string;
+  modelAvailable?: boolean | null;
+  ruleSeverity?: string | null;
+  aiSeverity?: string | null;
+  aiLabel?: string | null;
+  confidence?: number | null;
+  agrees?: boolean | null;
+  status?: string | null;
+  unavailableReason?: string | null;
+  neutralised?: boolean;
+  /** behaviour 2 — the disagreement list */
+  scored?: number;
+  unavailable?: number;
+  items?: LearnedDisagreement[];
+  /** behaviour 3 — the provenance sidecar, verbatim */
+  recorded?: boolean;
+  fields?: LearnedProvenanceField[];
+  missing?: string[];
+}
+export interface CopilotCitationGuard {
+  claims: number;
+  accepted: number;
+  rejected: { text: string; cites: string[]; reasons: string[] }[];
+  note?: string;
+}
 export interface CopilotInvestigation {
   answer?: string;
   citations?: CopilotCitation[];
@@ -69,6 +122,9 @@ export interface CopilotInvestigation {
   facts?: Record<string, unknown>;
   actions?: CopilotAction[];
   source?: string;
+  label?: string;
+  learned?: LearnedOpinion | null;
+  citationGuard?: CopilotCitationGuard | null;
 }
 export interface CopilotRunbookRow {
   id: string;
