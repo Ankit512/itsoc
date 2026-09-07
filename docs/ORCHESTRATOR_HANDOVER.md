@@ -2,7 +2,7 @@
 
 **Written:** 2026-09-07. **State at handover:** `main` = `f28c954`, `HEAD == origin/main`, tree clean,
 detector frozen `364577c5…4876`, `scripts/gate.sh --web` GREEN 23/23.
-**In flight:** DEP-1 (see §6). Everything else is stood down.
+**In flight:** nothing. The fleet is stood down. (DEP-1 landed 2026-09-07 — see §6.)
 
 You are taking over as orchestration coordinator. Read `CLAUDE.md` and `GUARDRAILS.md` first — they
 are the contract. This file is what those two do not tell you: the standing posture, the lessons
@@ -140,23 +140,22 @@ not the tests.
 
 ---
 
-## 6. In flight right now
+## 6. Last card completed — DEP-1 (accepted 2026-09-07)
 
-**DEP-1** — `task_e3cfa6c0637c`, dispatch `ctx_27c0200e4063`, worktree `dep1-vitest`, base `f28c954`
-(base check passed, no reset).
+Closed the vitest CRITICAL (GHSA-5xrq-8626-4rwp, CVSS 9.8): `vitest` 2.1.9 → **3.2.7**, one line of
+`web/package.json` plus the lockfile. npm proposed 5.0.0 because it is latest, not because the fix
+needed it — the vulnerable range is `<= 3.2.5`, and vitest 3 runs on the vite 5 already installed.
 
-Closes the vitest CRITICAL (GHSA-5xrq-8626-4rwp, CVSS 9.8). **Minimal scope by owner decision:**
-vitest `^2.1.3` → `^3.2.6` only. npm proposes 5.0.0 because it is latest, not because the fix needs
-it — the vulnerable range is `<= 3.2.5`, and vitest 3 supports the vite 5 already installed.
+Audit **7 → 4** (critical **0**). `vite`'s HIGH (GHSA-fx2h-pf6j-xcff) is **knowingly accepted** —
+dev-only, and closing it means vite 8, which drags the whole build toolchain. `react-router-dom`
+stays at 6.30.6: production dependency, moderate only, and a routing major needs its own change with
+its own UI verification.
 
-Deliberately excluded, and the worker is told not to "helpfully" include them:
-`react-router-dom` (production dep, moderate only, a routing major needs its own change) and `vite`
-(high, **knowingly accepted**, dev-only, closing it drags the whole build toolchain).
-
-**Grade it on one thing: the suite must still be exactly 44 files / 313 tests.** 313 → 312 is a
-failure, not a rounding. If any test file needed changing, that is a stop, not a migration.
-
----
+Verified by the coordinator independently: suite still **exactly 44 files / 313 tests**, no test file
+touched, no `vite.config.ts` change, `SELECTOR-NULL` 2 passed, gate `--web` GREEN 23/23, detector
+unchanged. The worker went past the card and A/B-rebuilt `web/dist` from the pre-change lockfile;
+the coordinator reproduced it by rebuilding on `main` — **identical tree digest
+`35f620d4…78747f`**, so a devDependency bump provably did not reach production.
 
 ## 7. Open ledger
 

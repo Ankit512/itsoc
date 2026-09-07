@@ -355,3 +355,21 @@ Report: `docs/STAGE_E_REPORTS/E8-leakage-interrogation.md`.
 - **The honest residual, stated by the worker without being asked:** this guard defends against the
   BROWSER. A local non-browser process is still unauthenticated — which is the login-gate decision the
   card forbade reopening, and it did not.
+
+## DEP-1 accepted — the vitest CRITICAL closed, nothing else moved — 2026-09-07
+
+- **GHSA-5xrq-8626-4rwp (CVSS 9.8) closed:** `vitest` 2.1.9 → **3.2.7**. One line of
+  `web/package.json` plus the lockfile. npm proposed 5.0.0 because it is latest, not because the fix
+  required it — the vulnerable range is `<= 3.2.5` and vitest 3 runs on the installed vite 5.
+- **Audit 7 → 4, critical 0.** `vite`'s HIGH is **knowingly accepted** (dev-only; closing it means
+  vite 8 and the whole build toolchain). `react-router-dom` untouched at 6.30.6 — a production
+  dependency whose major belongs in its own change. Both stated as decisions, neither silently
+  omitted.
+- **The count held: exactly 44 files / 313 tests**, re-run by the coordinator. No test file was
+  touched, skipped or deleted; `vite.config.ts` needed no change. `SELECTOR-NULL` 2 passed — the
+  standing advisory-wall check survived a runner major.
+- **Stronger evidence than the card asked for.** The card asked whether `web/dist` was unchanged *in
+  kind*. The worker A/B-rebuilt it from the pre-change lockfile and found it byte-identical; the
+  coordinator reproduced this by rebuilding on `main` — **identical tree digest `35f620d4…78747f`**.
+  A devDependency bump provably did not reach production output.
+- Gate `--web` GREEN 23/23; detector `364577c5…4876` unchanged; allowlist clean (3 files).
