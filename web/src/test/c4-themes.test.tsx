@@ -47,6 +47,39 @@ function parseTokenBlock(selectorRegex: RegExp): Set<string> {
   return parseTokensFromBlock(match[1]);
 }
 
+function parseAllTokenValues(): Map<string, string[]> {
+  const values = new Map<string, string[]>();
+  for (const match of cssContent.matchAll(/(--[a-zA-Z0-9_-]+)\s*:\s*([^;}{]+)/g)) {
+    values.set(match[1], [...(values.get(match[1]) ?? []), match[2].trim()]);
+  }
+  return values;
+}
+
+const tokenValues = parseAllTokenValues();
+
+function aliasTarget(value: string): string | undefined {
+  return /^var\(\s*(--[a-zA-Z0-9_-]+)\s*\)$/.exec(value)?.[1];
+}
+
+function resolvesInBothThemes(
+  token: string,
+  darkTokens: Set<string>,
+  lightTokens: Set<string>,
+  seen = new Set<string>(),
+): boolean {
+  if (darkTokens.has(token) && lightTokens.has(token)) return true;
+  if (seen.has(token)) return false;
+  const nextSeen = new Set(seen).add(token);
+  const values = tokenValues.get(token) ?? [];
+  return (
+    values.length > 0 &&
+    values.every((value) => {
+      const target = aliasTarget(value);
+      return target !== undefined && resolvesInBothThemes(target, darkTokens, lightTokens, nextSeen);
+    })
+  );
+}
+
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () => {
@@ -143,7 +176,7 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () =>
   // CHECK 2: Bidirectional Token Definition in Both Theme Blocks
   // --------------------------------------------------------------------------
   describe("Check 2: Symmetrical Theme Token Definition (Dark & Light)", () => {
-    it("every color / surface token defined in dark is defined in light, and vice-versa", () => {
+    it("every required color / surface token resolves through a role defined in both themes", () => {
       const darkTokens = parseTokenBlock(/:root,\s*\[data-theme="dark"\]\s*\{([^}]+)\}/);
       const lightTokens = parseTokenBlock(/\[data-theme="light"\]\s*\{([^}]+)\}/);
 
@@ -162,8 +195,10 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () =>
       ];
 
       for (const t of requiredColorTokens) {
-        expect(darkTokens.has(t), `Token ${t} missing from dark theme`).toBe(true);
-        expect(lightTokens.has(t), `Token ${t} missing from light theme`).toBe(true);
+        expect(
+          resolvesInBothThemes(t, darkTokens, lightTokens),
+          `Token ${t} does not resolve to a role present in both themes`,
+        ).toBe(true);
       }
     });
 
@@ -172,8 +207,6 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () =>
       const lightTokens = parseTokenBlock(/\[data-theme="light"\]\s*\{([^}]+)\}/);
 
       // Shared tokens (including layout / font tokens inherited from :root)
-      const allValidTokens = new Set([...darkTokens, ...lightTokens]);
-
       // Extract all var(--...) usages from C4 sections in itsoc.css
       const c4Sections = [
         cssContent.match(/\/\* ---- 12a3\. Approvals[\s\S]*?(?=\/\* ---- 12b)/)?.[0] ?? "",
@@ -186,7 +219,11 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () =>
       const varMatches = c4Sections.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)\s*\)/g);
       for (const m of varMatches) {
         const tokenName = m[1];
-        expect(allValidTokens.has(tokenName), `Referenced token ${tokenName} is undefined`).toBe(true);
+        const isSharedStatic = /^--(radius|font|space|shape|mono$|sans$)/.test(tokenName);
+        expect(
+          isSharedStatic || resolvesInBothThemes(tokenName, darkTokens, lightTokens),
+          `Referenced token ${tokenName} is undefined or not theme-safe`,
+        ).toBe(true);
       }
     });
   });
@@ -284,9 +321,11 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () =>
       for (const m of decls.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)\s*\)/g)) {
         const token = m[1];
         // Layout/radius tokens live on bare :root; colour tokens must be in both blocks.
-        if (!/^--(radius|font|space|shadow-)/.test(token)) {
-          expect(darkTokens.has(token), `${token} (used by ${selector}) missing from dark theme`).toBe(true);
-          expect(lightTokens.has(token), `${token} (used by ${selector}) missing from light theme`).toBe(true);
+        if (!/^--(radius|font|space|shape)/.test(token)) {
+          expect(
+            resolvesInBothThemes(token, darkTokens, lightTokens),
+            `${token} (used by ${selector}) does not resolve in both themes`,
+          ).toBe(true);
         }
       }
     }
@@ -339,9 +378,11 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () =>
         // 3. every token it does use exists in BOTH theme blocks
         for (const m of decls.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)\s*\)/g)) {
           const token = m[1];
-          if (!/^--(radius|font|space|shadow-)/.test(token)) {
-            expect(darkTokens.has(token), `${token} (used by ${selector}) missing from dark theme`).toBe(true);
-            expect(lightTokens.has(token), `${token} (used by ${selector}) missing from light theme`).toBe(true);
+          if (!/^--(radius|font|space|shape)/.test(token)) {
+            expect(
+              resolvesInBothThemes(token, darkTokens, lightTokens),
+              `${token} (used by ${selector}) does not resolve in both themes`,
+            ).toBe(true);
           }
         }
       }
@@ -365,6 +406,15 @@ describe("Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r)", () =>
         severityVars,
         `Advisory states subsection must not borrow severity palette (--crit/--high/--med/--low): found ${severityVars.join(", ")}`,
       ).toEqual([]);
+    });
+
+    it("keeps warning/advisory status separate from the high-severity verdict role", () => {
+      const warningTargets = (tokenValues.get("--warn") ?? []).map(aliasTarget);
+      const highTargets = (tokenValues.get("--high") ?? []).map(aliasTarget);
+
+      expect(warningTargets).toEqual(["--status-warning"]);
+      expect(highTargets).toEqual(["--severity-high"]);
+      expect(warningTargets).not.toEqual(highTargets);
     });
   });
 });
