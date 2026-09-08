@@ -1,0 +1,2991 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g0-visual-diff-inventory",
+  "generatedAt": "2026-09-08T20:15:13.730Z",
+  "comparison": {
+    "before": {
+      "label": "before-local",
+      "commit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "manifest": "docs/STAGE_F_REPORTS/G0-evidence/before-local-manifest.json"
+    },
+    "after": {
+      "label": "after",
+      "commit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "manifest": "docs/STAGE_F_REPORTS/G0-evidence/after-manifest.json"
+    },
+    "captureSettingsMatch": false,
+    "captureSettingsMismatches": [
+      "report.sha256: \"5d7e627baff2f1eeb7ba7eb18ebd1ca1b6244e10aa71b0b0a99846f6d9e8eec8\" vs \"e0d20d79ba56a0f96d4e5a6a28b6985939fcad85f5660ccd79eb3396c199599f\""
+    ],
+    "viewport": {
+      "width": 1500,
+      "height": 1000,
+      "deviceScaleFactor": 1
+    },
+    "sameRunData": false,
+    "reportSha256": "5d7e627baff2f1eeb7ba7eb18ebd1ca1b6244e10aa71b0b0a99846f6d9e8eec8",
+    "productionRuntime": {
+      "before": {
+        "server": "console/serve.py serving web/dist plus its real /api routes",
+        "mockedApi": false,
+        "mockup": false
+      },
+      "after": {
+        "server": "console/serve.py serving web/dist plus its real /api routes",
+        "mockedApi": false,
+        "mockup": false
+      }
+    }
+  },
+  "summary": {
+    "routeStatesCompared": 48,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "identical": 47,
+    "changed": 1,
+    "byteIdenticalPngs": 47,
+    "totalChangedPixels": 11,
+    "deliberateDeltas": 1,
+    "unexplainedChanged": 0,
+    "verdict": "ZERO VISUAL DELTA ATTRIBUTABLE TO THE CHANGE — every changed state is annotated with control evidence"
+  },
+  "sideBySide": {
+    "light": {
+      "file": "docs/STAGE_F_REPORTS/G0-evidence/diff/side-by-side-light.png",
+      "sha256": "04619ff5fefdf200425fe19be22c54727c9f53f1a82d8621e9eb7acf1d947726",
+      "layout": "one row per route state; left column = before, right column = after",
+      "rows": [
+        "light:alerts",
+        "light:approvals",
+        "light:assets",
+        "light:cases",
+        "light:collectors",
+        "light:discovery",
+        "light:does-not-exist",
+        "light:enrichment",
+        "light:findings",
+        "light:history",
+        "light:incidents",
+        "light:integrations",
+        "light:intel",
+        "light:login",
+        "light:logout",
+        "light:network",
+        "light:oem",
+        "light:overview",
+        "light:reports",
+        "light:settings",
+        "light:signup",
+        "light:sources",
+        "light:threat-intel",
+        "light:vulnerabilities"
+      ],
+      "dimensions": "3048x24400"
+    },
+    "dark": {
+      "file": "docs/STAGE_F_REPORTS/G0-evidence/diff/side-by-side-dark.png",
+      "sha256": "515626d46abd61c137c353546f6b35de38a55576147c83f5a2087a8016866e2c",
+      "layout": "one row per route state; left column = before, right column = after",
+      "rows": [
+        "dark:alerts",
+        "dark:approvals",
+        "dark:assets",
+        "dark:cases",
+        "dark:collectors",
+        "dark:discovery",
+        "dark:does-not-exist",
+        "dark:enrichment",
+        "dark:findings",
+        "dark:history",
+        "dark:incidents",
+        "dark:integrations",
+        "dark:intel",
+        "dark:login",
+        "dark:logout",
+        "dark:network",
+        "dark:oem",
+        "dark:overview",
+        "dark:reports",
+        "dark:settings",
+        "dark:signup",
+        "dark:sources",
+        "dark:threat-intel",
+        "dark:vulnerabilities"
+      ],
+      "dimensions": "3048x24400"
+    }
+  },
+  "entries": [
+    {
+      "id": "dark:alerts",
+      "route": "/alerts",
+      "state": "Alerts / Findings",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/alerts.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/alerts.png",
+      "beforeSha256": "be99a03349e6ee8c981ec7ab67a98894de586226a18dff2c46b01b0ed8af1fa9",
+      "afterSha256": "be99a03349e6ee8c981ec7ab67a98894de586226a18dff2c46b01b0ed8af1fa9",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "be99a03349e6ee8c981ec7ab67a98894de586226a18dff2c46b01b0ed8af1fa9",
+            "be99a03349e6ee8c981ec7ab67a98894de586226a18dff2c46b01b0ed8af1fa9"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "be99a03349e6ee8c981ec7ab67a98894de586226a18dff2c46b01b0ed8af1fa9",
+            "be99a03349e6ee8c981ec7ab67a98894de586226a18dff2c46b01b0ed8af1fa9"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:approvals",
+      "route": "/approvals",
+      "state": "Approvals",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/approvals.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/approvals.png",
+      "beforeSha256": "00c672c3497856851ac116eb99de3942489ba39564923d97a92aa87b4160c6ab",
+      "afterSha256": "00c672c3497856851ac116eb99de3942489ba39564923d97a92aa87b4160c6ab",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "00c672c3497856851ac116eb99de3942489ba39564923d97a92aa87b4160c6ab",
+            "00c672c3497856851ac116eb99de3942489ba39564923d97a92aa87b4160c6ab"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "00c672c3497856851ac116eb99de3942489ba39564923d97a92aa87b4160c6ab",
+            "00c672c3497856851ac116eb99de3942489ba39564923d97a92aa87b4160c6ab"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:assets",
+      "route": "/assets",
+      "state": "Assets",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/assets.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/assets.png",
+      "beforeSha256": "35088dd61fc60df806db024596e85e3c77cf121f24a6d103af29e6fd4f3773c7",
+      "afterSha256": "35088dd61fc60df806db024596e85e3c77cf121f24a6d103af29e6fd4f3773c7",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "35088dd61fc60df806db024596e85e3c77cf121f24a6d103af29e6fd4f3773c7",
+            "35088dd61fc60df806db024596e85e3c77cf121f24a6d103af29e6fd4f3773c7"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "35088dd61fc60df806db024596e85e3c77cf121f24a6d103af29e6fd4f3773c7",
+            "35088dd61fc60df806db024596e85e3c77cf121f24a6d103af29e6fd4f3773c7"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:cases",
+      "route": "/cases",
+      "state": "Cases",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/cases.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/cases.png",
+      "beforeSha256": "87c23110c3f63669891b7287fb4cb8b4e922d46efe47ffbb9763dbbebbe4ec44",
+      "afterSha256": "87c23110c3f63669891b7287fb4cb8b4e922d46efe47ffbb9763dbbebbe4ec44",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "87c23110c3f63669891b7287fb4cb8b4e922d46efe47ffbb9763dbbebbe4ec44",
+            "87c23110c3f63669891b7287fb4cb8b4e922d46efe47ffbb9763dbbebbe4ec44"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "87c23110c3f63669891b7287fb4cb8b4e922d46efe47ffbb9763dbbebbe4ec44",
+            "87c23110c3f63669891b7287fb4cb8b4e922d46efe47ffbb9763dbbebbe4ec44"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:collectors",
+      "route": "/collectors",
+      "state": "Sources legacy alias",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/collectors.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/collectors.png",
+      "beforeSha256": "f6669fbfcaf12ddfedb2faff11fa585e5c02734e3795b0b31bbce412e962fd04",
+      "afterSha256": "f6669fbfcaf12ddfedb2faff11fa585e5c02734e3795b0b31bbce412e962fd04",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "f6669fbfcaf12ddfedb2faff11fa585e5c02734e3795b0b31bbce412e962fd04",
+            "f6669fbfcaf12ddfedb2faff11fa585e5c02734e3795b0b31bbce412e962fd04"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "f6669fbfcaf12ddfedb2faff11fa585e5c02734e3795b0b31bbce412e962fd04",
+            "f6669fbfcaf12ddfedb2faff11fa585e5c02734e3795b0b31bbce412e962fd04"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:discovery",
+      "route": "/discovery",
+      "state": "Network discovery tab alias",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/discovery.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/discovery.png",
+      "beforeSha256": "a6bd896fc43bf3f3e43a5724b53a8aa2518fbd102c7b002831f90f30a078aed3",
+      "afterSha256": "a6bd896fc43bf3f3e43a5724b53a8aa2518fbd102c7b002831f90f30a078aed3",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "a6bd896fc43bf3f3e43a5724b53a8aa2518fbd102c7b002831f90f30a078aed3",
+            "a6bd896fc43bf3f3e43a5724b53a8aa2518fbd102c7b002831f90f30a078aed3"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "a6bd896fc43bf3f3e43a5724b53a8aa2518fbd102c7b002831f90f30a078aed3",
+            "a6bd896fc43bf3f3e43a5724b53a8aa2518fbd102c7b002831f90f30a078aed3"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:does-not-exist",
+      "route": "/does-not-exist",
+      "state": "Wildcard Not found",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/does-not-exist.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/does-not-exist.png",
+      "beforeSha256": "e760d4f33bd2c08da6094866f6d9600011c39f16766c48d9dec0fc7641323a2c",
+      "afterSha256": "e760d4f33bd2c08da6094866f6d9600011c39f16766c48d9dec0fc7641323a2c",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "e760d4f33bd2c08da6094866f6d9600011c39f16766c48d9dec0fc7641323a2c",
+            "e760d4f33bd2c08da6094866f6d9600011c39f16766c48d9dec0fc7641323a2c"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "e760d4f33bd2c08da6094866f6d9600011c39f16766c48d9dec0fc7641323a2c",
+            "e760d4f33bd2c08da6094866f6d9600011c39f16766c48d9dec0fc7641323a2c"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:enrichment",
+      "route": "/enrichment",
+      "state": "Enrichment legacy wrapper",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/enrichment.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/enrichment.png",
+      "beforeSha256": "c6fabdb7a79096f10baf2c4277cf542b596207fe6b1843c22455eb66fdce7d68",
+      "afterSha256": "c6fabdb7a79096f10baf2c4277cf542b596207fe6b1843c22455eb66fdce7d68",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "c6fabdb7a79096f10baf2c4277cf542b596207fe6b1843c22455eb66fdce7d68",
+            "c6fabdb7a79096f10baf2c4277cf542b596207fe6b1843c22455eb66fdce7d68"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "c6fabdb7a79096f10baf2c4277cf542b596207fe6b1843c22455eb66fdce7d68",
+            "c6fabdb7a79096f10baf2c4277cf542b596207fe6b1843c22455eb66fdce7d68"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:findings",
+      "route": "/findings",
+      "state": "Alerts / Findings legacy alias",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/findings.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/findings.png",
+      "beforeSha256": "7f13ec5a05c162ad068e89d681768d901d7cc30c5ccd26c57b4511673a5e05b9",
+      "afterSha256": "7f13ec5a05c162ad068e89d681768d901d7cc30c5ccd26c57b4511673a5e05b9",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "7f13ec5a05c162ad068e89d681768d901d7cc30c5ccd26c57b4511673a5e05b9",
+            "7f13ec5a05c162ad068e89d681768d901d7cc30c5ccd26c57b4511673a5e05b9"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "7f13ec5a05c162ad068e89d681768d901d7cc30c5ccd26c57b4511673a5e05b9",
+            "7f13ec5a05c162ad068e89d681768d901d7cc30c5ccd26c57b4511673a5e05b9"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:history",
+      "route": "/history",
+      "state": "History",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/history.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/history.png",
+      "beforeSha256": "392ed002ee4e71b7dc6d63feb96f3f55d2161bed8b47fb2420ae474466324e03",
+      "afterSha256": "392ed002ee4e71b7dc6d63feb96f3f55d2161bed8b47fb2420ae474466324e03",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "392ed002ee4e71b7dc6d63feb96f3f55d2161bed8b47fb2420ae474466324e03",
+            "392ed002ee4e71b7dc6d63feb96f3f55d2161bed8b47fb2420ae474466324e03"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "392ed002ee4e71b7dc6d63feb96f3f55d2161bed8b47fb2420ae474466324e03",
+            "392ed002ee4e71b7dc6d63feb96f3f55d2161bed8b47fb2420ae474466324e03"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:incidents",
+      "route": "/incidents",
+      "state": "Incidents",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/incidents.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/incidents.png",
+      "beforeSha256": "4125eeaf492b8ff9da6234d246415ae1d74572551eccac696dcab2a153dda11c",
+      "afterSha256": "4125eeaf492b8ff9da6234d246415ae1d74572551eccac696dcab2a153dda11c",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 5500,
+          "treatment": "No region was masked. One real application poll cycle completed before capture; capture then waited for network idle, loaded fonts, and two byte-identical screenshots."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 5500,
+          "treatment": "No region was masked. One real application poll cycle completed before capture; capture then waited for network idle, loaded fonts, and two byte-identical screenshots."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "4125eeaf492b8ff9da6234d246415ae1d74572551eccac696dcab2a153dda11c",
+            "4125eeaf492b8ff9da6234d246415ae1d74572551eccac696dcab2a153dda11c"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "4125eeaf492b8ff9da6234d246415ae1d74572551eccac696dcab2a153dda11c",
+            "4125eeaf492b8ff9da6234d246415ae1d74572551eccac696dcab2a153dda11c"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:integrations",
+      "route": "/integrations",
+      "state": "Integrations",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/integrations.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/integrations.png",
+      "beforeSha256": "78de89d8f05f4ee996b066b04489edaae903351ed52c70f92775bdee2132ada8",
+      "afterSha256": "f6989fceb616e7c3095e20c893113f263f5944865af16f82d0d0db8f12e8f2e0",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 11,
+      "totalPixels": 1500000,
+      "changedRatio": 0.000007333333333333333,
+      "maxChannelDelta": 3,
+      "changedBounds": {
+        "minX": 372,
+        "minY": 318,
+        "maxX": 1103,
+        "maxY": 825
+      },
+      "identical": false,
+      "shaIdentical": false,
+      "diffOverlay": "docs/STAGE_F_REPORTS/G0-evidence/diff/dark-integrations.png",
+      "deliberateDelta": {
+        "classification": "renderer non-determinism, not attributable to the CSS change",
+        "changedPixels": 11,
+        "maxChannelDelta": 3,
+        "evidence": [
+          "A control capture (after-repeat) photographed the SAME post-change CSS a second time, with identical viewport, locale, timezone, Chrome build and run data.",
+          "after vs after-repeat reproduces the SAME 11 pixel coordinates with the same bounds, so the delta appears with no CSS change at all.",
+          "before-local/dark/integrations.png and after-repeat/dark/integrations.png are BYTE-IDENTICAL (sha256 78de89d8f05f4ee996b066b04489edaae903351ed52c70f92775bdee2132ada8) despite being built from different CSS. The route renders in one of two states; which state a run lands in is independent of the stylesheet.",
+          "Every difference is +/-1 to +/-3 on a single channel at an antialiased gradient edge; no token value, geometry or layout moved."
+        ],
+        "controlInventory": "docs/STAGE_F_REPORTS/G0-evidence/visual-noise-control.json",
+        "handling": "Identified and reported, never masked and never restaged. The pixels are left in the capture exactly as the browser produced them."
+      },
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "78de89d8f05f4ee996b066b04489edaae903351ed52c70f92775bdee2132ada8",
+            "78de89d8f05f4ee996b066b04489edaae903351ed52c70f92775bdee2132ada8"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "f6989fceb616e7c3095e20c893113f263f5944865af16f82d0d0db8f12e8f2e0",
+            "f6989fceb616e7c3095e20c893113f263f5944865af16f82d0d0db8f12e8f2e0"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:intel",
+      "route": "/intel",
+      "state": "Intel",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/intel.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/intel.png",
+      "beforeSha256": "377f72573a51ac7f9d3a6af8dcfa32c4f7ea37f55ef1c8be7330693289278bca",
+      "afterSha256": "377f72573a51ac7f9d3a6af8dcfa32c4f7ea37f55ef1c8be7330693289278bca",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "377f72573a51ac7f9d3a6af8dcfa32c4f7ea37f55ef1c8be7330693289278bca",
+            "377f72573a51ac7f9d3a6af8dcfa32c4f7ea37f55ef1c8be7330693289278bca"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "377f72573a51ac7f9d3a6af8dcfa32c4f7ea37f55ef1c8be7330693289278bca",
+            "377f72573a51ac7f9d3a6af8dcfa32c4f7ea37f55ef1c8be7330693289278bca"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:login",
+      "route": "/login",
+      "state": "Login actual local-auth state",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/login.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/login.png",
+      "beforeSha256": "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+      "afterSha256": "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+            "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+            "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:logout",
+      "route": "/logout",
+      "state": "Logout in AppShell",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/logout.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/logout.png",
+      "beforeSha256": "2029eddfa6c2bd41f1801885cf6e171711e9b9982098c41c2ca547ecfa0d6414",
+      "afterSha256": "2029eddfa6c2bd41f1801885cf6e171711e9b9982098c41c2ca547ecfa0d6414",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "2029eddfa6c2bd41f1801885cf6e171711e9b9982098c41c2ca547ecfa0d6414",
+            "2029eddfa6c2bd41f1801885cf6e171711e9b9982098c41c2ca547ecfa0d6414"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "2029eddfa6c2bd41f1801885cf6e171711e9b9982098c41c2ca547ecfa0d6414",
+            "2029eddfa6c2bd41f1801885cf6e171711e9b9982098c41c2ca547ecfa0d6414"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:network",
+      "route": "/network",
+      "state": "Network",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/network.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/network.png",
+      "beforeSha256": "8ce094c0515e954905a26a0171699d624008736bf3b64b8c02e1c6937b4a7f66",
+      "afterSha256": "8ce094c0515e954905a26a0171699d624008736bf3b64b8c02e1c6937b4a7f66",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "8ce094c0515e954905a26a0171699d624008736bf3b64b8c02e1c6937b4a7f66",
+            "8ce094c0515e954905a26a0171699d624008736bf3b64b8c02e1c6937b4a7f66"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "8ce094c0515e954905a26a0171699d624008736bf3b64b8c02e1c6937b4a7f66",
+            "8ce094c0515e954905a26a0171699d624008736bf3b64b8c02e1c6937b4a7f66"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:oem",
+      "route": "/oem",
+      "state": "OEM Engine direct route",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/oem.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/oem.png",
+      "beforeSha256": "1f828b14e85b911adba7b9dcff7eb2fa3013d12178003cf34570d6bf1675e499",
+      "afterSha256": "1f828b14e85b911adba7b9dcff7eb2fa3013d12178003cf34570d6bf1675e499",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "1f828b14e85b911adba7b9dcff7eb2fa3013d12178003cf34570d6bf1675e499",
+            "1f828b14e85b911adba7b9dcff7eb2fa3013d12178003cf34570d6bf1675e499"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "1f828b14e85b911adba7b9dcff7eb2fa3013d12178003cf34570d6bf1675e499",
+            "1f828b14e85b911adba7b9dcff7eb2fa3013d12178003cf34570d6bf1675e499"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:overview",
+      "route": "/",
+      "state": "Overview",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/overview.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/overview.png",
+      "beforeSha256": "235604b9a331052afa2d5dfe1454ad9f375ae20a224537769902d1114cc6a252",
+      "afterSha256": "235604b9a331052afa2d5dfe1454ad9f375ae20a224537769902d1114cc6a252",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "235604b9a331052afa2d5dfe1454ad9f375ae20a224537769902d1114cc6a252",
+            "235604b9a331052afa2d5dfe1454ad9f375ae20a224537769902d1114cc6a252"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "235604b9a331052afa2d5dfe1454ad9f375ae20a224537769902d1114cc6a252",
+            "235604b9a331052afa2d5dfe1454ad9f375ae20a224537769902d1114cc6a252"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:reports",
+      "route": "/reports",
+      "state": "Reports (no active export)",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/reports.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/reports.png",
+      "beforeSha256": "1751c920147bfd0bcc0b9029542216e9e8f61fd56fc645b4bff5a012c31bb815",
+      "afterSha256": "1751c920147bfd0bcc0b9029542216e9e8f61fd56fc645b4bff5a012c31bb815",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": "no export job active",
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": "no export job active",
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "1751c920147bfd0bcc0b9029542216e9e8f61fd56fc645b4bff5a012c31bb815",
+            "1751c920147bfd0bcc0b9029542216e9e8f61fd56fc645b4bff5a012c31bb815"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "1751c920147bfd0bcc0b9029542216e9e8f61fd56fc645b4bff5a012c31bb815",
+            "1751c920147bfd0bcc0b9029542216e9e8f61fd56fc645b4bff5a012c31bb815"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:settings",
+      "route": "/settings",
+      "state": "Settings",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/settings.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/settings.png",
+      "beforeSha256": "f0f7327e7b06ff64de093e4329ea6a066c5717da9b67e404e5594c6ec910b364",
+      "afterSha256": "f0f7327e7b06ff64de093e4329ea6a066c5717da9b67e404e5594c6ec910b364",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "f0f7327e7b06ff64de093e4329ea6a066c5717da9b67e404e5594c6ec910b364",
+            "f0f7327e7b06ff64de093e4329ea6a066c5717da9b67e404e5594c6ec910b364"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "f0f7327e7b06ff64de093e4329ea6a066c5717da9b67e404e5594c6ec910b364",
+            "f0f7327e7b06ff64de093e4329ea6a066c5717da9b67e404e5594c6ec910b364"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:signup",
+      "route": "/signup",
+      "state": "Login component signup route",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/signup.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/signup.png",
+      "beforeSha256": "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+      "afterSha256": "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+            "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+            "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:sources",
+      "route": "/sources",
+      "state": "Sources",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/sources.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/sources.png",
+      "beforeSha256": "44d9a3856052eacc5e4627f7a1d54a2872d07b2deea080672a358ab356f88b38",
+      "afterSha256": "44d9a3856052eacc5e4627f7a1d54a2872d07b2deea080672a358ab356f88b38",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "44d9a3856052eacc5e4627f7a1d54a2872d07b2deea080672a358ab356f88b38",
+            "44d9a3856052eacc5e4627f7a1d54a2872d07b2deea080672a358ab356f88b38"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "44d9a3856052eacc5e4627f7a1d54a2872d07b2deea080672a358ab356f88b38",
+            "44d9a3856052eacc5e4627f7a1d54a2872d07b2deea080672a358ab356f88b38"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:threat-intel",
+      "route": "/threat-intel",
+      "state": "ThreatIntel legacy wrapper",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/threat-intel.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/threat-intel.png",
+      "beforeSha256": "078e401497b25fc15cf6f07296e0efc7aaf02791c97e09823dfcc5965a13eda6",
+      "afterSha256": "078e401497b25fc15cf6f07296e0efc7aaf02791c97e09823dfcc5965a13eda6",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "078e401497b25fc15cf6f07296e0efc7aaf02791c97e09823dfcc5965a13eda6",
+            "078e401497b25fc15cf6f07296e0efc7aaf02791c97e09823dfcc5965a13eda6"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "078e401497b25fc15cf6f07296e0efc7aaf02791c97e09823dfcc5965a13eda6",
+            "078e401497b25fc15cf6f07296e0efc7aaf02791c97e09823dfcc5965a13eda6"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "dark:vulnerabilities",
+      "route": "/vulnerabilities",
+      "state": "Network vulnerabilities tab alias",
+      "theme": "dark",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/dark/vulnerabilities.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/dark/vulnerabilities.png",
+      "beforeSha256": "0b5497d1224ca6e52c02b15ef0fefe635da834f87f06c15d9d81641e7f0f6747",
+      "afterSha256": "0b5497d1224ca6e52c02b15ef0fefe635da834f87f06c15d9d81641e7f0f6747",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "0b5497d1224ca6e52c02b15ef0fefe635da834f87f06c15d9d81641e7f0f6747",
+            "0b5497d1224ca6e52c02b15ef0fefe635da834f87f06c15d9d81641e7f0f6747"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "0b5497d1224ca6e52c02b15ef0fefe635da834f87f06c15d9d81641e7f0f6747",
+            "0b5497d1224ca6e52c02b15ef0fefe635da834f87f06c15d9d81641e7f0f6747"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:alerts",
+      "route": "/alerts",
+      "state": "Alerts / Findings",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/alerts.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/alerts.png",
+      "beforeSha256": "a90924a6df1a8838591b806306364d779b102ce050be625f008dbb77e7020e9c",
+      "afterSha256": "a90924a6df1a8838591b806306364d779b102ce050be625f008dbb77e7020e9c",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "a90924a6df1a8838591b806306364d779b102ce050be625f008dbb77e7020e9c",
+            "a90924a6df1a8838591b806306364d779b102ce050be625f008dbb77e7020e9c"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "a90924a6df1a8838591b806306364d779b102ce050be625f008dbb77e7020e9c",
+            "a90924a6df1a8838591b806306364d779b102ce050be625f008dbb77e7020e9c"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:approvals",
+      "route": "/approvals",
+      "state": "Approvals",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/approvals.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/approvals.png",
+      "beforeSha256": "a2e3d8680c844204a61e8356055ceef9e98e69410572757817650d838fa7e09b",
+      "afterSha256": "a2e3d8680c844204a61e8356055ceef9e98e69410572757817650d838fa7e09b",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "a2e3d8680c844204a61e8356055ceef9e98e69410572757817650d838fa7e09b",
+            "a2e3d8680c844204a61e8356055ceef9e98e69410572757817650d838fa7e09b"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "a2e3d8680c844204a61e8356055ceef9e98e69410572757817650d838fa7e09b",
+            "a2e3d8680c844204a61e8356055ceef9e98e69410572757817650d838fa7e09b"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:assets",
+      "route": "/assets",
+      "state": "Assets",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/assets.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/assets.png",
+      "beforeSha256": "8112aa3dd9b33a0052b2220cedc7f263662b46302bf7406c8cc5e0ff522354a7",
+      "afterSha256": "8112aa3dd9b33a0052b2220cedc7f263662b46302bf7406c8cc5e0ff522354a7",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "8112aa3dd9b33a0052b2220cedc7f263662b46302bf7406c8cc5e0ff522354a7",
+            "8112aa3dd9b33a0052b2220cedc7f263662b46302bf7406c8cc5e0ff522354a7"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "8112aa3dd9b33a0052b2220cedc7f263662b46302bf7406c8cc5e0ff522354a7",
+            "8112aa3dd9b33a0052b2220cedc7f263662b46302bf7406c8cc5e0ff522354a7"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:cases",
+      "route": "/cases",
+      "state": "Cases",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/cases.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/cases.png",
+      "beforeSha256": "5aee00a1f584b7126f2cc463b8820d398a556b55f6d5fdc9be759c6988d98d56",
+      "afterSha256": "5aee00a1f584b7126f2cc463b8820d398a556b55f6d5fdc9be759c6988d98d56",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "5aee00a1f584b7126f2cc463b8820d398a556b55f6d5fdc9be759c6988d98d56",
+            "5aee00a1f584b7126f2cc463b8820d398a556b55f6d5fdc9be759c6988d98d56"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "5aee00a1f584b7126f2cc463b8820d398a556b55f6d5fdc9be759c6988d98d56",
+            "5aee00a1f584b7126f2cc463b8820d398a556b55f6d5fdc9be759c6988d98d56"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:collectors",
+      "route": "/collectors",
+      "state": "Sources legacy alias",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/collectors.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/collectors.png",
+      "beforeSha256": "1c5d6da2b6fd055a8b1661a8f196e507f806c3d1f52e340643d9676ac48e2c8d",
+      "afterSha256": "1c5d6da2b6fd055a8b1661a8f196e507f806c3d1f52e340643d9676ac48e2c8d",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "1c5d6da2b6fd055a8b1661a8f196e507f806c3d1f52e340643d9676ac48e2c8d",
+            "1c5d6da2b6fd055a8b1661a8f196e507f806c3d1f52e340643d9676ac48e2c8d"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "1c5d6da2b6fd055a8b1661a8f196e507f806c3d1f52e340643d9676ac48e2c8d",
+            "1c5d6da2b6fd055a8b1661a8f196e507f806c3d1f52e340643d9676ac48e2c8d"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:discovery",
+      "route": "/discovery",
+      "state": "Network discovery tab alias",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/discovery.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/discovery.png",
+      "beforeSha256": "ef72a8779eb4879da694cfea6707ef5ff24b339cbaf463f6773c3fa9aae5c587",
+      "afterSha256": "ef72a8779eb4879da694cfea6707ef5ff24b339cbaf463f6773c3fa9aae5c587",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ef72a8779eb4879da694cfea6707ef5ff24b339cbaf463f6773c3fa9aae5c587",
+            "ef72a8779eb4879da694cfea6707ef5ff24b339cbaf463f6773c3fa9aae5c587"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ef72a8779eb4879da694cfea6707ef5ff24b339cbaf463f6773c3fa9aae5c587",
+            "ef72a8779eb4879da694cfea6707ef5ff24b339cbaf463f6773c3fa9aae5c587"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:does-not-exist",
+      "route": "/does-not-exist",
+      "state": "Wildcard Not found",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/does-not-exist.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/does-not-exist.png",
+      "beforeSha256": "325e182b488beef8861eb6e5c02eebb0fe4a6ef2774076d8db2028874c74f810",
+      "afterSha256": "325e182b488beef8861eb6e5c02eebb0fe4a6ef2774076d8db2028874c74f810",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "325e182b488beef8861eb6e5c02eebb0fe4a6ef2774076d8db2028874c74f810",
+            "325e182b488beef8861eb6e5c02eebb0fe4a6ef2774076d8db2028874c74f810"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "325e182b488beef8861eb6e5c02eebb0fe4a6ef2774076d8db2028874c74f810",
+            "325e182b488beef8861eb6e5c02eebb0fe4a6ef2774076d8db2028874c74f810"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:enrichment",
+      "route": "/enrichment",
+      "state": "Enrichment legacy wrapper",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/enrichment.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/enrichment.png",
+      "beforeSha256": "0c330bae1a96cefe95aff89d61ad45b5d73fb77f48d69cb35cf2d955bb1bfdab",
+      "afterSha256": "0c330bae1a96cefe95aff89d61ad45b5d73fb77f48d69cb35cf2d955bb1bfdab",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "0c330bae1a96cefe95aff89d61ad45b5d73fb77f48d69cb35cf2d955bb1bfdab",
+            "0c330bae1a96cefe95aff89d61ad45b5d73fb77f48d69cb35cf2d955bb1bfdab"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "0c330bae1a96cefe95aff89d61ad45b5d73fb77f48d69cb35cf2d955bb1bfdab",
+            "0c330bae1a96cefe95aff89d61ad45b5d73fb77f48d69cb35cf2d955bb1bfdab"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:findings",
+      "route": "/findings",
+      "state": "Alerts / Findings legacy alias",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/findings.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/findings.png",
+      "beforeSha256": "ae9c43cf9362450e6d18872f9c3be32cac7cf91f6e465f486ee895ec654b5672",
+      "afterSha256": "ae9c43cf9362450e6d18872f9c3be32cac7cf91f6e465f486ee895ec654b5672",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ae9c43cf9362450e6d18872f9c3be32cac7cf91f6e465f486ee895ec654b5672",
+            "ae9c43cf9362450e6d18872f9c3be32cac7cf91f6e465f486ee895ec654b5672"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ae9c43cf9362450e6d18872f9c3be32cac7cf91f6e465f486ee895ec654b5672",
+            "ae9c43cf9362450e6d18872f9c3be32cac7cf91f6e465f486ee895ec654b5672"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:history",
+      "route": "/history",
+      "state": "History",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/history.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/history.png",
+      "beforeSha256": "22adf95c1531f1a1f66a347c569fd23bba6cec6271baed008073b4986d42cec9",
+      "afterSha256": "22adf95c1531f1a1f66a347c569fd23bba6cec6271baed008073b4986d42cec9",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "22adf95c1531f1a1f66a347c569fd23bba6cec6271baed008073b4986d42cec9",
+            "22adf95c1531f1a1f66a347c569fd23bba6cec6271baed008073b4986d42cec9"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "22adf95c1531f1a1f66a347c569fd23bba6cec6271baed008073b4986d42cec9",
+            "22adf95c1531f1a1f66a347c569fd23bba6cec6271baed008073b4986d42cec9"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:incidents",
+      "route": "/incidents",
+      "state": "Incidents",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/incidents.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/incidents.png",
+      "beforeSha256": "a70ac91e44fe0dc8124dead958da89381845fccd83c62bf17399d23ec329df6b",
+      "afterSha256": "a70ac91e44fe0dc8124dead958da89381845fccd83c62bf17399d23ec329df6b",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 5500,
+          "treatment": "No region was masked. One real application poll cycle completed before capture; capture then waited for network idle, loaded fonts, and two byte-identical screenshots."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 5500,
+          "treatment": "No region was masked. One real application poll cycle completed before capture; capture then waited for network idle, loaded fonts, and two byte-identical screenshots."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "a70ac91e44fe0dc8124dead958da89381845fccd83c62bf17399d23ec329df6b",
+            "a70ac91e44fe0dc8124dead958da89381845fccd83c62bf17399d23ec329df6b"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "a70ac91e44fe0dc8124dead958da89381845fccd83c62bf17399d23ec329df6b",
+            "a70ac91e44fe0dc8124dead958da89381845fccd83c62bf17399d23ec329df6b"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:integrations",
+      "route": "/integrations",
+      "state": "Integrations",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/integrations.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/integrations.png",
+      "beforeSha256": "d6843e87752a77f838f56fa87daff9e610ea93c7dec41862716a323a04e55f1a",
+      "afterSha256": "d6843e87752a77f838f56fa87daff9e610ea93c7dec41862716a323a04e55f1a",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "d6843e87752a77f838f56fa87daff9e610ea93c7dec41862716a323a04e55f1a",
+            "d6843e87752a77f838f56fa87daff9e610ea93c7dec41862716a323a04e55f1a"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "d6843e87752a77f838f56fa87daff9e610ea93c7dec41862716a323a04e55f1a",
+            "d6843e87752a77f838f56fa87daff9e610ea93c7dec41862716a323a04e55f1a"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:intel",
+      "route": "/intel",
+      "state": "Intel",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/intel.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/intel.png",
+      "beforeSha256": "e0ed6ad31f7ead898db6bf4240bc573b2d2b5da8eae927b71b8566a6809af584",
+      "afterSha256": "e0ed6ad31f7ead898db6bf4240bc573b2d2b5da8eae927b71b8566a6809af584",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "e0ed6ad31f7ead898db6bf4240bc573b2d2b5da8eae927b71b8566a6809af584",
+            "e0ed6ad31f7ead898db6bf4240bc573b2d2b5da8eae927b71b8566a6809af584"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "e0ed6ad31f7ead898db6bf4240bc573b2d2b5da8eae927b71b8566a6809af584",
+            "e0ed6ad31f7ead898db6bf4240bc573b2d2b5da8eae927b71b8566a6809af584"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:login",
+      "route": "/login",
+      "state": "Login actual local-auth state",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/login.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/login.png",
+      "beforeSha256": "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+      "afterSha256": "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+            "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+            "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:logout",
+      "route": "/logout",
+      "state": "Logout in AppShell",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/logout.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/logout.png",
+      "beforeSha256": "ec278ae45ac96d4e6499127a9c069a5b49986e46eb109c6333497247ac024deb",
+      "afterSha256": "ec278ae45ac96d4e6499127a9c069a5b49986e46eb109c6333497247ac024deb",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ec278ae45ac96d4e6499127a9c069a5b49986e46eb109c6333497247ac024deb",
+            "ec278ae45ac96d4e6499127a9c069a5b49986e46eb109c6333497247ac024deb"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "ec278ae45ac96d4e6499127a9c069a5b49986e46eb109c6333497247ac024deb",
+            "ec278ae45ac96d4e6499127a9c069a5b49986e46eb109c6333497247ac024deb"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:network",
+      "route": "/network",
+      "state": "Network",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/network.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/network.png",
+      "beforeSha256": "e60b8a547b61682ab75b1717ee1d157f8f14f63af7f6db3c174d60520ed54133",
+      "afterSha256": "e60b8a547b61682ab75b1717ee1d157f8f14f63af7f6db3c174d60520ed54133",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "e60b8a547b61682ab75b1717ee1d157f8f14f63af7f6db3c174d60520ed54133",
+            "e60b8a547b61682ab75b1717ee1d157f8f14f63af7f6db3c174d60520ed54133"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "e60b8a547b61682ab75b1717ee1d157f8f14f63af7f6db3c174d60520ed54133",
+            "e60b8a547b61682ab75b1717ee1d157f8f14f63af7f6db3c174d60520ed54133"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:oem",
+      "route": "/oem",
+      "state": "OEM Engine direct route",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/oem.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/oem.png",
+      "beforeSha256": "e3027de95152fbfc2ab0fcd48caa495204a0fc5a6f21be20b5bd2813a2ca089c",
+      "afterSha256": "e3027de95152fbfc2ab0fcd48caa495204a0fc5a6f21be20b5bd2813a2ca089c",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "e3027de95152fbfc2ab0fcd48caa495204a0fc5a6f21be20b5bd2813a2ca089c",
+            "e3027de95152fbfc2ab0fcd48caa495204a0fc5a6f21be20b5bd2813a2ca089c"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "e3027de95152fbfc2ab0fcd48caa495204a0fc5a6f21be20b5bd2813a2ca089c",
+            "e3027de95152fbfc2ab0fcd48caa495204a0fc5a6f21be20b5bd2813a2ca089c"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:overview",
+      "route": "/",
+      "state": "Overview",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/overview.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/overview.png",
+      "beforeSha256": "b292000bf72f1fdfca1f6cc9fdc62e58882e4a0ce78db7bfe853a86e76f28601",
+      "afterSha256": "b292000bf72f1fdfca1f6cc9fdc62e58882e4a0ce78db7bfe853a86e76f28601",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "b292000bf72f1fdfca1f6cc9fdc62e58882e4a0ce78db7bfe853a86e76f28601",
+            "b292000bf72f1fdfca1f6cc9fdc62e58882e4a0ce78db7bfe853a86e76f28601"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "b292000bf72f1fdfca1f6cc9fdc62e58882e4a0ce78db7bfe853a86e76f28601",
+            "b292000bf72f1fdfca1f6cc9fdc62e58882e4a0ce78db7bfe853a86e76f28601"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:reports",
+      "route": "/reports",
+      "state": "Reports (no active export)",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/reports.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/reports.png",
+      "beforeSha256": "66c155e87e742c8db99b202ae1880c048548d9c7308f144e3f4311b9772fe10b",
+      "afterSha256": "66c155e87e742c8db99b202ae1880c048548d9c7308f144e3f4311b9772fe10b",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": "no export job active",
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": "no export job active",
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "66c155e87e742c8db99b202ae1880c048548d9c7308f144e3f4311b9772fe10b",
+            "66c155e87e742c8db99b202ae1880c048548d9c7308f144e3f4311b9772fe10b"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "66c155e87e742c8db99b202ae1880c048548d9c7308f144e3f4311b9772fe10b",
+            "66c155e87e742c8db99b202ae1880c048548d9c7308f144e3f4311b9772fe10b"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:settings",
+      "route": "/settings",
+      "state": "Settings",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/settings.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/settings.png",
+      "beforeSha256": "5524924d7c71b68a72db6df015352c07cafb77f560f0634b2fdcd93072acc119",
+      "afterSha256": "5524924d7c71b68a72db6df015352c07cafb77f560f0634b2fdcd93072acc119",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "5524924d7c71b68a72db6df015352c07cafb77f560f0634b2fdcd93072acc119",
+            "5524924d7c71b68a72db6df015352c07cafb77f560f0634b2fdcd93072acc119"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "5524924d7c71b68a72db6df015352c07cafb77f560f0634b2fdcd93072acc119",
+            "5524924d7c71b68a72db6df015352c07cafb77f560f0634b2fdcd93072acc119"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:signup",
+      "route": "/signup",
+      "state": "Login component signup route",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/signup.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/signup.png",
+      "beforeSha256": "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+      "afterSha256": "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+            "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+            "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:sources",
+      "route": "/sources",
+      "state": "Sources",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/sources.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/sources.png",
+      "beforeSha256": "f51baf90821f3728fdda3d07da83b69282678cc4f501645ab6edf59012331e71",
+      "afterSha256": "f51baf90821f3728fdda3d07da83b69282678cc4f501645ab6edf59012331e71",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "f51baf90821f3728fdda3d07da83b69282678cc4f501645ab6edf59012331e71",
+            "f51baf90821f3728fdda3d07da83b69282678cc4f501645ab6edf59012331e71"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "f51baf90821f3728fdda3d07da83b69282678cc4f501645ab6edf59012331e71",
+            "f51baf90821f3728fdda3d07da83b69282678cc4f501645ab6edf59012331e71"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:threat-intel",
+      "route": "/threat-intel",
+      "state": "ThreatIntel legacy wrapper",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/threat-intel.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/threat-intel.png",
+      "beforeSha256": "06c32d44dcca69090ec3baeed36aa4b3a5a6432f3f2a6f175cccf934e26b1612",
+      "afterSha256": "06c32d44dcca69090ec3baeed36aa4b3a5a6432f3f2a6f175cccf934e26b1612",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [],
+          "activeDuringCapture": false,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "06c32d44dcca69090ec3baeed36aa4b3a5a6432f3f2a6f175cccf934e26b1612",
+            "06c32d44dcca69090ec3baeed36aa4b3a5a6432f3f2a6f175cccf934e26b1612"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "06c32d44dcca69090ec3baeed36aa4b3a5a6432f3f2a6f175cccf934e26b1612",
+            "06c32d44dcca69090ec3baeed36aa4b3a5a6432f3f2a6f175cccf934e26b1612"
+          ],
+          "intervalMs": 200
+        }
+      }
+    },
+    {
+      "id": "light:vulnerabilities",
+      "route": "/vulnerabilities",
+      "state": "Network vulnerabilities tab alias",
+      "theme": "light",
+      "beforeFile": "docs/STAGE_F_REPORTS/G0-evidence/before-local/light/vulnerabilities.png",
+      "afterFile": "docs/STAGE_F_REPORTS/G0-evidence/after/light/vulnerabilities.png",
+      "beforeSha256": "83db42b0001b41e6209f55b8a823effba16c90b0c718a97ae15cca12da937e53",
+      "afterSha256": "83db42b0001b41e6209f55b8a823effba16c90b0c718a97ae15cca12da937e53",
+      "beforeCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "afterCommit": "987830a5fd0f3645fe65a4c1c645fbac4f597e82",
+      "dimensionsMatch": true,
+      "dimensions": "1500x1000",
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "maxChannelDelta": 0,
+      "changedBounds": null,
+      "identical": true,
+      "shaIdentical": true,
+      "diffOverlay": null,
+      "deliberateDelta": null,
+      "dynamicRegions": {
+        "before": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        },
+        "after": {
+          "pollingIntervalsMs": [
+            3000,
+            5000
+          ],
+          "activeDuringCapture": true,
+          "preCapturePollWaitMs": 0,
+          "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+        }
+      },
+      "stability": {
+        "before": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "83db42b0001b41e6209f55b8a823effba16c90b0c718a97ae15cca12da937e53",
+            "83db42b0001b41e6209f55b8a823effba16c90b0c718a97ae15cca12da937e53"
+          ],
+          "intervalMs": 200
+        },
+        "after": {
+          "exact": true,
+          "attempts": 2,
+          "sha256Attempts": [
+            "83db42b0001b41e6209f55b8a823effba16c90b0c718a97ae15cca12da937e53",
+            "83db42b0001b41e6209f55b8a823effba16c90b0c718a97ae15cca12da937e53"
+          ],
+          "intervalMs": 200
+        }
+      }
+    }
+  ]
+}

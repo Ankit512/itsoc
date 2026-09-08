@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g0-token-guard-mutation-proof",
+  "suites": [
+    "src/test/design-tokens.test.ts",
+    "src/test/shadow-tokens.test.tsx",
+    "src/test/c4-themes.test.tsx"
+  ],
+  "baselineGreenBeforeMutations": true,
+  "restoredGreenAfterMutations": true,
+  "allGuardsFired": true,
+  "mutations": [
+    {
+      "mutation": "alias-duplicated-per-theme",
+      "intent": "Re-introduce the exact bug this card fixed: a second --bg declaration inside the light theme block.",
+      "file": "web/src/styles/itsoc.css",
+      "applied": true,
+      "guardFired": true,
+      "exitCode": 1,
+      "failingOutput": [
+        "\u2192 legacy aliases must flow legacy -> semantic, never semantic -> legacy/raw: expected [ Array(1) ] to deeply equal []",
+        "Test Files  1 failed | 2 passed (3)",
+        "Tests  1 failed | 22 passed (23)",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > keeps every legacy name as a one-way alias to its canonical semantic role",
+        "AssertionError: legacy aliases must flow legacy -> semantic, never semantic -> legacy/raw: expected [ Array(1) ] to deeply equal []"
+      ]
+    },
+    {
+      "mutation": "theme-role-parity-broken",
+      "intent": "Delete --severity-info from the light theme only, so the two themes no longer state the same taxonomy.",
+      "file": "web/src/styles/itsoc.css",
+      "applied": true,
+      "guardFired": true,
+      "exitCode": 1,
+      "failingOutput": [
+        "\u2192 Token --info does not resolve to a role present in both themes: expected false to be true // Object.is equality",
+        "\u2192 canonical theme contract violations: expected [ \u2026(2) ] to deeply equal []",
+        "Test Files  2 failed | 1 passed (3)",
+        "Tests  2 failed | 21 passed (23)",
+        "FAIL  src/test/c4-themes.test.tsx > Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r) > Check 2: Symmetrical Theme Token Definition (Dark & Light) > every required color / surface token resolves through a role defined in both themes",
+        "AssertionError: Token --info does not resolve to a role present in both themes: expected false to be true // Object.is equality",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > defines the complete canonical role set exactly once in both themes",
+        "AssertionError: canonical theme contract violations: expected [ \u2026(2) ] to deeply equal []"
+      ]
+    },
+    {
+      "mutation": "alias-direction-reversed",
+      "intent": "Point a canonical semantic role BACK at a legacy name, inverting the dependency the registry depends on.",
+      "file": "web/src/styles/itsoc.css",
+      "applied": true,
+      "guardFired": true,
+      "exitCode": 1,
+      "failingOutput": [
+        "\u2192 legacy aliases must flow legacy -> semantic, never semantic -> legacy/raw: expected [ Array(1) ] to deeply equal []",
+        "\u2192 custom-property alias cycles: expected [ Array(1) ] to deeply equal []",
+        "Test Files  1 failed | 2 passed (3)",
+        "Tests  2 failed | 21 passed (23)",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > keeps every legacy name as a one-way alias to its canonical semantic role",
+        "AssertionError: legacy aliases must flow legacy -> semantic, never semantic -> legacy/raw: expected [ Array(1) ] to deeply equal []",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > has no custom-property dependency cycles",
+        "AssertionError: custom-property alias cycles: expected [ Array(1) ] to deeply equal []"
+      ]
+    },
+    {
+      "mutation": "shared-scale-moved-into-theme",
+      "intent": "Move a spacing step off bare :root into the dark theme block, making a theme-invariant primitive theme-dependent.",
+      "file": "web/src/styles/itsoc.css",
+      "applied": true,
+      "guardFired": true,
+      "exitCode": 1,
+      "failingOutput": [
+        "\u2192 shared scale contract violations: expected [ Array(1) ] to deeply equal []",
+        "Test Files  1 failed | 2 passed (3)",
+        "Tests  1 failed | 22 passed (23)",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > defines shared typography, spacing, and shape scales once on bare :root",
+        "AssertionError: shared scale contract violations: expected [ Array(1) ] to deeply equal []"
+      ]
+    },
+    {
+      "mutation": "severity-collapsed-into-status",
+      "intent": "Repaint the high-severity verdict role by pointing the warning STATUS alias at it \u2014 the exact confusion the split prevents.",
+      "file": "web/src/styles/itsoc.css",
+      "applied": true,
+      "guardFired": true,
+      "exitCode": 1,
+      "failingOutput": [
+        "\u2192 expected [ '--severity-high' ] to deeply equal [ '--status-warning' ]",
+        "\u2192 legacy aliases must flow legacy -> semantic, never semantic -> legacy/raw: expected [ Array(1) ] to deeply equal []",
+        "\u2192 expected '--severity-high' to be '--status-warning' // Object.is equality",
+        "Test Files  2 failed | 1 passed (3)",
+        "Tests  3 failed | 20 passed (23)",
+        "FAIL  src/test/c4-themes.test.tsx > Both-Themes Acceptance for C4 Components (CARD C4-A1 & C4-A1r) > Check 3: Semantic Palette Confinement (Failed Audit Entries Only) > keeps warning/advisory status separate from the high-severity verdict role",
+        "AssertionError: expected [ '--severity-high' ] to deeply equal [ '--status-warning' ]",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > keeps every legacy name as a one-way alias to its canonical semantic role",
+        "AssertionError: legacy aliases must flow legacy -> semantic, never semantic -> legacy/raw: expected [ Array(1) ] to deeply equal []",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > keeps warning status semantically distinct from high severity even when values coincide",
+        "AssertionError: expected '--severity-high' to be '--status-warning' // Object.is equality"
+      ]
+    },
+    {
+      "mutation": "adapter-owns-a-literal",
+      "intent": "Give index.css a literal value again, recreating the second competing theme system.",
+      "file": "web/src/index.css",
+      "applied": true,
+      "guardFired": true,
+      "exitCode": 1,
+      "failingOutput": [
+        "\u2192 Tailwind adapter contract violations: expected [ Array(1) ] to deeply equal []",
+        "Test Files  1 failed | 2 passed (3)",
+        "Tests  1 failed | 22 passed (23)",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > preserves Tailwind's HSL channel API as aliases without a second palette",
+        "AssertionError: Tailwind adapter contract violations: expected [ Array(1) ] to deeply equal []"
+      ]
+    },
+    {
+      "mutation": "legacy-shadow-second-owner",
+      "intent": "Re-add a competing --shadow owner in index.css, the dead declaration this card removed.",
+      "file": "web/src/index.css",
+      "applied": true,
+      "guardFired": true,
+      "exitCode": 1,
+      "failingOutput": [
+        "\u2192 legacy aliases must flow legacy -> semantic, never semantic -> legacy/raw: expected [ \u2026(3) ] to deeply equal []",
+        "\u2192 Tailwind adapter contract violations: expected [ Array(1) ] to deeply equal []",
+        "\u2192 --shadow must not have a competing index.css owner: expected [ '0 1px 2px rgba(0,0,0,0.3)' ] to deeply equal []",
+        "Test Files  2 failed | 1 passed (3)",
+        "Tests  3 failed | 20 passed (23)",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > keeps every legacy name as a one-way alias to its canonical semantic role",
+        "AssertionError: legacy aliases must flow legacy -> semantic, never semantic -> legacy/raw: expected [ \u2026(3) ] to deeply equal []",
+        "FAIL  src/test/design-tokens.test.ts > G0 semantic design-token source contract > preserves Tailwind's HSL channel API as aliases without a second palette",
+        "AssertionError: Tailwind adapter contract violations: expected [ Array(1) ] to deeply equal []",
+        "FAIL  src/test/shadow-tokens.test.tsx > Elevation is tokenised, in both themes > gives legacy shadow aliases one authoritative owner",
+        "AssertionError: --shadow must not have a competing index.css owner: expected [ '0 1px 2px rgba(0,0,0,0.3)' ] to deeply equal []"
+      ]
+    }
+  ]
+}

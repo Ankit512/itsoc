@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g0-visual-diff-annotations",
+  "note": "An entry may be annotated ONLY with evidence that the delta is not attributable to the change under test. Each annotation names the control comparison that proves it.",
+  "annotations": {
+    "dark:integrations": {
+      "classification": "renderer non-determinism, not attributable to the CSS change",
+      "changedPixels": 11,
+      "maxChannelDelta": 3,
+      "evidence": [
+        "A control capture (after-repeat) photographed the SAME post-change CSS a second time, with identical viewport, locale, timezone, Chrome build and run data.",
+        "after vs after-repeat reproduces the SAME 11 pixel coordinates with the same bounds, so the delta appears with no CSS change at all.",
+        "before-local/dark/integrations.png and after-repeat/dark/integrations.png are BYTE-IDENTICAL (sha256 78de89d8f05f4ee996b066b04489edaae903351ed52c70f92775bdee2132ada8) despite being built from different CSS. The route renders in one of two states; which state a run lands in is independent of the stylesheet.",
+        "Every difference is +/-1 to +/-3 on a single channel at an antialiased gradient edge; no token value, geometry or layout moved."
+      ],
+      "controlInventory": "docs/STAGE_F_REPORTS/G0-evidence/visual-noise-control.json",
+      "handling": "Identified and reported, never masked and never restaged. The pixels are left in the capture exactly as the browser produced them."
+    }
+  }
+}

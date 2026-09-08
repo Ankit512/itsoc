@@ -102,6 +102,17 @@ function parseArgs(argv) {
   return out;
 }
 
+// Every image this run writes must land under its OWN label directory. Without
+// this, a mislabelled path silently overwrites the other side's committed
+// evidence and the resulting "diff" compares a capture against itself.
+function writeEvidence(relativeFile, buffer) {
+  const prefix = `docs/STAGE_F_REPORTS/G0-evidence/${LABEL}/`;
+  if (!relativeFile.startsWith(prefix)) {
+    throw new Error(`Refusing to write outside the ${LABEL} evidence tree: ${relativeFile}`);
+  }
+  writeFileSync(path.join(REPO_ROOT, relativeFile), buffer);
+}
+
 function sha256(input) {
   return createHash("sha256").update(input).digest("hex");
 }
@@ -712,9 +723,9 @@ async function main() {
             throw new Error(`Unexpected image size at ${route.route}: ${info.width}x${info.height}`);
           }
           const relativeFile = path.posix.join(
-            "docs/STAGE_F_REPORTS/G0-evidence/baseline", theme, `${route.slug}.png`,
+            `docs/STAGE_F_REPORTS/G0-evidence/${LABEL}`, theme, `${route.slug}.png`,
           );
-          writeFileSync(path.join(REPO_ROOT, relativeFile), captured.buffer);
+          writeEvidence(relativeFile, captured.buffer);
 
           captures.push({
             id: `${theme}:${route.slug}`,
@@ -752,9 +763,9 @@ async function main() {
             const repeated = await stableScreenshot(cdp, page.sessionId);
             if (!repeated.exact) throw new Error(`Repeat ${theme} ${route.route} did not stabilize`);
             const relativeRepeat = path.posix.join(
-              "docs/STAGE_F_REPORTS/G0-evidence/baseline/stability", theme, `${route.slug}-repeat.png`,
+              `docs/STAGE_F_REPORTS/G0-evidence/${LABEL}/stability`, theme, `${route.slug}-repeat.png`,
             );
-            writeFileSync(path.join(REPO_ROOT, relativeRepeat), repeated.buffer);
+            writeEvidence(relativeRepeat, repeated.buffer);
             const diff = pixelDiff(captured.buffer, repeated.buffer);
             stabilityProofs.push({
               route: route.route,
@@ -821,7 +832,17 @@ async function main() {
         expectedCommit: args.expectedCommit,
         branch,
         baseAncestryVerified: true,
-        photographedTreeArtifacts: requiredTreePaths,
+        // The WORKING TREE is what vite builds and Chrome photographs, which is
+        // not necessarily what `commit` points at. Recording each artifact's
+        // actual sha256 makes an A/B run self-describing: a "before CSS in the
+        // after worktree" capture is then provable, not asserted.
+        photographedTreeArtifacts: requiredTreePaths.map((file) => ({
+          path: file,
+          sha256: fileSha(path.join(REPO_ROOT, file)),
+        })),
+        // Non-empty means the tree differs from `commit`; the hashes above then
+        // say exactly what was photographed.
+        workingTreeDirtyPaths: git("status", "--porcelain").split("\n").filter(Boolean),
       },
       detector: { path: "anomaly_detector.py", sha256: detectorSha, expectedSha256: DETECTOR_SHA256, matchesFreeze: true },
       reportProvenance: {
