@@ -3,86 +3,100 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   Tailwind/shadcn plumbing ONLY. The AUTHORITATIVE design tokens live in
-   src/styles/itsoc.css (DESIGN_HANDOFF golden rule) — it owns --bg/--pan/
-   --pan2/--bd/--ink/--mut/--acc/--crit/--high/--med/--low for both themes,
-   and every is-* component reads them. This file must NOT redefine those
-   names (no competing/dead token block).
+   Tailwind/shadcn COMPATIBILITY ADAPTER. This file owns no values.
 
-   What stays here: the shadcn-style hsl TRIPLETS (--background, --card,
-   --primary, --border, …) that Tailwind utilities compile to `hsl(var(--x))`.
-   Not-yet-rebuilt page interiors still use those utilities, so their VALUES
-   are kept in lock-step with the itsoc.css palette (both themes) — the two
-   render identically until each page is migrated to is-* classes. Each block
-   answers to BOTH the `dark` class (tailwind darkMode:"class") and the
-   `data-theme` attribute; the theme store stamps the two in sync.
+   The authoritative token registry is src/styles/itsoc.css (DESIGN_HANDOFF
+   golden rule): it declares the semantic roles — surface / text / border /
+   action / status / severity / elevation — once per theme, and every name
+   below is an alias onto one of them. Change a colour there; nothing here
+   needs to move. A literal value appearing in this file is a bug: it would
+   recreate the second, competing theme system this adapter replaced.
 
-   Severity stays as raw --sev-* values (charts read them via
+   Why the aliases are hsl CHANNELS and not colours: Tailwind's mappings in
+   tailwind.config.ts compile to `hsl(var(--background))`, so these names must
+   hold `H S% L%` triplets, never a hex. The registry therefore publishes both
+   forms of each role, and the pairing is exact for background/canvas,
+   foreground/text-primary, card/panel, muted/raised, border/subtle and input.
+
+   Two pairs are NOT exact, and are aliased to deliberately-named --compat-*
+   channels so nobody "tidies" them into the matching semantic role:
+     --primary / --ring   249 84% 65.1% renders 114,91,241, while --acc renders
+                          109,92,240. Unifying them would move pixels.
+     --muted-foreground   dark 240 5% 57.8% renders 142,142,153, while --mut
+                          renders 143,143,152 — one channel apart.
+   Both are real, measured drifts inherited from the two hand-kept systems.
+   They are preserved here on purpose and are the right subject of a later card
+   that ships a visual diff, not something to resolve silently in a foundation.
+
+   Elevation: --shadow used to be declared BOTH here and (unlayered) in
+   itsoc.css. Unlayered declarations beat @layer base ones regardless of import
+   order, so this file's two-layer value never rendered — `shadow-card` was
+   already painting the itsoc.css shell shadow. That dead declaration is gone
+   and --shadow now aliases --elevation-card, which carries exactly the value
+   that was rendering. One owner, same pixels.
+
+   Both theme blocks below are intentionally identical: an alias resolves
+   against whichever theme the registry has active, so the theme split is no
+   longer this file's job. The blocks are kept apart because
+   shadow-tokens.test.tsx asserts a light and a dark definition of each
+   elevation name; collapsing them is a test migration, not a style change.
+
+   Severity stays reachable as raw --sev-* values (charts read them via
    style="fill:var(--sev-*)"; CSS var() is invalid in SVG presentation
-   attributes, so never fill="var()"), matched to itsoc.css --crit/high/med/low.
-   Color is never the only signal: severity names/counts render as text too.
+   attributes, so never fill="var()"). Colour is never the only signal:
+   severity names and counts render as text too.
    ========================================================================== */
 @layer base {
   :root,
   [data-theme="light"] {
-    /* shadcn hsl plumbing that Tailwind utilities need — VALUES track the
-       authoritative itsoc-design-system.css palette (light) so Tailwind-styled
-       page interiors match the is-* shell exactly. The §2 --bg/--pan/--acc/
-       --crit tokens themselves are owned by itsoc.css (single source). */
-    --background: 240 20% 98.6%;      /* bg  #fbfbfc */
-    --foreground: 240 6% 10%;         /* ink #18181b */
-    --card: 0 0% 100%;                /* pan  #ffffff */
-    --card-foreground: 240 6% 10%;
-    --muted: 240 12% 95.1%;           /* pan2 #f1f1f4 */
-    --muted-foreground: 240 3.8% 46.1%;  /* mut #71717a */
-    --primary: 249 84% 65.1%;         /* acc #6d5cf0 */
-    --primary-foreground: 0 0% 100%;
-    --accent: 249 84% 96%;            /* accent tint for active nav */
-    --accent-foreground: 249 75% 45%; /* accent shade, readable on the tint */
-    --border: 240 8% 93.1%;           /* bd  #ececef */
-    --input: 240 8% 93.1%;
-    --ring: 249 84% 65.1%;
+    --background: var(--surface-canvas-hsl);
+    --foreground: var(--text-primary-hsl);
+    --card: var(--surface-panel-hsl);
+    --card-foreground: var(--text-primary-hsl);
+    --muted: var(--surface-raised-hsl);
+    --muted-foreground: var(--compat-text-muted-hsl);
+    --primary: var(--compat-action-primary-hsl);
+    --primary-foreground: var(--text-on-action-hsl);
+    --accent: var(--control-selected-hsl);
+    --accent-foreground: var(--text-on-selected-hsl);
+    --border: var(--border-subtle-hsl);
+    --input: var(--border-input-hsl);
+    --ring: var(--compat-action-primary-hsl);
 
-    /* charts read severity via style="fill:var(--sev-*)"; match itsoc.css.
-       v3 uses one severity set across BOTH themes. */
-    --sev-critical: #f26d78;
-    --sev-high: #f0a54a;
-    --sev-medium: #d3b23a;
-    --sev-low: #3ecf8e;
+    --sev-critical: var(--severity-critical);
+    --sev-high: var(--severity-high);
+    --sev-medium: var(--severity-medium);
+    --sev-low: var(--severity-low);
 
-    --shadow: 0 1px 2px rgba(26, 32, 51, 0.06), 0 4px 14px rgba(26, 32, 51, 0.06);
-    /* Elevation above --shadow. Light values are the exact literals these
-       replaced, so light theme is pixel-identical; dark gets a black-based
-       equivalent instead of a navy shadow that reads wrong on a dark ground. */
-    --shadow-pop: 0 12px 32px -8px rgba(26, 32, 51, 0.28);
-    --shadow-modal: 0 24px 64px -12px rgba(26, 32, 51, 0.45);
+    --shadow: var(--elevation-card);
+    --shadow-pop: var(--elevation-popover);
+    --shadow-modal: var(--elevation-modal);
   }
 
   .dark,
   [data-theme="dark"] {
-    /* Dark plumbing — VALUES track itsoc-design-system.css (dark). */
-    --background: 240 10% 3.9%;       /* bg  #09090b */
-    --foreground: 240 9% 93.5%;       /* ink #ededf0 */
-    --card: 240 13% 6.3%;             /* pan  #0e0e12 */
-    --card-foreground: 240 9% 93.5%;
-    --muted: 240 10% 10%;             /* pan2 #17171c */
-    --muted-foreground: 240 5% 57.8%; /* mut #8f8f98 */
-    --primary: 249 100% 74.3%;        /* acc #8b7cff */
-    --primary-foreground: 0 0% 100%;
-    --accent: 249 28% 28%;            /* accent tint for active nav */
-    --accent-foreground: 249 91% 83%; /* accent shade, readable on the tint */
-    --border: 240 9% 12.9%;           /* bd  #1e1e24 */
-    --input: 240 9% 12.9%;
-    --ring: 249 100% 74.3%;
+    --background: var(--surface-canvas-hsl);
+    --foreground: var(--text-primary-hsl);
+    --card: var(--surface-panel-hsl);
+    --card-foreground: var(--text-primary-hsl);
+    --muted: var(--surface-raised-hsl);
+    --muted-foreground: var(--compat-text-muted-hsl);
+    --primary: var(--compat-action-primary-hsl);
+    --primary-foreground: var(--text-on-action-hsl);
+    --accent: var(--control-selected-hsl);
+    --accent-foreground: var(--text-on-selected-hsl);
+    --border: var(--border-subtle-hsl);
+    --input: var(--border-input-hsl);
+    --ring: var(--compat-action-primary-hsl);
 
-    --sev-critical: #f26d78;
-    --sev-high: #f0a54a;
-    --sev-medium: #d3b23a;
-    --sev-low: #3ecf8e;
+    --sev-critical: var(--severity-critical);
+    --sev-high: var(--severity-high);
+    --sev-medium: var(--severity-medium);
+    --sev-low: var(--severity-low);
 
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.3);
-    --shadow-pop: 0 12px 32px -8px rgba(0, 0, 0, 0.55);
-    --shadow-modal: 0 24px 64px -12px rgba(0, 0, 0, 0.7);
+    --shadow: var(--elevation-card);
+    --shadow-pop: var(--elevation-popover);
+    --shadow-modal: var(--elevation-modal);
   }
 
   * { @apply border-border; }

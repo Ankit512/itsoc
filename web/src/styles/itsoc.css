@@ -19,31 +19,210 @@
 @font-face{ font-family:'Geist Mono'; font-style:normal; font-weight:400 600; font-display:swap; src:url('/fonts/geist-mono-latin.woff2') format('woff2'); }
 
 /* ---- 1. TOKENS ------------------------------------------------------------ */
-/* Reconciled to Design v3 (itsoc_console_v3.dc.html). Note the semantics:
-   --pan2 is a LIGHTER raised/hover tint (row hovers); --inset is a RECESSED
-   surface (evidence/blocks/inputs); --track/--fill are chart rails. The
-   sidebar/rail use --pan (panel), matching v3 — never --pan2. */
+/* ONE authoritative registry for the whole product. Everything that renders —
+   the is-* shell here, and the Tailwind utilities in index.css — resolves
+   through the three tiers below, in this order:
+
+     1.1  Shared scales   theme-invariant type, space and shape steps, stated
+                          once on bare :root because no theme varies them.
+     1.2  Semantic roles  the per-theme surface / text / border / action /
+                          status / severity / elevation vocabulary. New code
+                          writes these names.
+     1.3  Compatibility   every historical spelling (--bg, --ink, --crit,
+                          --radius, --shadow ...) as a thin alias. index.css
+                          holds the matching Tailwind hsl channel aliases and
+                          owns no values of its own.
+
+   The rules that keep this file a system rather than a pile:
+     - A compatibility name is an ALIAS. It never carries a value of its own,
+       so there is exactly one place to change a colour.
+     - Roles that merely happen to share a value stay separate roles. Severity
+       and status are the standing example: --severity-high and --status-warning
+       are the same orange today, and must still be repaintable independently
+       tomorrow. Never point one at the other.
+     - Every value here is the exact value this tree already rendered. Rounding
+       10.5px to 10px, or 7px to 8px, is a visual change: it belongs in a card
+       that ships a pixel diff, not in the foundation.
+     - Colour appears in two forms on purpose. The hex form is what the is-*
+       shell reads; the "-hsl" channel form is what Tailwind's hsl(var(--x))
+       utilities need. They are separate compatibility surfaces, not a
+       duplicated value — see the --compat-* notes in 1.2, where the two forms
+       genuinely differ today.
+
+   Design v3 semantics, unchanged: --pan2 is a LIGHTER raised/hover tint (row
+   hovers), --inset is a RECESSED surface (evidence/blocks/inputs), --track and
+   --fill are chart rails. The sidebar/rail use --pan (panel) — never --pan2. */
+
+/* ---- 1.1 SHARED SCALES --------------------------------------------------- */
+:root{
+  /* Type families. */
+  --font-family-sans:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;
+  --font-family-mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  /* Type sizes — the 21 exact sizes this stylesheet already uses, named by the
+     role they play. A dense console reads at 9.5-13px; the display steps are
+     KPI numerals and page titles. Nothing here is rounded to a nicer ladder. */
+  --type-caption-2xs:8.5px; --type-caption-xs:9px; --type-caption-sm:9.5px;
+  --type-caption:10px; --type-label:10.5px; --type-label-lg:11px;
+  --type-body-xs:11.5px; --type-body-sm:12px; --type-body-md:12.5px;
+  --type-body:13px; --type-body-lg:13.5px;
+  --type-title-xs:14px; --type-title-sm:15px; --type-title:16px;
+  --type-title-lg:17px; --type-title-xl:18px;
+  --type-display-xs:19px; --type-display-sm:20px; --type-display:22px;
+  --type-display-lg:26px; --type-display-xl:32px;
+
+  /* Line heights, tightest to airiest. */
+  --type-leading-tight:1.15; --type-leading-snug:1.25; --type-leading-compact:1.3;
+  --type-leading-heading:1.35; --type-leading-normal:1.4; --type-leading-relaxed:1.45;
+  --type-leading-body:1.5; --type-leading-prose:1.55; --type-leading-loose:1.6;
+  --type-leading-airy:1.7;
+
+  /* Weights. Geist is a variable face over 400-700. */
+  --type-weight-regular:400; --type-weight-medium:500; --type-weight-strong:550;
+  --type-weight-semibold:600; --type-weight-display:650; --type-weight-bold:700;
+
+  /* Tracking. Negative for large type, positive for the uppercase captions. */
+  --type-tracking-tightest:-.03em; --type-tracking-tighter:-.025em;
+  --type-tracking-tight:-.02em; --type-tracking-snug:-.015em;
+  --type-tracking-slight:-.01em; --type-tracking-flat:0;
+  --type-tracking-hair:.01em; --type-tracking-micro:.02em; --type-tracking-xs:.03em;
+  --type-tracking-sm:.04em; --type-tracking-caps-sm:.05em; --type-tracking-caps:.06em;
+  --type-tracking-caps-md:.07em; --type-tracking-caps-lg:.08em;
+  --type-tracking-caps-xl:.09em;
+
+  /* Spacing. The suffix IS the pixel value, so --space-3 can never be misread
+     as "3 steps of 4px". These are the steps the stylesheet actually repeats;
+     genuine one-offs (15, 22, 26, 44, 64px) stay literal at their call site
+     rather than pretending to be scale steps. */
+  --space-1:1px; --space-2:2px; --space-3:3px; --space-4:4px; --space-5:5px;
+  --space-6:6px; --space-7:7px; --space-8:8px; --space-9:9px; --space-10:10px;
+  --space-11:11px; --space-12:12px; --space-13:13px; --space-14:14px;
+  --space-16:16px; --space-18:18px; --space-20:20px; --space-24:24px;
+  --space-28:28px; --space-32:32px;
+
+  /* Shape. The first four are the ladder; the rest are exact-purpose radii the
+     v3 design uses at one size only, kept rather than snapped to the ladder. */
+  --shape-radius-xs:4px; --shape-radius-sm:6px; --shape-radius-md:8px;
+  --shape-radius-lg:12px;
+  --shape-radius-hairline:2px; --shape-radius-micro:3px; --shape-radius-chip:5px;
+  --shape-radius-control:7px; --shape-radius-panel:9px; --shape-radius-card:10px;
+  --shape-radius-tip:14px; --shape-radius-pill:20px; --shape-radius-circle:50%;
+  --shape-radius-bubble-in:10px 10px 3px 10px;
+  --shape-radius-bubble-out:10px 10px 10px 3px;
+}
+
+/* ---- 1.2 SEMANTIC ROLES + 1.3 COMPATIBILITY ALIASES ---------------------- */
+/* Dark is the default, so it also answers to bare :root. Both blocks carry the
+   same role taxonomy in the same order — a role missing from one theme is a
+   bug, not a shorthand. */
 :root, [data-theme="dark"] {
-  --bg:#09090b; --pan:#0e0e12; --pan2:#17171c; --inset:#0b0b0f; --track:#1a1a20; --fill:#3f3f4a;
-  --bd:#1e1e24; --bd2:#2a2a31;
-  --ink:#ededf0; --ink2:#c9c9d1; --mut:#8f8f98; --mut2:#5c5c66;
-  --acc:#8b7cff; --acc-ink:#ffffff; --acc-weak:color-mix(in srgb,var(--acc) 16%,transparent);
-  --crit:#f26d78; --high:#f0a54a; --med:#d3b23a; --low:#3ecf8e; --info:#8f8f98;
-  --ok:#3ecf8e; --warn:#f0a54a; --danger:#f26d78;
-  --radius:6px; --radius-sm:6px; --radius-xs:4px;
-  --shadow:0 8px 30px rgba(0,0,0,.35);
-  --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  --sans:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;
+  /* Surfaces */
+  --surface-canvas:#09090b; --surface-panel:#0e0e12; --surface-raised:#17171c;
+  --surface-recessed:#0b0b0f; --surface-track:#1a1a20; --data-fill-neutral:#3f3f4a;
+  /* Borders */
+  --border-subtle:#1e1e24; --border-strong:#2a2a31; --border-input:#1e1e24;
+  /* Text */
+  --text-primary:#ededf0; --text-secondary:#c9c9d1; --text-muted:#8f8f98; --text-faint:#5c5c66;
+  --text-on-action:#ffffff; --text-on-danger:#ffffff; --text-on-severity:#ffffff;
+  /* Action and selection */
+  --action-primary:#8b7cff;
+  --action-primary-subtle:color-mix(in srgb,var(--action-primary) 16%,transparent);
+  --focus-ring-color:var(--action-primary);
+  --control-selected:hsl(var(--control-selected-hsl));
+  --text-on-selected:hsl(var(--text-on-selected-hsl));
+  /* Severity — these ARE the rule verdicts. Never repaint one to match a
+     status colour, and never let an advisory surface borrow them. */
+  --severity-critical:#f26d78; --severity-high:#f0a54a; --severity-medium:#d3b23a;
+  --severity-low:#3ecf8e; --severity-info:#8f8f98;
+  /* Status — advisory/system state. Deliberately distinct nodes from severity
+     even where the value is identical today. */
+  --status-success:#3ecf8e; --status-warning:#f0a54a; --status-danger:#f26d78;
+  /* Elevation and overlays. --elevation-card is the value that actually
+     rendered before this file owned it; see the note in index.css. The rail,
+     FAB and focus geometries used to be written inline at their call sites. */
+  --elevation-card:0 8px 30px rgba(0,0,0,.35);
+  --elevation-popover:0 12px 32px -8px rgba(0, 0, 0, 0.55);
+  --elevation-modal:0 24px 64px -12px rgba(0, 0, 0, 0.7);
+  --elevation-rail:0 20px 60px color-mix(in srgb,var(--text-primary) 17%,transparent);
+  --elevation-fab:0 10px 28px color-mix(in srgb,var(--text-primary) 20%,transparent);
+  --focus-ring:0 0 0 3px color-mix(in srgb,var(--focus-ring-color) 16%,transparent);
+  --overlay-scrim:color-mix(in srgb, #000 42%, transparent);
+  --overlay-palette:color-mix(in srgb, var(--surface-canvas) 40%, rgba(0,0,0,.58));
+  /* Tailwind hsl channels. Same roles, channel form, because the utilities
+     compile to hsl(var(--x)) and cannot take a hex. --compat-* names mark the
+     two pairs that do NOT render identically to their hex counterpart and are
+     therefore held apart on purpose rather than unified by assumption. */
+  --surface-canvas-hsl:240 10% 3.9%; --surface-panel-hsl:240 13% 6.3%;
+  --surface-raised-hsl:240 10% 10%; --text-primary-hsl:240 9% 93.5%;
+  --border-subtle-hsl:240 9% 12.9%; --border-input-hsl:240 9% 12.9%;
+  --text-on-action-hsl:0 0% 100%;
+  --control-selected-hsl:249 28% 28%; --text-on-selected-hsl:249 91% 83%;
+  --compat-action-primary-hsl:249 100% 74.3%;
+  --compat-text-muted-hsl:240 5% 57.8%;
+  /* 1.3 Compatibility aliases — historical spellings, no values of their own. */
+  --bg:var(--surface-canvas); --pan:var(--surface-panel); --pan2:var(--surface-raised);
+  --inset:var(--surface-recessed); --track:var(--surface-track); --fill:var(--data-fill-neutral);
+  --bd:var(--border-subtle); --bd2:var(--border-strong);
+  --ink:var(--text-primary); --ink2:var(--text-secondary);
+  --mut:var(--text-muted); --mut2:var(--text-faint);
+  --acc:var(--action-primary); --acc-ink:var(--text-on-action); --acc-weak:var(--action-primary-subtle);
+  --crit:var(--severity-critical); --high:var(--severity-high); --med:var(--severity-medium);
+  --low:var(--severity-low); --info:var(--severity-info);
+  --ok:var(--status-success); --warn:var(--status-warning); --danger:var(--status-danger);
+  --radius:var(--shape-radius-sm); --radius-sm:var(--shape-radius-sm); --radius-xs:var(--shape-radius-xs);
+  --shadow:var(--elevation-card);
+  --mono:var(--font-family-mono); --sans:var(--font-family-sans);
 }
 [data-theme="light"] {
-  --bg:#fbfbfc; --pan:#ffffff; --pan2:#f1f1f4; --inset:#f7f7f9; --track:#ececef; --fill:#c4c4cd;
-  --bd:#ececef; --bd2:#e0e0e5;
-  --ink:#18181b; --ink2:#3f3f46; --mut:#71717a; --mut2:#a1a1aa;
-  --acc:#6d5cf0; --acc-ink:#ffffff; --acc-weak:color-mix(in srgb,var(--acc) 12%,transparent);
-  --crit:#f26d78; --high:#f0a54a; --med:#d3b23a; --low:#3ecf8e; --info:#71717a;
-  --ok:#3ecf8e; --warn:#f0a54a; --danger:#f26d78;
-  --radius:6px; --radius-sm:6px; --radius-xs:4px;
-  --shadow:0 8px 30px rgba(20,24,40,.12);
+  /* Surfaces */
+  --surface-canvas:#fbfbfc; --surface-panel:#ffffff; --surface-raised:#f1f1f4;
+  --surface-recessed:#f7f7f9; --surface-track:#ececef; --data-fill-neutral:#c4c4cd;
+  /* Borders */
+  --border-subtle:#ececef; --border-strong:#e0e0e5; --border-input:#ececef;
+  /* Text */
+  --text-primary:#18181b; --text-secondary:#3f3f46; --text-muted:#71717a; --text-faint:#a1a1aa;
+  --text-on-action:#ffffff; --text-on-danger:#ffffff; --text-on-severity:#ffffff;
+  /* Action and selection */
+  --action-primary:#6d5cf0;
+  --action-primary-subtle:color-mix(in srgb,var(--action-primary) 12%,transparent);
+  --focus-ring-color:var(--action-primary);
+  --control-selected:hsl(var(--control-selected-hsl));
+  --text-on-selected:hsl(var(--text-on-selected-hsl));
+  /* Severity — one ramp across both themes, so a verdict colour never depends
+     on which theme the analyst happens to be in. */
+  --severity-critical:#f26d78; --severity-high:#f0a54a; --severity-medium:#d3b23a;
+  --severity-low:#3ecf8e; --severity-info:#71717a;
+  /* Status */
+  --status-success:#3ecf8e; --status-warning:#f0a54a; --status-danger:#f26d78;
+  /* Elevation and overlays */
+  --elevation-card:0 8px 30px rgba(20,24,40,.12);
+  --elevation-popover:0 12px 32px -8px rgba(26, 32, 51, 0.28);
+  --elevation-modal:0 24px 64px -12px rgba(26, 32, 51, 0.45);
+  --elevation-rail:0 20px 60px color-mix(in srgb,var(--text-primary) 17%,transparent);
+  --elevation-fab:0 10px 28px color-mix(in srgb,var(--text-primary) 20%,transparent);
+  --focus-ring:0 0 0 3px color-mix(in srgb,var(--focus-ring-color) 16%,transparent);
+  --overlay-scrim:color-mix(in srgb, #000 42%, transparent);
+  --overlay-palette:color-mix(in srgb, var(--surface-canvas) 40%, rgba(0,0,0,.58));
+  /* Tailwind hsl channels */
+  --surface-canvas-hsl:240 20% 98.6%; --surface-panel-hsl:0 0% 100%;
+  --surface-raised-hsl:240 12% 95.1%; --text-primary-hsl:240 6% 10%;
+  --border-subtle-hsl:240 8% 93.1%; --border-input-hsl:240 8% 93.1%;
+  --text-on-action-hsl:0 0% 100%;
+  --control-selected-hsl:249 84% 96%; --text-on-selected-hsl:249 75% 45%;
+  --compat-action-primary-hsl:249 84% 65.1%;
+  --compat-text-muted-hsl:240 3.8% 46.1%;
+  /* 1.3 Compatibility aliases */
+  --bg:var(--surface-canvas); --pan:var(--surface-panel); --pan2:var(--surface-raised);
+  --inset:var(--surface-recessed); --track:var(--surface-track); --fill:var(--data-fill-neutral);
+  --bd:var(--border-subtle); --bd2:var(--border-strong);
+  --ink:var(--text-primary); --ink2:var(--text-secondary);
+  --mut:var(--text-muted); --mut2:var(--text-faint);
+  --acc:var(--action-primary); --acc-ink:var(--text-on-action); --acc-weak:var(--action-primary-subtle);
+  --crit:var(--severity-critical); --high:var(--severity-high); --med:var(--severity-medium);
+  --low:var(--severity-low); --info:var(--severity-info);
+  --ok:var(--status-success); --warn:var(--status-warning); --danger:var(--status-danger);
+  --radius:var(--shape-radius-sm); --radius-sm:var(--shape-radius-sm); --radius-xs:var(--shape-radius-xs);
+  --shadow:var(--elevation-card);
 }
 
 /* ---- 2. BASE ------------------------------------------------------------- */
@@ -252,7 +431,7 @@
 .is-approval-auth{ display:flex; flex-direction:column; gap:12px; }
 .is-kbd{ font-family:var(--mono); font-size:10.5px; border:1px solid var(--bd); border-radius:5px; padding:1px 5px; color:var(--mut); }
 /* Overlay + modal — the sole design-system component granted a shadow. */
-.is-approval-overlay{ position:fixed; inset:0; z-index:60; display:flex; align-items:flex-start; justify-content:center; padding:12vh 16px 16px; background:color-mix(in srgb, #000 42%, transparent); }
+.is-approval-overlay{ position:fixed; inset:0; z-index:60; display:flex; align-items:flex-start; justify-content:center; padding:12vh 16px 16px; background:var(--overlay-scrim); }
 .is-approval-modal{ width:100%; max-width:540px; background:var(--pan); border:1px solid var(--bd2); border-radius:12px; box-shadow:var(--shadow); outline:none; overflow:hidden; }
 .is-approval-modal__h{ display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--bd); }
 .is-approval-modal__h h2{ font-size:14px; font-weight:650; margin:0; }
@@ -332,7 +511,7 @@
   position:fixed; inset:0; z-index:80;
   display:flex; justify-content:center; align-items:flex-start;
   padding:12vh 32px 32px;
-  background:color-mix(in srgb, var(--bg) 40%, rgba(0,0,0,.58));
+  background:var(--overlay-palette);
 }
 .is-palette{
   display:flex; flex-direction:column;
@@ -921,9 +1100,9 @@
 .is-btn:active,.is-icobtn:active{ transform:translateY(1px); }
 .is-btn:focus-visible,.is-icobtn:focus-visible,.is-side-search:focus-visible,.is-nav a:focus-visible{ outline:2px solid var(--acc); outline-offset:2px; }
 
-.is-rail-drawer{ right:20px; bottom:76px; width:min(420px,calc(100vw - 32px)); height:min(74vh,720px); max-height:calc(100dvh - 108px); border-radius:12px; box-shadow:0 20px 60px color-mix(in srgb,var(--ink) 17%,transparent); transform:translateY(8px) scale(.985); will-change:transform,opacity; }
+.is-rail-drawer{ right:20px; bottom:76px; width:min(420px,calc(100vw - 32px)); height:min(74vh,720px); max-height:calc(100dvh - 108px); border-radius:12px; box-shadow:var(--elevation-rail); transform:translateY(8px) scale(.985); will-change:transform,opacity; }
 .is-rail-drawer.open{ transform:translateY(0) scale(1); }
-.is-cop-fab{ right:22px; bottom:22px; width:46px; height:46px; border:1px solid color-mix(in srgb,var(--ink) 18%,var(--bd)); box-shadow:0 10px 28px color-mix(in srgb,var(--ink) 20%,transparent); transition:transform .16s ease,background .16s ease,color .16s ease; }
+.is-cop-fab{ right:22px; bottom:22px; width:46px; height:46px; border:1px solid color-mix(in srgb,var(--ink) 18%,var(--bd)); box-shadow:var(--elevation-fab); transition:transform .16s ease,background .16s ease,color .16s ease; }
 .is-cop-fab:hover{ transform:translateY(-2px); }
 
 .is-copilot-shell{ padding:15px; gap:10px; background:var(--pan); }
@@ -937,7 +1116,7 @@
 .is-copilot-next-actions{ border-radius:9px; padding:9px; }
 .is-copilot-composer{ margin-top:2px; padding-top:10px; background:var(--pan); }
 .is-copilot-composer textarea{ border:1px solid var(--bd2); border-radius:9px; background:var(--inset); box-shadow:none; transition:border-color .14s ease,box-shadow .14s ease; }
-.is-copilot-composer textarea:focus{ border-color:var(--acc); box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 16%,transparent); }
+.is-copilot-composer textarea:focus{ border-color:var(--acc); box-shadow:var(--focus-ring); }
 .is-copilot-composer button{ border-radius:9px; }
 
 .is-copilot-plan{ padding:2px 1px; }
