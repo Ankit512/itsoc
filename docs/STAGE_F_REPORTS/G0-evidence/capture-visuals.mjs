@@ -34,8 +34,17 @@ import { inflateSync } from "node:zlib";
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(SCRIPT_PATH), "../../..");
 const EVIDENCE_ROOT = path.dirname(SCRIPT_PATH);
-const BASELINE_ROOT = path.join(EVIDENCE_ROOT, "baseline");
-const MANIFEST_PATH = path.join(EVIDENCE_ROOT, "baseline-manifest.json");
+// --label selects which side of the comparison this run photographs. The
+// settings below are identical for both sides on purpose: an "after" run that
+// differed in viewport, locale, timezone or Chrome flags would produce a diff
+// that says nothing about the change under test.
+const LABEL = (() => {
+  const i = process.argv.indexOf("--label");
+  return i === -1 ? "baseline" : process.argv[i + 1];
+})();
+if (!/^[a-z][a-z0-9-]*$/.test(LABEL)) throw new Error(`--label must be a slug; got ${LABEL}`);
+const BASELINE_ROOT = path.join(EVIDENCE_ROOT, LABEL);
+const MANIFEST_PATH = path.join(EVIDENCE_ROOT, `${LABEL}-manifest.json`);
 const FIXTURE = "tests/eval/cases/pos_bruteforce_compromise.log";
 const DETECTOR_SHA256 = "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876";
 const VIEWPORT = { width: 1500, height: 1000, deviceScaleFactor: 1 };
@@ -79,10 +88,11 @@ const ROUTES = [
 ];
 
 function parseArgs(argv) {
-  const out = { expectedCommit: null, port: null };
+  const out = { expectedCommit: null, port: null, label: LABEL };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--expected-commit") out.expectedCommit = argv[++i];
     else if (argv[i] === "--port") out.port = Number(argv[++i]);
+    else if (argv[i] === "--label") i += 1; // consumed above, into LABEL
     else throw new Error(`Unknown argument: ${argv[i]}`);
   }
   if (!out.expectedCommit) throw new Error("--expected-commit is required");
@@ -803,7 +813,8 @@ async function main() {
 
     const manifest = {
       schemaVersion: 1,
-      kind: "itsoc-g0-before-change-production-visual-baseline",
+      kind: `itsoc-g0-${LABEL === "baseline" ? "before" : LABEL}-change-production-visual-capture`,
+      label: LABEL,
       generatedAt: new Date().toISOString(),
       source: {
         commit: sourceCommit,

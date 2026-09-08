@@ -28,27 +28,23 @@
    They are preserved here on purpose and are the right subject of a later card
    that ships a visual diff, not something to resolve silently in a foundation.
 
-   Elevation: --shadow used to be declared BOTH here and (unlayered) in
-   itsoc.css. Unlayered declarations beat @layer base ones regardless of import
-   order, so this file's two-layer value never rendered — `shadow-card` was
-   already painting the itsoc.css shell shadow. That dead declaration is gone
-   and --shadow now aliases --elevation-card, which carries exactly the value
-   that was rendering. One owner, same pixels.
+   ONE block, not two. This file used to carry a light block and a dark block
+   whose thirteen declarations were byte-identical, which is what a value-owning
+   theme system looks like — but an alias has no value to vary. It resolves
+   against whichever theme the registry has active on the same element (the
+   toggle sets data-theme on <html>, which is :root), so a per-theme copy could
+   only ever restate the same sentence twice. design-tokens.test.ts now asserts
+   exactly one declaration per adapter name, so the duplicate cannot return.
 
-   Both theme blocks below are intentionally identical: an alias resolves
-   against whichever theme the registry has active, so the theme split is no
-   longer this file's job. The blocks are kept apart because
-   shadow-tokens.test.tsx asserts a light and a dark definition of each
-   elevation name; collapsing them is a test migration, not a style change.
-
-   Severity stays reachable as raw --sev-* values (charts read them via
-   style="fill:var(--sev-*)"; CSS var() is invalid in SVG presentation
-   attributes, so never fill="var()"). Colour is never the only signal:
-   severity names and counts render as text too.
+   Severity and elevation moved OUT of this file to the registry's 1.3 alias
+   block. --sev-* stays reachable as raw colour because charts read it through
+   style="fill:var(--sev-*)" (CSS var() is invalid in an SVG presentation
+   attribute, so never fill="var()"), and --shadow* had a competing owner here;
+   both now have exactly one owner, in itsoc.css. Colour is never the only
+   signal: severity names and counts render as text too.
    ========================================================================== */
 @layer base {
-  :root,
-  [data-theme="light"] {
+  :root {
     --background: var(--surface-canvas-hsl);
     --foreground: var(--text-primary-hsl);
     --card: var(--surface-panel-hsl);
@@ -62,41 +58,6 @@
     --border: var(--border-subtle-hsl);
     --input: var(--border-input-hsl);
     --ring: var(--compat-action-primary-hsl);
-
-    --sev-critical: var(--severity-critical);
-    --sev-high: var(--severity-high);
-    --sev-medium: var(--severity-medium);
-    --sev-low: var(--severity-low);
-
-    --shadow: var(--elevation-card);
-    --shadow-pop: var(--elevation-popover);
-    --shadow-modal: var(--elevation-modal);
-  }
-
-  .dark,
-  [data-theme="dark"] {
-    --background: var(--surface-canvas-hsl);
-    --foreground: var(--text-primary-hsl);
-    --card: var(--surface-panel-hsl);
-    --card-foreground: var(--text-primary-hsl);
-    --muted: var(--surface-raised-hsl);
-    --muted-foreground: var(--compat-text-muted-hsl);
-    --primary: var(--compat-action-primary-hsl);
-    --primary-foreground: var(--text-on-action-hsl);
-    --accent: var(--control-selected-hsl);
-    --accent-foreground: var(--text-on-selected-hsl);
-    --border: var(--border-subtle-hsl);
-    --input: var(--border-input-hsl);
-    --ring: var(--compat-action-primary-hsl);
-
-    --sev-critical: var(--severity-critical);
-    --sev-high: var(--severity-high);
-    --sev-medium: var(--severity-medium);
-    --sev-low: var(--severity-low);
-
-    --shadow: var(--elevation-card);
-    --shadow-pop: var(--elevation-popover);
-    --shadow-modal: var(--elevation-modal);
   }
 
   * { @apply border-border; }
