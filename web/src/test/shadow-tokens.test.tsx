@@ -5,6 +5,7 @@ import path from "node:path";
 // @ts-expect-error node:url type declarations not included in browser tsconfig
 import { fileURLToPath } from "node:url";
 
+import postcss, { type Rule } from "postcss";
 import { describe, it, expect } from "vitest";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,8 +17,8 @@ const srcRoot = path.resolve(__dirname, "..");
  * A hardcoded shadow is authored against exactly one theme and is wrong in the
  * other: a navy `rgba(26,32,51,…)` disappears on a dark ground, and a black
  * `rgba(0,0,0,…)` reads as a smudge on a light one. Both directions existed in
- * this tree before this guard. `--shadow` / `--shadow-pop` / `--shadow-modal`
- * are each defined in both theme blocks, so a token is correct in either.
+ * this tree before this guard. Canonical `--elevation-*` roles are defined in
+ * both themes; legacy `--shadow*` names are one-way compatibility aliases.
  *
  * Exemption: `inset` shadows are used as ring/fill affordances (e.g. the radio
  * dot), take their colour from a token already, and are not elevation.
@@ -35,6 +36,28 @@ function walk(dir: string): string[] {
     }
   }
   return out;
+}
+
+function selectorParts(selector: string): string[] {
+  return selector.split(",").map((part) => part.replace(/\s+/g, "").trim());
+}
+
+function themeTokenValues(css: string, token: string, theme: "dark" | "light"): string[] {
+  const values: string[] = [];
+  postcss.parse(css).walkDecls(token, (decl) => {
+    if (decl.parent?.type !== "rule") return;
+    const selectors = selectorParts((decl.parent as Rule).selector);
+    if (selectors.includes(`[data-theme="${theme}"]`)) values.push(decl.value.trim());
+  });
+  return values;
+}
+
+function tokenOccurrences(css: string, token: string): string[] {
+  const values: string[] = [];
+  postcss.parse(css).walkDecls(token, (decl) => {
+    values.push(decl.value.trim());
+  });
+  return values;
 }
 
 describe("Elevation is tokenised, in both themes", () => {
@@ -72,16 +95,81 @@ describe("Elevation is tokenised, in both themes", () => {
     ).toEqual([]);
   });
 
+  it("no non-inset component shadow bypasses the shared elevation/focus token scale", () => {
+    const offenders: string[] = [];
+
+    for (const file of files) {
+      const lines: string[] = fs.readFileSync(file, "utf-8").split("\n");
+      lines.forEach((line: string, i: number) => {
+        const cssMatch = /box-shadow\s*:\s*([^;}]*)/.exec(line);
+        if (cssMatch && !cssMatch[1].includes("inset")) {
+          const value = cssMatch[1].trim();
+          if (!/^var\(\s*--(?:elevation-|shadow|focus-ring|tour-glow)/.test(value) && value !== "none") {
+            offenders.push(`${path.relative(srcRoot, file)}:${i + 1} — ${value}`);
+          }
+        }
+
+        for (const match of line.matchAll(/shadow-\[([^\]]+)\]/g)) {
+          if (!/^var\(--(?:elevation-|shadow|focus-ring)/.test(match[1])) {
+            offenders.push(`${path.relative(srcRoot, file)}:${i + 1} — ` + "shadow-[" + match[1] + "]");
+          }
+        }
+      });
+    }
+
+    expect(
+      offenders,
+      `Shadow geometry must resolve through the shared elevation/focus scale:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
   it("every elevation token is defined in both the light and the dark block", () => {
     const indexCss = fs.readFileSync(path.join(srcRoot, "index.css"), "utf-8");
     const itsocCss = fs.readFileSync(path.join(srcRoot, "styles/itsoc.css"), "utf-8");
 
-    // index.css: shadcn/Tailwind layer. itsoc.css: the is-* shell.
-    for (const tok of ["--shadow", "--shadow-pop", "--shadow-modal"]) {
-      const hits = indexCss.split(`${tok}:`).length - 1;
-      expect(hits, `${tok} must be defined twice in index.css (light + dark)`).toBe(2);
+    // Preserve the pre-G0 assertion until the canonical roles land. The new
+    // ownership test below makes this compatibility branch insufficient on
+    // its own, while keeping the original guard demonstrably intact.
+    if (tokenOccurrences(itsocCss, "--elevation-card").length === 0) {
+      for (const token of ["--shadow", "--shadow-pop", "--shadow-modal"]) {
+        expect(
+          tokenOccurrences(indexCss, token),
+          `${token} must be defined twice in index.css (light + dark)`,
+        ).toHaveLength(2);
+      }
+      expect(
+        tokenOccurrences(itsocCss, "--shadow"),
+        "--shadow must be defined twice in itsoc.css (light + dark)",
+      ).toHaveLength(2);
+      return;
     }
-    const itsocHits = itsocCss.split("--shadow:").length - 1;
-    expect(itsocHits, "--shadow must be defined twice in itsoc.css (light + dark)").toBe(2);
+
+    for (const token of [
+      "--elevation-card",
+      "--elevation-popover",
+      "--elevation-modal",
+      "--elevation-rail",
+      "--elevation-fab",
+      "--focus-ring",
+    ]) {
+      expect(themeTokenValues(itsocCss, token, "dark"), `${token} dark ownership`).toHaveLength(1);
+      expect(themeTokenValues(itsocCss, token, "light"), `${token} light ownership`).toHaveLength(1);
+    }
+  });
+
+  it("gives legacy shadow aliases one authoritative owner", () => {
+    const indexCss = fs.readFileSync(path.join(srcRoot, "index.css"), "utf-8");
+    const itsocCss = fs.readFileSync(path.join(srcRoot, "styles/itsoc.css"), "utf-8");
+
+    for (const [legacy, canonical] of [
+      ["--shadow", "--elevation-card"],
+      ["--shadow-pop", "--elevation-popover"],
+      ["--shadow-modal", "--elevation-modal"],
+    ] as const) {
+      expect(tokenOccurrences(itsocCss, legacy), `${legacy} must be a single compatibility alias`).toEqual([
+        `var(${canonical})`,
+      ]);
+      expect(tokenOccurrences(indexCss, legacy), `${legacy} must not have a competing index.css owner`).toEqual([]);
+    }
   });
 });
