@@ -17,7 +17,9 @@ export default {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         // Severity status palette — validated for BOTH surfaces with the
-        // dataviz six-checks script; values live in index.css per theme.
+        // dataviz six-checks script. G0 moved these roles into the
+        // styles/itsoc.css token registry: --sev-* are compatibility aliases
+        // onto the per-theme --severity-* roles declared there.
         sev: {
           critical: "var(--sev-critical)",
           high: "var(--sev-high)",
@@ -26,7 +28,8 @@ export default {
         },
       },
       borderRadius: { lg: "12px", md: "8px", sm: "6px" },
-      // The v6 card shadow, themed via the --shadow var in index.css.
+      // The v6 card shadow. Since G0, --shadow is a compatibility alias in
+      // styles/itsoc.css onto the per-theme --elevation-card role.
       boxShadow: { card: "var(--shadow)" },
       fontFamily: {
         sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],

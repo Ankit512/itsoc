@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g0-selector-null-bite-proof",
+  "suite": "web/src/test/approvals.test.tsx",
+  "detectors": [
+    "SELECTOR-NULL — the advisory Copilot rail carries NO approve control (vice versa)",
+    "SELECTOR-NULL — the authoritative (rule-owned) region contains NO advisory element"
+  ],
+  "standingResult": "12/12 pass on the unmodified tree; both SELECTOR-NULL detectors green.",
+  "vacuityGuardsInsideTheTest": [
+    "asserts screen.getByTestId('copilot-advisory-chip') IS in the document, so the advisory surface really rendered",
+    "asserts container.querySelectorAll('button').length > 0, so the pass is not an empty render",
+    "the authoritative-side detector asserts getByTestId('approval-eligibility') has text /ELIGIBLE . rb-block-ip/ and that '.cap.authoritative' exists"
+  ],
+  "negativeControl": {
+    "mutation": "planted <button data-testid=\"approval-approve\">Approve</button> inside the ADVISORY CopilotRail header, next to the advisory chip",
+    "file": "web/src/components/CopilotRail.tsx",
+    "committed": false,
+    "result": "FAIL — AssertionError: expected <button …(1)></button> to be null",
+    "suiteResult": "Test Files 1 failed (1); Tests 1 failed | 11 passed (12)",
+    "restored": "file restored byte-for-byte; git status clean for that path"
+  },
+  "conclusion": "The detector passes because the forbidden affordance is genuinely absent, not because the query matches nothing in an empty tree."
+}

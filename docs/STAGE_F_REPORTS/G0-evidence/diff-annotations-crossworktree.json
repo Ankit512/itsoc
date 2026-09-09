@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g0-visual-diff-annotations",
+  "note": "Annotations for the SECONDARY comparison only: the committed baseline (captured on 2026-09-08 in the sibling worktree g0-visual-baseline) against the post-change capture taken in g0-integration. The primary, confound-free comparison is before-local vs after; see visual-diff-inventory.json.",
+  "annotations": {
+    "dark:alerts": {
+      "classification": "capture-environment delta, not attributable to the CSS change",
+      "evidence": [
+        "The Alerts screen renders the honest 'no triage model' message, which includes the ABSOLUTE path of the missing model file.",
+        "The baseline was captured in /Users/ankit/orca/workspaces/log-analyzer/g0-visual-baseline; this capture ran in .../g0-integration.",
+        "'g0-visual-baseline' and 'g0-integration' are different lengths, so the paragraph rewraps and the text block repaints. The changed box is exactly that paragraph.",
+        "Re-capturing the BASE CSS inside this same worktree (before-local) removes the delta entirely: before-local vs after is byte-identical on this route."
+      ],
+      "handling": "Not masked. Superseded by the same-worktree comparison rather than explained away."
+    },
+    "light:alerts": {
+      "classification": "capture-environment delta, not attributable to the CSS change",
+      "evidence": [
+        "The Alerts screen renders the honest 'no triage model' message, which includes the ABSOLUTE path of the missing model file.",
+        "The baseline was captured in /Users/ankit/orca/workspaces/log-analyzer/g0-visual-baseline; this capture ran in .../g0-integration.",
+        "'g0-visual-baseline' and 'g0-integration' are different lengths, so the paragraph rewraps and the text block repaints. The changed box is exactly that paragraph.",
+        "Re-capturing the BASE CSS inside this same worktree (before-local) removes the delta entirely: before-local vs after is byte-identical on this route."
+      ],
+      "handling": "Not masked. Superseded by the same-worktree comparison rather than explained away.",
+      "sameAs": "dark:alerts"
+    },
+    "dark:findings": {
+      "classification": "capture-environment delta, not attributable to the CSS change",
+      "evidence": [
+        "The Alerts screen renders the honest 'no triage model' message, which includes the ABSOLUTE path of the missing model file.",
+        "The baseline was captured in /Users/ankit/orca/workspaces/log-analyzer/g0-visual-baseline; this capture ran in .../g0-integration.",
+        "'g0-visual-baseline' and 'g0-integration' are different lengths, so the paragraph rewraps and the text block repaints. The changed box is exactly that paragraph.",
+        "Re-capturing the BASE CSS inside this same worktree (before-local) removes the delta entirely: before-local vs after is byte-identical on this route."
+      ],
+      "handling": "Not masked. Superseded by the same-worktree comparison rather than explained away.",
+      "note": "/findings is the legacy route alias of /alerts and renders the same component.",
+      "sameAs": "dark:alerts"
+    },
+    "light:findings": {
+      "classification": "capture-environment delta, not attributable to the CSS change",
+      "evidence": [
+        "The Alerts screen renders the honest 'no triage model' message, which includes the ABSOLUTE path of the missing model file.",
+        "The baseline was captured in /Users/ankit/orca/workspaces/log-analyzer/g0-visual-baseline; this capture ran in .../g0-integration.",
+        "'g0-visual-baseline' and 'g0-integration' are different lengths, so the paragraph rewraps and the text block repaints. The changed box is exactly that paragraph.",
+        "Re-capturing the BASE CSS inside this same worktree (before-local) removes the delta entirely: before-local vs after is byte-identical on this route."
+      ],
+      "handling": "Not masked. Superseded by the same-worktree comparison rather than explained away.",
+      "note": "/findings is the legacy route alias of /alerts and renders the same component.",
+      "sameAs": "dark:alerts"
+    }
+  }
+}
