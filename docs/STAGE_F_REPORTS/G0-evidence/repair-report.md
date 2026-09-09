@@ -352,7 +352,11 @@ above before commit.*
 | Gate vitest totals | **45 files, 323 tests, all passing** |
 | Detector sha256 after the gate | `364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876` |
 
-Gate evidence: `gate-logs/20260909-091711/`.
+Gate evidence: `gate-logs/20260909-091711/`, and re-run on the exact committed tree as
+`gate-logs/20260909-092227/` — **GATE GREEN 23/23, 45 files / 323 tests** both times. The
+second run exists because the first predated this report and the evidence commit; no source
+file references `docs/STAGE_F_REPORTS/`, so the gate result could not have depended on them,
+and the re-run confirms it directly.
 
 ### Nondeterminism, reported honestly
 
