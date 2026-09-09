@@ -8,7 +8,16 @@
  *
  * Usage:
  *   node docs/STAGE_F_REPORTS/G0-evidence/capture-visuals.mjs \
- *     --expected-commit ac6ca48211f23eda062583a609ed8e4b35c42de3
+ *     --expected-commit ac6ca48211f23eda062583a609ed8e4b35c42de3 \
+ *     --label after-frozen \
+ *     --frozen-report docs/STAGE_F_REPORTS/G0-evidence/frozen-run/report.json
+ *
+ * --frozen-report makes the two sides of an A/B comparison share ONE byte
+ * sequence of application data. Without it each run calls log_analyzer.py
+ * afresh, and the resulting report differs (its `generated_at` alone), so the
+ * two manifests carry different report hashes and diff-visuals.mjs correctly
+ * refuses to compare them. Freezing the payload is what makes a pixel verdict
+ * attributable to the stylesheet instead of to the run.
  *
  * Set CHROME_BIN when Chrome is not installed in a standard macOS/Linux path.
  */
@@ -88,10 +97,11 @@ const ROUTES = [
 ];
 
 function parseArgs(argv) {
-  const out = { expectedCommit: null, port: null, label: LABEL };
+  const out = { expectedCommit: null, port: null, label: LABEL, frozenReport: null };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--expected-commit") out.expectedCommit = argv[++i];
     else if (argv[i] === "--port") out.port = Number(argv[++i]);
+    else if (argv[i] === "--frozen-report") out.frozenReport = argv[++i];
     else if (argv[i] === "--label") i += 1; // consumed above, into LABEL
     else throw new Error(`Unknown argument: ${argv[i]}`);
   }
@@ -642,10 +652,21 @@ async function main() {
   const serverOutput = [];
   const chromeOutput = [];
   try {
-    const analyzer = run("python3", [
-      "log_analyzer.py", "--input", FIXTURE, "--output", reportPrefix, "--rules-only",
-    ]);
+    // Either produce this run's own report, or reuse one frozen byte sequence
+    // so both sides of an A/B are photographing the same application data. The
+    // frozen file is copied into the temporary work dir; console/serve.py is
+    // never pointed at a path inside the repository.
     const reportPath = `${reportPrefix}.json`;
+    const frozenReportPath = args.frozenReport ? path.resolve(REPO_ROOT, args.frozenReport) : null;
+    let analyzer = null;
+    if (frozenReportPath) {
+      if (!existsSync(frozenReportPath)) throw new Error(`Missing frozen report: ${frozenReportPath}`);
+      writeFileSync(reportPath, readFileSync(frozenReportPath));
+    } else {
+      analyzer = run("python3", [
+        "log_analyzer.py", "--input", FIXTURE, "--output", reportPrefix, "--rules-only",
+      ]);
+    }
     const reportBuffer = readFileSync(reportPath);
     const report = JSON.parse(reportBuffer);
 
@@ -823,7 +844,11 @@ async function main() {
     const unexpectedErrors = classifiedErrors.filter((entry) => entry.classification === "unexpected");
 
     const manifest = {
-      schemaVersion: 1,
+      // 2: every photographed artifact carries its own sha256, the working
+      // tree's dirty paths are named, and reportProvenance says whether the
+      // run data was frozen. diff-visuals.mjs refuses anything older, because
+      // an older manifest cannot prove which stylesheet it photographed.
+      schemaVersion: 2,
       kind: `itsoc-g0-${LABEL === "baseline" ? "before" : LABEL}-change-production-visual-capture`,
       label: LABEL,
       generatedAt: new Date().toISOString(),
@@ -847,12 +872,34 @@ async function main() {
       detector: { path: "anomaly_detector.py", sha256: detectorSha, expectedSha256: DETECTOR_SHA256, matchesFreeze: true },
       reportProvenance: {
         input: { path: FIXTURE, sha256: fileSha(path.join(REPO_ROOT, FIXTURE)) },
-        analyzer: {
-          path: "log_analyzer.py",
-          command: `python3 log_analyzer.py --input ${FIXTURE} --output <temporary>/report --rules-only`,
-          rulesOnly: true,
-          stdout: analyzer.stdout.split(/\r?\n/),
-        },
+        // A frozen payload is what makes an A/B pixel verdict attributable to
+        // the stylesheet: both sides then serve the identical bytes, so
+        // diff-visuals.mjs's report.sha256 comparability guard can pass
+        // honestly rather than being waived.
+        frozenPayload: frozenReportPath
+          ? {
+            used: true,
+            path: path.relative(REPO_ROOT, frozenReportPath),
+            sha256: sha256(reportBuffer),
+            rationale: "One byte-identical rules-only report reused on both sides of the comparison.",
+          }
+          : { used: false, path: null, sha256: null, rationale: "This run generated its own report; it is not comparable to a run that generated another." },
+        analyzer: analyzer
+          ? {
+            path: "log_analyzer.py",
+            command: `python3 log_analyzer.py --input ${FIXTURE} --output <temporary>/report --rules-only`,
+            rulesOnly: true,
+            ranDuringThisCapture: true,
+            stdout: analyzer.stdout.split(/\r?\n/),
+          }
+          : {
+            path: "log_analyzer.py",
+            command: `python3 log_analyzer.py --input ${FIXTURE} --output <temporary>/report --rules-only`,
+            rulesOnly: true,
+            ranDuringThisCapture: false,
+            frozenReportPath: path.relative(REPO_ROOT, frozenReportPath),
+            stdout: [],
+          },
         report: {
           sha256: sha256(reportBuffer),
           generatedAt: report.generated_at,

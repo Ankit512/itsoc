@@ -124,36 +124,31 @@ describe("Elevation is tokenised, in both themes", () => {
   });
 
   it("every elevation token is defined in both the light and the dark block", () => {
-    const indexCss = fs.readFileSync(path.join(srcRoot, "index.css"), "utf-8");
     const itsocCss = fs.readFileSync(path.join(srcRoot, "styles/itsoc.css"), "utf-8");
 
-    // Preserve the pre-G0 assertion until the canonical roles land. The new
-    // ownership test below makes this compatibility branch insufficient on
-    // its own, while keeping the original guard demonstrably intact.
-    if (tokenOccurrences(itsocCss, "--elevation-card").length === 0) {
-      for (const token of ["--shadow", "--shadow-pop", "--shadow-modal"]) {
-        expect(
-          tokenOccurrences(indexCss, token),
-          `${token} must be defined twice in index.css (light + dark)`,
-        ).toHaveLength(2);
-      }
-      expect(
-        tokenOccurrences(itsocCss, "--shadow"),
-        "--shadow must be defined twice in itsoc.css (light + dark)",
-      ).toHaveLength(2);
-      return;
-    }
-
-    for (const token of [
+    const canonical = [
       "--elevation-card",
       "--elevation-popover",
       "--elevation-modal",
       "--elevation-rail",
       "--elevation-fab",
       "--focus-ring",
-    ]) {
-      expect(themeTokenValues(itsocCss, token, "dark"), `${token} dark ownership`).toHaveLength(1);
-      expect(themeTokenValues(itsocCss, token, "light"), `${token} light ownership`).toHaveLength(1);
+    ];
+
+    for (const token of canonical) {
+      const dark = themeTokenValues(itsocCss, token, "dark");
+      const light = themeTokenValues(itsocCss, token, "light");
+      // Exactly one owner per theme: two would be a second source of truth,
+      // zero would mean the role is missing from that theme entirely.
+      expect(dark, `${token} dark ownership`).toHaveLength(1);
+      expect(light, `${token} light ownership`).toHaveLength(1);
+      // A canonical role must own its geometry. Referencing a colour token
+      // inside the value is fine (the elevations color-mix against
+      // --text-primary); delegating the WHOLE value to another custom property
+      // is not, because ownership would then be nominal and the token that
+      // really holds the value could drift out from under this contract.
+      expect(dark[0].trim(), `${token} dark must own its value, not pass it through`).not.toMatch(/^var\(\s*--[\w-]+\s*\)$/);
+      expect(light[0].trim(), `${token} light must own its value, not pass it through`).not.toMatch(/^var\(\s*--[\w-]+\s*\)$/);
     }
   });
 

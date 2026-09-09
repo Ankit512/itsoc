@@ -19,7 +19,8 @@ function readInitialTheme(): Theme {
 export function applyThemeClass(theme: Theme) {
   // Two consumers, one source: the `dark` class drives tailwind
   // (darkMode:"class"); `data-theme` is the design-token contract from the
-  // redesign spec §2 ([data-theme=light] override in index.css). Always
+  // redesign spec §2 ([data-theme=light] override in styles/itsoc.css,
+  // which owns the token registry since G0). Always
   // stamped together so they can never disagree.
   document.documentElement.classList.toggle("dark", theme === "dark");
   document.documentElement.setAttribute("data-theme", theme);
