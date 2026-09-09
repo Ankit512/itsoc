@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g0-diff-annotations",
+  "purpose": "Deliberately empty. The same-stylesheet control comparisons must report their raw, unannotated pixel movement: that movement IS the renderer noise floor, and annotating it away would destroy the evidence it exists to provide.",
+  "annotations": {}
+}

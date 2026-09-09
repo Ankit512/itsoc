@@ -69,6 +69,15 @@ const underEvidence = (value, fallback) => {
 };
 const OUT_DIR = underEvidence(process.env.G0_DIFF_DIR, "diff");
 const INVENTORY_PATH = underEvidence(process.env.G0_INVENTORY, "visual-diff-inventory.json");
+// Every written image is addressed through this one helper. Deriving the path
+// from OUT_DIR (rather than re-joining the raw env var onto a hardcoded
+// prefix) is what lets an absolute G0_DIFF_DIR work, which is how the guard
+// negative controls write outside the repository.
+const outFile = (name) => {
+  const absolute = path.join(OUT_DIR, name);
+  const relative = path.relative(REPO_ROOT, absolute);
+  return { absolute, recorded: relative.startsWith("..") ? absolute : relative };
+};
 
 // The acceptance contract for a complete comparison, stated here independently
 // of capture-visuals.mjs on purpose: if a future harness edit quietly drops or
@@ -504,9 +513,9 @@ function main() {
           overlay[o + 2] = (overlay[o + 2] * 0.35) | 0;
         }
       }
-      const rel = path.join(`docs/STAGE_F_REPORTS/G0-evidence/${process.env.G0_DIFF_DIR ?? "diff"}`, `${a.theme}-${path.basename(a.file)}`);
-      writeFileSync(path.join(REPO_ROOT, rel), encodePng({ width: result.width, height: result.height, rgba: overlay }));
-      diffFile = rel;
+      const target = outFile(`${a.theme}-${path.basename(a.file)}`);
+      writeFileSync(target.absolute, encodePng({ width: result.width, height: result.height, rgba: overlay }));
+      diffFile = target.recorded;
     }
 
     entries.push({
@@ -550,11 +559,11 @@ function main() {
     if (!pairsByTheme[theme].length) continue;
     const background = theme === "dark" ? [24, 24, 27] : [228, 228, 231];
     const sheet = sideBySide(pairsByTheme[theme], background);
-    const rel = `docs/STAGE_F_REPORTS/G0-evidence/${process.env.G0_DIFF_DIR ?? "diff"}/side-by-side-${theme}.png`;
+    const target = outFile(`side-by-side-${theme}.png`);
     const buf = encodePng(sheet);
-    writeFileSync(path.join(REPO_ROOT, rel), buf);
+    writeFileSync(target.absolute, buf);
     sheets[theme] = {
-      file: rel,
+      file: target.recorded,
       sha256: sha256(buf),
       layout: "one row per route state; left column = before, right column = after",
       rows: pairsByTheme[theme].map((p) => p.id),

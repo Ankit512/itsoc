@@ -7,6 +7,16 @@
 
 **Outcome: complete, gate green, zero visual delta attributable to the change.**
 
+> **Superseded in part — read this first.** The debug attack review (`35883bf`,
+> `G0-evidence/debug-review.md`) FAILED this card's *acceptance evidence*: the visual
+> comparator could return a green verdict for capture pairs it had itself recorded as
+> not comparable, and the pixel section below was written from those pairs. The token
+> implementation was not faulted. The repair card
+> (`G0-evidence/repair-report.md`) hardened the comparator, re-photographed both sides
+> over one frozen data payload, and is now the **canonical** visual evidence. Section 3(3)
+> below is retained as superseded history; where it and the repair report disagree, the
+> repair report is authoritative.
+
 ---
 
 ## 0. The corrected premise this card was dispatched with
@@ -102,7 +112,8 @@ in the file whose entire contract is that it owns nothing.
 | Commit | Subject |
 |---|---|
 | `987830a5fd0f3645fe65a4c1c645fbac4f597e82` | `fix(g0): one declaration per compatibility alias, and the missing type roles` |
-| *(see below)* | `docs(g0): pixel, mutation and gate evidence for the token foundation` |
+| `f45fb1b3fb971afa33536b9c76a56ec1a46347c0` | `docs(g0): pixel, mutation and gate evidence for the token foundation` |
+| `35883bf8d2743f58735d4afb0a8dd3ae14467250` | `docs(g0): record debug attack review` |
 
 Files in `987830a` — `web/src/styles/itsoc.css`, `web/src/index.css`,
 `docs/STAGE_F_REPORTS/G0-evidence/capture-visuals.mjs`. All inside the allowlist.
@@ -157,6 +168,14 @@ above proves it now catches.
 
 ### (3) Pixel evidence — real production SPA, real run data
 
+> **SUPERSEDED.** Every comparison in this subsection was computed by the pre-repair
+> comparator, and each of its four capture pairs served a *different* `log_analyzer.py`
+> report, so none of them satisfied the comparator's own `report.sha256` comparability
+> condition — the green verdicts below were reported despite `captureSettingsMatch:
+> false`. The current comparator rejects all four pairs with exit status 2. The
+> canonical replacement is the four-run frozen-payload evidence in
+> `G0-evidence/repair-report.md`; the tables here are kept only as history.
+
 Every capture: `npm run build` → `web/dist` served by **`console/serve.py`** with its real
 `/api/*` routes, fed by a real `log_analyzer.py --rules-only` run over
 `tests/eval/cases/pos_bruteforce_compromise.log` (7/7 lines parsed, 0 unparsed, 2 findings,
@@ -180,6 +199,7 @@ exact `bdbd496` files — recorded as hashes in the manifest). Four comparisons:
 | Comparison | Identical | Changed | Changed px | Unexplained |
 |---|---|---|---|---|
 | **PRIMARY** `before-local` vs `after` (base CSS vs new CSS, same worktree) | 47/48 | 1 | 11 | **0** |
+| *(all rows below are superseded; each pair failed the comparability condition)* | | | | |
 | **CORROBORATION** `before-local` vs `after-repeat` | **48/48** | **0** | **0** | **0** |
 | **CONTROL** `after` vs `after-repeat` (*identical CSS both sides*) | 47/48 | 1 | 11 | 1 *(by design)* |
 | CROSS-WORKTREE committed `baseline` vs `after` | 44/48 | 4 | 17214 | 0 *(path rewrap, annotated)* |
@@ -199,10 +219,15 @@ Proven to be renderer non-determinism, not the change:
 Recorded in `diff-annotations.json` with that evidence. The pixels are left exactly as the
 browser produced them.
 
-**Verdict: `ZERO VISUAL DELTA ATTRIBUTABLE TO THE CHANGE`**, and on the corroboration pair,
-a literal `ZERO VISUAL DELTA` — 48/48 byte-identical PNGs.
+**Verdict as recorded at the time: `ZERO VISUAL DELTA ATTRIBUTABLE TO THE CHANGE`**, and
+on the corroboration pair a literal `ZERO VISUAL DELTA`. **That verdict was not admissible**:
+the two sides had different run data, so a green result could not be attributed to the
+stylesheet. The conclusion happens to survive re-testing, but only the repair card's
+frozen-payload evidence establishes it.
 
 #### Evidence paths
+
+*(Superseded: the canonical evidence paths are listed in `G0-evidence/repair-report.md`.)*
 
 | Artifact | Path |
 |---|---|
@@ -294,16 +319,17 @@ package-lock.json unchanged**.
 
 ## 5. Unfinished, and things the next card should know
 
-1. **Out-of-allowlist file inherited from the earlier dispatch.**
+1. **Out-of-allowlist file inherited from the earlier dispatch.** *(Ratified and closed by
+   the repair card — see `G0-evidence/repair-report.md` §3.)*
    `web/src/test/shadow-tokens.test.tsx` was modified in `9ee2f22`, before this dispatch,
    and is **not** on this dispatch's allowlist. I did not edit it — the five failures were
    fixed in the CSS so that file's existing contract passes as written. Flagging it
    because `git diff bdbd496..HEAD` is therefore not allowlist-clean for the branch as a
    whole, only for my commits.
-2. **Dead compatibility branch in `shadow-tokens.test.tsx`.** It still carries a
-   pre-G0 branch guarded by `if (tokenOccurrences(itsocCss, "--elevation-card").length === 0)`,
-   which can no longer be reached now that `--elevation-card` exists. Harmless but dead;
-   it should be deleted by a card that owns that file.
+2. ~~**Dead compatibility branch in `shadow-tokens.test.tsx`.**~~ **Resolved by the repair
+   card**, which was granted explicit umbrella ratification for this path. The unreachable
+   pre-G0 branch is gone and the surviving contract was strengthened; see
+   `G0-evidence/repair-report.md` §3 and `G0-evidence/mutation/shadow-contract-mutation-proof.json`.
 3. **The new type/spacing scales have no call sites yet** (5 of 198 tokens are referenced
    from the shell). That is deliberate — see §1.4 — but it means the scales are guarded by
    the contract tests rather than by rendering. G1–G6 adopting them is what will exercise
@@ -312,8 +338,10 @@ package-lock.json unchanged**.
    doing pixel work on that route should expect it and use the same control method rather
    than chasing it.
 5. **The committed `baseline/` tree is cross-worktree** and so is not directly comparable
-   to captures taken here. `before-local/` is the comparable "before". I left `baseline/`
-   in place rather than deleting another dispatch's committed evidence.
+   to captures taken here. `before-local/` was this card's comparable "before"; the repair
+   card supersedes both with `before-frozen/` (see `G0-evidence/repair-report.md`). All of
+   `baseline/`, `before-local/`, `after/` and `after-repeat/` are retained as superseded
+   history and are now rejected by the comparator's schema guard.
 6. **Not attempted:** any change to component markup, API/data logic, verdicts, copy,
    routes, or severity meaning — all explicitly out of scope.
 

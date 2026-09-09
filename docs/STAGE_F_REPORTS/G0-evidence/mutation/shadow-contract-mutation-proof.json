@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g0-shadow-contract-mutation-proof",
+  "generatedAt": "2026-09-09T08:16:04.627840+00:00",
+  "suite": "src/test/shadow-tokens.test.tsx",
+  "file": "web/src/styles/itsoc.css",
+  "fileSha256BeforeMutations": "11f14e82f6f4fa5aa019e16b23ab5aadf9642867831457d3d5c1bee591040e79",
+  "subject": "The unreachable pre-G0 compatibility branch was removed from this suite and the surviving contract strengthened to require exactly one non-pass-through owner per theme. These mutations show the strengthened contract is red-capable.",
+  "baselineGreenBeforeMutations": true,
+  "baselineOutput": [
+    "Test Files  1 passed (1)",
+    "Tests  5 passed (5)"
+  ],
+  "mutations": [
+    {
+      "mutation": "canonical-role-becomes-pass-through-alias",
+      "intent": "Make dark --elevation-card delegate its whole value to another custom property, so its ownership is nominal only.",
+      "file": "web/src/styles/itsoc.css",
+      "applied": true,
+      "guardFired": true,
+      "exitCode": 1,
+      "failingOutput": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 4 passed (5)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "FAIL  web/src/test/shadow-tokens.test.tsx > Elevation is tokenised, in both themes > every elevation token is defined in both the light and the dark block",
+        "AssertionError: --elevation-card dark must own its value, not pass it through: expected 'var(--elevation-popover)' not to match /^var\\(\\s*--[\\w-]+\\s*\\)$/"
+      ],
+      "revertedFileSha256": "11f14e82f6f4fa5aa019e16b23ab5aadf9642867831457d3d5c1bee591040e79"
+    },
+    {
+      "mutation": "canonical-role-missing-from-one-theme",
+      "intent": "Delete --elevation-card from the light block, the exact case the deleted pre-G0 compatibility branch would have masked.",
+      "file": "web/src/styles/itsoc.css",
+      "applied": true,
+      "guardFired": true,
+      "exitCode": 1,
+      "failingOutput": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 4 passed (5)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "FAIL  web/src/test/shadow-tokens.test.tsx > Elevation is tokenised, in both themes > every elevation token is defined in both the light and the dark block",
+        "AssertionError: --elevation-card light ownership: expected [] to have a length of 1 but got +0"
+      ],
+      "revertedFileSha256": "11f14e82f6f4fa5aa019e16b23ab5aadf9642867831457d3d5c1bee591040e79"
+    }
+  ],
+  "restoredGreenAfterMutations": true,
+  "fileSha256AfterRestore": "11f14e82f6f4fa5aa019e16b23ab5aadf9642867831457d3d5c1bee591040e79",
+  "fileRestoredExactly": true,
+  "allGuardsFired": true
+}

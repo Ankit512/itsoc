@@ -1,0 +1,261 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g0-visual-guard-negative-control-proof",
+  "generatedAt": "2026-09-09T08:11:42.242Z",
+  "subject": "docs/STAGE_F_REPORTS/G0-evidence/diff-visuals.mjs",
+  "subjectSha256": "0717529304a1f55f6204a0c9b4138de7547a8ba6c86322cf968c5e6ea2f35565",
+  "method": "Each control copies the two real capture manifests into a temporary directory, injects exactly one defect into the copy, and runs diff-visuals.mjs against it via G0_MANIFEST_DIR. The repository evidence tree is never written to, so no restore step is needed and no window exists in which committed evidence is mutated.",
+  "manifestsUnderTest": {
+    "before-frozen": {
+      "path": "docs/STAGE_F_REPORTS/G0-evidence/before-frozen-manifest.json",
+      "sha256": "034beb1c6313a2f45e1d2a4570adfa3ca0b8f5a9730952d736380703e90e3bf4"
+    },
+    "after-frozen": {
+      "path": "docs/STAGE_F_REPORTS/G0-evidence/after-frozen-manifest.json",
+      "sha256": "bc13520bfd9cacfd29c27c213626756f263d12bf4022ec4abc6ef8bba463fb79"
+    }
+  },
+  "positiveControl": {
+    "name": "positive-control-unmodified",
+    "expectation": "accepted; a real pixel verdict is computed",
+    "exitStatus": 0,
+    "verdict": "VISUAL DELTA PRESENT — see entries[].changedBounds",
+    "comparable": true,
+    "guardsFired": [],
+    "blockerCount": 0,
+    "stderrHead": []
+  },
+  "negativeControls": [
+    {
+      "name": "capture-settings-report-payload",
+      "targetedGuard": "capture-settings",
+      "defectInjected": "the two sides served different application data",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "capture-settings"
+      ],
+      "blockerCount": 1,
+      "stderrHead": [
+        "COMPARISON REJECTED (1 blocker(s)) — before-frozen vs after-frozen",
+        "  [capture-settings] pair: report.sha256: \"0000000000000000000000000000000000000000000000000000000000000001\" vs \"7930245ace6bfa8bf6d5d794c857e4f6cc622acacf5b93ba4623facc5c9f0113\"",
+        "inventory: /var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/itsoc-g0-guard-6dZ1QZ/capture-settings-report-payload-inventory.json"
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    },
+    {
+      "name": "capture-settings-viewport",
+      "targetedGuard": "capture-settings",
+      "defectInjected": "the two sides were photographed at different viewport sizes",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "capture-settings"
+      ],
+      "blockerCount": 1,
+      "stderrHead": [
+        "COMPARISON REJECTED (1 blocker(s)) — before-frozen vs after-frozen",
+        "  [capture-settings] pair: viewport: {\"width\":1440,\"height\":900,\"deviceScaleFactor\":1} vs {\"width\":1500,\"height\":1000,\"deviceScaleFactor\":1}",
+        "inventory: /var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/itsoc-g0-guard-6dZ1QZ/capture-settings-viewport-inventory.json"
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    },
+    {
+      "name": "duplicate-id",
+      "targetedGuard": "duplicate-id",
+      "defectInjected": "one manifest lists the same route/theme state twice",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "duplicate-id",
+        "route-matrix"
+      ],
+      "blockerCount": 2,
+      "stderrHead": [
+        "COMPARISON REJECTED (2 blocker(s)) — before-frozen vs after-frozen",
+        "  [duplicate-id] before-frozen: light:overview appears 2 times in one manifest",
+        "  [route-matrix] before-frozen: 49 captures, expected 24 routes x 2 themes = 48",
+        "inventory: /var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/itsoc-g0-guard-6dZ1QZ/duplicate-id-inventory.json"
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    },
+    {
+      "name": "missing-pair",
+      "targetedGuard": "missing-pair",
+      "defectInjected": "a route/theme state exists on only one side",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "missing-pair",
+        "route-matrix"
+      ],
+      "blockerCount": 3,
+      "stderrHead": [
+        "COMPARISON REJECTED (3 blocker(s)) — before-frozen vs after-frozen",
+        "  [route-matrix] before-frozen: missing 1 expected state(s): dark:integrations",
+        "  [route-matrix] before-frozen: 47 captures, expected 24 routes x 2 themes = 48",
+        "  [missing-pair] pair: dark:integrations exists only in after-frozen"
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    },
+    {
+      "name": "route-matrix-short",
+      "targetedGuard": "route-matrix",
+      "defectInjected": "the matrix is not 24 routes x 2 themes (a route was dropped from both sides)",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "route-matrix"
+      ],
+      "blockerCount": 6,
+      "stderrHead": [
+        "COMPARISON REJECTED (6 blocker(s)) — before-frozen vs after-frozen",
+        "  [route-matrix] before-frozen: missing 2 expected state(s): dark:settings, light:settings",
+        "  [route-matrix] before-frozen: 46 captures, expected 24 routes x 2 themes = 48",
+        "  [route-matrix] before-frozen: summary.routeStates 23 is not 24"
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    },
+    {
+      "name": "route-matrix-single-theme",
+      "targetedGuard": "route-matrix",
+      "defectInjected": "a whole theme is missing from both sides",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "route-matrix"
+      ],
+      "blockerCount": 6,
+      "stderrHead": [
+        "COMPARISON REJECTED (6 blocker(s)) — before-frozen vs after-frozen",
+        "  [route-matrix] before-frozen: missing 24 expected state(s): light:alerts, light:approvals, light:assets, light:cases, light:collectors, light:discovery, light:does-not-exist, light:enrichment, light:findings, light:history, light:incidents, light:integrations, light:intel, light:login, light:logout, light:network, light:oem, light:overview, light:reports, light:settings, light:signup, light:sources, light:threat-intel, light:vulnerabilities",
+        "  [route-matrix] before-frozen: 24 captures, expected 24 routes x 2 themes = 48",
+        "  [route-matrix] before-frozen: summary.themes [\"dark\"] is not [\"light\",\"dark\"]"
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    },
+    {
+      "name": "dimensions-declared",
+      "targetedGuard": "dimensions",
+      "defectInjected": "a capture is not the expected 1500x1000 viewport",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "dimensions"
+      ],
+      "blockerCount": 1,
+      "stderrHead": [
+        "COMPARISON REJECTED (1 blocker(s)) — before-frozen vs after-frozen",
+        "  [dimensions] before-frozen: light:overview declares 1400x1000, expected 1500x1000",
+        "inventory: /var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/itsoc-g0-guard-6dZ1QZ/dimensions-declared-inventory.json"
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    },
+    {
+      "name": "manifest-schema-version",
+      "targetedGuard": "manifest-schema",
+      "defectInjected": "a pre-repair manifest schema that cannot prove what it photographed",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "manifest-schema"
+      ],
+      "blockerCount": 1,
+      "stderrHead": [
+        "COMPARISON REJECTED (1 blocker(s)) — before-frozen vs after-frozen",
+        "  [manifest-schema] before-frozen: schemaVersion 1 is not the hash-complete schema 2",
+        "inventory: /var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/itsoc-g0-guard-6dZ1QZ/manifest-schema-version-inventory.json"
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    },
+    {
+      "name": "manifest-schema-unhashed-artifacts",
+      "targetedGuard": "manifest-schema",
+      "defectInjected": "photographed artifacts recorded as bare paths, so the stylesheet is asserted not proven",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "manifest-schema"
+      ],
+      "blockerCount": 5,
+      "stderrHead": [
+        "COMPARISON REJECTED (5 blocker(s)) — before-frozen vs after-frozen",
+        "  [manifest-schema] before-frozen: source.photographedTreeArtifacts entry is not {path, sha256}: \"web/src/styles/itsoc.css\"",
+        "  [manifest-schema] before-frozen: source.photographedTreeArtifacts entry is not {path, sha256}: \"web/src/index.css\"",
+        "  [manifest-schema] before-frozen: source.photographedTreeArtifacts entry is not {path, sha256}: \"console/serve.py\""
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    },
+    {
+      "name": "manifest-schema-no-frozen-payload",
+      "targetedGuard": "manifest-schema",
+      "defectInjected": "the manifest cannot say whether its run data was frozen",
+      "expectation": "non-zero exit, non-green verdict, targeted guard fires",
+      "exitStatus": 2,
+      "verdict": "COMPARISON REJECTED — the two sides are not comparable; no pixel verdict was computed",
+      "comparable": false,
+      "guardsFired": [
+        "manifest-schema"
+      ],
+      "blockerCount": 1,
+      "stderrHead": [
+        "COMPARISON REJECTED (1 blocker(s)) — before-frozen vs after-frozen",
+        "  [manifest-schema] before-frozen: reportProvenance.frozenPayload.used is missing; the manifest cannot say whether the run data was frozen",
+        "inventory: /var/folders/94/rb0r541n5dqb1vc7yp_wpwrw0000gn/T/itsoc-g0-guard-6dZ1QZ/manifest-schema-no-frozen-payload-inventory.json"
+      ],
+      "targetedGuardFired": true,
+      "nonZeroExit": true,
+      "nonGreenVerdict": true
+    }
+  ],
+  "summary": {
+    "positiveControlAccepted": true,
+    "negativeControlCount": 10,
+    "allTargetedGuardsFired": true,
+    "guardsCovered": [
+      "capture-settings",
+      "dimensions",
+      "duplicate-id",
+      "manifest-schema",
+      "missing-pair",
+      "route-matrix"
+    ],
+    "allGuardsProvenRedCapable": true
+  }
+}
