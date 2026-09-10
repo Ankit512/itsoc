@@ -230,7 +230,23 @@ class FeatureDeterminismTests(unittest.TestCase):
             triage_model.feature_vector(FINDING),
             triage_model.feature_vector(dict(FINDING, occurrences=90)),
         )
+        # E7b AMENDMENT (pre-authorised, guardrail 10). This control used to
+        # move `criticality`. E7b removed `criticality_rank` from the feature
+        # schema - it carried 0.4146 importance with an INVERTED direction and
+        # was the whole cause of the finding-level recall defect - so moving
+        # `criticality` can no longer move the vector, and the old control
+        # would pass vacuously in the one direction it was written to catch.
+        # It is substituted here, NOT weakened: the same INCIDENT record, the
+        # same assertion, moved onto another PERMITTED observed fact
+        # (`techniques` -> `mitre_technique_count`). The non-vacuity check
+        # still bites. No FORBIDDEN_KEYS or leakage assertion is touched.
         self.assertNotEqual(
+            triage_model.feature_vector(INCIDENT),
+            triage_model.feature_vector(dict(INCIDENT, techniques=[])),
+        )
+        # And the removal itself is locked down, so it cannot silently return.
+        self.assertNotIn("criticality_rank", triage_model.FEATURE_KEYS)
+        self.assertEqual(
             triage_model.feature_vector(INCIDENT),
             triage_model.feature_vector(dict(INCIDENT, criticality="low")),
         )

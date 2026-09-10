@@ -7,15 +7,19 @@ THE WALL (restated where it is enforced, not only where it is written):
   * Nothing in this module writes `sev`, `ruleSev`, incident `severity`,
     `priority`, runbook eligibility, or any execution state. It returns an
     ADVISORY object and nothing else. The caller copies severity back.
-  * `features()` reads ONLY rule-owned facts: which rules fired, how many
-    distinct entities the parser actually observed, the timing of the observed
-    lines, and the configured asset criticality. It can NOT read a disposition,
+  * `features()` reads ONLY rule-owned OBSERVED facts: which rules fired, how
+    many distinct entities the parser actually observed, and the timing of the
+    observed lines. It can NOT read a disposition,
     another model's output, prose, a severity override, a priority, an
     eligibility decision or an execution state — see FORBIDDEN_KEYS, and the
     leakage test in tests/test_stage_e_wall.py that proves it by mutation.
   * `features()` deliberately does NOT read `sev` / `ruleSev` either. A second
     opinion that can see the first one is not a second opinion; excluding it is
     what makes `agrees` / `disagrees` carry information.
+  * E7b: `features()` also no longer reads the configured asset CRITICALITY.
+    That was a feature in E7a and it is removed here on measurement, not taste
+    - see THE CRITICALITY REMOVAL below. Criticality is an org-config value,
+    not a fact the parser observed in a log line.
 
 HONESTY:
   * If scikit-learn is not installed, or the model artifact is missing, or it
@@ -80,6 +84,12 @@ FEATURE_KEYS = (
     "rule_family_malware_or_threat",
     "rule_family_error_or_resource",
     "rule_family_windows",
+    # E7b: three families split out of the old `other` residual. See THE RULE
+    # FAMILY SPLIT below - `other` was not a family, it was "unmatched", and it
+    # conflated rules with opposite meanings into one indistinguishable bucket.
+    "rule_family_threat_intel",
+    "rule_family_infra_passthrough",
+    "rule_family_service_state",
     "rule_family_other",
     "rule_count",
     "rule_is_detector_owned",
@@ -97,9 +107,50 @@ FEATURE_KEYS = (
     "observed_span_seconds",
     "events_per_minute",
     "has_observed_time",
-    # -- asset criticality -------------------------------------------------
-    "criticality_rank",
+    # -- asset criticality: REMOVED in E7b. See THE CRITICALITY REMOVAL below.
 )
+
+# THE CRITICALITY REMOVAL (E7b) — why `criticality_rank` is not a feature.
+#
+# E7a carried `criticality_rank` (low=0, standard=1, crown-jewel=2), resolved
+# from the org config by host name. The E8/E8m frozen referee measured what it
+# actually did, and it was not what it looked like:
+#
+#   * it carried 0.4146 of total feature importance - the largest of 21 - and
+#     its direction was INVERTED. Raising a host to crown-jewel flipped 28 of
+#     85 true detections from KEPT to DROPPED; lowering crown-jewel flipped 33
+#     of 84 suppressions from DROPPED to KEPT. More critical asset => MORE
+#     willing to dismiss.
+#   * it was the whole cause of the finding-level recall defect. All five
+#     `ioc_observed` findings the model dropped on the crown-jewel host in
+#     INC-4a7f are `confirmed` at >=0.9986 confidence when the SAME vector is
+#     scored at `low` or `standard`. Only the crown-jewel band dismissed them.
+#
+# The cause is a confound in the labelled data, not a bad encoding. Criticality
+# is resolved per host; `server-01` is the only crown-jewel asset configured,
+# and exactly two scenarios sit on it - INC-4a7f (confirmed) and
+# benign-maintenance (benign-expected). Measured over the 434-row training set:
+#
+#     criticality    confirmed  false-positive  benign-expected   total
+#     standard             154             126                0     280
+#     crown-jewel           70               0               84     154
+#
+# Every benign-expected row is crown-jewel and every false-positive row is
+# standard. P(benign-expected | crown-jewel) = 0.5455 against a 0.1935 base
+# rate. `criticality_rank` was therefore the highest-purity split available and
+# the model took it - learning "crown-jewel is where benign-expected lives".
+#
+# No RE-ENCODING fixes that. One-hot, binary crown-jewel flag or ordinal all
+# carry the identical joint distribution; the confound is in the data, not the
+# representation. Decorrelating it would mean changing the generator's
+# scenario-to-host pinning, which would move the benchmark the referee grades
+# against. So the feature is REMOVED: an org-config value must not drive
+# dismissal advice against log evidence.
+#
+# The referee's criticality counterfactual still runs - `train_triage` still
+# resolves and passes `criticality` on the record, so `_ForcedCriticality`
+# still forces it across the whole domain. It now measures zero flips, which is
+# the honest published proof that the gradient is gone rather than hidden.
 
 # Keys that must never reach `features()`. Setting any of them, to anything,
 # must leave the feature vector byte-identical. Proven by mutation in
@@ -144,7 +195,37 @@ _THREAT_RE = re.compile(
 _ERROR_RE = re.compile(r"error|disk|resource|critical_service|burst|quorum|zookeeper", re.I)
 _WINDOWS_RE = re.compile(r"^windows_|^sigma_", re.I)
 
-_CRITICALITY_RANK = {"low": 0, "standard": 1, "crown-jewel": 2}
+# THE RULE FAMILY SPLIT (E7b).
+#
+# E7a bucketed rule identity into five families and swept everything else into
+# `rule_family_other`. Measured over the 434-row training set, `other` was not
+# a family at all - it was five rules with flatly contradictory meanings:
+#
+#     rule_id                    confirmed  false-positive  benign-expected
+#     infra_unknown_high                28              28               28
+#     ioc_observed                      28              14                0
+#     generic_service_failed             0               0               28
+#     infra_unknown_low                  0              14                0
+#     infra_unknown_medium               0              14                0
+#
+# A threat-intel hit, a pure-benign service lifecycle event and two pure
+# false-positive passthroughs all scored as the same feature. The model could
+# not tell them apart on rule identity, so it separated them on the only other
+# thing that correlated - the host's configured criticality. That is how an
+# org-config value came to carry 0.4146 importance and to run backwards.
+#
+# These three families are named from what each rule MEANS, not from its
+# observed label mix, and each reads the same rule-owned fact the existing five
+# read: which rule fired.
+#
+# SEVERITY-BLIND BY CONSTRUCTION. `infra_unknown_high` / `_medium` / `_low`
+# differ only by the severity band in the rule id. Matching the PREFIX only -
+# never the band - is deliberate and load-bearing: a family that separated them
+# would smuggle `sev` back in through the rule name, and a second opinion that
+# can see the first one is not a second opinion.
+_IOC_RE = re.compile(r"ioc|indicator|reputation|blocklist|blacklist|threat_intel", re.I)
+_INFRA_PASSTHROUGH_RE = re.compile(r"^infra_unknown", re.I)
+_SERVICE_STATE_RE = re.compile(r"service_failed|service_stopped|service_start|daemon", re.I)
 
 # Entity keys the parsers actually populate, grouped by what they observe.
 _IP_ENTITY_KEYS = ("ip", "src_ip", "dest_ip", "dst_ip")
@@ -257,11 +338,6 @@ def _timeline_span_seconds(record):
     return abs((max(parsed) - min(parsed)).total_seconds())
 
 
-def _criticality(record):
-    value = str(record.get("criticality") or "").strip().lower()
-    return _CRITICALITY_RANK.get(value, _CRITICALITY_RANK["standard"])
-
-
 def features(record):
     """The ONE feature function. Train and inference both call exactly this.
 
@@ -282,8 +358,12 @@ def features(record):
     fam_threat = 1.0 if _THREAT_RE.search(blob) else 0.0
     fam_error = 1.0 if _ERROR_RE.search(blob) else 0.0
     fam_windows = 1.0 if any(_WINDOWS_RE.search(r) for r in rule_ids) else 0.0
+    fam_ioc = 1.0 if _IOC_RE.search(blob) else 0.0
+    fam_infra = 1.0 if any(_INFRA_PASSTHROUGH_RE.search(r) for r in rule_ids) else 0.0
+    fam_service = 1.0 if _SERVICE_STATE_RE.search(blob) else 0.0
     fam_other = 0.0 if (fam_auth or fam_scan or fam_threat or fam_error
-                        or fam_windows) else 1.0
+                        or fam_windows or fam_ioc or fam_infra
+                        or fam_service) else 1.0
 
     ips, users, hosts, ports = _observed_values(record)
     occurrences = max(_num(record.get("occurrences"), 1.0), 0.0) or 1.0
@@ -311,6 +391,9 @@ def features(record):
         "rule_family_malware_or_threat": fam_threat,
         "rule_family_error_or_resource": fam_error,
         "rule_family_windows": fam_windows,
+        "rule_family_threat_intel": fam_ioc,
+        "rule_family_infra_passthrough": fam_infra,
+        "rule_family_service_state": fam_service,
         "rule_family_other": fam_other,
         "rule_count": float(len(rule_ids)),
         "rule_is_detector_owned": is_detector,
@@ -326,7 +409,6 @@ def features(record):
         "observed_span_seconds": span_value,
         "events_per_minute": round(per_minute, 6),
         "has_observed_time": has_time,
-        "criticality_rank": float(_criticality(record)),
     }
 
 
