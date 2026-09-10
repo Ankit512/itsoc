@@ -1,10 +1,10 @@
-# itsoc_mcp — an MCP server over the local analysis backend
+# itsoc-icp — an MCP server over the local analysis backend
 
 <!-- The line below is the MCP Registry PyPI ownership marker (must ship in the
      PyPI long-description). Keep it identical to `name` in itsoc_mcp/server.json. -->
-mcp-name: io.github.Ankit512/itsoc-mcp
+mcp-name: io.github.Ankit512/itsoc-icp
 
-`itsoc_mcp` exposes this project's **existing** log-analysis capabilities as
+`itsoc-icp` (Python package `itsoc_mcp`) exposes this project's **existing** log-analysis capabilities as
 [Model Context Protocol](https://modelcontextprotocol.io) tools, so an
 MCP-capable agent (Claude Code / Claude Desktop) can drive them. It is an
 **isolated sibling package**: it imports nothing from `anomaly_detector.py`,
@@ -46,6 +46,14 @@ verdicts), plus the running detector's `detector_sha256`.
 | `threat_intel_lookup(ip, bundle_path=None)` | **Offline** STIX→MITRE lookup for one IPv4, reusing `threat_intel/` (match + severity from `threat_detector.py`, MITRE from the cached ATT&CK DB). No network egress. | No bundle configured → honest n/a; no match → honest "no match", not an all-clear. |
 | `propose_block_ip(incident_id, runbook_id='rb-block-ip')` | Proposes a perimeter IP block by creating a **pending** approval record on the backend console. | Proposal creation only: zero execution authority, zero approval authority. Step-up auth on console is required to approve/execute. |
 
+Every tool declares all four MCP hints as explicit booleans (`readOnlyHint`,
+`destructiveHint`, `idempotentHint`, `openWorldHint`) so hosts can warn before
+invoke and OpenAI's directory will accept the contract. Read tools
+(`list_runs`, `get_findings`, `get_evidence`, `export_run`, `threat_intel_lookup`)
+are `readOnlyHint: true`. `analyze_log`, `explain_finding`, and `propose_block_ip`
+are writes (additive, not destructive). All backend-facing tools are
+`openWorldHint: true`.
+
 ## Install
 
 The core backend stays **stdlib-only** — do not install anything to run it. Install
@@ -81,15 +89,15 @@ pip install -r itsoc_mcp/requirements-mcp.txt   # the `mcp` SDK, and nothing els
 
 Paste into your MCP client config (e.g. Claude Desktop's
 `claude_desktop_config.json`, or `.mcp.json` for Claude Code). Replace
-`/ABSOLUTE/PATH/TO/log-analyzer` with the repo root:
+`/ABSOLUTE/PATH/TO/itsoc` with the repo root:
 
 ```json
 {
   "mcpServers": {
-    "itsoc": {
+    "itsoc-icp": {
       "command": "python",
       "args": ["-m", "itsoc_mcp"],
-      "cwd": "/ABSOLUTE/PATH/TO/log-analyzer",
+      "cwd": "/ABSOLUTE/PATH/TO/itsoc",
       "env": {
         "ITSOC_BASE_URL": "http://127.0.0.1:8765"
       }
@@ -117,13 +125,13 @@ that idle/unrecognized/error states return honest errors, not empty payloads.
 
 ## Standalone install (`uvx` / `pipx`)
 
-`pyproject.toml` builds an `itsoc-mcp` distribution with an `itsoc-mcp` console
-script (`itsoc_mcp.server:main`) and pins `mcp>=1.0,<2` — MCP clients speak the
+`pyproject.toml` builds an `itsoc-icp` distribution with an `itsoc-icp` console
+script (`itsoc_mcp.server:main`) and pins `mcp>=1.9,<2` — MCP clients speak the
 stable 1.x API; mcp 2.0 changed the server API. The package is **self-contained**:
 designed to run with no repo checkout.
 
 ```sh
-uvx itsoc-mcp        # or: pipx run itsoc-mcp   (the backend must still be running)
+uvx itsoc-icp        # or: pipx run itsoc-icp   (the backend must still be running)
 ```
 
 Two honesty points, stated plainly:

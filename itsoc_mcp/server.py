@@ -17,9 +17,13 @@ from .client import ApiClient
 from . import tools
 
 
+# OpenAI's directory rejects a tool when any of these four is missing or non-boolean.
+HINT_KEYS = ("readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint")
+
 # --- tool registry --------------------------------------------------------
-# Each entry: name, description, JSON-Schema for arguments, and a handler that
-# receives (client, arguments) and returns a JSON-serializable dict.
+# Each entry: name, description, JSON-Schema for arguments, MCP hints matching
+# handler behaviour, and a handler that receives (client, arguments) and returns
+# a JSON-serializable dict.
 TOOLS = [
     {
         "name": "analyze_log",
@@ -44,6 +48,14 @@ TOOLS = [
             },
             "required": ["source"],
         },
+        # Starts a backend run (write, additive). Not a retry-no-op; may fetch http(s).
+        "annotations": {
+            "title": "Analyze log",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "handler": lambda client, args: tools.analyze_log(
             client, source=args.get("source", ""),
             compare=bool(args.get("compare", False))),
@@ -55,6 +67,13 @@ TOOLS = [
             "Returns run_id, label, finding count, and the current run. Empty when "
             "there are no runs — never a fabricated entry."),
         "inputSchema": {"type": "object", "properties": {}},
+        "annotations": {
+            "title": "List runs",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
         "handler": lambda client, args: tools.list_runs(client),
     },
     {
@@ -78,6 +97,13 @@ TOOLS = [
                           "default": 50},
             },
         },
+        "annotations": {
+            "title": "Get findings",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
         "handler": lambda client, args: tools.get_findings(
             client, run_id=args.get("run_id", ""), severity=args.get("severity", ""),
             rule=args.get("rule", ""), host=args.get("host", ""),
@@ -100,6 +126,13 @@ TOOLS = [
             },
             "required": ["finding_id"],
         },
+        "annotations": {
+            "title": "Get evidence",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
         "handler": lambda client, args: tools.get_evidence(
             client, finding_id=args.get("finding_id", ""), run_id=args.get("run_id", "")),
     },
@@ -120,6 +153,14 @@ TOOLS = [
             },
             "required": ["finding_id"],
         },
+        # POST /api/explain triggers an advisory LLM call; does not change verdicts.
+        "annotations": {
+            "title": "Explain finding",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "handler": lambda client, args: tools.explain_finding(
             client, finding_id=args.get("finding_id", ""), run_id=args.get("run_id", "")),
     },
@@ -138,6 +179,13 @@ TOOLS = [
                            "description": "Export format.", "default": "html"},
                 "run_id": {"type": "string", "description": "Optional; must be the active run."},
             },
+        },
+        "annotations": {
+            "title": "Export run",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
         },
         "handler": lambda client, args: tools.export_run(
             client, format=args.get("format", "html"), run_id=args.get("run_id", "")),
@@ -160,6 +208,15 @@ TOOLS = [
                                                "(overrides ITSOC_STIX_BUNDLE)."},
             },
             "required": ["ip"],
+        },
+        # Offline STIX match (no STIX download). May still read the local backend
+        # for detector sha; does not write.
+        "annotations": {
+            "title": "Threat-intel lookup",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
         },
         "handler": lambda client, args: tools.threat_intel_lookup(
             client, ip=args.get("ip", ""), bundle_path=args.get("bundle_path")),
@@ -187,6 +244,14 @@ TOOLS = [
             },
             "required": ["incident_id"],
         },
+        # Creates a pending approval record (additive write). Does not execute the block.
+        "annotations": {
+            "title": "Propose block IP",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "handler": lambda client, args: tools.propose_block_ip(
             client,
             incident_id=args.get("incident_id", ""),
@@ -205,12 +270,26 @@ def build_server(client=None):
     import mcp.types as types
 
     client = client or ApiClient()
-    server = Server("itsoc-mcp")
+    server = Server("itsoc-icp")
 
     @server.list_tools()
     async def list_tools():
-        return [types.Tool(name=t["name"], description=t["description"],
-                           inputSchema=t["inputSchema"]) for t in TOOLS]
+        return [
+            types.Tool(
+                name=t["name"],
+                title=t["annotations"]["title"],
+                description=t["description"],
+                inputSchema=t["inputSchema"],
+                annotations=types.ToolAnnotations(
+                    title=t["annotations"]["title"],
+                    readOnlyHint=t["annotations"]["readOnlyHint"],
+                    destructiveHint=t["annotations"]["destructiveHint"],
+                    idempotentHint=t["annotations"]["idempotentHint"],
+                    openWorldHint=t["annotations"]["openWorldHint"],
+                ),
+            )
+            for t in TOOLS
+        ]
 
     @server.call_tool()
     async def call_tool(name, arguments):
