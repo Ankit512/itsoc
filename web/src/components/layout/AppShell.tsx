@@ -4,6 +4,7 @@ import {
   Antenna, Bell, Cable, Database, FileText, FolderKanban, House, Link as LinkIcon, LogOut, Monitor,
   BrainCircuit, Plug, Radar, RefreshCw, Search, Settings, Shield, ShieldCheck, TriangleAlert, Upload, X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { sevVar } from "@/lib/severity";
@@ -21,29 +22,102 @@ import { isBlobPageUrl, rawFileUrl } from "@/lib/rawUrl";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
-/** Core navigation per DESIGN_HANDOFF §2 + Stage C §1, plus the case-file board. */
-export const CORE_NAV = [
-  { to: "/", label: "Overview", icon: House, ready: true },
-  { to: "/alerts", label: "Findings", icon: Bell, ready: true },
-  { to: "/incidents", label: "Incidents", icon: TriangleAlert, ready: true },
-  { to: "/cases", label: "Cases", icon: FolderKanban, ready: true },
-  { to: "/approvals", label: "Approvals", icon: ShieldCheck, ready: true },
-  { to: "/intel", label: "Intel", icon: Shield, ready: true },
-  { to: "/network", label: "Network", icon: Radar, ready: true },
-  { to: "/assets", label: "Assets", icon: Monitor, ready: true },
-  { to: "/sources", label: "Sources", icon: Antenna, ready: true },
-  { to: "/integrations", label: "Integrations", icon: Plug, ready: true },
-  { to: "/history", label: "History", icon: Database, ready: true },
-  { to: "/reports", label: "Reports", icon: FileText, ready: true },
-  { to: "/settings", label: "Settings", icon: Settings, ready: true },
-] as const;
+export interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  ready: boolean;
+}
 
-/** Experimental group (off by default). Houses OEM Engine. */
-export const EXPERIMENTAL_NAV = [
+export interface NavGroup {
+  id: string;
+  label: string;
+  /** Why this group exists, in the analyst's own terms. Rendered as the
+   *  section's tooltip so the grouping explains itself in the product, not
+   *  only in the report. */
+  rationale: string;
+  items: readonly NavItem[];
+}
+
+/** Overview is the home surface, not a peer of the working screens: it is what
+ *  the wordmark points at and what the tour starts on. It therefore sits above
+ *  the groups rather than inside one (G1 · Stage F §3). */
+export const HOME_NAV: NavItem = { to: "/", label: "Overview", icon: House, ready: true };
+
+/** G1 information architecture. Three groups, ordered by the question a
+ *  security lead asks in sequence during a 30-minute demo:
+ *
+ *    Triage   — "what happened, and what do I do about it?"  (the work)
+ *    Context  — "what else do I know about the things involved?"  (the lookup)
+ *    Operate  — "how is this workspace wired, and what leaves it?"  (the plumbing)
+ *
+ *  Ordering INSIDE a group is not alphabetical either. Triage follows the
+ *  analyst's own escalation path (a finding becomes an incident, an incident
+ *  earns a case, a case proposes an action that needs approval). Context runs
+ *  outside-in: external intel, then the network we observed, then the assets we
+ *  own, then the collectors that fed the run. Operate runs from inbound wiring
+ *  through the stored past to what goes out and what is configured.
+ *
+ *  These are display groupings only. `web/` never derives a verdict, a priority
+ *  or an eligibility — grouping a link is not deriving anything about the data
+ *  behind it (CLAUDE.md, Stage F §2.1). */
+export const NAV_GROUPS: readonly NavGroup[] = [
+  {
+    id: "triage",
+    label: "Triage",
+    rationale: "What happened and what to do about it — a finding becomes an incident, an incident earns a case, a case proposes an action that needs approval.",
+    items: [
+      { to: "/alerts", label: "Findings", icon: Bell, ready: true },
+      { to: "/incidents", label: "Incidents", icon: TriangleAlert, ready: true },
+      { to: "/cases", label: "Cases", icon: FolderKanban, ready: true },
+      { to: "/approvals", label: "Approvals", icon: ShieldCheck, ready: true },
+    ],
+  },
+  {
+    id: "context",
+    label: "Context",
+    rationale: "What else is known about the entities in a finding — read outside-in: external intel, the observed network, the assets we own, the collectors that fed this run.",
+    items: [
+      { to: "/intel", label: "Intel", icon: Shield, ready: true },
+      { to: "/network", label: "Network", icon: Radar, ready: true },
+      { to: "/assets", label: "Assets", icon: Monitor, ready: true },
+      { to: "/sources", label: "Sources", icon: Antenna, ready: true },
+    ],
+  },
+  {
+    id: "operate",
+    label: "Operate",
+    rationale: "How this workspace is wired and what leaves it — inbound connectors, the stored past, outbound reports, and the settings that govern both.",
+    items: [
+      { to: "/integrations", label: "Integrations", icon: Plug, ready: true },
+      { to: "/history", label: "History", icon: Database, ready: true },
+      { to: "/reports", label: "Reports", icon: FileText, ready: true },
+      { to: "/settings", label: "Settings", icon: Settings, ready: true },
+    ],
+  },
+];
+
+/** The flat roster, DERIVED from what the sidebar actually renders. Deriving it
+ *  rather than maintaining a second list is the point: `TOUR_STEPS` and the
+ *  nav-alias tests both compare against `CORE_NAV`, and a hand-kept copy is how
+ *  the rendered nav and its tests drift apart without either side going red.
+ *  The order below is therefore, by construction, top-to-bottom visual order —
+ *  and it is unchanged from the pre-G1 flat nav, which is why the guided tour
+ *  needed no edit. */
+export const CORE_NAV: readonly NavItem[] = [
+  HOME_NAV,
+  ...NAV_GROUPS.flatMap((group) => group.items),
+];
+
+/** Experimental group (off by default). Houses OEM Engine. `/oem` is reachable
+ *  whether or not this is on: the command palette lists it unconditionally, and
+ *  the route is registered unconditionally in `App.tsx`. The toggle changes
+ *  whether the sidebar advertises it, never whether it exists. */
+export const EXPERIMENTAL_NAV: readonly NavItem[] = [
   { to: "/oem", label: "OEM Engine", icon: Cable, ready: true },
-] as const;
+];
 
-export const NAV = [...CORE_NAV, ...EXPERIMENTAL_NAV];
+export const NAV: readonly NavItem[] = [...CORE_NAV, ...EXPERIMENTAL_NAV];
 
 /** Page title + subtitle, verbatim from the v3 dc `TITLES` map. The subtitle is
  *  a mono provenance/intent line (what this screen is honest about), never a
@@ -77,6 +151,25 @@ const sevWord = (s: string) =>
   ({ critical: "CRIT", high: "HIGH", medium: "MED", low: "LOW" } as Record<string, string>)[
     s.toLowerCase()
   ] ?? s.toUpperCase();
+
+/** One nav anchor. Shared by the core groups and the experimental group so a
+ *  link can never gain an affordance in one place and lose it in the other —
+ *  including the `data-tour` anchor the guided tour spotlights. */
+function NavItemLink({ item }: { item: NavItem }) {
+  const { to, label, icon: Icon, ready } = item;
+  return (
+    <NavLink
+      to={to}
+      end={to === "/"}
+      data-tour={to === "/" ? "nav-overview" : `nav-${label.toLowerCase()}`}
+      title={ready ? undefined : "Not built yet — the page says so honestly"}
+      className={({ isActive }) => cn(isActive && "active")}
+    >
+      <Icon className="ic" strokeWidth={1.8} aria-hidden />
+      {label}
+    </NavLink>
+  );
+}
 
 function Sidebar() {
   const { experimentalEnabled, toggleExperimental, setCommandPaletteOpen } = useUi();
@@ -112,20 +205,24 @@ function Sidebar() {
         <kbd>⌘K</kbd>
       </button>
 
-      {/* Primary nav */}
+      {/* Primary nav — Overview as home, then the three G1 groups. Group
+          headings are plain text, so the Tab order through the nav is exactly
+          the anchor order it always was: no new keyboard mode, no roving
+          tabindex, no heading that swallows a stop. */}
       <nav className="is-nav" aria-label="Main">
-        {CORE_NAV.map(({ to, label, icon: Icon, ready }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            data-tour={to === "/" ? "nav-overview" : `nav-${label.toLowerCase()}`}
-            title={ready ? undefined : "Not built yet — the page says so honestly"}
-            className={({ isActive }) => cn(isActive && "active")}
+        <NavItemLink item={HOME_NAV} />
+        {NAV_GROUPS.map((group) => (
+          <div
+            key={group.id}
+            className="is-nav-sec"
+            role="group"
+            aria-labelledby={`nav-sec-${group.id}`}
           >
-            <Icon className="ic" strokeWidth={1.8} aria-hidden />
-            {label}
-          </NavLink>
+            <div className="is-nav-sec__h" id={`nav-sec-${group.id}`} title={group.rationale}>
+              {group.label}
+            </div>
+            {group.items.map((item) => <NavItemLink key={item.to} item={item} />)}
+          </div>
         ))}
       </nav>
 
@@ -147,38 +244,37 @@ function Sidebar() {
         </div>
       )}
 
-      {/* Experimental group with ON/OFF badge (DESIGN_HANDOFF §2) */}
-      <div className="is-nav-group">
-        <span>Experimental</span>
+      {/* Experimental group — one disclosure row, not a permanent fake-off
+          panel. G1 removed a dashed `is-exp-empty` box reading "Command Center
+          · off": it took a nav slot to advertise a destination that has no
+          route in App.tsx at all, so it could never have been navigated to.
+          The honest statement is the toggle's own OFF badge, and the count of
+          what is hidden — and `/oem` stays reachable from ⌘K regardless. */}
+      <div className="is-nav-exp">
         <button
-          className={cn("badge", experimentalEnabled && "on")}
+          className="is-nav-exp__h"
           onClick={toggleExperimental}
           aria-pressed={experimentalEnabled}
-          aria-label="Toggle experimental group"
+          aria-expanded={experimentalEnabled}
+          aria-controls="nav-experimental"
+          title={
+            experimentalEnabled
+              ? `Experimental: ${EXPERIMENTAL_NAV.length} screen(s) shown in the sidebar.`
+              : `Experimental: ${EXPERIMENTAL_NAV.length} screen(s) hidden from the sidebar (${EXPERIMENTAL_NAV.map((i) => i.label).join(", ")}). Still reachable from the ⌘K command palette.`
+          }
         >
-          {experimentalEnabled ? "ON" : "OFF"}
+          <span className="lbl">Experimental</span>
+          <span className="count">{EXPERIMENTAL_NAV.length}</span>
+          <span className={cn("badge", experimentalEnabled && "on")}>
+            {experimentalEnabled ? "ON" : "OFF"}
+          </span>
         </button>
+        {experimentalEnabled && (
+          <nav id="nav-experimental" className="is-nav" aria-label="Experimental">
+            {EXPERIMENTAL_NAV.map((item) => <NavItemLink key={item.to} item={item} />)}
+          </nav>
+        )}
       </div>
-      {experimentalEnabled ? (
-        <nav className="is-nav" aria-label="Experimental">
-          {EXPERIMENTAL_NAV.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => cn(isActive && "active")}>
-              <Icon className="ic" strokeWidth={1.8} aria-hidden />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-      ) : (
-        <div
-          className="is-exp-empty"
-          role="button"
-          tabIndex={0}
-          onClick={toggleExperimental}
-          onKeyDown={(e) => e.key === "Enter" && toggleExperimental()}
-        >
-          Command Center · <span className="is-mut2">off</span>
-        </div>
-      )}
 
       {/* Footer: user + role, Logout, rules · model · local meta */}
       <div className="is-side-foot">
@@ -351,11 +447,28 @@ function Header({ onOpenUpload }: { onOpenUpload: () => void }) {
 
       <div className="is-top-actions">
         <UploadButton onClick={onOpenUpload} />
-        <RunSwitcher />
-        <RunHistory />
-        <button className="is-btn" onClick={() => queryClient.invalidateQueries()}>
+
+        {/* G1 density: the run selector and the run history were two separately
+            bordered buttons doing one job — saying which run is loaded and
+            letting you change it. They are now segments of ONE bordered
+            provenance cluster. Nothing is hidden: the loaded run's filename,
+            its `· unparsed` marker and the full history popover are all still
+            here, and RunHistory keeps its own honest "unreadable" row that the
+            selector does not have. */}
+        <div className="is-top-runs" role="group" aria-label="Loaded run">
+          <RunSwitcher />
+          <RunHistory />
+        </div>
+
+        {/* Refresh is a utility, not provenance: icon-only, still named for
+            assistive tech and still explained on hover. */}
+        <button
+          className="is-icobtn"
+          onClick={() => queryClient.invalidateQueries()}
+          aria-label="Refresh"
+          title="Re-fetch every dashboard query from the local API"
+        >
           <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
-          Refresh
         </button>
         <ThemeToggle />
       </div>

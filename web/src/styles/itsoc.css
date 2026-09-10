@@ -276,7 +276,7 @@
 .is-main{ display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; }
 
 /* ---- 4. SIDEBAR --------------------------------------------------------- */
-.is-side{ background:var(--pan); border-right:1px solid var(--bd); padding:14px 10px; display:flex; flex-direction:column; gap:12px; }
+.is-side{ background:var(--pan); border-right:1px solid var(--bd); padding:14px 10px; display:flex; flex-direction:column; gap:10px; min-height:0; overflow-y:auto; }
 .is-brand{ display:flex; align-items:center; gap:9px; width:max-content; color:var(--ink); font-weight:650; font-size:16px; letter-spacing:-.03em; padding:7px 8px; border-radius:7px; text-decoration:none; transition:background .14s ease,color .14s ease; }
 .is-brand:hover{ background:var(--pan2); }
 .is-brand:focus-visible{ outline:2px solid var(--acc); outline-offset:2px; }
@@ -288,17 +288,28 @@
 .is-side-search:hover{ color:var(--mut); border-color:var(--mut2); }
 .is-side-search kbd{ font-family:var(--mono); font-size:10.5px; border:1px solid var(--bd); border-radius:5px; padding:1px 5px; }
 .is-nav{ display:flex; flex-direction:column; gap:2px; }
-.is-nav a{ display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:var(--radius-xs); color:var(--mut); font-size:13px; font-weight:500; text-decoration:none; cursor:pointer; }
+.is-nav a{ display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:var(--radius-xs); color:var(--mut); font-size:13px; font-weight:500; text-decoration:none; cursor:pointer; }
 .is-nav a svg,.is-nav a .ic{ width:15px; height:15px; color:var(--mut2); flex:0 0 auto; }
 .is-nav a:hover{ background:var(--pan2); color:var(--ink); }
 .is-nav a.active{ background:var(--pan2); color:var(--ink); font-weight:600; }
 .is-nav a.active svg,.is-nav a.active .ic{ color:var(--acc); }
-.is-nav-group{ display:flex; align-items:center; justify-content:space-between; margin:4px 6px 0; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.09em; color:var(--mut2); }
-.is-nav-group .badge{ font-size:9px; font-weight:700; padding:2px 6px; border-radius:5px; background:var(--bd); color:var(--mut); }
-.is-nav-group .badge.on{ background:var(--acc-weak); color:var(--acc); }
-.is-exp-empty{ margin:2px 6px; padding:10px; border:1px dashed var(--bd); border-radius:var(--radius-sm); color:var(--mut); font-size:11px; }
+/* G1 nav grouping. The heading is plain text inside a role="group", so it
+   labels the section for assistive tech without taking a Tab stop. */
+.is-nav-sec{ display:flex; flex-direction:column; gap:1px; }
+.is-nav-sec__h{ padding:0 10px; margin:10px 0 3px; font-size:9.5px; font-weight:650; text-transform:uppercase; letter-spacing:.1em; color:var(--mut2); }
+/* Experimental: one disclosure row. Replaces the pre-G1 dashed "Command Center
+   · off" panel, which occupied a nav slot to name a destination App.tsx has no
+   route for. */
+.is-nav-exp{ display:flex; flex-direction:column; gap:1px; margin-top:2px; }
+.is-nav-exp__h{ display:flex; align-items:center; gap:7px; width:100%; padding:5px 10px; border:0; border-radius:var(--radius-xs); background:transparent; cursor:pointer; font-size:9.5px; font-weight:650; text-transform:uppercase; letter-spacing:.1em; color:var(--mut2); }
+.is-nav-exp__h:hover{ background:var(--pan2); color:var(--mut); }
+.is-nav-exp__h:focus-visible{ outline:2px solid var(--acc); outline-offset:2px; }
+.is-nav-exp__h .lbl{ flex:1; text-align:left; }
+.is-nav-exp__h .count{ font-family:var(--mono); font-size:9.5px; letter-spacing:0; }
+.is-nav-exp__h .badge{ font-size:9px; font-weight:700; letter-spacing:.04em; padding:1px 5px; border-radius:5px; background:var(--bd); color:var(--mut); }
+.is-nav-exp__h .badge.on{ background:var(--acc-weak); color:var(--acc); }
 /* Contextual recent-incidents list (Incidents route only) — dot + entity + tiny sev word. */
-.is-recent{ display:flex; flex-direction:column; gap:5px; margin:0 6px; }
+.is-recent{ display:flex; flex-direction:column; gap:5px; margin:10px 6px 0; }
 .is-recent__h{ font-size:10px; font-weight:600; letter-spacing:.09em; color:var(--mut2); margin-bottom:2px; }
 .is-recent__row{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink); text-decoration:none; cursor:pointer; }
 .is-recent__row:hover{ color:var(--acc); }
@@ -317,11 +328,26 @@
 .is-side-meta{ color:var(--mut2); font-size:10px; font-family:var(--mono); }
 
 /* ---- 5. TOP BAR --------------------------------------------------------- */
-.is-top{ flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:10px 20px; border-bottom:1px solid var(--bd); z-index:20; }
+.is-top{ flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 20px; border-bottom:1px solid var(--bd); z-index:20; }
 .is-title{ min-width:0; }
 .is-title h1{ font-size:16px; font-weight:600; margin:0; letter-spacing:-.01em; }
 .is-title .sub{ font-family:var(--mono); font-size:10.5px; color:var(--mut2); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.is-top-actions{ display:flex; align-items:center; gap:8px; flex:none; }
+/* G1 density is subtractive, not compressive: the bar keeps its own height and
+   padding, so no page body reflows and G2 can still attribute its pixels to
+   itself (Stage F §4). What shrinks is the number of objects in the bar. */
+.is-top-actions{ display:flex; align-items:center; gap:6px; flex:none; }
+/* G1 density: RunSwitcher + RunHistory read as segments of one control. Both
+   buttons keep their own labels, popovers and honest states; only the doubled
+   border and the gap between them are removed. */
+.is-top-runs{ display:flex; align-items:center; gap:2px; height:32px; padding:1px; border:1px solid var(--bd); border-radius:calc(var(--radius-sm) + 2px); background:var(--pan); }
+/* The cluster must cost NO height: its border and padding come out of the
+   buttons, not out of the bar. Otherwise the top bar grows 1px on the five
+   routes whose title has no subtitle (/, /alerts, /findings, /incidents and
+   the not-found placeholder), whose header height was governed by the actions
+   row rather than by a two-line title — and every page body below shifts down
+   a pixel. Measured, not assumed: see visual-attribution-shift.json. */
+.is-top-runs .is-btn{ height:28px; border-color:transparent; background:transparent; }
+.is-top-runs .is-btn:hover{ background:var(--pan2); }
 
 /* ---- 6. BUTTONS / INPUTS ------------------------------------------------ */
 .is-btn{ display:inline-flex; align-items:center; gap:6px; background:var(--pan); border:1px solid var(--bd); color:var(--ink); padding:6px 10px; border-radius:var(--radius-sm); font-size:12.5px; font-weight:500; cursor:pointer; height:32px; }

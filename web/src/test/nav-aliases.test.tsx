@@ -1,8 +1,8 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "@/App";
-import { CORE_NAV, EXPERIMENTAL_NAV, NAV } from "@/components/layout/AppShell";
+import { CORE_NAV, EXPERIMENTAL_NAV, HOME_NAV, NAV, NAV_GROUPS } from "@/components/layout/AppShell";
 import { renderApp, mockFetch, OVERVIEW, METRICS } from "./helpers";
 
 afterEach(() => vi.restoreAllMocks());
@@ -48,6 +48,92 @@ describe("C1-T6 · Nav + Cmd-K aliases (core roster + case file)", () => {
     // A built screen carries no honest-unbuilt tooltip.
     const approvalsLink = screen.getByRole("link", { name: "Approvals" });
     expect(approvalsLink).not.toHaveAttribute("title", "Not built yet — the page says so honestly");
+  });
+
+  it("(a2) G1 · CORE_NAV is derived from the groups the sidebar actually renders", async () => {
+    // The roster is not hand-maintained alongside the rendered nav — it IS the
+    // rendered nav, flattened. TOUR_STEPS and the assertions above both compare
+    // against CORE_NAV, so a second hand-kept copy is how they would silently
+    // drift apart. Asserting the derivation is what keeps that impossible.
+    expect(CORE_NAV[0]).toBe(HOME_NAV);
+    expect(CORE_NAV.slice(1)).toEqual(NAV_GROUPS.flatMap((g) => g.items));
+
+    expect(NAV_GROUPS.map((g) => g.label)).toEqual(["Triage", "Context", "Operate"]);
+    expect(NAV_GROUPS.map((g) => g.items.map((i) => i.label))).toEqual([
+      ["Findings", "Incidents", "Cases", "Approvals"],
+      ["Intel", "Network", "Assets", "Sources"],
+      ["Integrations", "History", "Reports", "Settings"],
+    ]);
+    // Every group states why it exists; a group that cannot say so is a bucket.
+    for (const group of NAV_GROUPS) expect(group.rationale.length).toBeGreaterThan(40);
+    // No screen may appear in two groups.
+    const tos = CORE_NAV.map((i) => i.to);
+    expect(new Set(tos).size).toBe(tos.length);
+  });
+
+  it("(a3) G1 · no orphaned route — every route in App.tsx is reachable", async () => {
+    // The full route census of web/src/App.tsx. A route reached ONLY by typing
+    // its URL is orphaned, which is what regrouping a nav is most likely to
+    // cause. Each route below is claimed by exactly one reachability mechanism,
+    // and every mechanism is checked against the real rendered UI.
+    const ROUTE_CENSUS: { route: string; via: "nav" | "palette" | "alias-of" | "shell"; target?: string }[] = [
+      { route: "/", via: "nav" },
+      { route: "/alerts", via: "nav" },
+      { route: "/incidents", via: "nav" },
+      { route: "/cases", via: "nav" },
+      { route: "/approvals", via: "nav" },
+      { route: "/intel", via: "nav" },
+      { route: "/network", via: "nav" },
+      { route: "/assets", via: "nav" },
+      { route: "/sources", via: "nav" },
+      { route: "/integrations", via: "nav" },
+      { route: "/history", via: "nav" },
+      { route: "/reports", via: "nav" },
+      { route: "/settings", via: "nav" },
+      { route: "/oem", via: "palette" },
+      { route: "/logout", via: "shell" },
+      { route: "/findings", via: "alias-of", target: "/alerts" },
+      { route: "/threat-intel", via: "alias-of", target: "/intel" },
+      { route: "/enrichment", via: "alias-of", target: "/intel" },
+      { route: "/discovery", via: "alias-of", target: "/network" },
+      { route: "/vulnerabilities", via: "alias-of", target: "/network" },
+      { route: "/collectors", via: "alias-of", target: "/sources" },
+    ];
+
+    renderApp(<App />);
+    await screen.findByTestId("wordmark");
+    const sidebar = screen.getByRole("navigation", { name: "Main" }).closest("aside")!;
+    await userEvent.click(screen.getByRole("button", { name: /open command palette/i }));
+    const paletteHrefs = new Set(
+      [...CORE_NAV, ...EXPERIMENTAL_NAV].map((i) => i.to),
+    );
+
+    for (const entry of ROUTE_CENSUS) {
+      if (entry.via === "nav") {
+        const item = CORE_NAV.find((i) => i.to === entry.route);
+        expect(item, `${entry.route} claims nav reachability`).toBeDefined();
+        expect(within(sidebar).getByRole("link", { name: item!.label })).toHaveAttribute("href", entry.route);
+      } else if (entry.via === "palette") {
+        // Reachable with experimental OFF (its default) — this is what replaced
+        // the removed "Command Center · off" box as OEM Engine's way in.
+        const item = EXPERIMENTAL_NAV.find((i) => i.to === entry.route) ?? CORE_NAV.find((i) => i.to === entry.route);
+        expect(item, `${entry.route} claims palette reachability`).toBeDefined();
+        expect(within(sidebar).queryByRole("link", { name: item!.label })).toBeNull();
+        expect(screen.getByRole("button", { name: new RegExp(`^${item!.label}$`, "i") })).toBeInTheDocument();
+        expect(paletteHrefs.has(entry.route)).toBe(true);
+      } else if (entry.via === "alias-of") {
+        // An alias is only reachable if the screen it aliases is; the (b)/(c)
+        // blocks below prove each alias actually lands on that screen.
+        expect(CORE_NAV.some((i) => i.to === entry.target), `${entry.route} aliases ${entry.target}`).toBe(true);
+      } else {
+        expect(within(sidebar).getByRole("link", { name: /log out/i })).toHaveAttribute("href", entry.route);
+      }
+    }
+
+    // And the census is exhaustive over the nav: no nav item points at a route
+    // the census does not list.
+    const censusRoutes = new Set(ROUTE_CENSUS.map((r) => r.route));
+    for (const item of NAV) expect(censusRoutes.has(item.to)).toBe(true);
   });
 
   describe("(b) Cmd-K aliases resolve old screen names to their new destinations", () => {
