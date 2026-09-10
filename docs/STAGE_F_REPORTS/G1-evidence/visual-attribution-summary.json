@@ -1,0 +1,463 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g1-visual-attribution-summary",
+  "question": "Which regions of the 44 changed route-states are attributable to G1, and which were already varying before G1 existed?",
+  "comparisons": {
+    "G1": "before (base 010a50c) vs after (cf1fc5e) \u2014 the change under test",
+    "noChangeControl": "before vs before-repeat \u2014 the SAME base tree 010a50c photographed in two separate capture sessions, no code change at all",
+    "sessionControl": "after vs after-repeat \u2014 the same post-change tree twice in adjacent sessions (visual-noise-control.json): 47/48 byte-identical, 4 changed pixels total"
+  },
+  "verdict": {
+    "sidebar": "ATTRIBUTABLE TO G1. 44/44 states changed under G1; 0/44 under the no-change control.",
+    "header": "ATTRIBUTABLE TO G1. 44/44 states changed under G1; 0/44 under the no-change control.",
+    "content": "NOT ATTRIBUTABLE TO G1. 40/44 states carry a content-region delta identical pixel-for-pixel to the no-change control. The 4 that differ are /alerts and /findings in both themes, where G1's delta (123791 light / 125804 dark) is SMALLER than the control's (172929 / 174926) \u2014 the same non-deterministic surface landing in a different state, not an additional G1 effect."
+  },
+  "totals": {
+    "contentChanged_G1": 2088117,
+    "contentChanged_noChangeControl": 2284637,
+    "statesWhereContentDeltaIsIdenticalToControl": 40
+  },
+  "finding": "The no-change control is itself a finding for Stage F: 42 of 48 route-states differ between two capture sessions of an IDENTICAL tree served the SAME frozen report, with every changed bound at minX>=248 (content region only, never the sidebar). Content ordering in web/ is not stable across serve.py processes. G1 did not cause it and does not fix it; it is named here because it will make G2's and G3's pixel evidence harder to attribute, and because G4 is the card that owns honest-state auditing.",
+  "perState": [
+    {
+      "id": "dark:alerts",
+      "sidebarChanged_G1": 23279,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7317,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 125804,
+      "contentChanged_noChangeControl": 174926,
+      "contentIdenticalToControl": false
+    },
+    {
+      "id": "dark:approvals",
+      "sidebarChanged_G1": 18530,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 0,
+      "contentChanged_noChangeControl": 0,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:assets",
+      "sidebarChanged_G1": 25310,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 18721,
+      "contentChanged_noChangeControl": 18721,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:cases",
+      "sidebarChanged_G1": 20097,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 74137,
+      "contentChanged_noChangeControl": 74137,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:collectors",
+      "sidebarChanged_G1": 14789,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 47399,
+      "contentChanged_noChangeControl": 47399,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:discovery",
+      "sidebarChanged_G1": 14789,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 19868,
+      "contentChanged_noChangeControl": 19868,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:does-not-exist",
+      "sidebarChanged_G1": 14789,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7317,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 8214,
+      "contentChanged_noChangeControl": 8214,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:enrichment",
+      "sidebarChanged_G1": 14789,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 21376,
+      "contentChanged_noChangeControl": 21376,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:findings",
+      "sidebarChanged_G1": 14789,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7317,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 125804,
+      "contentChanged_noChangeControl": 174926,
+      "contentIdenticalToControl": false
+    },
+    {
+      "id": "dark:history",
+      "sidebarChanged_G1": 26281,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 46487,
+      "contentChanged_noChangeControl": 46487,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:incidents",
+      "sidebarChanged_G1": 25411,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7317,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 26565,
+      "contentChanged_noChangeControl": 26565,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:integrations",
+      "sidebarChanged_G1": 26260,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 132195,
+      "contentChanged_noChangeControl": 132195,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:intel",
+      "sidebarChanged_G1": 26788,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 105030,
+      "contentChanged_noChangeControl": 105030,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:logout",
+      "sidebarChanged_G1": 14789,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 19380,
+      "contentChanged_noChangeControl": 19380,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:network",
+      "sidebarChanged_G1": 26661,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 19868,
+      "contentChanged_noChangeControl": 19868,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:oem",
+      "sidebarChanged_G1": 14789,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 18141,
+      "contentChanged_noChangeControl": 18141,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:overview",
+      "sidebarChanged_G1": 17285,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7317,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 95900,
+      "contentChanged_noChangeControl": 95900,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:reports",
+      "sidebarChanged_G1": 26053,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 12573,
+      "contentChanged_noChangeControl": 12573,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:settings",
+      "sidebarChanged_G1": 25549,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 44,
+      "contentChanged_noChangeControl": 44,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:sources",
+      "sidebarChanged_G1": 23074,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 18647,
+      "contentChanged_noChangeControl": 18647,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:threat-intel",
+      "sidebarChanged_G1": 14789,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 105030,
+      "contentChanged_noChangeControl": 105030,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "dark:vulnerabilities",
+      "sidebarChanged_G1": 14789,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7320,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 4510,
+      "contentChanged_noChangeControl": 4510,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:alerts",
+      "sidebarChanged_G1": 23273,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 123791,
+      "contentChanged_noChangeControl": 172929,
+      "contentIdenticalToControl": false
+    },
+    {
+      "id": "light:approvals",
+      "sidebarChanged_G1": 18525,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 0,
+      "contentChanged_noChangeControl": 0,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:assets",
+      "sidebarChanged_G1": 25308,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 18713,
+      "contentChanged_noChangeControl": 18713,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:cases",
+      "sidebarChanged_G1": 20091,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 74134,
+      "contentChanged_noChangeControl": 74134,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:collectors",
+      "sidebarChanged_G1": 14783,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 47381,
+      "contentChanged_noChangeControl": 47381,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:discovery",
+      "sidebarChanged_G1": 14783,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 19868,
+      "contentChanged_noChangeControl": 19868,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:does-not-exist",
+      "sidebarChanged_G1": 14783,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 8542,
+      "contentChanged_noChangeControl": 8542,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:enrichment",
+      "sidebarChanged_G1": 14783,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 21368,
+      "contentChanged_noChangeControl": 21368,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:findings",
+      "sidebarChanged_G1": 14783,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 123791,
+      "contentChanged_noChangeControl": 172929,
+      "contentIdenticalToControl": false
+    },
+    {
+      "id": "light:history",
+      "sidebarChanged_G1": 26276,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 46518,
+      "contentChanged_noChangeControl": 46518,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:incidents",
+      "sidebarChanged_G1": 25408,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 26536,
+      "contentChanged_noChangeControl": 26536,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:integrations",
+      "sidebarChanged_G1": 26255,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 132101,
+      "contentChanged_noChangeControl": 132101,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:intel",
+      "sidebarChanged_G1": 26784,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 105321,
+      "contentChanged_noChangeControl": 105321,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:logout",
+      "sidebarChanged_G1": 14783,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 19380,
+      "contentChanged_noChangeControl": 19380,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:network",
+      "sidebarChanged_G1": 26657,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 19868,
+      "contentChanged_noChangeControl": 19868,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:oem",
+      "sidebarChanged_G1": 14783,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 18138,
+      "contentChanged_noChangeControl": 18138,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:overview",
+      "sidebarChanged_G1": 17280,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 95895,
+      "contentChanged_noChangeControl": 95895,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:reports",
+      "sidebarChanged_G1": 26047,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 12561,
+      "contentChanged_noChangeControl": 12561,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:settings",
+      "sidebarChanged_G1": 25548,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 44,
+      "contentChanged_noChangeControl": 44,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:sources",
+      "sidebarChanged_G1": 23072,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 18643,
+      "contentChanged_noChangeControl": 18643,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:threat-intel",
+      "sidebarChanged_G1": 14783,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 105321,
+      "contentChanged_noChangeControl": 105321,
+      "contentIdenticalToControl": true
+    },
+    {
+      "id": "light:vulnerabilities",
+      "sidebarChanged_G1": 14783,
+      "sidebarChanged_noChangeControl": 0,
+      "headerChanged_G1": 7313,
+      "headerChanged_noChangeControl": 0,
+      "contentChanged_G1": 4510,
+      "contentChanged_noChangeControl": 4510,
+      "contentIdenticalToControl": true
+    }
+  ]
+}

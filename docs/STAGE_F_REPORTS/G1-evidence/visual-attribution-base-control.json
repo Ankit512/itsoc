@@ -1,0 +1,1954 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g1-visual-attribution",
+  "generatedAt": "2026-09-10T07:33:20.488Z",
+  "method": {
+    "sidebarRegion": "x < 224",
+    "headerRegion": "x >= 224 and y < 58",
+    "contentRegion": "x >= 224 and y >= 58",
+    "shiftTest": "content region of 'after' re-compared against 'before' displaced upward by 0/2/4/6/8 px",
+    "decoder": "verbatim pngInfo/paeth/decodePng from docs/STAGE_F_REPORTS/G0-evidence/capture-visuals.mjs"
+  },
+  "summary": {
+    "statesMeasured": 42,
+    "contentBestShiftPxDistinct": [
+      0
+    ],
+    "contentResidualTotalAtBestShift": 2284637,
+    "contentChangedTotalAtZeroShift": 2284637
+  },
+  "results": [
+    {
+      "id": "dark:alerts",
+      "route": "/alerts",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 174926,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 174926,
+          "compared": 1201992,
+          "ratio": 0.14553008672270698
+        },
+        "2": {
+          "changed": 205122,
+          "compared": 1199440,
+          "ratio": 0.1710148069098913
+        },
+        "4": {
+          "changed": 220302,
+          "compared": 1196888,
+          "ratio": 0.18406233498873745
+        },
+        "6": {
+          "changed": 235251,
+          "compared": 1194336,
+          "ratio": 0.1969722088256571
+        },
+        "8": {
+          "changed": 247709,
+          "compared": 1191784,
+          "ratio": 0.20784722734992248
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 174926,
+      "contentResidualRatioAtBestShift": 0.14553008672270698
+    },
+    {
+      "id": "dark:assets",
+      "route": "/assets",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 18721,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 18721,
+          "compared": 1201992,
+          "ratio": 0.01557497886841177
+        },
+        "2": {
+          "changed": 71516,
+          "compared": 1199440,
+          "ratio": 0.05962449142933369
+        },
+        "4": {
+          "changed": 86327,
+          "compared": 1196888,
+          "ratio": 0.07212621398159226
+        },
+        "6": {
+          "changed": 99112,
+          "compared": 1194336,
+          "ratio": 0.08298502264019506
+        },
+        "8": {
+          "changed": 111720,
+          "compared": 1191784,
+          "ratio": 0.09374181898733328
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 18721,
+      "contentResidualRatioAtBestShift": 0.01557497886841177
+    },
+    {
+      "id": "dark:cases",
+      "route": "/cases",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 74137,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 74137,
+          "compared": 1201992,
+          "ratio": 0.06167844711112886
+        },
+        "2": {
+          "changed": 109244,
+          "compared": 1199440,
+          "ratio": 0.09107917027946374
+        },
+        "4": {
+          "changed": 120603,
+          "compared": 1196888,
+          "ratio": 0.10076381415804987
+        },
+        "6": {
+          "changed": 129764,
+          "compared": 1194336,
+          "ratio": 0.10864949227018192
+        },
+        "8": {
+          "changed": 138772,
+          "compared": 1191784,
+          "ratio": 0.11644056305505024
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 74137,
+      "contentResidualRatioAtBestShift": 0.06167844711112886
+    },
+    {
+      "id": "dark:collectors",
+      "route": "/collectors",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 47399,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 47399,
+          "compared": 1201992,
+          "ratio": 0.03943370671352222
+        },
+        "2": {
+          "changed": 148062,
+          "compared": 1199440,
+          "ratio": 0.12344260654972321
+        },
+        "4": {
+          "changed": 177283,
+          "compared": 1196888,
+          "ratio": 0.14811995775711678
+        },
+        "6": {
+          "changed": 204763,
+          "compared": 1194336,
+          "ratio": 0.17144505398815743
+        },
+        "8": {
+          "changed": 229342,
+          "compared": 1191784,
+          "ratio": 0.1924358776422573
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 47399,
+      "contentResidualRatioAtBestShift": 0.03943370671352222
+    },
+    {
+      "id": "dark:discovery",
+      "route": "/discovery",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 19868,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 19868,
+          "compared": 1201992,
+          "ratio": 0.016529228147941083
+        },
+        "2": {
+          "changed": 95512,
+          "compared": 1199440,
+          "ratio": 0.07963049423064096
+        },
+        "4": {
+          "changed": 119786,
+          "compared": 1196888,
+          "ratio": 0.100081210606172
+        },
+        "6": {
+          "changed": 142488,
+          "compared": 1194336,
+          "ratio": 0.11930311068242103
+        },
+        "8": {
+          "changed": 162566,
+          "compared": 1191784,
+          "ratio": 0.13640559027474777
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 19868,
+      "contentResidualRatioAtBestShift": 0.016529228147941083
+    },
+    {
+      "id": "dark:does-not-exist",
+      "route": "/does-not-exist",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 8214,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 8214,
+          "compared": 1201992,
+          "ratio": 0.006833656130822834
+        },
+        "2": {
+          "changed": 19468,
+          "compared": 1199440,
+          "ratio": 0.016230907756953246
+        },
+        "4": {
+          "changed": 25985,
+          "compared": 1196888,
+          "ratio": 0.021710469149995654
+        },
+        "6": {
+          "changed": 32102,
+          "compared": 1194336,
+          "ratio": 0.026878533344050586
+        },
+        "8": {
+          "changed": 37901,
+          "compared": 1191784,
+          "ratio": 0.03180190370067059
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 8214,
+      "contentResidualRatioAtBestShift": 0.006833656130822834
+    },
+    {
+      "id": "dark:enrichment",
+      "route": "/enrichment",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 21376,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 21376,
+          "compared": 1201992,
+          "ratio": 0.017783812205072913
+        },
+        "2": {
+          "changed": 77106,
+          "compared": 1199440,
+          "ratio": 0.06428499966651104
+        },
+        "4": {
+          "changed": 95593,
+          "compared": 1196888,
+          "ratio": 0.07986795756996477
+        },
+        "6": {
+          "changed": 111799,
+          "compared": 1194336,
+          "ratio": 0.09360766149559253
+        },
+        "8": {
+          "changed": 127080,
+          "compared": 1191784,
+          "ratio": 0.10663006048075825
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 21376,
+      "contentResidualRatioAtBestShift": 0.017783812205072913
+    },
+    {
+      "id": "dark:findings",
+      "route": "/findings",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 174926,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 174926,
+          "compared": 1201992,
+          "ratio": 0.14553008672270698
+        },
+        "2": {
+          "changed": 205122,
+          "compared": 1199440,
+          "ratio": 0.1710148069098913
+        },
+        "4": {
+          "changed": 220302,
+          "compared": 1196888,
+          "ratio": 0.18406233498873745
+        },
+        "6": {
+          "changed": 235251,
+          "compared": 1194336,
+          "ratio": 0.1969722088256571
+        },
+        "8": {
+          "changed": 247709,
+          "compared": 1191784,
+          "ratio": 0.20784722734992248
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 174926,
+      "contentResidualRatioAtBestShift": 0.14553008672270698
+    },
+    {
+      "id": "dark:history",
+      "route": "/history",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 46487,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 46487,
+          "compared": 1201992,
+          "ratio": 0.038674966222736924
+        },
+        "2": {
+          "changed": 107263,
+          "compared": 1199440,
+          "ratio": 0.08942756619755886
+        },
+        "4": {
+          "changed": 129328,
+          "compared": 1196888,
+          "ratio": 0.10805355221206997
+        },
+        "6": {
+          "changed": 149334,
+          "compared": 1194336,
+          "ratio": 0.12503516598344183
+        },
+        "8": {
+          "changed": 168208,
+          "compared": 1191784,
+          "ratio": 0.1411396696045592
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 46487,
+      "contentResidualRatioAtBestShift": 0.038674966222736924
+    },
+    {
+      "id": "dark:incidents",
+      "route": "/incidents",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 26565,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 26565,
+          "compared": 1201992,
+          "ratio": 0.022100812650999342
+        },
+        "2": {
+          "changed": 66142,
+          "compared": 1199440,
+          "ratio": 0.05514406723137464
+        },
+        "4": {
+          "changed": 81881,
+          "compared": 1196888,
+          "ratio": 0.06841158069928013
+        },
+        "6": {
+          "changed": 97119,
+          "compared": 1194336,
+          "ratio": 0.08131631299734748
+        },
+        "8": {
+          "changed": 111074,
+          "compared": 1191784,
+          "ratio": 0.09319977445577386
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 26565,
+      "contentResidualRatioAtBestShift": 0.022100812650999342
+    },
+    {
+      "id": "dark:integrations",
+      "route": "/integrations",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 132195,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 132195,
+          "compared": 1201992,
+          "ratio": 0.10997993331070423
+        },
+        "2": {
+          "changed": 235981,
+          "compared": 1199440,
+          "ratio": 0.1967426465683986
+        },
+        "4": {
+          "changed": 274335,
+          "compared": 1196888,
+          "ratio": 0.22920690991972514
+        },
+        "6": {
+          "changed": 312207,
+          "compared": 1194336,
+          "ratio": 0.2614063379149586
+        },
+        "8": {
+          "changed": 347250,
+          "compared": 1191784,
+          "ratio": 0.29136991266873863
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 132195,
+      "contentResidualRatioAtBestShift": 0.10997993331070423
+    },
+    {
+      "id": "dark:intel",
+      "route": "/intel",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 105030,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 105030,
+          "compared": 1201992,
+          "ratio": 0.08737994928418824
+        },
+        "2": {
+          "changed": 147378,
+          "compared": 1199440,
+          "ratio": 0.12287234042553191
+        },
+        "4": {
+          "changed": 163310,
+          "compared": 1196888,
+          "ratio": 0.13644551536985916
+        },
+        "6": {
+          "changed": 177943,
+          "compared": 1194336,
+          "ratio": 0.14898906170457896
+        },
+        "8": {
+          "changed": 190752,
+          "compared": 1191784,
+          "ratio": 0.16005584904647152
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 105030,
+      "contentResidualRatioAtBestShift": 0.08737994928418824
+    },
+    {
+      "id": "dark:logout",
+      "route": "/logout",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 19380,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 19380,
+          "compared": 1201992,
+          "ratio": 0.01612323542918755
+        },
+        "2": {
+          "changed": 26971,
+          "compared": 1199440,
+          "ratio": 0.022486326952577868
+        },
+        "4": {
+          "changed": 30913,
+          "compared": 1196888,
+          "ratio": 0.025827813462913823
+        },
+        "6": {
+          "changed": 33700,
+          "compared": 1194336,
+          "ratio": 0.028216515285480803
+        },
+        "8": {
+          "changed": 37552,
+          "compared": 1191784,
+          "ratio": 0.03150906540111295
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 19380,
+      "contentResidualRatioAtBestShift": 0.01612323542918755
+    },
+    {
+      "id": "dark:network",
+      "route": "/network",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 19868,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 19868,
+          "compared": 1201992,
+          "ratio": 0.016529228147941083
+        },
+        "2": {
+          "changed": 95512,
+          "compared": 1199440,
+          "ratio": 0.07963049423064096
+        },
+        "4": {
+          "changed": 119786,
+          "compared": 1196888,
+          "ratio": 0.100081210606172
+        },
+        "6": {
+          "changed": 142488,
+          "compared": 1194336,
+          "ratio": 0.11930311068242103
+        },
+        "8": {
+          "changed": 162566,
+          "compared": 1191784,
+          "ratio": 0.13640559027474777
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 19868,
+      "contentResidualRatioAtBestShift": 0.016529228147941083
+    },
+    {
+      "id": "dark:oem",
+      "route": "/oem",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 18141,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 18141,
+          "compared": 1201992,
+          "ratio": 0.015092446538745682
+        },
+        "2": {
+          "changed": 81367,
+          "compared": 1199440,
+          "ratio": 0.06783749082905356
+        },
+        "4": {
+          "changed": 94354,
+          "compared": 1196888,
+          "ratio": 0.07883277299129075
+        },
+        "6": {
+          "changed": 105474,
+          "compared": 1194336,
+          "ratio": 0.08831183184631461
+        },
+        "8": {
+          "changed": 115142,
+          "compared": 1191784,
+          "ratio": 0.09661314466379814
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 18141,
+      "contentResidualRatioAtBestShift": 0.015092446538745682
+    },
+    {
+      "id": "dark:overview",
+      "route": "/",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 95900,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 95900,
+          "compared": 1201992,
+          "ratio": 0.07978422485341001
+        },
+        "2": {
+          "changed": 156859,
+          "compared": 1199440,
+          "ratio": 0.13077686253585005
+        },
+        "4": {
+          "changed": 183181,
+          "compared": 1196888,
+          "ratio": 0.15304773713162803
+        },
+        "6": {
+          "changed": 209714,
+          "compared": 1194336,
+          "ratio": 0.17559045360769499
+        },
+        "8": {
+          "changed": 233860,
+          "compared": 1191784,
+          "ratio": 0.19622683305028427
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 95900,
+      "contentResidualRatioAtBestShift": 0.07978422485341001
+    },
+    {
+      "id": "dark:reports",
+      "route": "/reports",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 12573,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 12573,
+          "compared": 1201992,
+          "ratio": 0.01046013617395124
+        },
+        "2": {
+          "changed": 80345,
+          "compared": 1199440,
+          "ratio": 0.06698542653238178
+        },
+        "4": {
+          "changed": 105218,
+          "compared": 1196888,
+          "ratio": 0.08790964568113308
+        },
+        "6": {
+          "changed": 127058,
+          "compared": 1194336,
+          "ratio": 0.10638379819414302
+        },
+        "8": {
+          "changed": 147427,
+          "compared": 1191784,
+          "ratio": 0.12370278506843523
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 12573,
+      "contentResidualRatioAtBestShift": 0.01046013617395124
+    },
+    {
+      "id": "dark:settings",
+      "route": "/settings",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 44,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 44,
+          "compared": 1201992,
+          "ratio": 0.00003660590087122044
+        },
+        "2": {
+          "changed": 57999,
+          "compared": 1199440,
+          "ratio": 0.048355065697325415
+        },
+        "4": {
+          "changed": 76840,
+          "compared": 1196888,
+          "ratio": 0.06419982487918668
+        },
+        "6": {
+          "changed": 92617,
+          "compared": 1194336,
+          "ratio": 0.07754685448650966
+        },
+        "8": {
+          "changed": 107511,
+          "compared": 1191784,
+          "ratio": 0.09021013874997483
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 44,
+      "contentResidualRatioAtBestShift": 0.00003660590087122044
+    },
+    {
+      "id": "dark:sources",
+      "route": "/sources",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 18647,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 18647,
+          "compared": 1201992,
+          "ratio": 0.015513414398764717
+        },
+        "2": {
+          "changed": 61544,
+          "compared": 1199440,
+          "ratio": 0.05131061161875542
+        },
+        "4": {
+          "changed": 77033,
+          "compared": 1196888,
+          "ratio": 0.0643610763914418
+        },
+        "6": {
+          "changed": 91857,
+          "compared": 1194336,
+          "ratio": 0.07691051764327626
+        },
+        "8": {
+          "changed": 104613,
+          "compared": 1191784,
+          "ratio": 0.08777849006195754
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 18647,
+      "contentResidualRatioAtBestShift": 0.015513414398764717
+    },
+    {
+      "id": "dark:threat-intel",
+      "route": "/threat-intel",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 105030,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 105030,
+          "compared": 1201992,
+          "ratio": 0.08737994928418824
+        },
+        "2": {
+          "changed": 147378,
+          "compared": 1199440,
+          "ratio": 0.12287234042553191
+        },
+        "4": {
+          "changed": 163310,
+          "compared": 1196888,
+          "ratio": 0.13644551536985916
+        },
+        "6": {
+          "changed": 177943,
+          "compared": 1194336,
+          "ratio": 0.14898906170457896
+        },
+        "8": {
+          "changed": 190752,
+          "compared": 1191784,
+          "ratio": 0.16005584904647152
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 105030,
+      "contentResidualRatioAtBestShift": 0.08737994928418824
+    },
+    {
+      "id": "dark:vulnerabilities",
+      "route": "/vulnerabilities",
+      "theme": "dark",
+      "changedPixelsWholeFrame": 4510,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 4510,
+          "compared": 1201992,
+          "ratio": 0.003752104839300095
+        },
+        "2": {
+          "changed": 50966,
+          "compared": 1199440,
+          "ratio": 0.042491496031481356
+        },
+        "4": {
+          "changed": 65980,
+          "compared": 1196888,
+          "ratio": 0.05512629418959836
+        },
+        "6": {
+          "changed": 79707,
+          "compared": 1194336,
+          "ratio": 0.06673750100474238
+        },
+        "8": {
+          "changed": 92180,
+          "compared": 1191784,
+          "ratio": 0.07734623052499447
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 4510,
+      "contentResidualRatioAtBestShift": 0.003752104839300095
+    },
+    {
+      "id": "light:alerts",
+      "route": "/alerts",
+      "theme": "light",
+      "changedPixelsWholeFrame": 172929,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 172929,
+          "compared": 1201992,
+          "ratio": 0.14386867799452907
+        },
+        "2": {
+          "changed": 204160,
+          "compared": 1199440,
+          "ratio": 0.1702127659574468
+        },
+        "4": {
+          "changed": 219548,
+          "compared": 1196888,
+          "ratio": 0.18343236794085996
+        },
+        "6": {
+          "changed": 234717,
+          "compared": 1194336,
+          "ratio": 0.19652509846475363
+        },
+        "8": {
+          "changed": 247341,
+          "compared": 1191784,
+          "ratio": 0.2075384465641425
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 172929,
+      "contentResidualRatioAtBestShift": 0.14386867799452907
+    },
+    {
+      "id": "light:assets",
+      "route": "/assets",
+      "theme": "light",
+      "changedPixelsWholeFrame": 18713,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 18713,
+          "compared": 1201992,
+          "ratio": 0.015568323250071547
+        },
+        "2": {
+          "changed": 72613,
+          "compared": 1199440,
+          "ratio": 0.0605390849062896
+        },
+        "4": {
+          "changed": 90005,
+          "compared": 1196888,
+          "ratio": 0.07519918321513792
+        },
+        "6": {
+          "changed": 104093,
+          "compared": 1194336,
+          "ratio": 0.08715554081933392
+        },
+        "8": {
+          "changed": 116753,
+          "compared": 1191784,
+          "ratio": 0.09796489967980775
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 18713,
+      "contentResidualRatioAtBestShift": 0.015568323250071547
+    },
+    {
+      "id": "light:cases",
+      "route": "/cases",
+      "theme": "light",
+      "changedPixelsWholeFrame": 74134,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 74134,
+          "compared": 1201992,
+          "ratio": 0.06167595125425128
+        },
+        "2": {
+          "changed": 110346,
+          "compared": 1199440,
+          "ratio": 0.0919979323684386
+        },
+        "4": {
+          "changed": 124287,
+          "compared": 1196888,
+          "ratio": 0.10384179639197652
+        },
+        "6": {
+          "changed": 134753,
+          "compared": 1194336,
+          "ratio": 0.11282670873188115
+        },
+        "8": {
+          "changed": 143812,
+          "compared": 1191784,
+          "ratio": 0.12066951729508031
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 74134,
+      "contentResidualRatioAtBestShift": 0.06167595125425128
+    },
+    {
+      "id": "light:collectors",
+      "route": "/collectors",
+      "theme": "light",
+      "changedPixelsWholeFrame": 47381,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 47381,
+          "compared": 1201992,
+          "ratio": 0.03941873157225672
+        },
+        "2": {
+          "changed": 149183,
+          "compared": 1199440,
+          "ratio": 0.12437720936437004
+        },
+        "4": {
+          "changed": 180924,
+          "compared": 1196888,
+          "ratio": 0.151162013488313
+        },
+        "6": {
+          "changed": 209737,
+          "compared": 1194336,
+          "ratio": 0.175609711170056
+        },
+        "8": {
+          "changed": 234348,
+          "compared": 1191784,
+          "ratio": 0.19663630322273162
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 47381,
+      "contentResidualRatioAtBestShift": 0.03941873157225672
+    },
+    {
+      "id": "light:discovery",
+      "route": "/discovery",
+      "theme": "light",
+      "changedPixelsWholeFrame": 19868,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 19868,
+          "compared": 1201992,
+          "ratio": 0.016529228147941083
+        },
+        "2": {
+          "changed": 96611,
+          "compared": 1199440,
+          "ratio": 0.08054675515240446
+        },
+        "4": {
+          "changed": 123464,
+          "compared": 1196888,
+          "ratio": 0.10315417983971767
+        },
+        "6": {
+          "changed": 147474,
+          "compared": 1194336,
+          "ratio": 0.12347781528816011
+        },
+        "8": {
+          "changed": 167596,
+          "compared": 1191784,
+          "ratio": 0.14062615373255558
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 19868,
+      "contentResidualRatioAtBestShift": 0.016529228147941083
+    },
+    {
+      "id": "light:does-not-exist",
+      "route": "/does-not-exist",
+      "theme": "light",
+      "changedPixelsWholeFrame": 8542,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 8542,
+          "compared": 1201992,
+          "ratio": 0.007106536482771932
+        },
+        "2": {
+          "changed": 24444,
+          "compared": 1199440,
+          "ratio": 0.020379510438204497
+        },
+        "4": {
+          "changed": 30999,
+          "compared": 1196888,
+          "ratio": 0.025899666468374653
+        },
+        "6": {
+          "changed": 37152,
+          "compared": 1194336,
+          "ratio": 0.031106824210272485
+        },
+        "8": {
+          "changed": 43016,
+          "compared": 1191784,
+          "ratio": 0.03609378880736778
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 8542,
+      "contentResidualRatioAtBestShift": 0.007106536482771932
+    },
+    {
+      "id": "light:enrichment",
+      "route": "/enrichment",
+      "theme": "light",
+      "changedPixelsWholeFrame": 21368,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 21368,
+          "compared": 1201992,
+          "ratio": 0.01777715658673269
+        },
+        "2": {
+          "changed": 78214,
+          "compared": 1199440,
+          "ratio": 0.06520876408990862
+        },
+        "4": {
+          "changed": 99279,
+          "compared": 1196888,
+          "ratio": 0.08294761080401843
+        },
+        "6": {
+          "changed": 116801,
+          "compared": 1194336,
+          "ratio": 0.09779576266645232
+        },
+        "8": {
+          "changed": 132116,
+          "compared": 1191784,
+          "ratio": 0.11085565840789942
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 21368,
+      "contentResidualRatioAtBestShift": 0.01777715658673269
+    },
+    {
+      "id": "light:findings",
+      "route": "/findings",
+      "theme": "light",
+      "changedPixelsWholeFrame": 172929,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 172929,
+          "compared": 1201992,
+          "ratio": 0.14386867799452907
+        },
+        "2": {
+          "changed": 204160,
+          "compared": 1199440,
+          "ratio": 0.1702127659574468
+        },
+        "4": {
+          "changed": 219548,
+          "compared": 1196888,
+          "ratio": 0.18343236794085996
+        },
+        "6": {
+          "changed": 234717,
+          "compared": 1194336,
+          "ratio": 0.19652509846475363
+        },
+        "8": {
+          "changed": 247341,
+          "compared": 1191784,
+          "ratio": 0.2075384465641425
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 172929,
+      "contentResidualRatioAtBestShift": 0.14386867799452907
+    },
+    {
+      "id": "light:history",
+      "route": "/history",
+      "theme": "light",
+      "changedPixelsWholeFrame": 46518,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 46518,
+          "compared": 1201992,
+          "ratio": 0.038700756743805284
+        },
+        "2": {
+          "changed": 108403,
+          "compared": 1199440,
+          "ratio": 0.09037800973787767
+        },
+        "4": {
+          "changed": 133031,
+          "compared": 1196888,
+          "ratio": 0.11114740894720308
+        },
+        "6": {
+          "changed": 154337,
+          "compared": 1194336,
+          "ratio": 0.12922410443962168
+        },
+        "8": {
+          "changed": 173262,
+          "compared": 1191784,
+          "ratio": 0.1453803709397005
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 46518,
+      "contentResidualRatioAtBestShift": 0.038700756743805284
+    },
+    {
+      "id": "light:incidents",
+      "route": "/incidents",
+      "theme": "light",
+      "changedPixelsWholeFrame": 26536,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 26536,
+          "compared": 1201992,
+          "ratio": 0.022076686034516037
+        },
+        "2": {
+          "changed": 65938,
+          "compared": 1199440,
+          "ratio": 0.0549739878610018
+        },
+        "4": {
+          "changed": 81678,
+          "compared": 1196888,
+          "ratio": 0.06824197418639004
+        },
+        "6": {
+          "changed": 96952,
+          "compared": 1194336,
+          "ratio": 0.08117648634890014
+        },
+        "8": {
+          "changed": 110956,
+          "compared": 1191784,
+          "ratio": 0.09310076322555094
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 26536,
+      "contentResidualRatioAtBestShift": 0.022076686034516037
+    },
+    {
+      "id": "light:integrations",
+      "route": "/integrations",
+      "theme": "light",
+      "changedPixelsWholeFrame": 132101,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 132101,
+          "compared": 1201992,
+          "ratio": 0.10990172979520663
+        },
+        "2": {
+          "changed": 236991,
+          "compared": 1199440,
+          "ratio": 0.1975847061962249
+        },
+        "4": {
+          "changed": 277871,
+          "compared": 1196888,
+          "ratio": 0.2321612381442541
+        },
+        "6": {
+          "changed": 317006,
+          "compared": 1194336,
+          "ratio": 0.26542447016584947
+        },
+        "8": {
+          "changed": 352083,
+          "compared": 1191784,
+          "ratio": 0.29542517771676746
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 132101,
+      "contentResidualRatioAtBestShift": 0.10990172979520663
+    },
+    {
+      "id": "light:intel",
+      "route": "/intel",
+      "theme": "light",
+      "changedPixelsWholeFrame": 105321,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 105321,
+          "compared": 1201992,
+          "ratio": 0.08762204740131382
+        },
+        "2": {
+          "changed": 148700,
+          "compared": 1199440,
+          "ratio": 0.12397452144334023
+        },
+        "4": {
+          "changed": 167051,
+          "compared": 1196888,
+          "ratio": 0.13957112110740522
+        },
+        "6": {
+          "changed": 182987,
+          "compared": 1194336,
+          "ratio": 0.1532123288588806
+        },
+        "8": {
+          "changed": 195841,
+          "compared": 1191784,
+          "ratio": 0.16432591811939076
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 105321,
+      "contentResidualRatioAtBestShift": 0.08762204740131382
+    },
+    {
+      "id": "light:logout",
+      "route": "/logout",
+      "theme": "light",
+      "changedPixelsWholeFrame": 19380,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 19380,
+          "compared": 1201992,
+          "ratio": 0.01612323542918755
+        },
+        "2": {
+          "changed": 28250,
+          "compared": 1199440,
+          "ratio": 0.023552657907023277
+        },
+        "4": {
+          "changed": 34743,
+          "compared": 1196888,
+          "ratio": 0.02902777870611118
+        },
+        "6": {
+          "changed": 38803,
+          "compared": 1194336,
+          "ratio": 0.032489182273665033
+        },
+        "8": {
+          "changed": 42657,
+          "compared": 1191784,
+          "ratio": 0.035792559725587855
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 19380,
+      "contentResidualRatioAtBestShift": 0.01612323542918755
+    },
+    {
+      "id": "light:network",
+      "route": "/network",
+      "theme": "light",
+      "changedPixelsWholeFrame": 19868,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 19868,
+          "compared": 1201992,
+          "ratio": 0.016529228147941083
+        },
+        "2": {
+          "changed": 96611,
+          "compared": 1199440,
+          "ratio": 0.08054675515240446
+        },
+        "4": {
+          "changed": 123464,
+          "compared": 1196888,
+          "ratio": 0.10315417983971767
+        },
+        "6": {
+          "changed": 147474,
+          "compared": 1194336,
+          "ratio": 0.12347781528816011
+        },
+        "8": {
+          "changed": 167596,
+          "compared": 1191784,
+          "ratio": 0.14062615373255558
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 19868,
+      "contentResidualRatioAtBestShift": 0.016529228147941083
+    },
+    {
+      "id": "light:oem",
+      "route": "/oem",
+      "theme": "light",
+      "changedPixelsWholeFrame": 18138,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 18138,
+          "compared": 1201992,
+          "ratio": 0.0150899506818681
+        },
+        "2": {
+          "changed": 82474,
+          "compared": 1199440,
+          "ratio": 0.06876042153004736
+        },
+        "4": {
+          "changed": 98040,
+          "compared": 1196888,
+          "ratio": 0.08191242622534439
+        },
+        "6": {
+          "changed": 110469,
+          "compared": 1194336,
+          "ratio": 0.09249407201993409
+        },
+        "8": {
+          "changed": 120186,
+          "compared": 1191784,
+          "ratio": 0.10084545521671712
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 18138,
+      "contentResidualRatioAtBestShift": 0.0150899506818681
+    },
+    {
+      "id": "light:overview",
+      "route": "/",
+      "theme": "light",
+      "changedPixelsWholeFrame": 95895,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 95895,
+          "compared": 1201992,
+          "ratio": 0.07978006509194736
+        },
+        "2": {
+          "changed": 156682,
+          "compared": 1199440,
+          "ratio": 0.1306292936703795
+        },
+        "4": {
+          "changed": 183002,
+          "compared": 1196888,
+          "ratio": 0.1528981826202619
+        },
+        "6": {
+          "changed": 209621,
+          "compared": 1194336,
+          "ratio": 0.1755125860729309
+        },
+        "8": {
+          "changed": 233858,
+          "compared": 1191784,
+          "ratio": 0.19622515489383982
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 95895,
+      "contentResidualRatioAtBestShift": 0.07978006509194736
+    },
+    {
+      "id": "light:reports",
+      "route": "/reports",
+      "theme": "light",
+      "changedPixelsWholeFrame": 12561,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 12561,
+          "compared": 1201992,
+          "ratio": 0.010450152746440908
+        },
+        "2": {
+          "changed": 81451,
+          "compared": 1199440,
+          "ratio": 0.06790752351097179
+        },
+        "4": {
+          "changed": 108889,
+          "compared": 1196888,
+          "ratio": 0.09097676641423424
+        },
+        "6": {
+          "changed": 132039,
+          "compared": 1194336,
+          "ratio": 0.11055431637328189
+        },
+        "8": {
+          "changed": 152463,
+          "compared": 1191784,
+          "ratio": 0.12792838299557638
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 12561,
+      "contentResidualRatioAtBestShift": 0.010450152746440908
+    },
+    {
+      "id": "light:settings",
+      "route": "/settings",
+      "theme": "light",
+      "changedPixelsWholeFrame": 44,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 44,
+          "compared": 1201992,
+          "ratio": 0.00003660590087122044
+        },
+        "2": {
+          "changed": 59140,
+          "compared": 1199440,
+          "ratio": 0.04930634296004802
+        },
+        "4": {
+          "changed": 80578,
+          "compared": 1196888,
+          "ratio": 0.06732292411654223
+        },
+        "6": {
+          "changed": 97675,
+          "compared": 1194336,
+          "ratio": 0.08178184363529191
+        },
+        "8": {
+          "changed": 112631,
+          "compared": 1191784,
+          "ratio": 0.09450621924778316
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 44,
+      "contentResidualRatioAtBestShift": 0.00003660590087122044
+    },
+    {
+      "id": "light:sources",
+      "route": "/sources",
+      "theme": "light",
+      "changedPixelsWholeFrame": 18643,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 18643,
+          "compared": 1201992,
+          "ratio": 0.015510086589594607
+        },
+        "2": {
+          "changed": 62640,
+          "compared": 1199440,
+          "ratio": 0.05222437137330754
+        },
+        "4": {
+          "changed": 80713,
+          "compared": 1196888,
+          "ratio": 0.06743571662511447
+        },
+        "6": {
+          "changed": 96847,
+          "compared": 1194336,
+          "ratio": 0.08108857139029553
+        },
+        "8": {
+          "changed": 109657,
+          "compared": 1191784,
+          "ratio": 0.09201080061487651
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 18643,
+      "contentResidualRatioAtBestShift": 0.015510086589594607
+    },
+    {
+      "id": "light:threat-intel",
+      "route": "/threat-intel",
+      "theme": "light",
+      "changedPixelsWholeFrame": 105321,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 105321,
+          "compared": 1201992,
+          "ratio": 0.08762204740131382
+        },
+        "2": {
+          "changed": 148700,
+          "compared": 1199440,
+          "ratio": 0.12397452144334023
+        },
+        "4": {
+          "changed": 167051,
+          "compared": 1196888,
+          "ratio": 0.13957112110740522
+        },
+        "6": {
+          "changed": 182987,
+          "compared": 1194336,
+          "ratio": 0.1532123288588806
+        },
+        "8": {
+          "changed": 195841,
+          "compared": 1191784,
+          "ratio": 0.16432591811939076
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 105321,
+      "contentResidualRatioAtBestShift": 0.08762204740131382
+    },
+    {
+      "id": "light:vulnerabilities",
+      "route": "/vulnerabilities",
+      "theme": "light",
+      "changedPixelsWholeFrame": 4510,
+      "sidebarRegion": {
+        "changed": 0,
+        "compared": 224000,
+        "ratio": 0
+      },
+      "headerRegion": {
+        "changed": 0,
+        "compared": 74008,
+        "ratio": 0
+      },
+      "contentRegionByUpwardShift": {
+        "0": {
+          "changed": 4510,
+          "compared": 1201992,
+          "ratio": 0.003752104839300095
+        },
+        "2": {
+          "changed": 52075,
+          "compared": 1199440,
+          "ratio": 0.04341609417728273
+        },
+        "4": {
+          "changed": 69666,
+          "compared": 1196888,
+          "ratio": 0.058205947423652
+        },
+        "6": {
+          "changed": 84701,
+          "compared": 1194336,
+          "ratio": 0.07091890389304183
+        },
+        "8": {
+          "changed": 97225,
+          "compared": 1191784,
+          "ratio": 0.08157938015613568
+        }
+      },
+      "contentBestShiftPx": 0,
+      "contentResidualAtBestShift": 4510,
+      "contentResidualRatioAtBestShift": 0.003752104839300095
+    }
+  ]
+}
