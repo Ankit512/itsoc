@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "kind": "itsoc-g0-visual-diff-annotations",
+  "note": "Deliberately EMPTY. The G0 comparator's contract is that an entry may be annotated only with evidence that a delta is NOT attributable to the change under test. Every delta in G1's inventory IS attributable to the change under test — G1 regroups the sidebar and tightens the header, so a visual delta is the intended result, not noise to be explained away. Annotating them would be a category error, and inheriting G0's default annotations file would apply G0's 'renderer non-determinism' finding for dark:integrations to a run it was never measured on. G1's deltas are documented per region in docs/STAGE_F_REPORTS/G1-worker.md and measured in visual-attribution-shift.json.",
+  "annotations": {}
+}

@@ -1,0 +1,2755 @@
+{
+  "schemaVersion": 2,
+  "kind": "itsoc-g0-before-repeat-change-production-visual-capture",
+  "label": "before-repeat",
+  "generatedAt": "2026-09-10T07:32:24.214Z",
+  "source": {
+    "commit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+    "expectedCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+    "branch": "",
+    "baseAncestryVerified": true,
+    "photographedTreeArtifacts": [
+      {
+        "path": "web/src/styles/itsoc.css",
+        "sha256": "11f14e82f6f4fa5aa019e16b23ab5aadf9642867831457d3d5c1bee591040e79"
+      },
+      {
+        "path": "web/src/index.css",
+        "sha256": "badcd64b515dd42c62029dfd349e9f1ea3e1a2d5948ef54c0303f490e1b27e1c"
+      },
+      {
+        "path": "console/serve.py",
+        "sha256": "157196ae7aa344c69c319b8fe0d34d037f7ac862297c5150b730363c407bbe4f"
+      },
+      {
+        "path": "tests/eval/cases/pos_bruteforce_compromise.log",
+        "sha256": "5d4e7a9f04bc71e96445ddaf3c1d4a0627ca2f2e231086d47ea9f8fb69168577"
+      },
+      {
+        "path": "web/src/components/layout/AppShell.tsx",
+        "sha256": "cc27098dadba96b2b99eb8f1ff1846fbab45e671808d8d5c7b87041f0851173c"
+      },
+      {
+        "path": "web/src/components/CommandPalette.tsx",
+        "sha256": "1b63a0467a7d062dc256ff97e28bcfca18150540494c15ff330adf6bf395835b"
+      }
+    ],
+    "workingTreeDirtyPaths": [
+      "?? docs/STAGE_F_REPORTS/G1-evidence/"
+    ]
+  },
+  "detector": {
+    "path": "anomaly_detector.py",
+    "sha256": "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876",
+    "expectedSha256": "364577c5c8a3014b6c22b72ef7a4048933eb796a87fe1bac8f087eb577a4a876",
+    "matchesFreeze": true
+  },
+  "reportProvenance": {
+    "input": {
+      "path": "tests/eval/cases/pos_bruteforce_compromise.log",
+      "sha256": "5d4e7a9f04bc71e96445ddaf3c1d4a0627ca2f2e231086d47ea9f8fb69168577"
+    },
+    "frozenPayload": {
+      "used": true,
+      "path": "docs/STAGE_F_REPORTS/G1-evidence/frozen-run/report.json",
+      "sha256": "5291394066568248aaa770a894b10a5ef162108304ed99ca721a2cdefc6ddabd",
+      "rationale": "One byte-identical rules-only report reused on both sides of the comparison."
+    },
+    "analyzer": {
+      "path": "log_analyzer.py",
+      "command": "python3 log_analyzer.py --input tests/eval/cases/pos_bruteforce_compromise.log --output <temporary>/report --rules-only",
+      "rulesOnly": true,
+      "ranDuringThisCapture": false,
+      "frozenReportPath": "docs/STAGE_F_REPORTS/G1-evidence/frozen-run/report.json",
+      "stdout": []
+    },
+    "report": {
+      "sha256": "5291394066568248aaa770a894b10a5ef162108304ed99ca721a2cdefc6ddabd",
+      "generatedAt": "2026-09-10T07:06:38.800288+00:00",
+      "sourceFile": "tests/eval/cases/pos_bruteforce_compromise.log",
+      "linesParsed": 7,
+      "linesUnparsed": 0,
+      "totalFindings": 2,
+      "findingsBySource": {
+        "detector": 2,
+        "llm": 0,
+        "analyzer": 0
+      },
+      "model": "qwen3:8b"
+    }
+  },
+  "productionRuntime": {
+    "dependencyInstallCommand": "npm ci --ignore-scripts (cwd web; declared lockfile only)",
+    "dependencyInstallStdout": [
+      "added 300 packages, and audited 301 packages in 1s",
+      "",
+      "56 packages are looking for funding",
+      "  run `npm fund` for details",
+      "",
+      "6 vulnerabilities (5 moderate, 1 high)",
+      "",
+      "To address all issues (including breaking changes), run:",
+      "  npm audit fix --force",
+      "",
+      "Run `npm audit` for details."
+    ],
+    "buildCommand": "npm run build (cwd web)",
+    "buildStdout": [
+      "> itsoc@0.1.0 build",
+      "> tsc --noEmit && vite build",
+      "",
+      "vite v5.4.21 building for production...",
+      "transforming...",
+      "✓ 1689 modules transformed.",
+      "rendering chunks...",
+      "computing gzip size...",
+      "dist/index.html                   1.10 kB │ gzip:   0.61 kB",
+      "dist/assets/index-DfT-ufKc.css   95.32 kB │ gzip:  17.94 kB",
+      "dist/assets/index-BK7ybjzr.js   679.32 kB │ gzip: 187.85 kB",
+      "✓ built in 1.85s"
+    ],
+    "serverCommand": "python3 console/serve.py --report <temporary>/report.json --port 53771 --no-open",
+    "serverImplementation": "console/serve.py serving web/dist plus its real /api routes",
+    "baseUrl": "http://127.0.0.1:53771",
+    "externalOemEnabled": false,
+    "authRequired": false,
+    "mockedApi": false,
+    "stagedComponentState": false,
+    "mockup": false
+  },
+  "captureSettings": {
+    "viewport": {
+      "width": 1500,
+      "height": 1000,
+      "deviceScaleFactor": 1
+    },
+    "locale": "en-GB",
+    "timezone": "UTC",
+    "browser": {
+      "executable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "version": "Google Chrome 152.0.7977.83",
+      "protocolVersion": "1.3",
+      "product": "Chrome/152.0.7977.83",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+      "revision": "@79460ebecaa5625e57a5fb679a735659e73dc687",
+      "headless": "new",
+      "colorProfile": "srgb"
+    },
+    "platform": {
+      "node": "v22.17.1",
+      "os": "darwin 25.6.0 arm64"
+    },
+    "fonts": "Each page awaited document.fonts.ready and recorded font status/count.",
+    "network": "Each page waited for zero active requests and 600ms of network quiet.",
+    "animations": {
+      "disabledOnlyInBrowserForCapture": true,
+      "injectedStyle": "*,*::before,*::after{animation-delay:0s!important;animation-duration:0s!important;animation-iteration-count:1!important;transition-delay:0s!important;transition-duration:0s!important;caret-color:transparent!important;scroll-behavior:auto!important}"
+    },
+    "regionMasks": [],
+    "immediateStability": "Each saved image is the second of two byte-identical PNGs 200ms apart.",
+    "routeInventorySource": "docs/STAGE_F_REPORTS/G0-evidence/research.md section 6 (route census this harness inherits; G1 adds no route)"
+  },
+  "packageManifestCheck": {
+    "files": [
+      {
+        "path": "web/package.json",
+        "beforeSha256": "cd0b918039ee97fc267a3a31fc310e7fa4f8b8ed7f1c8b5bef1460252bba6062",
+        "afterSha256": "cd0b918039ee97fc267a3a31fc310e7fa4f8b8ed7f1c8b5bef1460252bba6062"
+      },
+      {
+        "path": "web/package-lock.json",
+        "beforeSha256": "634ebbd8abb2fc8556ccb26a7e4c75f2631991de6ed82ac2e48916a229996011",
+        "afterSha256": "634ebbd8abb2fc8556ccb26a7e4c75f2631991de6ed82ac2e48916a229996011"
+      }
+    ],
+    "unchanged": true,
+    "packageFilesAdded": [],
+    "dependenciesAdded": []
+  },
+  "themeToggleCheck": {
+    "passed": true,
+    "route": "/settings",
+    "control": "real DOM theme button",
+    "before": {
+      "stored": "light",
+      "dataTheme": "light",
+      "dark": false
+    },
+    "afterDarkClick": {
+      "stored": "dark",
+      "dataTheme": "dark",
+      "dark": true
+    },
+    "afterLightClick": {
+      "stored": "light",
+      "dataTheme": "light",
+      "dark": false
+    }
+  },
+  "captures": [
+    {
+      "id": "light:overview",
+      "route": "/",
+      "state": "Overview",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/overview.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "5d28850a31f291bf307d257b827cd7178a68512026f515e2c9400236afaa4e16",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2348,
+        "pathname": "/"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "5d28850a31f291bf307d257b827cd7178a68512026f515e2c9400236afaa4e16",
+          "5d28850a31f291bf307d257b827cd7178a68512026f515e2c9400236afaa4e16"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [
+          {
+            "type": "log",
+            "text": "Failed to load resource: the server responded with a status of 404 (No such build asset)",
+            "source": "network"
+          }
+        ],
+        "page": [],
+        "network": [],
+        "http": [
+          {
+            "status": 404,
+            "url": "http://127.0.0.1:53771/favicon.ico",
+            "type": "Other"
+          }
+        ]
+      }
+    },
+    {
+      "id": "light:alerts",
+      "route": "/alerts",
+      "state": "Alerts / Findings",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/alerts",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/alerts.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "fd549c858e60d38b313e23e49b4ddf2728c2c0cf3870019c22460395657c823d",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2845,
+        "pathname": "/alerts"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "fd549c858e60d38b313e23e49b4ddf2728c2c0cf3870019c22460395657c823d",
+          "fd549c858e60d38b313e23e49b4ddf2728c2c0cf3870019c22460395657c823d"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:findings",
+      "route": "/findings",
+      "state": "Alerts / Findings legacy alias",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/findings",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/findings.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "740fbdca799ff52171f44f38feae5be4492f53ecd01764f538e0e7ed6a9768b3",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2845,
+        "pathname": "/findings"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "740fbdca799ff52171f44f38feae5be4492f53ecd01764f538e0e7ed6a9768b3",
+          "740fbdca799ff52171f44f38feae5be4492f53ecd01764f538e0e7ed6a9768b3"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:incidents",
+      "route": "/incidents",
+      "state": "Incidents",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/incidents",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/incidents.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "3b9f9e605da3107c72cb4f9d4e608945307e65b5f5fbdbf3557a487d328aad0e",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1289,
+        "pathname": "/incidents"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 5500,
+        "treatment": "No region was masked. One real application poll cycle completed before capture; capture then waited for network idle, loaded fonts, and two byte-identical screenshots."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "3b9f9e605da3107c72cb4f9d4e608945307e65b5f5fbdbf3557a487d328aad0e",
+          "3b9f9e605da3107c72cb4f9d4e608945307e65b5f5fbdbf3557a487d328aad0e"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:cases",
+      "route": "/cases",
+      "state": "Cases",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/cases",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/cases.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "8d580e420f60c4ff0a24f83324cf55a27101661629d2f320c7b232f775ed766e",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1376,
+        "pathname": "/cases"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "8d580e420f60c4ff0a24f83324cf55a27101661629d2f320c7b232f775ed766e",
+          "8d580e420f60c4ff0a24f83324cf55a27101661629d2f320c7b232f775ed766e"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:approvals",
+      "route": "/approvals",
+      "state": "Approvals",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/approvals",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/approvals.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "a2e3d8680c844204a61e8356055ceef9e98e69410572757817650d838fa7e09b",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 885,
+        "pathname": "/approvals"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "a2e3d8680c844204a61e8356055ceef9e98e69410572757817650d838fa7e09b",
+          "a2e3d8680c844204a61e8356055ceef9e98e69410572757817650d838fa7e09b"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:intel",
+      "route": "/intel",
+      "state": "Intel",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/intel",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/intel.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "f831c6151f66a35da1ed93e865c901b3d71cf8b9a4324b77c09fca3851f4a74b",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2632,
+        "pathname": "/intel"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "f831c6151f66a35da1ed93e865c901b3d71cf8b9a4324b77c09fca3851f4a74b",
+          "f831c6151f66a35da1ed93e865c901b3d71cf8b9a4324b77c09fca3851f4a74b"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:threat-intel",
+      "route": "/threat-intel",
+      "state": "ThreatIntel legacy wrapper",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/threat-intel",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/threat-intel.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "4ce4e820cd9793a2671fec71c793c7f93a52474a6d37aaf3792b2570b4101d9a",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2624,
+        "pathname": "/threat-intel"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "4ce4e820cd9793a2671fec71c793c7f93a52474a6d37aaf3792b2570b4101d9a",
+          "4ce4e820cd9793a2671fec71c793c7f93a52474a6d37aaf3792b2570b4101d9a"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:enrichment",
+      "route": "/enrichment",
+      "state": "Enrichment legacy wrapper",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/enrichment",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/enrichment.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "f7bccb89595b996e3b75282cd7bfccca4e97b74ad4c1fb3f469dc30aec93a64a",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1625,
+        "pathname": "/enrichment"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "f7bccb89595b996e3b75282cd7bfccca4e97b74ad4c1fb3f469dc30aec93a64a",
+          "f7bccb89595b996e3b75282cd7bfccca4e97b74ad4c1fb3f469dc30aec93a64a"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:network",
+      "route": "/network",
+      "state": "Network",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/network",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/network.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "26c020da2d84cde59764c2a3a0749bf9bd31762a8e91f33106966b10b2e4430c",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1903,
+        "pathname": "/network"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "26c020da2d84cde59764c2a3a0749bf9bd31762a8e91f33106966b10b2e4430c",
+          "26c020da2d84cde59764c2a3a0749bf9bd31762a8e91f33106966b10b2e4430c"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:discovery",
+      "route": "/discovery",
+      "state": "Network discovery tab alias",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/discovery",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/discovery.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "117ffab26b3fd9e214e31138ecec2b203cbcebf4fec81ab08a31ad276d091add",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1903,
+        "pathname": "/discovery"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "117ffab26b3fd9e214e31138ecec2b203cbcebf4fec81ab08a31ad276d091add",
+          "117ffab26b3fd9e214e31138ecec2b203cbcebf4fec81ab08a31ad276d091add"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:vulnerabilities",
+      "route": "/vulnerabilities",
+      "state": "Network vulnerabilities tab alias",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/vulnerabilities",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/vulnerabilities.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "967fc1b0f963708ddfb15f636a649ee2ef9e8001cc0eddc0788bfd2bdad01b5f",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1355,
+        "pathname": "/vulnerabilities"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "967fc1b0f963708ddfb15f636a649ee2ef9e8001cc0eddc0788bfd2bdad01b5f",
+          "967fc1b0f963708ddfb15f636a649ee2ef9e8001cc0eddc0788bfd2bdad01b5f"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:assets",
+      "route": "/assets",
+      "state": "Assets",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/assets",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/assets.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "a6396e8a73e6f67249e7253c9dd3016cb7eaae0f1aa32af3ff8adcd3994e2890",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1323,
+        "pathname": "/assets"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "a6396e8a73e6f67249e7253c9dd3016cb7eaae0f1aa32af3ff8adcd3994e2890",
+          "a6396e8a73e6f67249e7253c9dd3016cb7eaae0f1aa32af3ff8adcd3994e2890"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:sources",
+      "route": "/sources",
+      "state": "Sources",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/sources",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/sources.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "2f588ce4af247204e69ae0f360ca88c6ea5ab773e9d90c64eb2c218a101bbcc9",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1554,
+        "pathname": "/sources"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "2f588ce4af247204e69ae0f360ca88c6ea5ab773e9d90c64eb2c218a101bbcc9",
+          "2f588ce4af247204e69ae0f360ca88c6ea5ab773e9d90c64eb2c218a101bbcc9"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:collectors",
+      "route": "/collectors",
+      "state": "Sources legacy alias",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/collectors",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/collectors.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "aab8976b104a4bd211d15e8957702aad52540462a0a1826a64ae8774b37ad3e4",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2704,
+        "pathname": "/collectors"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "aab8976b104a4bd211d15e8957702aad52540462a0a1826a64ae8774b37ad3e4",
+          "aab8976b104a4bd211d15e8957702aad52540462a0a1826a64ae8774b37ad3e4"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:integrations",
+      "route": "/integrations",
+      "state": "Integrations",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/integrations",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/integrations.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "30a24f8e78991cb9ad699e4a6de162368a0abd94412e70818824d43009822396",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 3647,
+        "pathname": "/integrations"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "30a24f8e78991cb9ad699e4a6de162368a0abd94412e70818824d43009822396",
+          "30a24f8e78991cb9ad699e4a6de162368a0abd94412e70818824d43009822396"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:history",
+      "route": "/history",
+      "state": "History",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/history",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/history.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "f2f494dd78df6da1b273e655bc251b0bc74442147757de6711c3ab9304179ade",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1905,
+        "pathname": "/history"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "f2f494dd78df6da1b273e655bc251b0bc74442147757de6711c3ab9304179ade",
+          "f2f494dd78df6da1b273e655bc251b0bc74442147757de6711c3ab9304179ade"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:reports",
+      "route": "/reports",
+      "state": "Reports (no active export)",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/reports",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/reports.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "3dae22aa14562903ba67f5e299524feeaf8c4a67de85f2d482b1cd28eb31e7f5",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1836,
+        "pathname": "/reports"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": "no export job active",
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "3dae22aa14562903ba67f5e299524feeaf8c4a67de85f2d482b1cd28eb31e7f5",
+          "3dae22aa14562903ba67f5e299524feeaf8c4a67de85f2d482b1cd28eb31e7f5"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:settings",
+      "route": "/settings",
+      "state": "Settings",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/settings",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/settings.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "6f9533c3d729f73aeafdaeb9ce7335e9004c328c5ccdbbd7dc941a8a7047e7d4",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1747,
+        "pathname": "/settings"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "6f9533c3d729f73aeafdaeb9ce7335e9004c328c5ccdbbd7dc941a8a7047e7d4",
+          "6f9533c3d729f73aeafdaeb9ce7335e9004c328c5ccdbbd7dc941a8a7047e7d4"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:oem",
+      "route": "/oem",
+      "state": "OEM Engine direct route",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/oem",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/oem.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "2265b3b20dc3bf695ea9767887b4da9c172d8c01c007c34d2c5f5abb13fbb1b6",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1671,
+        "pathname": "/oem"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "2265b3b20dc3bf695ea9767887b4da9c172d8c01c007c34d2c5f5abb13fbb1b6",
+          "2265b3b20dc3bf695ea9767887b4da9c172d8c01c007c34d2c5f5abb13fbb1b6"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:login",
+      "route": "/login",
+      "state": "Login actual local-auth state",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/login",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/login.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 123,
+        "pathname": "/login"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+          "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:signup",
+      "route": "/signup",
+      "state": "Login component signup route",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/signup",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/signup.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 123,
+        "pathname": "/signup"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4",
+          "2a45ab36e2153532906b26994b9d71f0dcc37df57329c249bdd8acf4d0e456b4"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:logout",
+      "route": "/logout",
+      "state": "Logout in AppShell",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/logout",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/logout.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "a0609cb93a1578fe53427be972547a7bd00b753dea758fe7c438f2754abda171",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 661,
+        "pathname": "/logout"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "a0609cb93a1578fe53427be972547a7bd00b753dea758fe7c438f2754abda171",
+          "a0609cb93a1578fe53427be972547a7bd00b753dea758fe7c438f2754abda171"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "light:does-not-exist",
+      "route": "/does-not-exist",
+      "state": "Wildcard Not found",
+      "theme": "light",
+      "url": "http://127.0.0.1:53771/does-not-exist",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/does-not-exist.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "9d442c3330065ce8ae8ac5991d010f512dbb87fbce44f244c84de20f8c109651",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "light",
+        "dataTheme": "light",
+        "darkClass": false,
+        "expected": "light",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 940,
+        "pathname": "/does-not-exist"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "9d442c3330065ce8ae8ac5991d010f512dbb87fbce44f244c84de20f8c109651",
+          "9d442c3330065ce8ae8ac5991d010f512dbb87fbce44f244c84de20f8c109651"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:overview",
+      "route": "/",
+      "state": "Overview",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/overview.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "8b924ec90ba35f499f2be685d878a63722f31f49d0fd421ba89177dac8cc8395",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2349,
+        "pathname": "/"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "8b924ec90ba35f499f2be685d878a63722f31f49d0fd421ba89177dac8cc8395",
+          "8b924ec90ba35f499f2be685d878a63722f31f49d0fd421ba89177dac8cc8395"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:alerts",
+      "route": "/alerts",
+      "state": "Alerts / Findings",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/alerts",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/alerts.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "110520f28f4005d728bfd1d2106b8cb1005c10635560af9ed60d388d6523385f",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2846,
+        "pathname": "/alerts"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "110520f28f4005d728bfd1d2106b8cb1005c10635560af9ed60d388d6523385f",
+          "110520f28f4005d728bfd1d2106b8cb1005c10635560af9ed60d388d6523385f"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:findings",
+      "route": "/findings",
+      "state": "Alerts / Findings legacy alias",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/findings",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/findings.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "e96dee9671fc75e542ef02c1ffafa23fc7d09ba8a16c713297776104feb4af11",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2846,
+        "pathname": "/findings"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "e96dee9671fc75e542ef02c1ffafa23fc7d09ba8a16c713297776104feb4af11",
+          "e96dee9671fc75e542ef02c1ffafa23fc7d09ba8a16c713297776104feb4af11"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:incidents",
+      "route": "/incidents",
+      "state": "Incidents",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/incidents",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/incidents.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "50d623fc8e6cdcc5123761cac808f1cd6235faaffdb466b9f7ec0aed04a2ee1a",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1308,
+        "pathname": "/incidents"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 5500,
+        "treatment": "No region was masked. One real application poll cycle completed before capture; capture then waited for network idle, loaded fonts, and two byte-identical screenshots."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "50d623fc8e6cdcc5123761cac808f1cd6235faaffdb466b9f7ec0aed04a2ee1a",
+          "50d623fc8e6cdcc5123761cac808f1cd6235faaffdb466b9f7ec0aed04a2ee1a"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:cases",
+      "route": "/cases",
+      "state": "Cases",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/cases",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/cases.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "4f067b253386c3a07c4304baf1f5f05015f5de0af5890c69836ef83603cd94be",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1377,
+        "pathname": "/cases"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "4f067b253386c3a07c4304baf1f5f05015f5de0af5890c69836ef83603cd94be",
+          "4f067b253386c3a07c4304baf1f5f05015f5de0af5890c69836ef83603cd94be"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:approvals",
+      "route": "/approvals",
+      "state": "Approvals",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/approvals",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/approvals.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "00c672c3497856851ac116eb99de3942489ba39564923d97a92aa87b4160c6ab",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 886,
+        "pathname": "/approvals"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "00c672c3497856851ac116eb99de3942489ba39564923d97a92aa87b4160c6ab",
+          "00c672c3497856851ac116eb99de3942489ba39564923d97a92aa87b4160c6ab"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:intel",
+      "route": "/intel",
+      "state": "Intel",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/intel",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/intel.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "a5871fc243b9688bc2e679f2b3a892d577f80060ce54bb4c4b398cd79e1035b7",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2633,
+        "pathname": "/intel"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "a5871fc243b9688bc2e679f2b3a892d577f80060ce54bb4c4b398cd79e1035b7",
+          "a5871fc243b9688bc2e679f2b3a892d577f80060ce54bb4c4b398cd79e1035b7"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:threat-intel",
+      "route": "/threat-intel",
+      "state": "ThreatIntel legacy wrapper",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/threat-intel",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/threat-intel.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "bbaedaf54ee4a982fd8dbc028889606a5f084814912960860c720ea6190675f7",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2625,
+        "pathname": "/threat-intel"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "bbaedaf54ee4a982fd8dbc028889606a5f084814912960860c720ea6190675f7",
+          "bbaedaf54ee4a982fd8dbc028889606a5f084814912960860c720ea6190675f7"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:enrichment",
+      "route": "/enrichment",
+      "state": "Enrichment legacy wrapper",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/enrichment",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/enrichment.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "c014046cffdd8c0ae99c6d630e26d28690f395bea92056dbc275fe7fd8f8f646",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1626,
+        "pathname": "/enrichment"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "c014046cffdd8c0ae99c6d630e26d28690f395bea92056dbc275fe7fd8f8f646",
+          "c014046cffdd8c0ae99c6d630e26d28690f395bea92056dbc275fe7fd8f8f646"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:network",
+      "route": "/network",
+      "state": "Network",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/network",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/network.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "3265bbb6adc2c79fad97abe82bb19bb2e224f0f76389673efe87c5d082ede6f6",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1904,
+        "pathname": "/network"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "3265bbb6adc2c79fad97abe82bb19bb2e224f0f76389673efe87c5d082ede6f6",
+          "3265bbb6adc2c79fad97abe82bb19bb2e224f0f76389673efe87c5d082ede6f6"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:discovery",
+      "route": "/discovery",
+      "state": "Network discovery tab alias",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/discovery",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/discovery.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "d0d9736652e30a77579147029ec575da2f00a97cabdd23d8d096c5f1bb19cf80",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1904,
+        "pathname": "/discovery"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "d0d9736652e30a77579147029ec575da2f00a97cabdd23d8d096c5f1bb19cf80",
+          "d0d9736652e30a77579147029ec575da2f00a97cabdd23d8d096c5f1bb19cf80"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:vulnerabilities",
+      "route": "/vulnerabilities",
+      "state": "Network vulnerabilities tab alias",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/vulnerabilities",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/vulnerabilities.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "e056a3fe08dbd1da58555e83e84c946974568a9895b033cd16760880075242e0",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1356,
+        "pathname": "/vulnerabilities"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "e056a3fe08dbd1da58555e83e84c946974568a9895b033cd16760880075242e0",
+          "e056a3fe08dbd1da58555e83e84c946974568a9895b033cd16760880075242e0"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:assets",
+      "route": "/assets",
+      "state": "Assets",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/assets",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/assets.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "fc5b0436a40b026c409207c11d458ed3feb6bf3e32626d34233e166e33db41f5",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1324,
+        "pathname": "/assets"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "fc5b0436a40b026c409207c11d458ed3feb6bf3e32626d34233e166e33db41f5",
+          "fc5b0436a40b026c409207c11d458ed3feb6bf3e32626d34233e166e33db41f5"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:sources",
+      "route": "/sources",
+      "state": "Sources",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/sources",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/sources.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "10a09c00aea00203e47166793a85a9ccd195fc7404db6da85acd86f2ad773078",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1555,
+        "pathname": "/sources"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "10a09c00aea00203e47166793a85a9ccd195fc7404db6da85acd86f2ad773078",
+          "10a09c00aea00203e47166793a85a9ccd195fc7404db6da85acd86f2ad773078"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:collectors",
+      "route": "/collectors",
+      "state": "Sources legacy alias",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/collectors",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/collectors.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "94cf5e9d1282be4dabf4cace7f0b19e67d3c12471bf9ce52e64d1c83087868f5",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 2705,
+        "pathname": "/collectors"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          3000,
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "94cf5e9d1282be4dabf4cace7f0b19e67d3c12471bf9ce52e64d1c83087868f5",
+          "94cf5e9d1282be4dabf4cace7f0b19e67d3c12471bf9ce52e64d1c83087868f5"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:integrations",
+      "route": "/integrations",
+      "state": "Integrations",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/integrations",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/integrations.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "936e1a6ff42d5541c843d059af221e367d34c79cafeb488914d18e7eccdb1cec",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 3648,
+        "pathname": "/integrations"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "936e1a6ff42d5541c843d059af221e367d34c79cafeb488914d18e7eccdb1cec",
+          "936e1a6ff42d5541c843d059af221e367d34c79cafeb488914d18e7eccdb1cec"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:history",
+      "route": "/history",
+      "state": "History",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/history",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/history.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "27e5c8cdfa6f5605c90d35aeea1103ce2caa505cbb088ae2ddadf7fcb15cedbf",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1906,
+        "pathname": "/history"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "27e5c8cdfa6f5605c90d35aeea1103ce2caa505cbb088ae2ddadf7fcb15cedbf",
+          "27e5c8cdfa6f5605c90d35aeea1103ce2caa505cbb088ae2ddadf7fcb15cedbf"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:reports",
+      "route": "/reports",
+      "state": "Reports (no active export)",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/reports",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/reports.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "eb9949262db4c2265e57ae571aba0eeb0ddaf5e1809eb95020f280718a9b69c7",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1837,
+        "pathname": "/reports"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": "no export job active",
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "eb9949262db4c2265e57ae571aba0eeb0ddaf5e1809eb95020f280718a9b69c7",
+          "eb9949262db4c2265e57ae571aba0eeb0ddaf5e1809eb95020f280718a9b69c7"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:settings",
+      "route": "/settings",
+      "state": "Settings",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/settings",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/settings.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "21e94bc07cebcba31633f00bc0ebe92912cfbf35964fb5c72ec1bc3cc395093e",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1747,
+        "pathname": "/settings"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "21e94bc07cebcba31633f00bc0ebe92912cfbf35964fb5c72ec1bc3cc395093e",
+          "21e94bc07cebcba31633f00bc0ebe92912cfbf35964fb5c72ec1bc3cc395093e"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:oem",
+      "route": "/oem",
+      "state": "OEM Engine direct route",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/oem",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/oem.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "ae08ed3b87c70c01cb7eb835157eeb00a3f084e6982c2b63e723e0bb69f8b615",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 1672,
+        "pathname": "/oem"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [
+          5000
+        ],
+        "activeDuringCapture": true,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "ae08ed3b87c70c01cb7eb835157eeb00a3f084e6982c2b63e723e0bb69f8b615",
+          "ae08ed3b87c70c01cb7eb835157eeb00a3f084e6982c2b63e723e0bb69f8b615"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:login",
+      "route": "/login",
+      "state": "Login actual local-auth state",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/login",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/login.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 123,
+        "pathname": "/login"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+          "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:signup",
+      "route": "/signup",
+      "state": "Login component signup route",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/signup",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/signup.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 123,
+        "pathname": "/signup"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62",
+          "ffc672079196952c1584b2b5f02e684ab1f7748dd257e431dd20e17f3bbf9a62"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:logout",
+      "route": "/logout",
+      "state": "Logout in AppShell",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/logout",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/logout.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "ffdf9f95d3f4b8a4a6709e5ec2fd1e3c688c105579a648bfc6981a8c15d7326c",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 662,
+        "pathname": "/logout"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "ffdf9f95d3f4b8a4a6709e5ec2fd1e3c688c105579a648bfc6981a8c15d7326c",
+          "ffdf9f95d3f4b8a4a6709e5ec2fd1e3c688c105579a648bfc6981a8c15d7326c"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    },
+    {
+      "id": "dark:does-not-exist",
+      "route": "/does-not-exist",
+      "state": "Wildcard Not found",
+      "theme": "dark",
+      "url": "http://127.0.0.1:53771/does-not-exist",
+      "file": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/does-not-exist.png",
+      "width": 1500,
+      "height": 1000,
+      "sha256": "817f912a7e88066fea108b84fb9e2cd0afff482bf47a21e34e9f89d57b83f130",
+      "sourceCommit": "010a50cf610764c3ae09e05a8cf93995ca429614",
+      "themeContract": {
+        "localStorage": "dark",
+        "dataTheme": "dark",
+        "darkClass": true,
+        "expected": "dark",
+        "valid": true
+      },
+      "document": {
+        "title": "itsoc. — SOC console",
+        "lang": "en",
+        "navigatorLanguage": "en-US",
+        "fontStatus": "loaded",
+        "fontCount": 2,
+        "rootTextLength": 941,
+        "pathname": "/does-not-exist"
+      },
+      "dynamicRegions": {
+        "pollingIntervalsMs": [],
+        "activeDuringCapture": false,
+        "preCapturePollWaitMs": 0,
+        "treatment": "No region was masked. Capture waited for network idle, loaded fonts, and two byte-identical screenshots; known polling intervals remain enumerated here."
+      },
+      "consecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "817f912a7e88066fea108b84fb9e2cd0afff482bf47a21e34e9f89d57b83f130",
+          "817f912a7e88066fea108b84fb9e2cd0afff482bf47a21e34e9f89d57b83f130"
+        ],
+        "intervalMs": 200
+      },
+      "errors": {
+        "console": [],
+        "page": [],
+        "network": [],
+        "http": []
+      }
+    }
+  ],
+  "stabilityProofs": [
+    {
+      "route": "/",
+      "state": "Overview",
+      "theme": "light",
+      "originalFile": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/overview.png",
+      "repeatFile": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/stability/light/overview-repeat.png",
+      "originalSha256": "5d28850a31f291bf307d257b827cd7178a68512026f515e2c9400236afaa4e16",
+      "repeatSha256": "5d28850a31f291bf307d257b827cd7178a68512026f515e2c9400236afaa4e16",
+      "waitAfterOriginalMs": 5500,
+      "repeatConsecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "5d28850a31f291bf307d257b827cd7178a68512026f515e2c9400236afaa4e16",
+          "5d28850a31f291bf307d257b827cd7178a68512026f515e2c9400236afaa4e16"
+        ],
+        "intervalMs": 200
+      },
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "changedBounds": null,
+      "exact": true,
+      "namedIrreduciblePixels": []
+    },
+    {
+      "route": "/incidents",
+      "state": "Incidents",
+      "theme": "light",
+      "originalFile": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/light/incidents.png",
+      "repeatFile": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/stability/light/incidents-repeat.png",
+      "originalSha256": "3b9f9e605da3107c72cb4f9d4e608945307e65b5f5fbdbf3557a487d328aad0e",
+      "repeatSha256": "3b9f9e605da3107c72cb4f9d4e608945307e65b5f5fbdbf3557a487d328aad0e",
+      "waitAfterOriginalMs": 5500,
+      "repeatConsecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "3b9f9e605da3107c72cb4f9d4e608945307e65b5f5fbdbf3557a487d328aad0e",
+          "3b9f9e605da3107c72cb4f9d4e608945307e65b5f5fbdbf3557a487d328aad0e"
+        ],
+        "intervalMs": 200
+      },
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "changedBounds": null,
+      "exact": true,
+      "namedIrreduciblePixels": []
+    },
+    {
+      "route": "/",
+      "state": "Overview",
+      "theme": "dark",
+      "originalFile": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/overview.png",
+      "repeatFile": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/stability/dark/overview-repeat.png",
+      "originalSha256": "8b924ec90ba35f499f2be685d878a63722f31f49d0fd421ba89177dac8cc8395",
+      "repeatSha256": "8b924ec90ba35f499f2be685d878a63722f31f49d0fd421ba89177dac8cc8395",
+      "waitAfterOriginalMs": 5500,
+      "repeatConsecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "8b924ec90ba35f499f2be685d878a63722f31f49d0fd421ba89177dac8cc8395",
+          "8b924ec90ba35f499f2be685d878a63722f31f49d0fd421ba89177dac8cc8395"
+        ],
+        "intervalMs": 200
+      },
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "changedBounds": null,
+      "exact": true,
+      "namedIrreduciblePixels": []
+    },
+    {
+      "route": "/incidents",
+      "state": "Incidents",
+      "theme": "dark",
+      "originalFile": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/dark/incidents.png",
+      "repeatFile": "docs/STAGE_F_REPORTS/G1-evidence/before-repeat/stability/dark/incidents-repeat.png",
+      "originalSha256": "50d623fc8e6cdcc5123761cac808f1cd6235faaffdb466b9f7ec0aed04a2ee1a",
+      "repeatSha256": "50d623fc8e6cdcc5123761cac808f1cd6235faaffdb466b9f7ec0aed04a2ee1a",
+      "waitAfterOriginalMs": 5500,
+      "repeatConsecutiveStability": {
+        "exact": true,
+        "attempts": 2,
+        "sha256Attempts": [
+          "50d623fc8e6cdcc5123761cac808f1cd6235faaffdb466b9f7ec0aed04a2ee1a",
+          "50d623fc8e6cdcc5123761cac808f1cd6235faaffdb466b9f7ec0aed04a2ee1a"
+        ],
+        "intervalMs": 200
+      },
+      "changedPixels": 0,
+      "totalPixels": 1500000,
+      "changedRatio": 0,
+      "changedBounds": null,
+      "exact": true,
+      "namedIrreduciblePixels": []
+    }
+  ],
+  "irreduciblePixels": [],
+  "consoleAndPageErrors": [
+    {
+      "capture": "light:overview",
+      "kind": "console",
+      "error": {
+        "type": "log",
+        "text": "Failed to load resource: the server responded with a status of 404 (No such build asset)",
+        "source": "network"
+      },
+      "classification": "known missing favicon asset; recorded, not masked"
+    },
+    {
+      "capture": "light:overview",
+      "kind": "http",
+      "error": {
+        "status": 404,
+        "url": "http://127.0.0.1:53771/favicon.ico",
+        "type": "Other"
+      },
+      "classification": "known missing favicon asset; recorded, not masked"
+    }
+  ],
+  "summary": {
+    "routeStates": 24,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "primaryEvidenceCount": 48,
+    "repeatEvidenceCount": 4,
+    "totalPngCount": 52,
+    "primaryDimensions": "1500x1000",
+    "exactRepeatProofs": 4,
+    "nonExactRepeatProofs": 0,
+    "irreduciblePixelGroups": 0,
+    "consoleAndPageErrorCount": 2,
+    "knownConsoleAndPageErrorCount": 2,
+    "unexpectedConsoleAndPageErrorCount": 0
+  }
+}
