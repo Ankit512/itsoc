@@ -10,8 +10,9 @@ installs and prove the HONESTY contract, not the transport. Run:
 Covers all 8 tools: analyze_log, list_runs, get_findings, get_evidence,
 explain_finding, export_run, threat_intel_lookup, propose_block_ip — the happy path
 plus the honest empty/idle/error states (never a fabricated all-clear or empty file),
-strict negative-authority invariants, and that raw log text is REDACTED by default
-and returned only with ITSOC_MCP_TRUSTED_LOCAL=1.
+strict negative-authority invariants, that every tool declares all four MCP hints
+as explicit booleans, and that raw log text is REDACTED by default and returned
+only with ITSOC_MCP_TRUSTED_LOCAL=1.
 """
 
 import json
@@ -676,6 +677,106 @@ def test_propose_block_ip_negative_authority():
     check("itsoc_mcp.tools does not import actions connector module", not hasattr(mcp_tools, "actions"))
 
 
+def test_tool_annotations():
+    """Every declared tool has all four MCP hints as explicit booleans.
+
+    M8ven / OpenAI's directory reject tools where any of readOnlyHint,
+    destructiveHint, idempotentHint, openWorldHint is missing or non-boolean.
+    Tests reference each tool by name.
+    """
+    print("tool annotations — all four hints on every tool")
+    from itsoc_mcp import server
+    from itsoc_mcp.server import HINT_KEYS
+
+    expected = (
+        "analyze_log",
+        "list_runs",
+        "get_findings",
+        "get_evidence",
+        "explain_finding",
+        "export_run",
+        "threat_intel_lookup",
+        "propose_block_ip",
+    )
+    names = [t["name"] for t in server.TOOLS]
+    check("server tools are the eight named tools", names == list(expected))
+    for name in expected:
+        check("server tools include " + name, name in names)
+
+    for name in expected:
+        tool = next(t for t in server.TOOLS if t["name"] == name)
+        hints = tool.get("annotations") or {}
+        for key in HINT_KEYS:
+            check("{} has boolean {}".format(name, key),
+                  key in hints and isinstance(hints[key], bool))
+        check("{} has a title".format(name), bool(hints.get("title")))
+
+    analyze = next(t for t in server.TOOLS if t["name"] == "analyze_log")
+    check("analyze_log is not read-only (starts a run)",
+          analyze["annotations"]["readOnlyHint"] is False)
+    check("analyze_log is not destructive",
+          analyze["annotations"]["destructiveHint"] is False)
+
+    list_runs = next(t for t in server.TOOLS if t["name"] == "list_runs")
+    check("list_runs is read-only", list_runs["annotations"]["readOnlyHint"] is True)
+
+    get_findings = next(t for t in server.TOOLS if t["name"] == "get_findings")
+    check("get_findings is read-only", get_findings["annotations"]["readOnlyHint"] is True)
+
+    get_evidence = next(t for t in server.TOOLS if t["name"] == "get_evidence")
+    check("get_evidence is read-only", get_evidence["annotations"]["readOnlyHint"] is True)
+
+    explain = next(t for t in server.TOOLS if t["name"] == "explain_finding")
+    check("explain_finding is not read-only (POST /api/explain)",
+          explain["annotations"]["readOnlyHint"] is False)
+
+    export_run = next(t for t in server.TOOLS if t["name"] == "export_run")
+    check("export_run is read-only", export_run["annotations"]["readOnlyHint"] is True)
+
+    ti = next(t for t in server.TOOLS if t["name"] == "threat_intel_lookup")
+    check("threat_intel_lookup is read-only", ti["annotations"]["readOnlyHint"] is True)
+
+    propose = next(t for t in server.TOOLS if t["name"] == "propose_block_ip")
+    check("propose_block_ip is not read-only (creates a pending approval)",
+          propose["annotations"]["readOnlyHint"] is False)
+    check("propose_block_ip is not destructive (does not execute the block)",
+          propose["annotations"]["destructiveHint"] is False)
+
+
+def test_tools_list_wire_annotations():
+    """When the mcp SDK is installed, ToolAnnotations serializes all four booleans."""
+    print("tools/list wire annotations")
+    try:
+        import mcp.types as types
+        from itsoc_mcp.server import HINT_KEYS, TOOLS
+    except Exception as e:
+        skip("tools/list annotations", "mcp SDK not importable: {}".format(e))
+        return
+
+    for t in TOOLS:
+        name = t["name"]
+        spec = t["annotations"]
+        tool = types.Tool(
+            name=name,
+            title=spec["title"],
+            description=t["description"],
+            inputSchema=t["inputSchema"],
+            annotations=types.ToolAnnotations(
+                title=spec["title"],
+                readOnlyHint=spec["readOnlyHint"],
+                destructiveHint=spec["destructiveHint"],
+                idempotentHint=spec["idempotentHint"],
+                openWorldHint=spec["openWorldHint"],
+            ),
+        )
+        dumped = tool.annotations.model_dump()
+        for key in HINT_KEYS:
+            check("{} wire {} is a boolean".format(name, key),
+                  isinstance(dumped.get(key), bool))
+            check("{} wire {} matches registry".format(name, key),
+                  dumped.get(key) is spec[key])
+
+
 def main():
     print("\n=== itsoc_mcp smoke tests — all 8 tools, network-free ===\n")
     _no_trusted()
@@ -717,6 +818,8 @@ def main():
         test_propose_block_ip_missing_incident()
         test_propose_block_ip_ineligible_409()
         test_propose_block_ip_negative_authority()
+        test_tool_annotations()
+        test_tools_list_wire_annotations()
         # Standalone redaction: vendored mirror + drift-guard + active source.
         test_vendored_masks_by_default()
         test_redact_source_is_console_in_repo()
