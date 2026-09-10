@@ -1,4 +1,4 @@
-# Publishing `itsoc-mcp` — DRAFT (human-gated)
+# Publishing `itsoc-icp` — DRAFT (human-gated)
 
 This is a **draft** describing how to publish. Nothing here has been run. **Do
 not** run `twine upload`, `mcp-publisher login`, `mcp-publisher publish`, push to
@@ -14,21 +14,21 @@ intentionally left to a person.
 
 ## Server identity
 
-- **Registry name:** `io.github.Ankit512/itsoc-mcp` (GitHub-namespaced; matches the
+- **Registry name:** `io.github.Ankit512/itsoc-icp` (GitHub-namespaced; matches the
   `name` in `server.json` **and** the `mcp-name:` marker in the PyPI README).
-- **PyPI package:** `itsoc-mcp`
-- **Version:** `0.1.0` (must match across `pyproject.toml`, `server.json`, and the
+- **PyPI package:** `itsoc-icp`
+- **Version:** `0.2.0` (must match across `pyproject.toml`, `server.json`, and the
   PyPI upload on every release).
 - **One-line description:** MCP server over a local log-analysis backend with no
   action execution and no approval authority; a client that computes no verdicts.
-- **Homepage:** https://github.com/Ankit512/log-anomaly-detector
+- **Homepage:** https://github.com/Ankit512/itsoc
 - **License:** MIT · **Transport:** stdio
 - **Tools:** `analyze_log`, `list_runs`, `get_findings`, `get_evidence`,
   `explain_finding`, `export_run`, `threat_intel_lookup`, `propose_block_ip`
 
 ## Provenance & Execution Authority
 
-`itsoc-mcp` has **no action execution authority and no approval authority**:
+`itsoc-icp` has **no action execution authority and no approval authority**:
 - `propose_block_ip` creates an approval record in the `pending` state only.
 - It forwards strictly proposal facts (`incidentId`, `runbookId`) to `POST /api/approvals`.
 - It accepts and transmits NO credentials, passphrases, tokens, or actor identities.
@@ -39,14 +39,14 @@ intentionally left to a person.
 ## Publish flow (human-run, in order)
 
 Ownership of the `io.github.Ankit512/*` namespace is proven two ways: the
-`mcp-name: io.github.Ankit512/itsoc-mcp` marker that ships in the PyPI
+`mcp-name: io.github.Ankit512/itsoc-icp` marker that ships in the PyPI
 long-description (already in [`README.md`](README.md)), and a GitHub OAuth login.
 
 1. **PyPI upload FIRST** (the registry only references an already-published
    package). From `itsoc_mcp/`, with the maintainer's PyPI token:
 
    ```sh
-   python -m build                 # -> dist/itsoc_mcp-0.1.0-{whl,tar.gz}
+   python -m build                 # -> dist/itsoc_icp-0.2.0-{whl,tar.gz}
    twine upload dist/*             # human's PyPI token
    ```
 
@@ -73,11 +73,11 @@ re-upload to PyPI, then `mcp-publisher publish` again.
 ## Install (once published)
 
 ```sh
-uvx itsoc-mcp        # or: pipx run itsoc-mcp   (the backend must still be running)
+uvx itsoc-icp        # or: pipx run itsoc-icp   (the backend must still be running)
 ```
 
 > **Standalone, stated honestly:** the package is *designed* to run self-contained
-> from a bare `uvx itsoc-mcp` install; the clean out-of-repo venv check is
+> from a bare `uvx itsoc-icp` install; the clean out-of-repo venv check is
 > **pending** (see the pre-publish checklist below). Two caveats:
 > (1) the **backend still runs separately** — `python3 console/serve.py`, reachable
 > at `ITSOC_BASE_URL`; "standalone" means no repo checkout for the *MCP package*,
@@ -90,15 +90,15 @@ uvx itsoc-mcp        # or: pipx run itsoc-mcp   (the backend must still be runni
 ## Paste-ready MCP client registration (stdio)
 
 For Claude Desktop (`claude_desktop_config.json`) or Claude Code (`.mcp.json`).
-Replace `/ABSOLUTE/PATH/TO/log-analyzer` with the repo root:
+Replace `/ABSOLUTE/PATH/TO/itsoc` with the repo root:
 
 ```json
 {
   "mcpServers": {
-    "itsoc": {
+    "itsoc-icp": {
       "command": "python",
       "args": ["-m", "itsoc_mcp"],
-      "cwd": "/ABSOLUTE/PATH/TO/log-analyzer",
+      "cwd": "/ABSOLUTE/PATH/TO/itsoc",
       "env": {
         "ITSOC_BASE_URL": "http://127.0.0.1:8765"
       }
@@ -114,7 +114,7 @@ backend (`python3 console/serve.py`) must be running.
 
 The block above (`python -m itsoc_mcp`, `cwd` = repo root) gives the **full** tool
 set. A **standalone** registration also works — `"command": "uvx"`,
-`"args": ["itsoc-mcp"]`, no `cwd` needed — with the single caveat that
+`"args": ["itsoc-icp"]`, no `cwd` needed — with the single caveat that
 `threat_intel_lookup` fails closed (offline-TI needs the repo). Everything else is
 identical.
 

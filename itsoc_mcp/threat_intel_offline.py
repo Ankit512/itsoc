@@ -14,7 +14,7 @@ match against", never a fabricated verdict; if the ATT&CK cache is absent, IOC
 matches are still reported but technique names are marked unavailable.
 
 STANDALONE INSTALL: this path reuses the repo's sibling threat_intel/ package. In
-a bare `uvx itsoc-mcp` install that directory is not shipped, so the whole path is
+a bare `uvx itsoc-icp` install that directory is not shipped, so the whole path is
 unavailable. That is surfaced as ThreatIntelUnavailable and the tool FAILS CLOSED
 with an honest message — never a fabricated match or a fake all-clear.
 """
@@ -33,7 +33,7 @@ _THREAT_DIR = Path(__file__).resolve().parent.parent / "threat_intel"
 
 UNAVAILABLE_MSG = (
     "offline threat-intel is unavailable in this install: the repo's threat_intel/ "
-    "package is not on the path (expected in a standalone `uvx itsoc-mcp` install). "
+    "package is not on the path (expected in a standalone `uvx itsoc-icp` install). "
     "This is NOT a clean verdict and NOT an all-clear on the IP — run the MCP server "
     "from the repo (python -m itsoc_mcp) to use offline threat-intel."
 )

@@ -1,5 +1,7 @@
 # itsoc. — Local-first AI-assisted security operations
 
+[![M8ven Live Monitored](https://m8ven.ai/badge/mcp/ankit512-log-anomaly-detector-r25j8g)](https://m8ven.ai/mcp/ankit512-log-anomaly-detector-r25j8g)
+
 A local-first SOC workspace for turning raw logs into explainable, assignable work. The
 deterministic detector owns every severity verdict; the AI copilot reasons over the evidence,
 explains the dashboard, recommends next steps, and drafts work without changing a verdict or
@@ -35,8 +37,11 @@ executing an action. The default deployment keeps logs on your machine.
   live data.
 - **Enrichment & connectors** — offline MITRE ATT&CK mapping; optional threat-intel provider
   lookups and vendor (OEM) API connectors, all with user-supplied, write-only credentials.
-- **MCP server** — a read-only Model Context Protocol server exposes the analysis to MCP clients
-  (Claude Desktop / Claude Code); it computes no verdicts.
+- **MCP server (`itsoc-icp`)** — a Model Context Protocol server exposes the analysis to MCP
+  clients (Claude Desktop / Claude Code); it computes no verdicts. Tools that only read
+  (`list_runs`, `get_findings`, `get_evidence`, `export_run`, `threat_intel_lookup`) are
+  annotated `readOnlyHint: true`. `analyze_log`, `explain_finding`, and `propose_block_ip`
+  are additive writes (not destructive) and never approve or execute a response action.
 
 ### Active-scanning modules (opt-in, use with authorization)
 

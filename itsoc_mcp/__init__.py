@@ -17,4 +17,4 @@ Honesty is the whole point of the package:
     never a fabricated all-clear or an empty file dressed up as success.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
